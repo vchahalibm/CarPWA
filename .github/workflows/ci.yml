@@ -30,23 +30,3 @@ jobs:
             const missing = list.filter(f => f !== './' && !fs.existsSync(f));
             if (missing.length) { console.error('Missing precache files:', missing); process.exit(1); }
           "
-      - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        with:
-          path: .
-
-  # Publishes main to GitHub Pages (HTTPS, so GPS works on phones).
-  # One-time setup: Settings → Pages → Source: "GitHub Actions".
-  deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: check
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

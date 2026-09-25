@@ -35,7 +35,7 @@ manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
 icons/                    App icons; icon.svg is the source artwork
 vendor/leaflet/           Leaflet 1.9.4 (map library, BSD-2), kept locally so maps work offline
 docs/prototype.html       Original single-file prototype
-.github/workflows/ci.yml  Checks on every push/PR; deploys main to GitHub Pages
+.github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)
 ```
 
 All paths are relative, so the app runs from the site root or a sub-path such as `/CarPWA/`.
@@ -74,6 +74,8 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 
 ## Deployment (GitHub Pages)
 
-`.github/workflows/ci.yml` checks every push and PR (JS syntax, manifest, service-worker precache list). Pushes to `main` publish the repo as-is to GitHub Pages at `https://<owner>.github.io/CarPWA/`.
+The repo is published as-is from the `main` branch. There is no build step, and `.nojekyll` makes GitHub serve the files unprocessed. Every push to `main` goes live at `https://<owner>.github.io/CarPWA/` within a minute or two.
 
-One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+One-time setup: **Settings → Pages → Build and deployment → Source: Deploy from a branch**, then **Branch: `main`**, folder **`/ (root)`**, and **Save**.
+
+`.github/workflows/ci.yml` checks every push and PR (JS syntax, manifest, service-worker precache list).

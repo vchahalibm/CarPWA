@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="DriveDeck — a car-friendly dashboard for maps, music, messages and more.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DriveDeck">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.ico" sizes="48x48">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180x180.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/styles.css">
+<title>DriveDeck</title>
+</head>
+<body>
+<div id="app">
+  <!-- ======================= DOCK ======================= -->
+  <nav class="dock" aria-label="Dock">
+    <div class="dock-time" id="dockTime">9:41</div>
+    <div class="dock-status"><span id="netIcon"></span><span>5G</span><i class="gps-dot" id="gpsDot" title="Location"></i></div>
+    <div class="dock-recents" id="dockRecents"></div>
+    <div class="dock-spacer"></div>
+    <button class="dock-btn siri-btn" data-action="assistant" aria-label="Voice assistant" id="siriBtn"></button>
+    <button class="dock-btn" data-action="home" aria-label="Home" id="homeBtn"></button>
+  </nav>
+
+  <!-- ======================= STAGE ======================= -->
+  <main class="stage" id="stage">
+
+    <!-- Home -->
+    <section class="view wall" id="view-home">
+      <div class="home-pages" id="homePages"></div>
+      <div class="page-dots" id="pageDots"></div>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="view wall" id="view-dashboard">
+      <div class="dash">
+        <div class="card dash-map" data-open="maps">
+          <div class="map" id="dashMap"></div>
+          <div class="dash-map-ui">
+            <div class="mini-man" id="dashMan" hidden></div>
+            <button class="where-to" data-action="where"><span data-icon="search"></span>Where to?</button>
+            <div class="speed-pill" data-speed-pill><b data-speed>0</b><span data-speed-unit>mph</span></div>
+            <div class="loc-prompt" id="locPrompt" data-action="noop">
+              <h3>Location is off</h3>
+              <p>Allow GPS for live position and speed, or try a simulated drive.</p>
+              <div class="btns"><button class="big-btn accent" data-action="gps">Use GPS</button><button class="big-btn" data-action="demo">Demo drive</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="card dash-np" data-open="music">
+          <div class="np-row">
+            <div class="art" data-np="art"></div>
+            <div class="np-meta"><div class="np-source" data-np="source">Music</div><div class="np-title" data-np="title"></div><div class="np-artist" data-np="artist"></div></div>
+          </div>
+          <div class="bar" data-np="barwrap"><i data-np="bar"></i></div>
+          <div class="np-controls">
+            <button class="ctl" data-player="prev" aria-label="Previous"></button>
+            <button class="ctl main" data-player="toggle" aria-label="Play/Pause"></button>
+            <button class="ctl" data-player="next" aria-label="Next"></button>
+          </div>
+        </div>
+        <div class="dash-mini">
+          <button class="card mini-tile" data-open="weather" id="dashWeather"></button>
+          <button class="card mini-tile" data-open="calendar" id="dashEvent"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Maps -->
+    <section class="view" id="view-maps">
+      <div class="map" id="mainMap"></div>
+      <div class="map-ui">
+        <div class="map-panel" id="mapPanel"></div>
+        <div class="maneuver" id="maneuver"><span id="manIcon"></span><div><div class="man-dist" id="manDist"></div><div class="man-street" id="manStreet"></div></div></div>
+        <div class="map-controls">
+          <button class="map-btn" data-action="zoomIn" aria-label="Zoom in"><span data-icon="plus"></span></button>
+          <button class="map-btn" data-action="zoomOut" aria-label="Zoom out"><span data-icon="minus"></span></button>
+          <button class="map-btn" data-action="recenter" id="recenterBtn" aria-label="Recenter"><span data-icon="locate"></span></button>
+        </div>
+        <div class="speed-cluster">
+          <div id="limitSign"></div>
+          <div class="speed-pill" data-speed-pill><b data-speed>0</b><span data-speed-unit>mph</span></div>
+        </div>
+        <div class="eta-bar">
+          <div class="eta-cell"><b id="etaArr">--:--</b><span>arrival</span></div>
+          <div class="eta-cell"><b id="etaMin">0</b><span>min</span></div>
+          <div class="eta-cell"><b id="etaDist">0</b><span id="etaDistU">mi</span></div>
+          <button class="end-btn" data-action="endNav">End</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Music / Podcasts / Radio -->
+    <section class="view" id="view-music">
+      <header class="app-header">
+        <h1 data-np="source">Music</h1>
+        <div class="seg" id="musicSeg">
+          <button data-src="music">Music</button><button data-src="podcasts">Podcasts</button><button data-src="radio">Radio</button>
+        </div>
+      </header>
+      <div class="music-body">
+        <div class="mb-art"><div class="art" data-np="art"></div></div>
+        <div class="mb-side">
+          <div><div class="np-title" data-np="title"></div><div class="np-artist" data-np="artist"></div></div>
+          <div class="bar" data-np="barwrap"><i data-np="bar"></i></div>
+          <div class="times"><span data-np="elapsed">0:00</span><span data-np="remain">-0:00</span></div>
+          <div class="np-controls big">
+            <button class="ctl sm" data-player="shuffle" aria-label="Shuffle"></button>
+            <button class="ctl" data-player="prev" aria-label="Previous"></button>
+            <button class="ctl main" data-player="toggle" aria-label="Play/Pause"></button>
+            <button class="ctl" data-player="next" aria-label="Next"></button>
+            <button class="ctl sm" data-player="repeat" aria-label="Repeat"></button>
+          </div>
+          <div class="queue-title" id="queueTitle">Up Next</div>
+          <div class="list scroll queue" id="queue"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Phone -->
+    <section class="view" id="view-phone">
+      <header class="app-header">
+        <h1>Phone</h1>
+        <div class="seg" id="phoneSeg">
+          <button data-tab="favorites">Favorites</button><button data-tab="recents">Recents</button><button data-tab="contacts">Contacts</button><button data-tab="keypad">Keypad</button>
+        </div>
+      </header>
+      <div class="app-body scroll" id="phoneBody"></div>
+    </section>
+
+    <!-- Messages -->
+    <section class="view" id="view-messages">
+      <header class="app-header"><h1>Messages</h1><button class="pill-btn" data-cmd="read my messages">Read unread</button></header>
+      <div class="msg-split" id="msgSplit">
+        <div class="list scroll msg-list" id="msgList"></div>
+        <div class="msg-detail" id="msgDetail"></div>
+      </div>
+    </section>
+
+    <!-- Weather -->
+    <section class="view" id="view-weather">
+      <header class="app-header"><h1>Weather</h1><span class="sub" id="wxUpdated"></span></header>
+      <div class="wx" id="wxBody"></div>
+    </section>
+
+    <!-- Drive / trip computer -->
+    <section class="view" id="view-drive">
+      <header class="app-header"><h1>Drive</h1><span class="src-chip" id="srcChip"></span><button class="pill-btn" data-action="tripReset">Reset trip</button></header>
+      <div class="drive">
+        <div class="gauge-wrap">
+          <svg class="gauge" viewBox="0 0 200 200">
+            <defs><linearGradient id="gGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#30d158"/><stop offset=".6" stop-color="#ffd60a"/><stop offset="1" stop-color="#ff453a"/></linearGradient></defs>
+            <circle class="g-track" cx="100" cy="100" r="86" stroke-dasharray="405.3 540.4" transform="rotate(135 100 100)"/>
+            <circle class="g-val" id="gVal" cx="100" cy="100" r="86" stroke-dasharray="0 540.4" transform="rotate(135 100 100)"/>
+          </svg>
+          <div class="gauge-center"><b data-speed>0</b><span data-speed-unit>mph</span><div class="gauge-limit" id="gaugeLimit"></div></div>
+        </div>
+        <div class="drive-grid">
+          <div class="stat compass-stat">
+            <svg class="compass" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="var(--surface-3)" stroke-width="2"/>
+              <text x="50" y="14" class="n">N</text><text x="87" y="50">E</text><text x="50" y="86">S</text><text x="13" y="50">W</text>
+              <g id="needle"><path d="M50 22 L57 52 L50 47 L43 52 Z" fill="var(--red)"/><path d="M50 78 L57 52 L50 57 L43 52 Z" fill="var(--text-3)"/></g>
+            </svg>
+            <div><span>Heading</span><b id="dHeading">—</b></div>
+          </div>
+          <div class="stat"><span>Trip</span><b id="dTrip">0</b></div>
+          <div class="stat"><span>Trip time</span><b id="dTime">0:00</b></div>
+          <div class="stat"><span>Avg speed</span><b id="dAvg">0</b></div>
+          <div class="stat"><span>Max speed</span><b id="dMax">0</b></div>
+          <div class="stat"><span>Altitude</span><b id="dAlt">—</b></div>
+          <div class="stat"><span>Accuracy</span><b id="dAcc">—</b></div>
+          <div class="stat" style="grid-column:span 2"><span>Coordinates</span><b id="dCoord" class="small">—</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Calendar -->
+    <section class="view" id="view-calendar">
+      <header class="app-header"><h1>Today</h1><span class="sub" id="calDate"></span></header>
+      <div class="app-body scroll"><div class="cal-list" id="calList"></div></div>
+    </section>
+
+    <!-- Settings -->
+    <section class="view" id="view-settings">
+      <header class="app-header"><h1>Settings</h1></header>
+      <div class="app-body scroll"><div class="settings" id="settingsBody"></div></div>
+    </section>
+
+    <!-- Placeholder -->
+    <section class="view" id="view-placeholder">
+      <header class="app-header"><h1 id="phTitle">App</h1></header>
+      <div class="empty" id="phBody"></div>
+    </section>
+
+    <!-- Overlays -->
+    <div class="call-screen" id="callScreen" hidden></div>
+    <div class="assistant" id="assistant" data-action="closeAssistant" hidden>
+      <div class="orb"></div>
+      <div class="asst-card" data-action="noop">
+        <div class="asst-text" id="asstText">What can I help with?</div>
+        <div class="asst-hint" id="asstHint"></div>
+        <div class="chips">
+          <button class="chip" data-cmd="take me home">“Take me home”</button>
+          <button class="chip" data-cmd="play some music">“Play some music”</button>
+          <button class="chip" data-cmd="call mom">“Call Mom”</button>
+          <button class="chip" data-cmd="read my messages">“Read my messages”</button>
+          <button class="chip" data-cmd="find parking nearby">“Find parking”</button>
+          <button class="chip" data-cmd="what's the weather">“What’s the weather?”</button>
+        </div>
+      </div>
+    </div>
+    <div class="banner" id="banner"></div>
+    <div class="toast" id="toast"></div>
+  </main>
+</div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

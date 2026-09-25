@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check scripts
+        run: node --check js/app.js && node --check sw.js
+      - name: Validate manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'))"
+      - name: Check service worker precache list
+        run: |
+          node -e "
+            const fs = require('fs');
+            const src = fs.readFileSync('sw.js', 'utf8');
+            const list = src.match(/const SHELL = \[([\s\S]*?)\]/)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
+            const missing = list.filter(f => f !== './' && !fs.existsSync(f));
+            if (missing.length) { console.error('Missing precache files:', missing); process.exit(1); }
+          "
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        with:
+          path: .
+
+  # Publishes main to GitHub Pages (HTTPS, so GPS works on phones).
+  # One-time setup: Settings → Pages → Source: "GitHub Actions".
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

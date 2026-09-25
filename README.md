@@ -76,4 +76,8 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 
 `.github/workflows/ci.yml` checks every push and PR (JS syntax, manifest, service-worker precache list). Pushes to `main` publish the repo as-is to GitHub Pages at `https://<owner>.github.io/CarPWA/`.
 
-One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+One-time setup:
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. **Settings → Environments → github-pages → Deployment branches and tags**: make sure `main` is allowed. GitHub only allows the branch that was the default when Pages was first set up, so if `main` became the default later, the deploy job fails with *Branch "main" is not allowed to deploy to github-pages due to environment protection rules*.
+
+To redeploy without a code change: **Actions → CI → Run workflow** on `main`.

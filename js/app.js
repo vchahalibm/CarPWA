@@ -80,6 +80,18 @@ const I = {
   turnLeft: '<path d="M17 21v-8a5 5 0 0 0-5-5H4M9 3L4 8l5 5"/>',
   straight: '<path d="M12 21V4M6 10l6-6 6 6"/>',
   flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  slightRight: '<path d="M9 21v-7.5L17 5.5M11.5 5h6v6"/>',
+  slightLeft: '<path d="M15 21v-7.5L7 5.5M12.5 5h-6v6"/>',
+  uturn: '<path d="M17 21V9a5 5 0 0 0-10 0v10M3 15l4 4 4-4"/>',
+  roundabout: '<circle cx="12" cy="9" r="4.5"/><path d="M12 21v-7.5M16.5 9H21M18.5 6l3 3-3 3"/>',
+  merge: '<path d="M7 21v-4l10-10V3M13 7l4-4 4 4"/>',
+  cube: '<path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z"/><path d="M3.5 7.3L12 12l8.5-4.7M12 12v9.5"/>',
+  camera: '<path d="M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="4"/>',
+  hud: '<rect x="2.5" y="5" width="19" height="12" rx="2.5"/><path d="M8 21h8M12 17v4M8.5 13l3.5-4 3.5 4"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  mirror: '<path d="M12 3v18M9 7L4 12l5 5V7zM15 7l5 5-5 5V7z"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cloud: '<path d="M17.5 19H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20.5 12a3.5 3.5 0 0 1-3 7z"/>',
   rain: '<path d="M17.5 15H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20.5 8a3.5 3.5 0 0 1-3 7z"/><path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3"/>',
@@ -98,7 +110,9 @@ function hydrateIcons(root = document) { $$('[data-icon]', root).forEach(el => {
    ============================================================ */
 const settings = Object.assign({
   theme: 'dark', units: 'imperial', wallpaper: 0, speedLimit: true, voice: true,
-  hideWhileDriving: true, readAloud: true, wakeLock: true
+  hideWhileDriving: true, readAloud: true, wakeLock: true,
+  router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
+  arYaw: 0, arPitch: 0, arFov: 64
 }, store.get('settings', {}));
 
 const WALLS = [
@@ -119,7 +133,7 @@ function applySettings() {
   $('meta[name=theme-color]').content = theme === 'dark' ? '#000000' : '#f2f2f7';
   $('#app').style.setProperty('--wallpaper', WALLS[settings.wallpaper][theme]);
   renderLimit(); updateSpeedUI(); updateDrive();
-  syncWakeLock();
+  syncWakeLock(); restyleMaps();
   store.set('settings', settings);
 }
 darkMQ.addEventListener?.('change', () => settings.theme === 'auto' && applySettings());
@@ -205,11 +219,10 @@ const loc = { lat: 37.7749, lon: -122.4194, speed: 0, heading: 0, alt: null, acc
 const trip = { dist: 0, moving: 0, max: 0, start: Date.now() };
 let gpsWatch = null, demo = null, gotFirstFix = false;
 
-// Demo route: Embarcadero → down Market St (San Francisco)
+// Demo route: Embarcadero → down Market St (San Francisco). Used when no real route is available.
 const DEMO = [[37.7955, -122.3937], [37.7929, -122.3969], [37.7897, -122.4010], [37.7867, -122.4048], [37.7838, -122.4087],
   [37.7810, -122.4121], [37.7786, -122.4153], [37.7752, -122.4194], [37.7725, -122.4230], [37.7698, -122.4265]];
-const segLen = i => haversine(P(DEMO[i]), P(DEMO[i + 1]));
-const demoCum = DEMO.map((_, i) => { let s = 0; for (let j = 0; j < i; j++) s += segLen(j); return s; });
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function startGPS() {
   if (!('geolocation' in navigator)) { toast('Geolocation is not supported here'); return; }
@@ -234,15 +247,26 @@ function onPosition(p) {
   emit();
 }
 function onPositionError(err) {
-  const msg = err.code === 1 ? 'Location permission denied — try Demo drive' : err.code === 3 ? 'GPS timed out, still trying…' : 'Location unavailable';
-  toast(msg);
-  if (err.code === 1) { stopGPS(); loc.source = 'none'; store.set('locSource', 'none'); emit(); }
+  if (err.code === 1) { stopGPS(); loc.source = 'none'; store.set('locSource', 'none'); emit(); showLocationHelp(); return; }
+  toast(err.code === 3 ? 'GPS timed out, still trying…' : 'Location unavailable');
 }
-function startDemo() {
+function showLocationHelp() {
+  sheet('Location is blocked', isIOS
+    ? `<p>Your iPhone won’t ask again until location is allowed for this site:</p>
+       <ol><li>Open <b>Settings › Privacy &amp; Security › Location Services</b> and make sure it’s on.</li>
+       <li>Choose <b>Safari Websites</b> (or <b>DriveDeck</b> if you added it to the Home Screen) and pick <b>While Using the App</b> or <b>Ask Next Time</b>.</li>
+       <li>Come back and tap <b>Use GPS</b> again.</li></ol>`
+    : '<p>Allow location for this site in your browser’s site settings (the icon beside the address), then tap <b>Use GPS</b> again.</p>',
+    [['Try demo drive', () => ACTIONS.demo()], ['OK']]);
+}
+
+/* Demo drive: follows a path at realistic speeds (the route’s own road speeds while navigating). */
+function startDemo(path = DEMO, speeds = null) {
   stopGPS();
   clearInterval(demo?.timer);
-  demo = { seg: 0, t: 0, timer: setInterval(demoTick, 500) };
-  Object.assign(loc, P(DEMO[0]), { speed: 0, heading: bearing(P(DEMO[0]), P(DEMO[1])), alt: 12, acc: 5, source: 'demo', ts: Date.now() });
+  demo = { path, cum: Routing.cumulative(path), speeds, along: 0, timer: setInterval(demoTick, 500) };
+  const a = P(path[0]), b = P(path[1] || path[0]);
+  Object.assign(loc, a, { speed: 0, heading: bearing(a, b), alt: 12, acc: 5, source: 'demo', ts: Date.now() });
   store.set('locSource', 'demo');
   recenterAll(); emit();
 }
@@ -254,23 +278,29 @@ function stopDemo(announce) {
   emit();
 }
 function demoTick() {
-  const dt = 0.5, atEnd = demo.seg >= DEMO.length - 1;
-  if (atEnd) {
-    if (nav) { loc.speed = 0; emit(); return; } // hold at destination until arrival fires
-    demo.seg = 0; demo.t = 0;
+  const dt = 0.5, d = demo, end = d.cum.at(-1);
+  if (d.along >= end - 0.5) {
+    if (nav) { loc.speed = 0; loc.ts = Date.now(); emit(); return; } // hold at the destination until arrival fires
+    d.along = 0;
   }
-  const target = 14 + Math.sin(Date.now() / 5000) * 4; // ~ 22–40 mph with gentle variation
-  let move = target * dt;
-  while (move > 0 && demo.seg < DEMO.length - 1) {
-    const len = segLen(demo.seg), rem = len * (1 - demo.t);
-    if (move < rem) { demo.t += move / len; move = 0; } else { move -= rem; demo.seg++; demo.t = 0; }
-  }
-  const i = Math.min(demo.seg, DEMO.length - 2), a = P(DEMO[i]), b = P(DEMO[i + 1]), t = demo.seg >= DEMO.length - 1 ? 1 : demo.t;
+  const base = d.speeds?.[segAt(d.cum, d.along)] || 14;
+  const target = Math.min(31, Math.max(4, base)) * (0.92 + Math.sin(Date.now() / 5000) * 0.08);
+  d.along = Math.min(end, d.along + target * dt);
+  const i = segAt(d.cum, d.along), a = P(d.path[i]), b = P(d.path[Math.min(i + 1, d.path.length - 1)]);
+  const len = d.cum[i + 1] - d.cum[i] || 0, t = len ? Math.min(1, (d.along - d.cum[i]) / len) : 0;
   const next = { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
   addTrip(haversine(loc, next), dt, target);
-  Object.assign(loc, next, { speed: target, heading: bearing(a, b), alt: 12 + Math.sin(Date.now() / 9000) * 6, acc: 5, ts: Date.now() });
+  Object.assign(loc, next, { speed: target, heading: len > 0.5 ? bearing(a, b) : loc.heading, alt: 12 + Math.sin(Date.now() / 9000) * 6, acc: 5, ts: Date.now() });
   emit();
 }
+/** Index of the segment that contains distance `along` (binary search over cumulative distances). */
+function segAt(cum, along) {
+  let lo = 0, hi = cum.length - 2;
+  if (hi < 0) return 0;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (cum[mid] <= along) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+
 function addTrip(d, dt, speed) { trip.dist += d; if (speed > 0.8) trip.moving += dt; trip.max = Math.max(trip.max, speed); }
 
 const listeners = [];
@@ -280,7 +310,12 @@ function emit() { listeners.forEach(fn => fn()); }
 const imperial = () => settings.units === 'imperial';
 const speedVal = ms => Math.round(imperial() ? ms * 2.23694 : ms * 3.6);
 const speedUnit = () => imperial() ? 'mph' : 'km/h';
-const limitVal = () => imperial() ? 35 : 50;
+/** Speed limit for the road ahead in display units, or null when unknown. */
+function limitVal() {
+  const kmh = nav?.view?.limitKmh;
+  if (kmh) return imperial() ? Math.round(kmh / 1.609344 / 5) * 5 : Math.round(kmh);
+  return loc.source === 'demo' ? (imperial() ? 35 : 50) : null;
+}
 function fmtDist(m) {
   if (imperial()) {
     const ft = m * 3.28084;
@@ -294,66 +329,159 @@ const distStr = m => { const d = fmtDist(m); return d.v + ' ' + d.u; };
 const spokenDist = m => distStr(m).replace(/ ft$/, ' feet').replace(/ mi$/, ' miles').replace(/ km$/, ' kilometers').replace(/ m$/, ' meters');
 
 function updateSpeedUI() {
-  const v = speedVal(loc.speed), over = settings.speedLimit && v > limitVal();
+  const v = speedVal(loc.speed), lim = limitVal(), over = settings.speedLimit && lim != null && v > lim;
   $$('[data-speed]').forEach(e => e.textContent = loc.source === 'none' ? '—' : v);
   $$('[data-speed-unit]').forEach(e => e.textContent = speedUnit());
   $$('[data-speed-pill]').forEach(e => e.classList.toggle('over', over));
   $('#gpsDot').className = 'gps-dot ' + (loc.source === 'none' ? '' : loc.source);
   $('#locPrompt').hidden = loc.source !== 'none';
+  renderLimit();
 }
+let shownLimit = '';
 function renderLimit() {
-  $('#limitSign').innerHTML = !settings.speedLimit ? '' : imperial()
-    ? `<div class="limit-us"><small>SPEED<br>LIMIT</small><b>${limitVal()}</b></div>`
-    : `<div class="limit-eu">${limitVal()}</div>`;
+  const lim = settings.speedLimit ? limitVal() : null, key = `${lim}${settings.units}`;
+  if (key === shownLimit) return;
+  shownLimit = key;
+  const html = lim == null ? '' : imperial()
+    ? `<div class="limit-us"><small>SPEED<br>LIMIT</small><b>${lim}</b></div>`
+    : `<div class="limit-eu">${lim}</div>`;
+  $$('[data-limit]').forEach(e => e.innerHTML = html);
 }
 listeners.push(updateSpeedUI);
 
 /* ============================================================
-   Maps (Leaflet + CARTO basemap; graceful offline fallback)
+   Maps (MapLibre GL + OpenFreeMap vector tiles: free, no key)
    ============================================================ */
-const maps = { main: { follow: true, rot: 0 }, dash: { follow: true, rot: 0 } };
-// Key-free prototype basemap; night mode is a CSS filter on the tile pane. Production needs a keyed provider.
-const tileUrl = () => 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const maps = { main: { follow: true, el: '#mainMap' }, dash: { follow: true, el: '#dashMap' } };
+const MAP_STYLE = { light: 'https://tiles.openfreemap.org/styles/liberty', dark: 'https://tiles.openfreemap.org/styles/dark' };
+const TERRAIN_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const carHtml = '<div class="car-dot"><div class="car-arrow"></div></div>';
+const htmlEl = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+const offlineStyle = () => ({ version: 8, sources: {}, layers: [{ id: 'bg', type: 'background',
+  paint: { 'background-color': resolvedTheme() === 'dark' ? '#16181d' : '#e9e6df' } }] });
+let mapMode = settings.navMode === '3d' ? '3d' : 'map'; // how the main map is drawn: flat or tilted 3D
+let smoothHeading = 0;
 
 function ensureMap(key) {
   const M = maps[key];
-  if (M.map) { requestAnimationFrame(() => M.map.invalidateSize()); updateMaps(); return; }
-  if (M.fallback) { updateMaps(); return; }
-  const el = $(key === 'main' ? '#mainMap' : '#dashMap');
-  if (!window.L) { M.fallback = true; el.classList.add('fallback'); el.innerHTML = `<div class="fallback-car">${carHtml}</div>`; updateMaps(); return; }
-  const interactive = key === 'main';
-  M.map = L.map(el, { zoomControl: false, attributionControl: true, dragging: interactive, touchZoom: interactive, scrollWheelZoom: interactive,
-    doubleClickZoom: interactive, boxZoom: false, keyboard: false }).setView([loc.lat, loc.lon], interactive ? 16 : 15);
-  M.tiles = L.tileLayer(tileUrl(), { maxZoom: 19, attribution: 'Tiles © Esri, HERE, Garmin, © OpenStreetMap' }).addTo(M.map);
-  M.map.attributionControl.setPrefix(false);
-  if (interactive) M.map.on('dragstart', () => { M.follow = false; $('#recenterBtn').classList.add('on'); });
-  drawRoute(M); updateMaps();
+  if (M.map) { requestAnimationFrame(() => M.map.resize()); updateMaps({ force: true, instant: true }); return; }
+  if (M.fallback) { updateMaps({ force: true }); return; }
+  const el = $(M.el);
+  try {
+    if (!window.maplibregl) throw new Error('MapLibre not loaded');
+    M.styleKey = resolvedTheme();
+    M.map = new maplibregl.Map({ container: el, style: MAP_STYLE[M.styleKey], center: [loc.lon, loc.lat], zoom: key === 'main' ? 16 : 15,
+      interactive: key === 'main', attributionControl: { compact: true }, maxPitch: 75, fadeDuration: 0, dragRotate: false, pitchWithRotate: false });
+  } catch (e) {
+    console.warn('Map unavailable', e);
+    M.map = null; M.fallback = true; el.classList.add('fallback');
+    el.innerHTML = `<div class="fallback-car">${carHtml}</div>`; updateMaps({ force: true }); return;
+  }
+  M.map.touchZoomRotate?.disableRotation();
+  M.map.on('style.load', () => { M.styleReady = true; addOverlays(M); });
+  M.map.on('error', e => {
+    // Elevation tiles failing mid-drive: drop terrain rather than risk a broken 3D render.
+    if (e.sourceId === 'dd-dem') { demState = { ok: false, at: Date.now() }; if (M.map.getTerrain?.()) M.map.setTerrain(null); return; }
+    // Style or tiles unreachable (offline with an empty cache): use a plain background so the route still draws.
+    if (!M.offline && !M.styleReady) {
+      if (!M.triedLight && M.styleKey !== 'light') { M.triedLight = true; M.map.setStyle(MAP_STYLE.light); } // dark style missing: try the light one
+      else { M.offline = true; el.classList.add('fallback'); M.map.setStyle(offlineStyle()); }
+    }
+    console.warn('Map error', e.error?.message || e);
+  });
+  M.car = new maplibregl.Marker({ element: htmlEl(carHtml), rotationAlignment: 'map', pitchAlignment: 'map' })
+    .setLngLat([loc.lon, loc.lat]).addTo(M.map);
+  if (key === 'main') M.map.on('dragstart', () => { M.follow = false; $('#recenterBtn').classList.add('on'); });
+  updateMaps({ force: true, instant: true });
 }
-function updateMaps() {
+function addOverlays(M) {
+  const map = M.map, dark = resolvedTheme() === 'dark', empty = { type: 'FeatureCollection', features: [] };
+  for (const id of ['dd-done', 'dd-left']) if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data: empty });
+  const width = (lo, hi) => ['interpolate', ['linear'], ['zoom'], 12, lo, 18, hi];
+  const line = (id, source, color, w) => map.getLayer(id) || map.addLayer({ id, type: 'line', source,
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': color, 'line-width': w } });
+  line('dd-done', 'dd-done', dark ? '#6b6f78' : '#a3a8b0', width(4, 12));         // driven part of the route
+  line('dd-left-casing', 'dd-left', '#0647a8', width(7, 19));                        // remaining part
+  line('dd-left', 'dd-left', '#1a8cff', width(4, 12));
+  drawRoute(M); apply3D(M);
+}
+/** Tilt, terrain, 3D buildings and sky for the main map in 3D mode; flat everywhere else. */
+function apply3D(M) {
+  const map = M.map; if (!map || !M.styleReady) return;
+  const on = M === maps.main && mapMode === '3d', dark = resolvedTheme() === 'dark';
+  try {
+    if (on && !map.getLayer('dd-buildings') && map.getSource('openmaptiles') && !map.getStyle().layers.some(l => l.type === 'fill-extrusion'))
+      map.addLayer({ id: 'dd-buildings', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
+        paint: { 'fill-extrusion-color': dark ? '#2b2f38' : '#d8d3ca', 'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0] } }, 'dd-done');
+    if (on && settings.terrain && !M.offline && demReachable() === undefined) probeDem().then(() => apply3D(M));
+    if (on && settings.terrain && !M.offline && demReachable()) {
+      if (!map.getSource('dd-dem')) map.addSource('dd-dem', { type: 'raster-dem', tiles: [TERRAIN_TILES], encoding: 'terrarium',
+        tileSize: 256, maxzoom: 14, attribution: 'Elevation: Mapzen, AWS Open Data' });
+      map.setTerrain({ source: 'dd-dem', exaggeration: 1.2 });
+    } else if (map.getTerrain?.()) map.setTerrain(null);
+    if (on) map.setSky(dark
+      ? { 'sky-color': '#0a1330', 'horizon-color': '#2a426f', 'fog-color': '#10131a', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35 }
+      : { 'sky-color': '#79b2ff', 'horizon-color': '#e4f0ff', 'fog-color': '#eef3fa', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35 });
+  } catch (e) { console.warn('3D setup failed', e); }
+}
+// Terrain only goes on once an elevation tile has actually loaded: MapLibre can crash
+// drawing terrain whose tiles all fail (offline, blocked network).
+let demState = { ok: undefined, at: 0 };
+const demReachable = () => Date.now() - demState.at > 300000 ? undefined : demState.ok;
+async function probeDem() {
+  if (demState.pending) return demState.pending;
+  const z = 12, n = 2 ** z, x = Math.floor((loc.lon + 180) / 360 * n);
+  const y = Math.floor((1 - Math.log(Math.tan(rad(loc.lat)) + 1 / Math.cos(rad(loc.lat))) / Math.PI) / 2 * n);
+  demState.pending = fetch(TERRAIN_TILES.replace('{z}', z).replace('{x}', x).replace('{y}', y))
+    .then(r => r.ok, () => false)
+    .then(ok => { demState = { ok, at: Date.now() }; });
+  return demState.pending;
+}
+function restyleMaps() {
   for (const M of Object.values(maps)) {
-    const h = loc.heading || 0;
-    M.rot += ((h - M.rot) % 360 + 540) % 360 - 180; // shortest rotation path
-    if (M.fallback) { const a = $('.car-arrow', M === maps.main ? $('#mainMap') : $('#dashMap')); if (a) a.style.transform = `rotate(${M.rot}deg)`; continue; }
+    if (!M.map || M.styleKey === resolvedTheme()) continue;
+    M.styleKey = resolvedTheme(); M.offline = false; M.triedLight = false; M.styleReady = false; $(M.el).classList.remove('fallback');
+    M.map.setStyle(MAP_STYLE[M.styleKey]); // 'style.load' re-adds the route layers
+  }
+}
+function setMapMode(mode) {
+  mapMode = mode;
+  maps.main.follow = true; $('#recenterBtn').classList.remove('on');
+  apply3D(maps.main);
+  updateMaps({ force: true });
+}
+const zoomForSpeed = () => { const v = loc.speed || 0; return v < 8 ? 17.3 : v < 18 ? 16.6 : v < 28 ? 15.9 : 15.2; };
+function updateMaps(opts = {}) {
+  const h = loc.heading || 0;
+  smoothHeading += ((h - smoothHeading) % 360 + 540) % 360 - 180; // shortest rotation path
+  for (const [key, M] of Object.entries(maps)) {
+    if (M.fallback) { const a = $('.car-arrow', $(M.el)); if (a) a.style.transform = `rotate(${smoothHeading}deg)`; continue; }
     if (!M.map) continue;
-    const ll = [loc.lat, loc.lon];
-    if (!M.car) M.car = L.marker(ll, { icon: L.divIcon({ className: 'car-marker', html: carHtml, iconSize: [44, 44], iconAnchor: [22, 22] }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(M.map);
-    else M.car.setLatLng(ll);
-    const arrow = M.car.getElement()?.querySelector('.car-arrow');
-    if (arrow) arrow.style.transform = `rotate(${M.rot}deg)`;
-    if (M.follow && loc.source !== 'none') M.map.panTo(ll, { animate: true, duration: 0.45 });
+    M.car.setLngLat([loc.lon, loc.lat]).setRotation(smoothHeading);
+    const el = M.map.getContainer();
+    if (!M.follow || (loc.source === 'none' && !opts.force) || !el.clientWidth) continue;
+    const threeD = key === 'main' && mapMode === '3d', pad = { top: 0, bottom: 0, left: 0, right: 0 };
+    const cam = threeD
+      ? { center: [loc.lon, loc.lat], bearing: smoothHeading, pitch: 62, zoom: zoomForSpeed(), padding: { ...pad, top: el.clientHeight * 0.42 } }
+      : { center: [loc.lon, loc.lat], bearing: 0, pitch: 0, padding: pad };
+    M.map.easeTo({ ...cam, duration: opts.instant ? 0 : 900, easing: t => t, essential: true });
   }
 }
 function recenterAll() {
-  for (const M of Object.values(maps)) { M.follow = true; M.map?.setView([loc.lat, loc.lon], nav ? 17 : 16); }
+  for (const M of Object.values(maps)) { M.follow = true; if (M.map && !(M === maps.main && mapMode === '3d')) M.map.setZoom(nav ? 17 : 16); }
   $('#recenterBtn').classList.remove('on');
+  updateMaps({ force: true });
 }
-listeners.push(updateMaps);
+listeners.push(() => updateMaps());
 
-/* Search panel, destinations & points of interest */
+/* ============================================================
+   Search panel, saved places and nearby places
+   ============================================================ */
 const panel = { mode: 'home', q: '', cat: null, collapsed: false };
-let panelItems = [];
+let panelItems = [], remoteItems = [], remoteFor = '', searchTimer = null;
 const CATS = [['Gas', 'fuel', '#ff9f0a'], ['Parking', 'parking', '#0a84ff'], ['EV Chargers', 'bolt', '#30d158'], ['Coffee', 'coffee', '#ac8e68'], ['Food', 'food', '#ff453a']];
+// Offline samples, used only when the live nearby search is unreachable.
 const POIS = {
   'Gas': ['Shell', 'Chevron', '76 Station', 'Arco'],
   'Parking': ['Civic Center Garage', '5th & Mission Garage', 'Union Square Garage', 'Sutter-Stockton Garage'],
@@ -361,18 +489,37 @@ const POIS = {
   'Coffee': ['Blue Bottle Coffee', 'Sightglass', 'Ritual Coffee', 'Philz Coffee'],
   'Food': ['Tartine Bakery', 'Souvla', 'Nopa', 'Zuni Café'],
 };
+const SF = { lat: 37.7749, lon: -122.4194 };
 function destinations() {
+  const saved = store.get('places', {}), nearSF = haversine(loc, SF) < 30000;
+  // Unsaved Home/Work fall back to samples: real San Francisco spots for the demo drive, else offsets from you.
+  const place = (id, name, icon, color, sf, dLat, dLon) => saved[id]
+    ? { id, name, icon, color, sub: saved[id].sub, lat: saved[id].lat, lon: saved[id].lon }
+    : { id, name, icon, color, sub: 'Sample · save yours with ☆ in search', ...(nearSF ? sf : { lat: loc.lat + dLat, lon: loc.lon + dLon }) };
+  const recent = store.get('recentPlaces', []).map(r => ({ ...r, icon: 'pin', color: '#ff9f0a', sub: r.sub || 'Recent' }));
   return [
-    { id: 'home', name: 'Home', sub: '1234 Oak Street', icon: 'house', color: '#0a84ff', dLat: -0.024, dLon: -0.009 },
-    { id: 'work', name: 'Work', sub: 'Bobworks HQ', icon: 'briefcase', color: '#8e5cf7', dLat: 0.016, dLon: 0.013 },
-    { id: 'coffee', name: 'Blue Bottle Coffee', sub: 'Recent', icon: 'coffee', color: '#ac8e68', dLat: 0.006, dLon: -0.004 },
-    { id: 'gym', name: 'Equinox', sub: 'Recent', icon: 'dumbbell', color: '#ff375f', dLat: -0.009, dLon: 0.011 },
-  ].map(d => ({ ...d, lat: loc.lat + d.dLat, lon: loc.lon + d.dLon }));
+    place('home', 'Home', 'house', '#0a84ff', { lat: 37.7596, lon: -122.4269 }, -0.024, -0.009),
+    place('work', 'Work', 'briefcase', '#8e5cf7', { lat: 37.7897, lon: -122.3972 }, 0.016, 0.013),
+    ...(recent.length ? recent.slice(0, 4) : [
+      place('coffee', 'Blue Bottle Coffee', 'coffee', '#ac8e68', { lat: 37.7823, lon: -122.4077 }, 0.006, -0.004),
+      place('gym', 'Equinox', 'dumbbell', '#ff375f', { lat: 37.7880, lon: -122.4075 }, -0.009, 0.011),
+    ]),
+  ];
 }
 function poisFor(cat) {
   const [, icon, color] = CATS.find(c => c[0] === cat);
-  return POIS[cat].map((name, i) => ({ id: cat + i, name, icon, color, sub: cat,
+  return POIS[cat].map((name, i) => ({ id: cat + i, name, icon, color, sub: 'Sample · offline',
     lat: loc.lat + (i + 1) * 0.0045 * (i % 2 ? 1 : -1), lon: loc.lon + (i + 1) * 0.0055 * (i % 3 ? -1 : 1) }));
+}
+function rememberPlace(d) {
+  if (d.id === 'home' || d.id === 'work') return;
+  const r = { id: 'r' + Math.round(d.lat * 1e4) + Math.round(d.lon * 1e4), name: d.name, sub: d.sub, lat: d.lat, lon: d.lon };
+  store.set('recentPlaces', [r, ...store.get('recentPlaces', []).filter(x => x.name !== r.name)].slice(0, 5));
+}
+function savePlace(id, d) {
+  const p = store.get('places', {});
+  p[id] = { lat: d.lat, lon: d.lon, sub: [d.name, d.sub].filter(Boolean).join(', ') };
+  store.set('places', p); toast(`${id === 'home' ? 'Home' : 'Work'} saved`); renderPanelList();
 }
 function renderMapPanel() {
   const el = $('#mapPanel');
@@ -392,78 +539,173 @@ function renderMapPanel() {
 }
 function renderPanelList() {
   const list = $('#panelList'); if (!list) return;
-  if (panel.mode === 'category') panelItems = poisFor(panel.cat);
-  else {
+  let loading = false;
+  if (panel.mode === 'category') {
+    const key = 'cat:' + panel.cat;
+    if (remoteFor !== key) { remoteFor = key; remoteItems = null; fetchNearby(panel.cat, key); }
+    loading = remoteItems === null;
+    panelItems = remoteItems?.length ? remoteItems : loading ? [] : poisFor(panel.cat);
+  } else {
     const q = panel.q.trim().toLowerCase();
-    const all = [...destinations(), ...CATS.flatMap(c => poisFor(c[0]))];
-    panelItems = q ? all.filter(d => (d.name + ' ' + d.sub).toLowerCase().includes(q)) : destinations();
+    const local = q ? destinations().filter(d => (d.name + ' ' + d.sub).toLowerCase().includes(q)) : destinations();
+    if (q.length >= 3) {
+      const key = 'q:' + q;
+      if (remoteFor !== key) { remoteFor = key; remoteItems = null; clearTimeout(searchTimer); searchTimer = setTimeout(() => fetchSearch(q, key), 350); }
+      loading = remoteItems === null;
+    } else { remoteFor = ''; remoteItems = []; }
+    panelItems = [...local, ...(remoteItems || [])];
   }
   panelItems.forEach(d => d.dist = haversine(loc, d));
   if (panel.mode === 'category') panelItems.sort((a, b) => a.dist - b.dist);
-  list.innerHTML = panelItems.length ? panelItems.map((d, i) => `<button class="row" data-dest="${i}">
+  const chev = svg('chevDown').replace('<svg', '<svg style="transform:rotate(-90deg);width:18px;height:18px;opacity:.4"');
+  list.innerHTML = panelItems.map((d, i) => `<div class="row-wrap"><button class="row" data-dest="${i}">
       <div class="poi-ic" style="background:${d.color}">${svg(d.icon)}</div>
-      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${distStr(d.dist)} · ${esc(d.sub)}</div></div>${svg('chevDown').replace('<svg', '<svg style="transform:rotate(-90deg);width:18px;height:18px;opacity:.4"')}</button>`).join('')
-    : `<div class="row"><div class="main"><div class="s">No results for “${esc(panel.q)}”</div></div></div>`;
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${distStr(d.dist)}${d.sub ? ' · ' + esc(d.sub) : ''}</div></div>${d.remote ? '' : chev}</button>
+      ${d.remote ? `<button class="row-act" data-save="${i}" aria-label="Save ${esc(d.name)} as Home or Work">${svg('star')}</button>` : ''}</div>`).join('')
+    + (loading ? '<div class="row"><div class="main"><div class="s">Searching…</div></div></div>' : '')
+    + (!panelItems.length && !loading ? `<div class="row"><div class="main"><div class="s">No results for “${esc(panel.q || panel.cat)}”</div></div></div>` : '');
+}
+async function fetchSearch(q, key) {
+  let items = [];
+  try { items = await Routing.search(q, loc); } catch (e) { console.warn('Search failed', e); if (remoteFor === key) toast('Place search is offline'); }
+  if (remoteFor === key) { remoteItems = items; renderPanelList(); }
+}
+async function fetchNearby(cat, key) {
+  const [, icon, color] = CATS.find(c => c[0] === cat);
+  let items = [];
+  try { items = (await Routing.nearby(cat, loc)).map(p => ({ ...p, icon, color })); } catch (e) { console.warn('Nearby search failed', e); }
+  if (remoteFor === key) { remoteItems = items; renderPanelList(); }
 }
 
-/* Turn-by-turn navigation (mock guidance on a real or simulated track) */
-let nav = null;
-function startNav(dest) {
-  if (!dest) return;
-  if (loc.source === 'none') { toast('Starting demo drive for navigation'); }
-  let route;
-  if (loc.source === 'gps') route = [[loc.lat, loc.lon], [dest.lat, dest.lon]];
-  else { startDemo(); route = DEMO.map(p => [...p]); dest = { ...dest, lat: DEMO.at(-1)[0], lon: DEMO.at(-1)[1] }; }
-  const total = pathLength(route);
-  nav = { dest, route, total, lastSpoken: -1, maneuvers: [
-    { at: total * 0.2, type: 'turnRight', street: 'Market St' },
-    { at: total * 0.5, type: 'straight', street: 'Market St' },
-    { at: total * 0.8, type: 'turnLeft', street: 'Valencia St' },
-    { at: total, type: 'flag', street: dest.name },
-  ] };
-  $('#view-maps').classList.add('navigating'); $('#view-dashboard').classList.add('navigating');
-  Object.values(maps).forEach(drawRoute);
-  openView('maps'); recenterAll();
-  speak(`Starting route to ${dest.name}.`);
-  updateNav();
+/* ============================================================
+   Turn-by-turn navigation on a real route
+   ============================================================ */
+let nav = null, navToken = 0;
+const routeOpts = () => ({ provider: settings.router, tomtomKey: settings.tomtomKey });
+const localXY = (lat0, lon0) => { const kx = Math.cos(rad(lat0)) * 111320, ky = 110540; return (lat, lon) => [(lon - lon0) * kx, (lat - lat0) * ky]; };
+const lowerFirst = s => s.charAt(0).toLowerCase() + s.slice(1);
+const fmtMins = s => s < 3600 ? String(Math.max(1, Math.round(s / 60))) : `${Math.floor(s / 3600)}:${String(Math.round(s % 3600 / 60)).padStart(2, '0')}`;
+
+/** Snap a position onto the route: nearest segment around the previous match (whole route if lost). */
+function snapToRoute(route, pos, hint = 0) {
+  const c = route.coords, xy = localXY(pos.lat, pos.lon);
+  let best = { d: Infinity, i: 0, t: 0 };
+  const scan = (from, to) => {
+    for (let i = from; i <= to; i++) {
+      const [ax, ay] = xy(c[i][0], c[i][1]), [bx, by] = xy(c[i + 1][0], c[i + 1][1]);
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0, d = Math.hypot(ax + dx * t, ay + dy * t);
+      if (d < best.d) best = { d, i, t };
+    }
+  };
+  scan(Math.max(0, hint - 10), Math.min(c.length - 2, hint + 150));
+  if (best.d > 80) scan(0, c.length - 2);
+  const { i, t } = best, j = Math.min(i + 1, c.length - 1);
+  return { idx: i, cross: best.d, along: route.cum[i] + (route.cum[j] - route.cum[i]) * t,
+    time: route.tcum[i] + (route.tcum[j] - route.tcum[i]) * t,
+    pos: { lat: c[i][0] + (c[j][0] - c[i][0]) * t, lon: c[i][1] + (c[j][1] - c[i][1]) * t } };
 }
 function drawRoute(M) {
-  if (!M.map) return;
-  (M.routeLayers || []).forEach(l => l.remove()); M.routeLayers = [];
-  if (!nav) return;
-  M.routeLayers = [
-    L.polyline(nav.route, { color: '#0647a8', weight: 12, opacity: .9, lineCap: 'round', lineJoin: 'round' }),
-    L.polyline(nav.route, { color: '#1a8cff', weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round' }),
-    L.marker(nav.route.at(-1), { icon: L.divIcon({ className: 'dest-pin', html: '<div></div>', iconSize: [30, 30], iconAnchor: [15, 34] }), interactive: false }),
-  ].map(l => l.addTo(M.map));
+  const map = M.map; if (!map || !map.getSource('dd-left')) return;
+  const empty = { type: 'FeatureCollection', features: [] };
+  if (!nav) { map.getSource('dd-done').setData(empty); map.getSource('dd-left').setData(empty); M.dest?.remove(); M.dest = null; return; }
+  const line = pts => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(([la, lo]) => [lo, la]) } });
+  const c = nav.route.coords, v = nav.view, cut = v ? [v.pos.lat, v.pos.lon] : c[0], i = v ? v.idx : 0;
+  map.getSource('dd-done').setData(line([...c.slice(0, i + 1), cut]));
+  map.getSource('dd-left').setData(line([cut, ...c.slice(i + 1)]));
+  const d = c.at(-1);
+  if (!M.dest) M.dest = new maplibregl.Marker({ element: htmlEl('<div class="dest-pin"><div></div></div>'), anchor: 'bottom' }).setLngLat([d[1], d[0]]).addTo(map);
+  else M.dest.setLngLat([d[1], d[0]]);
 }
-const VERB = { turnRight: 'Turn right onto', turnLeft: 'Turn left onto', straight: 'Continue on', flag: 'Arrive at' };
+function startDemoOnRoute(route) {
+  const speeds = route.cum.slice(1).map((d, i) => { const dt = route.tcum[i + 1] - route.tcum[i]; return dt > 0 ? (d - route.cum[i]) / dt : null; });
+  startDemo(route.coords, speeds);
+}
+async function startNav(dest) {
+  if (!dest) return;
+  const token = ++navToken;
+  nav = null;
+  if (loc.source === 'none') { toast('Starting demo drive for navigation'); startDemo(); }
+  toast('Finding the best route…');
+  const from = { lat: loc.lat, lon: loc.lon };
+  let route;
+  try { route = await Routing.route(from, dest, routeOpts()); }
+  catch (e) {
+    console.warn('Routing failed', e);
+    if (token !== navToken) return;
+    if (loc.source === 'demo') { route = Routing.approx(DEMO, dest.name); dest = { ...dest, lat: DEMO.at(-1)[0], lon: DEMO.at(-1)[1] }; }
+    else route = Routing.approx([[from.lat, from.lon], [dest.lat, dest.lon]], dest.name);
+    toast('Routing is offline, showing an approximate route');
+  }
+  if (token !== navToken) return;
+  if (loc.source === 'demo') startDemoOnRoute(route);
+  nav = { dest, route, idx: 0, said: {}, offSince: 0, lastReroute: Date.now(), view: null };
+  rememberPlace(dest);
+  $('#view-maps').classList.add('navigating'); $('#view-dashboard').classList.add('navigating');
+  if (current !== 'maps' && !modeOverlayOpen()) openView('maps');
+  recenterAll();
+  const mins = Math.max(1, Math.round(route.duration / 60));
+  if (settings.voice) speak(`Starting route to ${dest.name}. ${mins} minute${mins === 1 ? '' : 's'}` +
+    (route.trafficDelay > 120 ? `, including ${Math.round(route.trafficDelay / 60)} minutes of traffic.` : '.'));
+  updateNav();
+}
+async function reroute() {
+  if (!nav || nav.rerouting) return;
+  const cur = nav;
+  cur.rerouting = true; cur.lastReroute = Date.now();
+  toast('Rerouting…'); if (settings.voice) speak('Rerouting.');
+  try {
+    const route = await Routing.route({ lat: loc.lat, lon: loc.lon }, cur.dest, routeOpts());
+    if (nav === cur) Object.assign(cur, { route, idx: 0, said: {}, offSince: 0 });
+  } catch (e) { console.warn('Reroute failed', e); }
+  cur.rerouting = false;
+}
 function updateNav() {
   if (!nav) return;
-  const done = loc.source === 'demo' && demo ? demoCum[Math.min(demo.seg, DEMO.length - 1)] + (demo.seg < DEMO.length - 1 ? demo.t * segLen(demo.seg) : 0)
-    : Math.max(0, nav.total - haversine(loc, nav.dest));
-  const remain = Math.max(0, nav.total - done);
-  if (remain < 25) return arrive();
-  const idx = nav.maneuvers.findIndex(m => m.at > done + 3), man = nav.maneuvers[idx], toNext = man.at - done;
-  const d = fmtDist(toNext);
-  $('#manIcon').innerHTML = svg(man.type);
+  const r = nav.route, total = r.cum.at(-1), s = snapToRoute(r, loc, nav.idx);
+  nav.idx = s.idx;
+  const remain = Math.max(0, total - s.along), remainT = Math.max(0, r.tcum.at(-1) - s.time);
+  if (remain < 25 || (s.cross < 40 && haversine(loc, P(r.coords.at(-1))) < 20)) return arrive();
+  // Off the route for a few seconds on live GPS → ask for a new route.
+  const off = s.cross > Math.max(40, (loc.acc || 0) * 1.5);
+  if (off && loc.source === 'gps') {
+    nav.offSince ||= Date.now();
+    if (Date.now() - nav.offSince > 6000 && Date.now() - nav.lastReroute > 15000) reroute();
+  } else nav.offSince = 0;
+  const si = r.steps.findIndex(st => st.at > s.along + 5), step = r.steps[si] ?? r.steps.at(-1), toNext = Math.max(0, step.at - s.along);
+  const eta = new Date(Date.now() + remainT * 1000);
+  nav.view = { ...s, remain, remainT, eta, step, stepIdx: si, toNext, limitKmh: r.segLimit?.[s.idx] ?? null, progress: total ? 1 - remain / total : 0, off };
+
+  const d = fmtDist(toNext), rd = fmtDist(remain);
+  $('#manIcon').innerHTML = svg(step.icon);
   $('#manDist').textContent = `${d.v} ${d.u}`;
-  $('#manStreet').textContent = `${VERB[man.type]} ${man.street}`;
+  $('#manStreet').textContent = step.text;
   $('#dashMan').hidden = false;
-  $('#dashMan').innerHTML = `${svg(man.type)}<div><b>${d.v} ${d.u}</b><span>${esc(man.street)}</span></div>`;
-  const secs = remain / Math.max(loc.speed, 11), rd = fmtDist(remain);
-  $('#etaArr').textContent = fmtClock(new Date(Date.now() + secs * 1000)).replace(/\s?[AP]M/i, '');
-  $('#etaMin').textContent = Math.max(1, Math.round(secs / 60));
+  $('#dashMan').innerHTML = `${svg(step.icon)}<div><b>${d.v} ${d.u}</b><span>${esc(step.street || step.text)}</span></div>`;
+  $('#etaArr').textContent = fmtClock(eta).replace(/\s?[AP]M/i, '');
+  $('#etaMin').textContent = fmtMins(remainT); $('#etaMinU').textContent = remainT >= 3600 ? 'hr' : 'min';
   $('#etaDist').textContent = rd.v; $('#etaDistU').textContent = rd.u;
-  if (idx !== nav.lastSpoken && settings.voice) { nav.lastSpoken = idx; speak(`In ${spokenDist(toNext)}, ${VERB[man.type].toLowerCase()} ${man.street}.`); }
+  const delay = r.trafficDelay > 60 ? Math.round(r.trafficDelay / 60) : 0;
+  $('#etaTraffic').hidden = !delay; $('#etaTraffic').textContent = delay ? `+${delay} min traffic` : '';
+  Object.values(maps).forEach(drawRoute);
+  renderLimit();
+  announce(si, step, toNext);
+}
+/** Two spoken prompts per maneuver: a heads-up ~30 s out, then "now" just before it. */
+function announce(si, step, toNext) {
+  if (!settings.voice || si < 0) return;
+  const said = nav.said[si] ||= {}, near = Math.max(60, loc.speed * 9);
+  if (!said.near && toNext <= near) { said.near = said.prep = true; speak(step.text + '.'); }
+  else if (!said.prep && toNext > near * 1.6 && toNext < Math.max(500, loc.speed * 35)) { said.prep = true; speak(`In ${spokenDist(toNext)}, ${lowerFirst(step.text)}.`); }
 }
 function arrive() { const n = nav.dest.name; endNav(); toast(`Arrived at ${n}`); if (settings.voice) speak(`You have arrived at ${n}.`); }
 function endNav() {
-  nav = null;
+  nav = null; navToken++;
   $('#view-maps').classList.remove('navigating'); $('#view-dashboard').classList.remove('navigating');
   $('#dashMan').hidden = true;
   Object.values(maps).forEach(drawRoute);
-  if (maps.main.map) maps.main.map.setZoom(16);
+  if (maps.main.map && mapMode !== '3d') maps.main.map.setZoom(16);
+  renderLimit(); emit();
 }
 listeners.push(updateNav);
 
@@ -772,10 +1014,10 @@ function renderDashTiles() {
    Drive (trip computer)
    ============================================================ */
 function updateDrive() {
-  const v = speedVal(loc.speed), scale = imperial() ? 100 : 160, over = settings.speedLimit && v > limitVal();
+  const v = speedVal(loc.speed), scale = imperial() ? 100 : 160, lim = limitVal(), over = settings.speedLimit && lim != null && v > lim;
   $('#gVal').setAttribute('stroke-dasharray', `${Math.min(1, v / scale) * 405.3} 540.4`);
-  $('#gaugeLimit').textContent = settings.speedLimit ? `Limit ${limitVal()}` : '';
-  $('#gaugeLimit').hidden = !settings.speedLimit;
+  $('#gaugeLimit').textContent = settings.speedLimit && lim != null ? `Limit ${lim}` : '';
+  $('#gaugeLimit').hidden = !settings.speedLimit || lim == null;
   $('#gaugeLimit').classList.toggle('over', over);
   const h = loc.heading || 0;
   $('#needle').style.transform = `rotate(${h}deg)`;
@@ -802,6 +1044,9 @@ function renderSettings() {
   const tog = (k, t, s = '') => `<div class="row"><div class="main"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div><button class="switch ${settings[k] ? 'on' : ''}" data-toggle="${k}" role="switch" aria-checked="${!!settings[k]}" aria-label="${t}"></button></div>`;
   const btn = (a, t, v = '') => `<button class="row btn" data-action="${a}"><div class="main"><div class="t">${t}</div></div><span class="val">${v}</span></button>`;
   const srcLabel = { gps: 'Device GPS', demo: 'Demo drive', none: 'Off' }[loc.source];
+  const routerNote = settings.router === 'tomtom'
+    ? (settings.tomtomKey ? 'Live-traffic travel times from TomTom' : 'Add your free TomTom key below')
+    : 'OpenStreetMap routing · typical travel times, no live traffic';
   $('#settingsBody').innerHTML = `
     <div class="group-title">Display</div>
     <div class="group">
@@ -817,6 +1062,14 @@ function renderSettings() {
       ${tog('hideWhileDriving', 'Hide message text while driving', 'Messages are read aloud instead')}
       ${tog('readAloud', 'Auto-read messages when opened while driving')}
     </div>
+    <div class="group-title">Navigation</div>
+    <div class="group">
+      <div class="row"><div class="main"><div class="t">Routing &amp; traffic</div><div class="s">${routerNote}</div></div>${seg('router', [['osrm', 'Free'], ['tomtom', 'TomTom traffic']])}</div>
+      ${btn('tomtomKey', 'TomTom API key', settings.tomtomKey ? '••••' + esc(settings.tomtomKey.slice(-4)) : 'Not set')}
+      ${tog('terrain', '3D terrain', 'Hills and elevation in 3D mode')}
+      ${tog('hudMirror', 'Mirror HUD for the windshield', 'Lay the phone flat below the windshield and read the reflection')}
+      ${btn('arReset', 'Reset AR calibration')}
+    </div>
     <div class="group-title">Location</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Source</div></div><span class="val">${srcLabel}</span></div>
@@ -828,7 +1081,7 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${deferredInstall ? btn('install', 'Install app') : ''}
-      <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">Prototype v0.1</span></div>
+      <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.2</span></div>
     </div>`;
 }
 
@@ -860,9 +1113,17 @@ function handleCommand(raw) {
   $('#assistant').hidden = false;
   const reply = (msg, then) => { setAsst(msg); speak(msg); setTimeout(() => { closeAssistant(); then?.(); }, 1300); };
   let m;
-  if (/\b(home|work)\b/.test(t) && /(take|navigate|directions|go|drive|route|get)/.test(t)) {
+  if ((m = t.match(/\b(ar|camera|hud|heads.?up|3d|three d|map)\s*(mode|view)\b/)) || /^(ar|hud|3d) ?(mode)?$/.test(t.trim())) {
+    const w = (m ? m[1] : t.trim().split(' ')[0]), id = /hud|heads/.test(w) ? 'hud' : /ar|camera/.test(w) ? 'ar' : /3d|three/.test(w) ? '3d' : 'map';
+    reply(`${MODES.find(x => x.id === id).name} mode.`, () => setMode(id));
+  } else if (/\b(home|work)\b/.test(t) && /(take|navigate|directions|go|drive|route|get)/.test(t)) {
     const id = /work/.test(t) ? 'work' : 'home';
     reply(`Getting directions to ${id === 'home' ? 'Home' : 'Work'}.`, () => startNav(destinations().find(d => d.id === id)));
+  } else if ((m = t.match(/(?:navigate|directions|take me|drive|go) to (.+)/))) {
+    const q = m[1].trim().replace(/[.?!]$/, '');
+    setAsst(`Looking for ${q}…`);
+    Routing.search(q, loc).then(r => r[0] ? reply(`Getting directions to ${r[0].name}.`, () => startNav(r[0])) : reply(`I couldn’t find ${q}.`))
+      .catch(() => reply('Place search is offline right now.'));
   } else if ((m = t.match(/(gas|fuel|parking|charg|coffee|food|restaurant)/))) {
     const cat = { gas: 'Gas', fuel: 'Gas', parking: 'Parking', charg: 'EV Chargers', coffee: 'Coffee', food: 'Food', restaurant: 'Food' }[m[1]];
     reply(`Here’s ${cat.toLowerCase()} nearby.`, () => { panel.mode = 'category'; panel.cat = cat; panel.collapsed = false; openView('maps'); renderMapPanel(); });
@@ -905,6 +1166,15 @@ function notify({ app, title, body, onTap }) {
   b.classList.add('show');
   clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('show'), 6500);
 }
+let sheetFns = [];
+/** Modal card with big buttons: sheet(title, html, [[label, fn?], …]); the first button is the accent one. */
+function sheet(title, body, buttons) {
+  sheetFns = buttons.map(b => b[1]);
+  $('#sheet').innerHTML = `<div class="sheet-card" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3><div class="sheet-body">${body}</div>
+    <div class="btns">${buttons.map((b, i) => `<button class="big-btn ${i ? '' : 'accent'}" data-sheet="${i}">${esc(b[0])}</button>`).join('')}</div></div>`;
+  $('#sheet').hidden = false;
+}
+function closeSheet() { $('#sheet').hidden = true; }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2400);
@@ -950,6 +1220,16 @@ const ACTIONS = {
   closeThread: () => { activeThread = null; renderMessages(); },
   tripReset: () => { Object.assign(trip, { dist: 0, moving: 0, max: 0, start: Date.now() }); updateDrive(); toast('Trip reset'); },
   fullscreen: toggleFullscreen,
+  tomtomKey: () => {
+    const k = prompt('Paste your TomTom API key (free at developer.tomtom.com):', settings.tomtomKey || '');
+    if (k == null) return;
+    settings.tomtomKey = k.trim();
+    if (settings.tomtomKey) settings.router = 'tomtom';
+    applySettings(); renderSettings();
+    toast(settings.tomtomKey ? 'TomTom traffic routing on' : 'TomTom key removed');
+  },
+  arReset: () => { Object.assign(settings, { arYaw: 0, arPitch: 0, arFov: 64 }); applySettings(); toast('AR calibration reset'); },
+  modes: () => toggleModeMenu(),
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; renderSettings(); },
 };
 const CLICK = {
@@ -970,7 +1250,12 @@ const CLICK = {
   panel: v => { if (v === 'back') { panel.mode = 'home'; renderMapPanel(); } else { panel.collapsed = !panel.collapsed; renderMapPanel(); } },
   dest: v => startNav(panelItems[+v]),
   set: v => { const [k, val] = v.split(':'); settings[k] = val; applySettings(); renderSettings(); if (k === 'units') { wx = null; renderDashTiles(); } },
-  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); },
+  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); },
+  mode: v => setMode(v),
+  sheet: v => { const fn = sheetFns[+v]; closeSheet(); fn?.(); },
+  save: v => { const d = panelItems[+v]; if (!d) return;
+    sheet('Save place', `<p><b>${esc(d.name)}</b>${d.sub ? '<br>' + esc(d.sub) : ''}</p>`,
+      [['Set as Home', () => savePlace('home', d)], ['Set as Work', () => savePlace('work', d)], ['Cancel']]); },
   wall: v => { settings.wallpaper = +v; applySettings(); renderSettings(); },
 };
 const CLICK_SEL = Object.keys(CLICK).map(k => `[data-${k}]`).join(',');
@@ -978,7 +1263,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest(CLICK_SEL); if (!t) return;
   for (const k of Object.keys(CLICK)) if (k in t.dataset) { CLICK[k](t.dataset[k]); break; }
 });
-addEventListener('resize', () => Object.values(maps).forEach(M => M.map?.invalidateSize()));
+addEventListener('resize', () => Object.values(maps).forEach(M => M.map?.resize()));
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') { if (e.key === 'Escape') e.target.blur(); return; }
   if (e.key === 'Escape') closeAssistant();
@@ -1016,6 +1301,14 @@ if (qs.has('demo')) startDemo();
 if (qs.has('nav')) startNav(destinations()[0]);
 if (qs.get('view')) openView(qs.get('view'));
 if (qs.has('play')) { player.playing = true; updatePlayerUI(); }
+
+// First run: ask for location with a tap (iPhone only shows its permission prompt in response to one).
+if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has('view')) {
+  const tip = isIOS && !navigator.standalone ? '<p class="hint">Tip: in Safari, tap <b>Share › Add to Home Screen</b> to run DriveDeck full screen.</p>' : '';
+  const done = fn => () => { store.set('onboarded', true); fn?.(); };
+  sheet('Welcome to DriveDeck', `<p>Turn on location for live position, speed and turn-by-turn directions. Your location stays on this device.</p>${tip}`,
+    [['Use my location', done(startGPS)], ['Try demo drive', done(() => ACTIONS.demo())], ['Not now', done()]]);
+}
 
 // Offline support and installability. Relative URL so the app works from any sub-path.
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

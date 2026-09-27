@@ -23,17 +23,20 @@ Opening `index.html` straight from disk mostly works, but the service worker (of
 | `?demo=1&nav=1` | Start the simulated drive and a navigation run immediately |
 | `?view=music&theme=light` | Open a specific screen (`music`, `maps`, `drive`, `phone`, `messages`, `weather`, `calendar`, `settings`, …) in a chosen theme |
 | `?play=1` | Start the (silent) player |
+| `?demo=1&nav=1&mode=ar` | Start a demo route straight into a driving mode (`map`, `3d`, `ar`, `hud`) |
 
 ## Project layout
 
 ```
 index.html                App shell markup (dock, views, overlays)
-js/app.js                 All app logic (state, GPS/demo, maps, media, assistant, …)
+js/routing.js             Routing, place search and nearby places (OSRM, TomTom, Photon, Overpass)
+js/app.js                 App logic (state, GPS/demo, maps, navigation, media, assistant, …)
+js/modes.js               Driving modes: Map, 3D, AR camera and HUD
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
 icons/                    App icons; icon.svg is the source artwork
-vendor/leaflet/           Leaflet 1.9.4 (map library, BSD-2), kept locally so maps work offline
+vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
 docs/prototype.html       Original single-file prototype
 .github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)
 ```
@@ -53,24 +56,34 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 ### Working
 - **GPS**: live position, speed, heading, altitude and accuracy via the Geolocation API.
 - **Demo drive**: simulated drive down Market St, San Francisco, for desktop testing.
-- **Maps** (Leaflet): rotating car marker, search, category chips (Gas, Parking, EV, Coffee, Food), turn-by-turn banner, ETA bar, speed-limit sign and spoken directions.
+- **Maps** (MapLibre GL, [OpenFreeMap](https://openfreemap.org/) vector tiles, no key): light and dark map styles, rotating car marker, driven part of the route in grey and the rest in blue.
+- **Real routing**: turn-by-turn instructions, distance and time left, arrival time, speed limits along the route, spoken prompts (a heads-up and a "now"), and automatic rerouting after about 6 seconds off the route.
+- **Search**: real place search ([Photon](https://photon.komoot.io/)) and nearby Gas, Parking, EV chargers, Coffee and Food ([Overpass](https://overpass-api.de/)), all from OpenStreetMap data. Tap ☆ on a result to save it as Home or Work; recent destinations are remembered.
+- **Driving modes** (mode button on the map, or say "AR mode", "HUD mode", "3D view"):
+  - **Map**: flat, north-up.
+  - **3D**: map tilted toward the horizon, heading-up, zoom follows speed, with 3D buildings, terrain and sky.
+  - **AR**: the route drawn as a ribbon on the rear camera view, with chevrons, a floating sign over the next turn and one over the destination. A glass strip shows a driven/remaining progress bar, arrival time, time left, distance to go, speed and the speed limit. Direction comes from the GPS course while moving (a compass is unreliable inside a car) and pitch/roll from the motion sensors. **Calibrate** adjusts direction, horizon and field of view for your mount. Without a camera it draws a simulated road.
+  - **HUD**: huge turn arrow, distance, street, speed and limit on black, plus a progress bar and arrival time. **Mirror** flips it for reading as a reflection in the windshield.
+- **First run**: a welcome card asks for location with a tap (iPhone only shows its permission prompt in response to one). If location is blocked it explains how to re-enable it.
 - **Weather**: live forecast from [Open-Meteo](https://open-meteo.com/) (no key). Falls back to sample data offline.
 - **Drive screen**: speedometer, compass, trip distance/time/average/max speed.
-- **Assistant**: Web Speech recognition where supported, tappable suggestions otherwise. Understands "take me home", "call Mom", "read my messages", "find parking", "what's the weather".
+- **Assistant**: Web Speech recognition where supported, tappable suggestions otherwise. Understands "take me home", "navigate to <place>", "AR mode", "call Mom", "read my messages", "find parking", "what's the weather".
 - **Messages**: read aloud with speech synthesis; text hidden above ~5 mph.
 - **Screen and settings**: Screen Wake Lock, full screen, install prompt, and settings stored in `localStorage`.
-- **PWA**: installable, works offline once loaded. The app shell is precached, map tiles are cache-first (up to 2,000 tiles) and weather is network-first with a cached fallback.
+- **PWA**: installable, works offline once loaded. The app shell is precached, map tiles and elevation are cache-first, and weather is network-first with a cached fallback. With no network, navigation falls back to an approximate route.
 
 ### Faked for now
 - Music, podcasts and radio: controls and progress work, but no audio plays.
 - Phone calls: simulated call screen (a real build would hand off to the dialer via `tel:`).
-- Contacts, messages, calendar, route geometry and turn instructions are sample data.
+- Contacts, messages and calendar are sample data. Home and Work are samples until you save your own.
 - A fake message arrives 25 s after load to show the notification banner.
 
 ## Things to know
 
-- **Map tiles**: uses Esri's key-free World Street Map. Night mode is the same tiles with a CSS colour inversion. A production release needs a paid/keyed tile provider (and a routing API for real routes).
-- **HTTPS for GPS**: Geolocation works on `localhost` on desktop, but phones need HTTPS. To test on a phone, use the GitHub Pages deploy (below).
+- **Routing and traffic**: the default router is the public [OSRM](https://project-osrm.org/) server: free, no key, OpenStreetMap roads, typical (not live) travel times. Its demo server is fine for testing but not for heavy use. For **live-traffic arrival times** like Google Maps, add a free [TomTom](https://developer.tomtom.com/) key under **Settings › Navigation › TomTom API key** (the free tier covers about 2,500 routes a day). Restrict the key to your site's domain in the TomTom dashboard, because a key used from a web page is visible to anyone who loads it. Google's own Routes API gives the best traffic data, but its terms require showing results on a Google map, so it doesn't fit a MapLibre app.
+- **Map tiles**: OpenFreeMap is free and keyless. Elevation for 3D terrain comes from the free AWS Terrain Tiles dataset.
+- **AR accuracy**: phone GPS is off by 5–10 m and a car's metal disturbs the compass, so the ribbon shows the road ahead and upcoming turns rather than locking onto a lane. Mount the phone upright, facing forward, then use **Calibrate** once.
+- **HTTPS for GPS and camera**: location, camera and motion sensors work on `localhost` on desktop, but phones need HTTPS. To test on a phone, use the GitHub Pages deploy (below).
 
 ## Deployment (GitHub Pages)
 

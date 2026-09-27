@@ -32,11 +32,13 @@ index.html                App shell markup (dock, views, overlays)
 js/routing.js             Routing, place search and nearby places (OSRM, TomTom, Photon, Overpass)
 js/app.js                 App logic (state, GPS/demo, maps, navigation, media, assistant, …)
 js/modes.js               Driving modes: Map, 3D, AR camera and HUD
+js/dash.js                Dashboard: cluster styles, map + stack, widget grid, motion sensors
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
 icons/                    App icons; icon.svg is the source artwork
 vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
+vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 .github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)
 ```
@@ -50,7 +52,12 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 ### Layout
 - **Dock**: clock, signal, location dot (green = GPS, orange = demo), three most recent apps, voice assistant and Home. Left side in landscape, bottom in portrait.
 - **Home button**: from an app it goes to the home grid; on the home grid it goes to the dashboard.
-- **Dashboard** (start screen): live map, now-playing card, weather and next-calendar-event tiles.
+- **Dashboard** (start screen), three layouts; swipe sideways or use the pill at the bottom to switch:
+  - **Cluster**: an instrument cluster in one of seven styles: **Twin Dials** (speed and heading dials around a 3D map), **Arc** (thick arcs and a trip/route card), **Analog** (needle speedometer with G-meter, clock and compass sub-dials), **Bars** (big numbers over progress bars and a heading tape), **Band** (full-width gradient with speed, analog clock and now playing), **Telltale** (status icons, speed dial, heading tape and route bar on black) and **Map First** (3D map with glass pills).
+  - **Map**: map card with the next turn, arrival/time/distance and street name, plus next-turn (or Home/Work) and now-playing cards.
+  - **Widgets**: an editable grid. Tap **Edit** to remove, reorder or add widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
+  - **Customize** (sliders button): cluster style, accent colour (cyan, magenta, red, orange, khaki, yellow, wine, green) and motion sensors.
+  - Every reading is real: GPS, route, clock, weather, player, and the phone's motion sensors for roll, pitch and G-force. There are no fake car readings (gear, rpm, tyres), because a phone can't read them.
 - **Car-friendly design**: 56–78px tap targets, frosted-glass cards, dark by default, plus a light theme and 4 wallpapers.
 
 ### Working

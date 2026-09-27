@@ -91,6 +91,7 @@ const I = {
   layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   mirror: '<path d="M12 3v18M9 7L4 12l5 5V7zM15 7l5 5-5 5V7z"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cloud: '<path d="M17.5 19H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20.5 12a3.5 3.5 0 0 1-3 7z"/>',
@@ -112,7 +113,7 @@ const settings = Object.assign({
   theme: 'dark', units: 'imperial', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64
+  arYaw: 0, arPitch: 0, arFov: 64, dashLayout: 'cluster', cluster: 'twin', accent: null
 }, store.get('settings', {}));
 
 const WALLS = [
@@ -197,7 +198,7 @@ function openView(id, fromApp) {
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
   renderDock();
   ({
-    dashboard: () => { ensureMap('dash'); renderDashTiles(); },
+    dashboard: () => { if (typeof Dash !== 'undefined') Dash.render(); },
     maps: () => { ensureMap('main'); renderMapPanel(); },
     weather: () => loadWeather(),
     messages: () => renderMessages(),
@@ -408,7 +409,7 @@ function addOverlays(M) {
 /** Tilt, terrain, 3D buildings and sky for the main map in 3D mode; flat everywhere else. */
 function apply3D(M) {
   const map = M.map; if (!map || !M.styleReady) return;
-  const on = M === maps.main && mapMode === '3d', dark = resolvedTheme() === 'dark';
+  const on = M === maps.main ? mapMode === '3d' : !!M.threeD, dark = resolvedTheme() === 'dark';
   try {
     if (on && !map.getLayer('dd-buildings') && map.getSource('openmaptiles') && !map.getStyle().layers.some(l => l.type === 'fill-extrusion'))
       map.addLayer({ id: 'dd-buildings', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
@@ -461,7 +462,7 @@ function updateMaps(opts = {}) {
     M.car.setLngLat([loc.lon, loc.lat]).setRotation(smoothHeading);
     const el = M.map.getContainer();
     if (!M.follow || (loc.source === 'none' && !opts.force) || !el.clientWidth) continue;
-    const threeD = key === 'main' && mapMode === '3d', pad = { top: 0, bottom: 0, left: 0, right: 0 };
+    const threeD = key === 'main' ? mapMode === '3d' : !!M.threeD, pad = { top: 0, bottom: 0, left: 0, right: 0 };
     const cam = threeD
       ? { center: [loc.lon, loc.lat], bearing: smoothHeading, pitch: 62, zoom: zoomForSpeed(), padding: { ...pad, top: el.clientHeight * 0.42 } }
       : { center: [loc.lon, loc.lat], bearing: 0, pitch: 0, padding: pad };
@@ -469,7 +470,7 @@ function updateMaps(opts = {}) {
   }
 }
 function recenterAll() {
-  for (const M of Object.values(maps)) { M.follow = true; if (M.map && !(M === maps.main && mapMode === '3d')) M.map.setZoom(nav ? 17 : 16); }
+  for (const M of Object.values(maps)) { M.follow = true; if (M.map && !(M === maps.main ? mapMode === '3d' : M.threeD)) M.map.setZoom(nav ? 17 : 16); }
   $('#recenterBtn').classList.remove('on');
   updateMaps({ force: true });
 }
@@ -1003,12 +1004,8 @@ function renderCalendar() {
     ${e.contact ? `<button class="round-btn" data-call="${e.contact}" aria-label="Call">${svg('phone')}</button>` : ''}
     <button class="go-btn" data-go="${e.dest}">${svg('maps')}Go</button></div>`).join('');
 }
-function renderDashTiles() {
-  const w = wx || mockWeather(), [label, icon] = wxInfo(w.cur.code);
-  $('#dashWeather').innerHTML = `<div class="k">${svg('weather')}Weather</div><div class="big">${svg(icon)}${Math.round(w.cur.temp)}°</div><div class="s">${label} · H:${Math.round(w.daily[0].hi)}° L:${Math.round(w.daily[0].lo)}°</div>`;
-  const e = EVENTS.find(x => x.at > Date.now() - 15 * 60e3) || EVENTS[0];
-  $('#dashEvent').innerHTML = `<div class="k">${svg('calendar')}${fmtClock(e.at)} · ${relTime(e.at)}</div><div class="t">${esc(e.title)}</div><span class="go-inline" data-go="${e.dest}">${svg('maps')}Go</span>`;
-}
+/** Dashboard tiles live in js/dash.js; refresh them when weather or units change. */
+function renderDashTiles() { if (typeof Dash !== 'undefined') Dash.update(true); }
 
 /* ============================================================
    Drive (trip computer)
@@ -1054,6 +1051,10 @@ function renderSettings() {
       <div class="row"><div class="main"><div class="t">Wallpaper</div></div><div class="swatches">${WALLS.map((w, i) =>
         `<button class="swatch ${settings.wallpaper === i ? 'on' : ''}" data-wall="${i}" style="background:${w[resolvedTheme()]}" aria-label="Wallpaper ${i + 1}"></button>`).join('')}</div></div>
     </div>
+    <div class="group-title">Dashboard</div>
+    <div class="group">
+      ${btn('dashCustomize', 'Cluster style, accent &amp; sensors')}
+    </div>
     <div class="group-title">Driving</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Units</div></div>${seg('units', [['imperial', 'mph · mi'], ['metric', 'km/h · km']])}</div>
@@ -1081,7 +1082,7 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${deferredInstall ? btn('install', 'Install app') : ''}
-      <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.2</span></div>
+      <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.3</span></div>
     </div>`;
 }
 
@@ -1230,6 +1231,7 @@ const ACTIONS = {
   },
   arReset: () => { Object.assign(settings, { arYaw: 0, arPitch: 0, arFov: 64 }); applySettings(); toast('AR calibration reset'); },
   modes: () => toggleModeMenu(),
+  dashCustomize: () => Dash.customize(),
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; renderSettings(); },
 };
 const CLICK = {

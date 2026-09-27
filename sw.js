@@ -1,20 +1,24 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
+const TERRAIN_CACHE = 'dd-terrain';
 const WEATHER_CACHE = 'dd-weather';
-const MAX_TILES = 2000;
+const MAX_TILES = 3000;
+const MAX_TERRAIN = 1000;
 
 const SHELL = [
   './',
   'index.html',
   'css/styles.css',
+  'js/routing.js',
   'js/app.js',
+  'js/modes.js',
   'manifest.webmanifest',
-  'vendor/leaflet/leaflet.css',
-  'vendor/leaflet/leaflet.js',
+  'vendor/maplibre/maplibre-gl.css',
+  'vendor/maplibre/maplibre-gl.js',
   'icons/icon.svg',
   'icons/favicon.ico',
   'icons/apple-touch-icon-180x180.png',
@@ -38,19 +42,19 @@ async function trimCache(name, max) {
   for (let i = 0; i < keys.length - max; i++) await c.delete(keys[i]);
 }
 
-// Map tiles: cache-first so the map survives patchy signal.
-async function tile(req) {
-  const c = await caches.open(TILE_CACHE);
+// Map tiles, styles, fonts and elevation: cache-first so the map survives patchy signal.
+async function tile(req, name = TILE_CACHE, max = MAX_TILES) {
+  const c = await caches.open(name);
   const hit = await c.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (res.ok || res.type === 'opaque') { c.put(req, res.clone()); trimCache(TILE_CACHE, MAX_TILES); }
+  if (res.ok || res.type === 'opaque') { c.put(req, res.clone()); trimCache(name, max); }
   return res;
 }
 
-// Weather: network-first, falling back to the last forecast when offline.
-async function weather(req) {
-  const c = await caches.open(WEATHER_CACHE);
+// Network-first, falling back to the last cached copy when offline (weather, map styles).
+async function fresh(req, name = WEATHER_CACHE) {
+  const c = await caches.open(name);
   try {
     const res = await fetch(req);
     if (res.ok) c.put(req, res.clone());
@@ -76,7 +80,9 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.hostname === 'server.arcgisonline.com') e.respondWith(tile(req));
-  else if (url.hostname === 'api.open-meteo.com') e.respondWith(weather(req));
+  // Tiles, fonts and sprites never change at a given URL; styles and the tile index (TileJSON) do.
+  if (url.hostname === 'tiles.openfreemap.org') e.respondWith(/\.(pbf|png|webp|json)$|\/fonts\/|\/sprites\//.test(url.pathname) && !url.pathname.startsWith('/styles/') ? tile(req) : fresh(req, TILE_CACHE));
+  else if (url.hostname === 's3.amazonaws.com' && url.pathname.startsWith('/elevation-tiles-prod/')) e.respondWith(tile(req, TERRAIN_CACHE, MAX_TERRAIN));
+  else if (url.hostname === 'api.open-meteo.com') e.respondWith(fresh(req));
   else if (url.origin === self.location.origin) e.respondWith(shell(req));
 });

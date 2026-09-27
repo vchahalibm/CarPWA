@@ -13,7 +13,7 @@
 <link rel="icon" href="icons/favicon.ico" sizes="48x48">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180x180.png">
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
 <link rel="stylesheet" href="css/styles.css">
 <title>DriveDeck</title>
 </head>
@@ -80,17 +80,19 @@
         <div class="map-panel" id="mapPanel"></div>
         <div class="maneuver" id="maneuver"><span id="manIcon"></span><div><div class="man-dist" id="manDist"></div><div class="man-street" id="manStreet"></div></div></div>
         <div class="map-controls">
+          <button class="map-btn mode-btn" data-action="modes" id="modeBtn" aria-label="Driving mode"></button>
           <button class="map-btn" data-action="zoomIn" aria-label="Zoom in"><span data-icon="plus"></span></button>
           <button class="map-btn" data-action="zoomOut" aria-label="Zoom out"><span data-icon="minus"></span></button>
           <button class="map-btn" data-action="recenter" id="recenterBtn" aria-label="Recenter"><span data-icon="locate"></span></button>
         </div>
+        <div class="mode-menu" id="modeMenu" hidden></div>
         <div class="speed-cluster">
-          <div id="limitSign"></div>
+          <div class="limit-slot" data-limit></div>
           <div class="speed-pill" data-speed-pill><b data-speed>0</b><span data-speed-unit>mph</span></div>
         </div>
         <div class="eta-bar">
           <div class="eta-cell"><b id="etaArr">--:--</b><span>arrival</span></div>
-          <div class="eta-cell"><b id="etaMin">0</b><span>min</span></div>
+          <div class="eta-cell"><b id="etaMin">0</b><span id="etaMinU">min</span><small class="eta-traffic" id="etaTraffic" hidden></small></div>
           <div class="eta-cell"><b id="etaDist">0</b><span id="etaDistU">mi</span></div>
           <button class="end-btn" data-action="endNav">End</button>
         </div>
@@ -218,10 +220,54 @@
       </div>
     </div>
     <div class="banner" id="banner"></div>
-    <div class="toast" id="toast"></div>
   </main>
 </div>
-<script src="vendor/leaflet/leaflet.js"></script>
+
+<!-- HUD mode: glanceable, optionally mirrored for a windshield reflection -->
+<div class="hud" id="hud" hidden>
+  <div class="hud-stage" id="hudStage">
+    <div class="hud-turn"><div class="hud-arrow" id="hudArrow"></div><div class="hud-turn-text"><div class="hud-dist" id="hudDist"></div><div class="hud-street" id="hudStreet"></div></div></div>
+    <div class="hud-speed"><div class="hud-speedval"><b data-speed>0</b><span data-speed-unit>mph</span></div><div class="limit-slot" data-limit></div></div>
+    <div class="hud-trip"><div class="hud-progress"><i id="hudProg"></i></div>
+      <div class="hud-eta"><span><b id="hudEta">--:--</b> arrival</span><span><b id="hudLeft">–</b> left</span><span><b id="hudRemain">–</b></span></div></div>
+  </div>
+  <div class="ov-ctl" id="hudCtl">
+    <button class="big-btn" data-ar="exit"><span data-icon="back"></span>Exit</button>
+    <button class="big-btn" data-ar="mirror" id="hudMirrorBtn"><span data-icon="mirror"></span>Mirror</button>
+    <button class="big-btn end" data-ar="end">End route</button>
+  </div>
+</div>
+
+<!-- AR mode: route ribbon over the rear camera -->
+<div class="ar" id="ar" hidden>
+  <video id="arVideo" playsinline muted autoplay></video>
+  <canvas id="arCanvas"></canvas>
+  <div class="ar-sign" id="arSign" hidden></div>
+  <div class="ar-sign dest" id="arDest" hidden></div>
+  <div class="ar-top" id="arTop"><span class="ar-icon" id="arIcon"></span><div><div class="ar-dist" id="arDist"></div><div class="ar-text" id="arText"></div></div></div>
+  <div class="ar-note" id="arNote" hidden></div>
+  <div class="ar-bottom">
+    <div class="ar-progress" aria-label="Route progress"><i id="arDone"></i></div>
+    <div class="ar-stats">
+      <div><b id="arEta">--:--</b><span>arrival</span></div>
+      <div><b id="arLeft">–</b><span>time left</span></div>
+      <div><b id="arRemain">–</b><span>to go</span></div>
+      <div class="ar-speed"><div class="limit-slot" data-limit></div><div class="speed-pill" data-speed-pill><b data-speed>0</b><span data-speed-unit>mph</span></div></div>
+    </div>
+  </div>
+  <div class="ov-ctl" id="arCtl">
+    <button class="big-btn" data-ar="exit"><span data-icon="back"></span>Exit</button>
+    <button class="big-btn" data-ar="cal"><span data-icon="sliders"></span>Calibrate</button>
+    <button class="big-btn end" data-ar="end">End route</button>
+  </div>
+  <div class="ar-cal" id="arCal" hidden></div>
+</div>
+
+<div class="sheet" id="sheet" hidden></div>
+<div class="toast" id="toast"></div>
+<script src="vendor/maplibre/maplibre-gl.js"></script>
+<script src="js/routing.js"></script>
 <script src="js/app.js"></script>
+<script src="js/modes.js"></script>
 </body>
 </html>

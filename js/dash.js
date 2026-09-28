@@ -82,14 +82,22 @@ function ring({ val = 'speedF', big = 'speed', unit = 'unit', sub = '', subHtml 
     <div class="ring-c"><b class="num" data-t="${big}"></b><span data-t="${unit}"></span>${sub ? `<small data-t="${sub}"></small>` : ''}${subHtml}</div></div>`;
 }
 /* Analog dial with needle and numerals. */
-function dial({ max = speedMax(), step = imperial() ? 20 : 40, val = 'speedRot', big = 'speed', unit = 'unit', sub = '' }) {
+function dial({ max = speedMax(), step = imperial() ? 20 : 40, minor = 4, val = 'speedRot', big = 'speed', unit = 'unit', sub = '' }) {
   const labels = []; for (let v = 0; v <= max; v += step) labels.push(v);
   return `<div class="dial"><svg viewBox="0 0 240 240" aria-hidden="true">
       <circle class="bezel" cx="120" cy="120" r="116"/>
-      ${G.ticks(120, 108, 5, -135, 135, max / (step / 4), 'tk')}${G.ticks(120, 108, 12, -135, 135, max / step, 'tk major')}
+      ${G.ticks(120, 108, 5, -135, 135, max / step * minor, 'tk')}${G.ticks(120, 108, 12, -135, 135, max / step, 'tk major')}
       ${G.labels(120, 82, -135, 135, labels)}
       <g class="needle" data-rot="${val}"><line x1="120" y1="132" x2="120" y2="26"/><circle cx="120" cy="120" r="7"/></g></svg>
     <div class="dial-c"><b class="num" data-t="${big}"></b><span data-t="${unit}"></span>${sub ? `<small data-t="${sub}"></small>` : ''}</div></div>`;
+}
+/* Small needle gauge (sub-dial): 240° sweep with end labels and a readout. */
+function sdial({ val, labels = ['', ''], text = '', sub = '' }) {
+  return `<div class="sdial"><svg viewBox="0 0 200 200" aria-hidden="true">
+      <circle class="bezel" cx="100" cy="100" r="96"/>${G.ticks(100, 88, 6, -120, 120, 24, 'tk')}${G.ticks(100, 88, 12, -120, 120, 4, 'tk major')}
+      ${G.labels(100, 66, -120, 120, labels, 'lb end')}
+      <g class="needle" data-rot="${val}"><line x1="100" y1="112" x2="100" y2="30"/><circle cx="100" cy="100" r="7"/></g></svg>
+    <div class="sdial-c">${text ? `<b data-t="${text}"></b>` : ''}${sub ? `<small>${sub}</small>` : ''}</div></div>`;
 }
 function clockFace(numbers = true) {
   return `<svg viewBox="0 0 200 200" class="clockface" aria-hidden="true">
@@ -164,7 +172,7 @@ function vals() {
     dest: nav?.dest?.name || '',
     progLabel: s ? `${Math.round(s.progress * 100)}% driven` : 'No route',
     temp: Math.round(w.cur.temp) + '°', cond, wicon: svg(wic), hilo: `H:${Math.round(w.daily[0].hi)}°  L:${Math.round(w.daily[0].lo)}°`,
-    place: loc.source === 'demo' ? 'San Francisco' : 'My Location',
+    place: loc.source === 'demo' ? DEMO_CITY.name : 'My Location',
     ev1: ev[0] ? `${fmtClock(ev[0].at)} · ${ev[0].title}` : 'No more events today', ev1loc: ev[0]?.loc || '',
     ev2: ev[1] ? `${fmtClock(ev[1].at)} · ${ev[1].title}` : '', ev2loc: ev[1]?.loc || '', evMore: ev.length > 2 ? `${ev.length - 2} more…` : '',
     tiltOk, tiltOff: !tiltOk, roll: tiltOk ? `${Math.round(Sensors.roll)}°` : '—', pitch: tiltOk ? `${Math.round(Sensors.pitch)}°` : '—',
@@ -174,6 +182,13 @@ function vals() {
     gMag: tiltOk ? gMag.toFixed(2) + ' g' : '— g',
     src: { gps: 'GPS', demo: 'DEMO', none: 'OFF' }[loc.source], gpsCls: loc.source, moving: loc.speed > 1 ? 'Driving' : 'Parked',
     elev: elevBars(),
+    // Chronograph: speed dial tops out lower so every 10 gets a numeral; sub-dials sweep −120…120°.
+    speedRotC: -135 + 270 * Math.min(1, v / (imperial() ? 120 : 200)),
+    progRot: -120 + 240 * (s ? s.progress : 0), leftRot: -120 + 240 * (s ? 1 - s.progress : 0),
+    altRot: -120 + 240 * (altRange && altRange[1] > altRange[0] ? (altM - altRange[0]) / (altRange[1] - altRange[0]) : 0.5),
+    tempRot: -120 + 240 * Math.max(0, Math.min(1, imperial() ? (w.cur.temp - 14) / 99 : (w.cur.temp + 10) / 55)),
+    moveRot: -120 + 240 * Math.min(1, v / (imperial() ? 80 : 130)),
+    leftBig: s ? s.left : '—',
   };
 }
 function elevBars() {
@@ -218,6 +233,16 @@ const CLUSTERS = {
       <div class="pane"><div class="bigrow bdg"><em class="pill" data-t="src"></em><b data-t="moving"></b></div>${line('prog', 'y')}
         <div class="row2"><span data-t="progLabel"></span><b data-t="remain"></b></div>${line('altF', 't dot')}
         <div class="row2"><span>Elevation</span><b><span data-t="alt"></span> <span data-t="altUnit"></span></b></div></div></div>` },
+  chrono: { name: 'Chronograph', accent: 'orange', html: () => `<div class="cl cl-chrono">
+      <div class="pane subs3"><div class="sub big">${gMeter()}<small data-t="gMag"></small></div>
+        <div class="sub">${clockFace(false)}</div>
+        <div class="sub">${sdial({ val: 'altRot', labels: ['L', 'H'], text: 'alt', sub: 'elev.' })}</div>
+        <div class="sub">${compassFace()}<small data-t="hdg"></small></div></div>
+      <div class="pane">${dial({ max: imperial() ? 120 : 200, step: imperial() ? 10 : 20, minor: 5, val: 'speedRotC' })}</div>
+      <div class="pane subs3"><div class="sub big">${sdial({ val: 'progRot', labels: ['0', '100'], text: 'leftBig', sub: 'time left' })}</div>
+        <div class="sub">${sdial({ val: 'moveRot', labels: ['', ''], text: 'moving' })}</div>
+        <div class="sub">${sdial({ val: 'tempRot', labels: ['C', 'H'], text: 'temp', sub: 'outside' })}</div>
+        <div class="sub">${sdial({ val: 'leftRot', labels: ['E', 'F'], text: 'remain', sub: 'to go' })}</div></div></div>` },
   band: { name: 'Band', accent: 'wine', html: () => `<div class="cl cl-band"><div class="band">
       <div class="band-l"><div class="limit-slot" data-limit></div><b class="num" data-t="speed"></b><span data-t="unit"></span>
         <div class="row2"><span>${svg('flag')}</span>${line('prog')}<b data-t="remain"></b></div></div>
@@ -305,13 +330,28 @@ const Dash = {
           <button data-dash="right:${id}" aria-label="Move right" ${i < a.length - 1 ? '' : 'disabled'}>${svg('back').replace('<svg', '<svg style="transform:scaleX(-1)"')}</button></div>` : ''}</div>`).join('')}
         ${this.editing ? `<button class="wg add" data-dash="add">${svg('plus')}<span>Add widget</span></button>` : ''}</div>`;
     $('#mapPark').appendChild(this.wrap); // keep the one shared map alive across re-renders
-    root.className = 'dash-root lay-' + this.layout + (this.layout === 'cluster' ? ' st-' + this.style : '');
+    root.className = 'dash-root lay-' + this.layout + (this.layout === 'cluster' ? ' st-' + this.style : '') + (this.editing ? ' with-bar' : '');
     root.innerHTML = html;
     this.placeMap(map3d);
     this.renderBar();
     this.bound = $$('[data-t],[data-arc],[data-rot],[data-w],[data-tf],[data-show],[data-html],[data-cls]', root);
     shownLimit = ''; renderLimit(); updateSpeedUI(); updatePlayerUI();
     this.update(true);
+    this.fitGrid(); Bar.show();
+  },
+  /** Size the widget grid so every widget fits the visible screen; scroll only when cells would get too small. */
+  fitGrid() {
+    const g = $('#dashRoot .wgrid'); if (!g) return;
+    const n = g.children.length, W = g.clientWidth, H = g.clientHeight, gap = 12;
+    let best = null;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols), w = (W - gap * (cols - 1)) / cols, h = (H - gap * (rows - 1)) / rows;
+      if (w / h > 2.4 || h / w > 1.8) continue; // keep cells card-shaped
+      const score = Math.min(w, h);
+      if (!best || score > best.score) best = { cols, h, score };
+    }
+    if (best && best.score >= 112) { g.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`; g.style.gridAutoRows = `${Math.floor(best.h)}px`; g.classList.add('fit'); }
+    else { g.style.gridTemplateColumns = ''; g.style.gridAutoRows = ''; g.classList.remove('fit'); }
   },
   placeMap(map3d) {
     const slot = $('#dashRoot .map-slot');
@@ -325,7 +365,8 @@ const Dash = {
     $('#dashBar').innerHTML = `<div class="seg-pill">${LAYOUTS.map(([id, name, ic]) =>
       `<button class="${id === this.layout ? 'on' : ''}" data-dash="layout:${id}" aria-label="${name} layout">${svg(ic)}<span>${name}</span></button>`).join('')}</div>
       ${this.layout === 'widgets' ? `<button class="bar-btn ${this.editing ? 'on' : ''}" data-dash="edit">${this.editing ? 'Done' : 'Edit'}</button>` : ''}
-      <button class="bar-btn icon" data-dash="customize" aria-label="Customize">${svg('sliders')}</button>`;
+      <button class="bar-btn icon" data-dash="customize" aria-label="Customize">${svg('sliders')}</button>
+      <button class="bar-btn icon ${settings.dockHidden ? 'on' : ''}" data-dash="dock" aria-label="${settings.dockHidden ? 'Show' : 'Hide'} the side dock">${svg('expand')}</button>`;
   },
   update(force) {
     if (current !== 'dashboard' && !force) return;
@@ -348,6 +389,7 @@ const Dash = {
     if (c === 'layout') { settings.dashLayout = arg; this.editing = false; store.set('settings', settings); this.render(); }
     else if (c === 'edit') { this.editing = !this.editing; this.render(); }
     else if (c === 'customize') this.customize();
+    else if (c === 'dock') { settings.dockHidden = !settings.dockHidden; store.set('settings', settings); applyDock(); this.renderBar(); }
     else if (c === 'style') { settings.cluster = arg; settings.accent = CLUSTERS[arg].accent; settings.dashLayout = 'cluster'; store.set('settings', settings); this.render(); this.customize(); }
     else if (c === 'accent') { settings.accent = arg; store.set('settings', settings); this.render(); this.customize(); }
     else if (c === 'motion') Sensors.enable();
@@ -399,6 +441,19 @@ document.addEventListener('click', e => {
     Dash.cmd('layout:' + LAYOUTS[(i + (dx < 0 ? 1 : -1) + n) % n][0]);
   }, { passive: true });
 })();
+/* The layout bar slides away after a few seconds so the cluster gets the whole screen; any tap brings it back. */
+const Bar = {
+  show() {
+    $('#view-dashboard').classList.remove('bar-hidden');
+    clearTimeout(this.t); this.t = setTimeout(() => this.hide(), 5000);
+  },
+  hide() {
+    if (Dash.editing || !$('#sheet').hidden) return this.show();
+    $('#view-dashboard').classList.add('bar-hidden');
+  },
+};
+$('#view-dashboard').addEventListener('pointerdown', () => Bar.show(), true);
+addEventListener('resize', () => requestAnimationFrame(() => Dash.fitGrid()));
 listeners.push(() => Dash.update());
 setInterval(() => Dash.update(), 1000);
 if (current === 'dashboard') Dash.render();

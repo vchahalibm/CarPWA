@@ -32,6 +32,7 @@
 
   <!-- ======================= STAGE ======================= -->
   <main class="stage" id="stage">
+    <button class="dock-handle" data-action="dockShow" aria-label="Show the side dock"><i></i></button>
 
     <!-- Home -->
     <section class="view wall" id="view-home">
@@ -43,10 +44,17 @@
     <section class="view" id="view-dashboard">
       <div class="dash-root" id="dashRoot"></div>
       <div class="dash-bar" id="dashBar"></div>
-      <div class="loc-prompt" id="locPrompt">
-        <span data-icon="locate"></span><div class="lp-t"><b>Location is off</b><span>Live speed, heading and directions need it</span></div>
-        <button class="big-btn accent" data-action="gps">Use GPS</button><button class="big-btn" data-action="demo">Demo</button>
+      <div class="dash-notes">
+        <div class="loc-prompt" id="locPrompt">
+          <span data-icon="locate"></span><div class="lp-t"><b>Location is off</b><span>Live speed, heading and directions need it</span></div>
+          <button class="big-btn accent" data-action="gps">Use GPS</button><button class="big-btn" data-action="demo">Demo</button>
+        </div>
+        <div class="loc-prompt install-tip" id="installTip" hidden>
+          <span data-icon="download"></span><div class="lp-t"><b>Install for full screen</b><span>Runs without the browser bars</span></div>
+          <button class="big-btn accent" data-action="installHelp">How</button><button class="big-btn" data-action="dismissInstall" aria-label="Dismiss"><span data-icon="close"></span></button>
+        </div>
       </div>
+      <button class="dash-grab" aria-label="Show layout controls"><i></i></button>
       <div class="map-park" id="mapPark" aria-hidden="true">
         <div class="dash-map-wrap" id="dashMapWrap" data-open="maps">
           <div class="map" id="dashMap"></div>

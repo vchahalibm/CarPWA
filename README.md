@@ -53,7 +53,7 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - **Dock**: clock, signal, location dot (green = GPS, orange = demo), three most recent apps, voice assistant and Home. Left side in landscape, bottom in portrait.
 - **Home button**: from an app it goes to the home grid; on the home grid it goes to the dashboard.
 - **Dashboard** (start screen), three layouts; swipe sideways or use the pill at the bottom to switch:
-  - **Cluster**: an instrument cluster in one of seven styles: **Twin Dials** (speed and heading dials around a 3D map), **Arc** (thick arcs and a trip/route card), **Analog** (needle speedometer with G-meter, clock and compass sub-dials), **Bars** (big numbers over progress bars and a heading tape), **Band** (full-width gradient with speed, analog clock and now playing), **Telltale** (status icons, speed dial, heading tape and route bar on black) and **Map First** (3D map with glass pills).
+  - **Cluster**: an instrument cluster in one of eight styles: **Chronograph** (orange-rimmed needle speedometer with G-meter, clock, elevation, compass, route, temperature and distance-to-go sub-dials), **Twin Dials** (speed and heading dials around a 3D map), **Arc** (thick arcs and a trip/route card), **Analog** (needle speedometer with G-meter, clock and compass sub-dials), **Bars** (big numbers over progress bars and a heading tape), **Band** (full-width gradient with speed, analog clock and now playing), **Telltale** (status icons, speed dial, heading tape and route bar on black) and **Map First** (3D map with glass pills).
   - **Map**: map card with the next turn, arrival/time/distance and street name, plus next-turn (or Home/Work) and now-playing cards.
   - **Widgets**: an editable grid. Tap **Edit** to remove, reorder or add widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
   - **Customize** (sliders button): cluster style, accent colour (cyan, magenta, red, orange, khaki, yellow, wine, green) and motion sensors.
@@ -62,7 +62,7 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 
 ### Working
 - **GPS**: live position, speed, heading, altitude and accuracy via the Geolocation API.
-- **Demo drive**: simulated drive down Market St, San Francisco, for desktop testing.
+- **Demo drive**: simulated drive in Bengaluru (MG Road → Trinity Circle → Old Airport Road), with Bengaluru sample places, for desktop testing.
 - **Maps** (MapLibre GL, [OpenFreeMap](https://openfreemap.org/) vector tiles, no key): light and dark map styles, rotating car marker, driven part of the route in grey and the rest in blue.
 - **Real routing**: turn-by-turn instructions, distance and time left, arrival time, speed limits along the route, spoken prompts (a heads-up and a "now"), and automatic rerouting after about 6 seconds off the route.
 - **Search**: real place search ([Photon](https://photon.komoot.io/)) and nearby Gas, Parking, EV chargers, Coffee and Food ([Overpass](https://overpass-api.de/)), all from OpenStreetMap data. Tap ☆ on a result to save it as Home or Work; recent destinations are remembered.
@@ -84,6 +84,12 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - Phone calls: simulated call screen (a real build would hand off to the dialer via `tel:`).
 - Contacts, messages and calendar are sample data. Home and Work are samples until you save your own.
 - A fake message arrives 25 s after load to show the notification banner.
+
+### Full screen on a phone or tablet
+- **Install it** to run without the browser bars. On iPhone/iPad, open the site in **Safari**, tap **Share › Add to Home Screen**, keep **Open as Web App** on, then launch DriveDeck from the Home Screen. Browsers have no automatic install prompt on iPhone. **Settings › Install on this device** shows the steps, and on Android it offers the install button.
+- **Sliding chrome**: the layout bar at the bottom of the dashboard slides away after 5 seconds; tap anywhere to bring it back. The ⤢ button slides the side dock away too; the thin handle on the left edge brings it back.
+- Layouts size themselves to the visible screen (`100dvh`), and the widget grid picks a column count so every widget fits without scrolling when there's room.
+- To lock the phone into the app while driving, use iOS **Guided Access** (Settings › Accessibility › Guided Access, then triple-click the side button in the app).
 
 ## Things to know
 

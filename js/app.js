@@ -110,7 +110,7 @@ function hydrateIcons(root = document) { $$('[data-icon]', root).forEach(el => {
    Settings & theme
    ============================================================ */
 const settings = Object.assign({
-  theme: 'dark', units: 'imperial', wallpaper: 0, speedLimit: true, voice: true,
+  theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
   arYaw: 0, arPitch: 0, arFov: 64, dashLayout: 'cluster', cluster: 'twin', accent: null
@@ -134,10 +134,15 @@ function applySettings() {
   $('meta[name=theme-color]').content = theme === 'dark' ? '#000000' : '#f2f2f7';
   $('#app').style.setProperty('--wallpaper', WALLS[settings.wallpaper][theme]);
   renderLimit(); updateSpeedUI(); updateDrive();
-  syncWakeLock(); restyleMaps();
+  syncWakeLock(); restyleMaps(); applyDock();
   store.set('settings', settings);
 }
 darkMQ.addEventListener?.('change', () => settings.theme === 'auto' && applySettings());
+/** The side dock can slide away so the current screen gets the full width (or height in portrait). */
+function applyDock() {
+  $('#app').classList.toggle('dock-hidden', !!settings.dockHidden);
+  setTimeout(() => { Object.values(maps).forEach(M => M.map?.resize()); if (typeof Dash !== 'undefined') Dash.fitGrid(); }, 320);
+}
 
 /* ============================================================
    Apps & navigation between views
@@ -216,14 +221,31 @@ function homeButton() {
 /* ============================================================
    Location: device GPS or simulated demo drive
    ============================================================ */
-const loc = { lat: 37.7749, lon: -122.4194, speed: 0, heading: 0, alt: null, acc: null, source: 'none', ts: 0 };
+const loc = { lat: 12.9716, lon: 77.5946, speed: 0, heading: 0, alt: null, acc: null, source: 'none', ts: 0 };
 const trip = { dist: 0, moving: 0, max: 0, start: Date.now() };
 let gpsWatch = null, demo = null, gotFirstFix = false;
 
-// Demo route: Embarcadero → down Market St (San Francisco). Used when no real route is available.
-const DEMO = [[37.7955, -122.3937], [37.7929, -122.3969], [37.7897, -122.4010], [37.7867, -122.4048], [37.7838, -122.4087],
-  [37.7810, -122.4121], [37.7786, -122.4153], [37.7752, -122.4194], [37.7725, -122.4230], [37.7698, -122.4265]];
+// Demo drive: Bengaluru, along MG Road past Trinity Circle onto Old Airport Road. Used when no real route is available.
+const DEMO = [[12.9757, 77.6000], [12.9756, 77.6033], [12.9755, 77.6066], [12.9752, 77.6098], [12.9745, 77.6130],
+  [12.9737, 77.6160], [12.9729, 77.6190], [12.9716, 77.6215], [12.9700, 77.6250], [12.9680, 77.6300]];
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// Launched from the Home Screen (no browser bars) rather than in a browser tab.
+const isStandalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+document.documentElement.classList.toggle('standalone', isStandalone());
+function showInstallHelp() {
+  if (deferredInstall) return ACTIONS.install();
+  const share = '<svg viewBox="0 0 24 24" class="inline-ic" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+  sheet('Install DriveDeck', isStandalone()
+    ? '<p>DriveDeck is already running as an installed app, full screen with no browser bars.</p>'
+    : isIOS
+      ? `<ol><li>Open this page in <b>Safari</b>. In another app’s built-in browser, tap its menu and choose <b>Open in Safari</b> first.</li>
+         <li>Tap <b>Share</b> ${share}: at the bottom in portrait on iPhone, or at the top on iPad and in landscape.</li>
+         <li>Scroll down and tap <b>Add to Home Screen</b>. Not there? Tap <b>Edit Actions…</b> and add it.</li>
+         <li>Leave <b>Open as Web App</b> on and tap <b>Add</b>.</li>
+         <li>Open <b>DriveDeck</b> from the Home Screen. It runs full screen, without Safari’s bars.</li></ol>`
+      : `<ol><li>Open the browser menu (⋮).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Open DriveDeck from the Home screen.</li></ol>`,
+    [['Got it']]);
+}
 
 function startGPS() {
   if (!('geolocation' in navigator)) { toast('Geolocation is not supported here'); return; }
@@ -484,26 +506,26 @@ let panelItems = [], remoteItems = [], remoteFor = '', searchTimer = null;
 const CATS = [['Gas', 'fuel', '#ff9f0a'], ['Parking', 'parking', '#0a84ff'], ['EV Chargers', 'bolt', '#30d158'], ['Coffee', 'coffee', '#ac8e68'], ['Food', 'food', '#ff453a']];
 // Offline samples, used only when the live nearby search is unreachable.
 const POIS = {
-  'Gas': ['Shell', 'Chevron', '76 Station', 'Arco'],
-  'Parking': ['Civic Center Garage', '5th & Mission Garage', 'Union Square Garage', 'Sutter-Stockton Garage'],
-  'EV Chargers': ['ChargePoint · 4 stalls', 'Supercharger · 12 stalls', 'EVgo Fast Charging', 'Electrify America'],
-  'Coffee': ['Blue Bottle Coffee', 'Sightglass', 'Ritual Coffee', 'Philz Coffee'],
-  'Food': ['Tartine Bakery', 'Souvla', 'Nopa', 'Zuni Café'],
+  'Gas': ['Indian Oil', 'HP Petrol Pump', 'Bharat Petroleum', 'Shell'],
+  'Parking': ['UB City Parking', 'Garuda Mall Parking', 'MG Road Metro Parking', 'Commercial Street Parking'],
+  'EV Chargers': ['Tata Power EZ Charge', 'Statiq · 4 chargers', 'ChargeZone Fast Charging', 'Ather Grid'],
+  'Coffee': ['Third Wave Coffee', 'Blue Tokai', 'Starbucks', 'Café Coffee Day'],
+  'Food': ['MTR', 'Vidyarthi Bhavan', 'Truffles', 'Meghana Foods'],
 };
-const SF = { lat: 37.7749, lon: -122.4194 };
+const DEMO_CITY = { lat: 12.9716, lon: 77.5946, name: 'Bengaluru' };
 function destinations() {
-  const saved = store.get('places', {}), nearSF = haversine(loc, SF) < 30000;
-  // Unsaved Home/Work fall back to samples: real San Francisco spots for the demo drive, else offsets from you.
-  const place = (id, name, icon, color, sf, dLat, dLon) => saved[id]
+  const saved = store.get('places', {}), nearCity = haversine(loc, DEMO_CITY) < 30000;
+  // Unsaved Home/Work fall back to samples: real Bengaluru spots for the demo drive, else offsets from you.
+  const place = (id, name, icon, color, city, dLat, dLon) => saved[id]
     ? { id, name, icon, color, sub: saved[id].sub, lat: saved[id].lat, lon: saved[id].lon }
-    : { id, name, icon, color, sub: 'Sample · save yours with ☆ in search', ...(nearSF ? sf : { lat: loc.lat + dLat, lon: loc.lon + dLon }) };
+    : { id, name, icon, color, sub: 'Sample · save yours with ☆ in search', ...(nearCity ? city : { lat: loc.lat + dLat, lon: loc.lon + dLon }) };
   const recent = store.get('recentPlaces', []).map(r => ({ ...r, icon: 'pin', color: '#ff9f0a', sub: r.sub || 'Recent' }));
   return [
-    place('home', 'Home', 'house', '#0a84ff', { lat: 37.7596, lon: -122.4269 }, -0.024, -0.009),
-    place('work', 'Work', 'briefcase', '#8e5cf7', { lat: 37.7897, lon: -122.3972 }, 0.016, 0.013),
+    place('home', 'Home', 'house', '#0a84ff', { lat: 12.9719, lon: 77.6412 }, -0.024, -0.009),
+    place('work', 'Work', 'briefcase', '#8e5cf7', { lat: 12.9544, lon: 77.6421 }, 0.016, 0.013),
     ...(recent.length ? recent.slice(0, 4) : [
-      place('coffee', 'Blue Bottle Coffee', 'coffee', '#ac8e68', { lat: 37.7823, lon: -122.4077 }, 0.006, -0.004),
-      place('gym', 'Equinox', 'dumbbell', '#ff375f', { lat: 37.7880, lon: -122.4075 }, -0.009, 0.011),
+      place('coffee', 'Third Wave Coffee', 'coffee', '#ac8e68', { lat: 12.9784, lon: 77.6408 }, 0.006, -0.004),
+      place('gym', 'Cult Gym', 'dumbbell', '#ff375f', { lat: 12.9352, lon: 77.6245 }, -0.009, 0.011),
     ]),
   ];
 }
@@ -967,7 +989,7 @@ function renderWeather() {
   $('#wxUpdated').textContent = wx.live ? 'Live · Open-Meteo' : 'Sample data (offline)';
   $('#wxBody').innerHTML = `
     <div class="wx-now">
-      <div class="wx-place">${svg('locate')}${loc.source === 'demo' ? 'San Francisco' : 'My Location'}</div>
+      <div class="wx-place">${svg('locate')}${loc.source === 'demo' ? DEMO_CITY.name : 'My Location'}</div>
       <div class="wx-temp">${r(wx.cur.temp)}°</div>
       <div class="wx-cond">${svg(icon)}${label}</div>
       <div class="wx-hl">H:${r(today.hi)}°  L:${r(today.lo)}°</div>
@@ -989,8 +1011,8 @@ const EVENTS = (() => {
   const at = mins => { const d = new Date(Date.now() + mins * 60e3); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); return d; };
   return [
     { title: 'Design review', at: at(40), dur: 45, loc: 'Bobworks HQ', dest: 'work', color: '#0a84ff', contact: 'alex' },
-    { title: 'Lunch with Sam', at: at(180), dur: 60, loc: 'Blue Bottle Coffee', dest: 'coffee', color: '#30d158', contact: 'sam' },
-    { title: 'Workout', at: at(330), dur: 60, loc: 'Equinox', dest: 'gym', color: '#ff375f' },
+    { title: 'Lunch with Sam', at: at(180), dur: 60, loc: 'Third Wave Coffee', dest: 'coffee', color: '#30d158', contact: 'sam' },
+    { title: 'Workout', at: at(330), dur: 60, loc: 'Cult Gym', dest: 'gym', color: '#ff375f' },
     { title: 'Dinner at home', at: at(480), dur: 90, loc: 'Home', dest: 'home', color: '#ff9f0a', contact: 'priya' },
   ];
 })();
@@ -1081,7 +1103,7 @@ function renderSettings() {
     <div class="group">
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
-      ${deferredInstall ? btn('install', 'Install app') : ''}
+      ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.3</span></div>
     </div>`;
 }
@@ -1229,6 +1251,9 @@ const ACTIONS = {
     applySettings(); renderSettings();
     toast(settings.tomtomKey ? 'TomTom traffic routing on' : 'TomTom key removed');
   },
+  installHelp: () => showInstallHelp(),
+  dockShow: () => { settings.dockHidden = false; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); },
+  dismissInstall: () => { store.set('installTipOff', true); $('#installTip').hidden = true; },
   arReset: () => { Object.assign(settings, { arYaw: 0, arPitch: 0, arFov: 64 }); applySettings(); toast('AR calibration reset'); },
   modes: () => toggleModeMenu(),
   dashCustomize: () => Dash.customize(),
@@ -1303,10 +1328,11 @@ if (qs.has('demo')) startDemo();
 if (qs.has('nav')) startNav(destinations()[0]);
 if (qs.get('view')) openView(qs.get('view'));
 if (qs.has('play')) { player.playing = true; updatePlayerUI(); }
+$('#installTip').hidden = isStandalone() || store.get('installTipOff') || !(isIOS || /Android/i.test(navigator.userAgent));
 
 // First run: ask for location with a tap (iPhone only shows its permission prompt in response to one).
 if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has('view')) {
-  const tip = isIOS && !navigator.standalone ? '<p class="hint">Tip: in Safari, tap <b>Share › Add to Home Screen</b> to run DriveDeck full screen.</p>' : '';
+  const tip = isIOS && !isStandalone() ? '<p class="hint">Tip: install it for full screen with no browser bars: in Safari tap <b>Share › Add to Home Screen</b>.</p>' : '';
   const done = fn => () => { store.set('onboarded', true); fn?.(); };
   sheet('Welcome to DriveDeck', `<p>Turn on location for live position, speed and turn-by-turn directions. Your location stays on this device.</p>${tip}`,
     [['Use my location', done(startGPS)], ['Try demo drive', done(() => ACTIONS.demo())], ['Not now', done()]]);

@@ -92,6 +92,7 @@ const I = {
   mirror: '<path d="M12 3v18M9 7L4 12l5 5V7zM15 7l5 5-5 5V7z"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  resize: '<path d="M21 13v8h-8M21 21l-7-7M3 11V3h8M3 3l7 7"/>',
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cloud: '<path d="M17.5 19H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20.5 12a3.5 3.5 0 0 1-3 7z"/>',
@@ -1135,6 +1136,7 @@ function handleCommand(raw) {
   const t = raw.toLowerCase();
   $('#assistant').hidden = false;
   const reply = (msg, then) => { setAsst(msg); speak(msg); setTimeout(() => { closeAssistant(); then?.(); }, 1300); };
+  if (voiceDrive(t, reply)) return;
   let m;
   if ((m = t.match(/\b(ar|camera|hud|heads.?up|3d|three d|map)\s*(mode|view)\b/)) || /^(ar|hud|3d) ?(mode)?$/.test(t.trim())) {
     const w = (m ? m[1] : t.trim().split(' ')[0]), id = /hud|heads/.test(w) ? 'hud' : /ar|camera/.test(w) ? 'ar' : /3d|three/.test(w) ? '3d' : 'map';
@@ -1169,6 +1171,48 @@ function handleCommand(raw) {
     const w = wx || mockWeather();
     reply(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
   } else reply('Sorry, I didn’t catch that.');
+}
+/** Driving, layout and app commands. Returns true when it handled the phrase. */
+function voiceDrive(t, reply) {
+  const v = nav?.view, say = s => (reply(s), true);
+  const spokenSpeed = () => `${speedVal(loc.speed)} ${imperial() ? 'miles' : 'kilometers'} per hour`;
+  if (/\b(end|stop|cancel|exit)\b.*\b(route|navigation|directions|trip)\b/.test(t)) return nav ? say('Route ended.', endNav()) : say('There’s no active route.');
+  if (/\b(eta|arriv\w*|how long|time left|when will)\b/.test(t)) return v
+    ? say(`You’ll arrive at ${fmtClock(v.eta)}, in ${fmtMins(v.remainT)} ${v.remainT >= 3600 ? 'hours' : 'minutes'}. ${spokenDist(v.remain)} to go.`) : say('There’s no active route. Say “navigate to” and a place.');
+  if (/\b(how far|distance left|how much further)\b/.test(t)) return v ? say(`${spokenDist(v.remain)} to go.`) : say('There’s no active route.');
+  if (/\bnext (turn|direction|step)\b|what['’]?s next/.test(t)) return v ? say(`In ${spokenDist(v.toNext)}, ${lowerFirst(v.step.text)}.`) : say('There’s no active route.');
+  if (/\b(my speed|how fast|speed limit)\b/.test(t)) {
+    const lim = limitVal();
+    return say(loc.source === 'none' ? 'Location is off.' : `You’re doing ${spokenSpeed()}.${lim ? ` The limit is ${lim}.` : ''}`);
+  }
+  if (/\b(where am i|what street|which road|what road)\b/.test(t)) {
+    const st = typeof currentStreet === 'function' ? currentStreet() : '';
+    return say(loc.source === 'none' ? 'Location is off.' : `${st ? `You’re on ${st}, ` : ''}heading ${CARD_FULL[cardinal(loc.heading || 0)]}.`);
+  }
+  if (/\b(re-?center|centre|center the map)\b/.test(t)) return say('Recentering.', recenterAll());
+  if (/\bzoom (in|out)\b/.test(t)) { const inn = /zoom in/.test(t); maps.main.map?.[inn ? 'zoomIn' : 'zoomOut'](); return say(inn ? 'Zooming in.' : 'Zooming out.'); }
+  let m;
+  if ((m = t.match(/\b(cluster|widgets?|map)\s+(layout|screen|page|dashboard)\b/)) || (m = t.match(/\bshow (?:the |me )?(cluster|widgets?)\b/))) {
+    const id = m[1].startsWith('widget') ? 'widgets' : m[1];
+    return say(`${id[0].toUpperCase() + id.slice(1)} layout.`, (openView('dashboard'), Dash.cmd('layout:' + id)));
+  }
+  if (/\b(dashboard|home screen)\b/.test(t) && /\b(show|open|go|back)\b/.test(t)) return say('Dashboard.', openView('dashboard'));
+  if ((m = t.match(/\b(chrono\w*|analog|twin|arc|bars|band|telltale|map first)\b.*\b(style|cluster|dials?|gauges?)\b/))) {
+    const id = { analog: 'analog', twin: 'twin', arc: 'arc', bars: 'bars', band: 'band', telltale: 'telltale', 'map first': 'mapfirst' }[m[1]] || 'chrono';
+    openView('dashboard'); Dash.cmd('style:' + id); closeSheet();
+    return say(`${CLUSTERS[id].name} style.`);
+  }
+  if ((m = t.match(/\b(hide|show)\b.*\bdock\b/)) || /\bfull ?screen\b/.test(t)) {
+    settings.dockHidden = m ? m[1] === 'hide' : true; store.set('settings', settings); applyDock();
+    if (typeof Dash !== 'undefined') Dash.renderBar();
+    return say(settings.dockHidden ? 'Dock hidden. Tap the left edge to bring it back.' : 'Dock shown.');
+  }
+  if ((m = t.match(/\b(dark|light)\s+(mode|theme)\b/))) { settings.theme = m[1]; applySettings(); return say(`${m[1] === 'dark' ? 'Dark' : 'Light'} theme.`); }
+  if ((m = t.match(/\b(?:open|show|launch)\s+(?:the\s+)?(music|phone|messages|weather|calendar|settings|drive|maps?|trip computer)\b/))) {
+    const id = { map: 'maps', 'trip computer': 'drive' }[m[1]] || m[1];
+    return say(`Opening ${id}.`, openApp(id));
+  }
+  return false;
 }
 function speak(text) {
   try {
@@ -1252,6 +1296,7 @@ const ACTIONS = {
     toast(settings.tomtomKey ? 'TomTom traffic routing on' : 'TomTom key removed');
   },
   installHelp: () => showInstallHelp(),
+  backToDash: () => { closeModeMenu(); openView('dashboard'); },
   dockShow: () => { settings.dockHidden = false; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); },
   dismissInstall: () => { store.set('installTipOff', true); $('#installTip').hidden = true; },
   arReset: () => { Object.assign(settings, { arYaw: 0, arPitch: 0, arFov: 64 }); applySettings(); toast('AR calibration reset'); },
@@ -1339,4 +1384,27 @@ if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has(
 }
 
 // Offline support and installability. Relative URL so the app works from any sub-path.
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+if ('serviceWorker' in navigator) addEventListener('load', async () => {
+  let reg;
+  try { reg = await navigator.serviceWorker.register('sw.js'); } catch { return; }
+  if (!reg) return;
+  // A waiting worker means new code is downloaded; only offer it when an older version is running.
+  const offer = w => { if (w && navigator.serviceWorker.controller) showUpdate(w); };
+  offer(reg.waiting);
+  reg.addEventListener('updatefound', () => {
+    const w = reg.installing;
+    w?.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); });
+  });
+  // Installed apps on iPhone rarely check on their own: check on launch/return and every 30 minutes.
+  const check = () => reg.update().catch(() => {});
+  setInterval(check, 30 * 60e3);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
+});
+let updating = false;
+function showUpdate(worker) {
+  const bar = $('#updateBar');
+  bar.hidden = false;
+  $('#updateNow').onclick = () => { updating = true; bar.hidden = true; worker.postMessage('skipWaiting'); };
+  $('#updateLater').onclick = () => { bar.hidden = true; toast('The update installs next time you close and reopen DriveDeck'); };
+}

@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -29,9 +29,13 @@ const SHELL = [
   'icons/maskable-icon-512x512.png'
 ];
 
+// A new version installs in the background and waits; the page asks the driver before switching,
+// so an update never swaps code mid-drive. The first install has nothing to replace and activates at once.
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
 });
+
+self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()

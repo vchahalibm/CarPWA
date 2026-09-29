@@ -70,10 +70,12 @@
         <div class="map-panel" id="mapPanel"></div>
         <div class="maneuver" id="maneuver"><span id="manIcon"></span><div><div class="man-dist" id="manDist"></div><div class="man-street" id="manStreet"></div></div></div>
         <div class="map-controls">
+          <button class="map-btn back-btn" data-action="backToDash" aria-label="Back to the dashboard"><span data-icon="dash"></span><small>Home</small></button>
           <button class="map-btn mode-btn" data-action="modes" id="modeBtn" aria-label="Driving mode"></button>
-          <button class="map-btn" data-action="zoomIn" aria-label="Zoom in"><span data-icon="plus"></span></button>
-          <button class="map-btn" data-action="zoomOut" aria-label="Zoom out"><span data-icon="minus"></span></button>
+          <button class="map-btn zoom" data-action="zoomIn" aria-label="Zoom in"><span data-icon="plus"></span></button>
+          <button class="map-btn zoom" data-action="zoomOut" aria-label="Zoom out"><span data-icon="minus"></span></button>
           <button class="map-btn" data-action="recenter" id="recenterBtn" aria-label="Recenter"><span data-icon="locate"></span></button>
+          <button class="map-btn" data-action="assistant" aria-label="Voice commands"><span data-icon="mic"></span></button>
         </div>
         <div class="mode-menu" id="modeMenu" hidden></div>
         <div class="speed-cluster">
@@ -205,6 +207,9 @@
           <button class="chip" data-cmd="call mom">“Call Mom”</button>
           <button class="chip" data-cmd="read my messages">“Read my messages”</button>
           <button class="chip" data-cmd="find parking nearby">“Find parking”</button>
+          <button class="chip" data-cmd="what's my eta">“What’s my ETA?”</button>
+          <button class="chip" data-cmd="show the widgets">“Show the widgets”</button>
+          <button class="chip" data-cmd="chronograph style">“Chronograph style”</button>
           <button class="chip" data-cmd="what's the weather">“What’s the weather?”</button>
         </div>
       </div>
@@ -253,6 +258,10 @@
   <div class="ar-cal" id="arCal" hidden></div>
 </div>
 
+<div class="update-bar" id="updateBar" role="status" hidden>
+  <span data-icon="download"></span><div class="lp-t"><b>Update available</b><span>A new version of DriveDeck is ready</span></div>
+  <button class="big-btn accent" id="updateNow">Update now</button><button class="big-btn" id="updateLater">Later</button>
+</div>
 <div class="sheet" id="sheet" hidden></div>
 <div class="toast" id="toast"></div>
 <script src="vendor/maplibre/maplibre-gl.js"></script>

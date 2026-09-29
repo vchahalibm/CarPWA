@@ -308,13 +308,39 @@ const Dash = {
   get layout() { return settings.dashLayout || 'cluster'; },
   get style() { return CLUSTERS[settings.cluster] ? settings.cluster : 'twin'; },
   widgets() { return (store.get('widgets', DEFAULT_WIDGETS)).filter(id => W[id]); },
+  /** Widget columns either side of the cluster: { left: [ids], right: [ids] }. */
+  sides() { const s = store.get('clusterSides', { left: [], right: [] }); return { left: (s.left || []).filter(id => W[id]), right: (s.right || []).filter(id => W[id]) }; },
+  size(where, id) { const z = store.get('wsizes', {})[`${where}.${id}`]; return Array.isArray(z) ? z : [1, 1]; },
+  setSize(where, id, wh) { const z = store.get('wsizes', {}); z[`${where}.${id}`] = wh; store.set('wsizes', z); },
+  /** One widget card; `where` is 'grid' or a cluster side. Edit mode adds move/remove buttons and a resize handle. */
+  card(id, i, list, where) {
+    const [w, h] = this.size(where, id), name = W[id].name, flip = svg('back').replace('<svg', '<svg style="transform:scaleX(-1)"');
+    const up = svg('back').replace('<svg', '<svg style="transform:rotate(90deg)"'), down = svg('back').replace('<svg', '<svg style="transform:rotate(-90deg)"');
+    let edit = '';
+    if (this.editing && where === 'grid') edit = `<div class="wg-edit"><button data-dash="left:${id}" aria-label="Move ${name} earlier" ${i ? '' : 'disabled'}>${svg('back')}</button>
+        <button class="x" data-dash="remove:${id}" aria-label="Remove ${name}">${svg('close')}</button>
+        <button data-dash="right:${id}" aria-label="Move ${name} later" ${i < list.length - 1 ? '' : 'disabled'}>${flip}</button></div>`;
+    else if (this.editing) edit = `<div class="wg-edit two"><button data-dash="sup:${where}:${id}" aria-label="Move ${name} up" ${i ? '' : 'disabled'}>${up}</button>
+        <button class="x" data-dash="sremove:${where}:${id}" aria-label="Remove ${name}">${svg('close')}</button>
+        <button data-dash="sdown:${where}:${id}" aria-label="Move ${name} down" ${i < list.length - 1 ? '' : 'disabled'}>${down}</button>
+        <button data-dash="sswap:${where}:${id}" aria-label="Move ${name} to the other side">${where === 'left' ? flip : svg('back')}</button></div>`;
+    if (this.editing) edit += `<div class="wg-rs ${where === 'grid' ? '' : 'v'}" data-rs="${where}:${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>`;
+    const style = where === 'grid' ? `grid-column:span ${w};grid-row:span ${h}` : `flex-grow:${h}`;
+    return `<div class="wg w-${id}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${W[id].html()}${edit}</div>`;
+  },
 
   show() { this.render(); },
   render() {
     const root = $('#dashRoot'); if (!root) return;
     document.documentElement.dataset.accent = settings.accent || CLUSTERS[this.style].accent;
     let html, map3d = false;
-    if (this.layout === 'cluster') { html = CLUSTERS[this.style].html(); map3d = !!CLUSTERS[this.style].map3d; }
+    if (this.layout === 'cluster') {
+      const sides = this.sides(), col = s => sides[s].length || this.editing ? `<div class="cl-side" data-side="${s}">
+          ${sides[s].map((id, i, a) => this.card(id, i, a, s)).join('')}
+          ${this.editing ? `<button class="wg add" data-dash="add:${s}">${svg('plus')}<span>Add</span></button>` : ''}</div>` : '';
+      html = `<div class="cl-wrap">${col('left')}<div class="cl-main">${CLUSTERS[this.style].html()}</div>${col('right')}</div>`;
+      map3d = !!CLUSTERS[this.style].map3d;
+    }
     else if (this.layout === 'map') html = `<div class="mapstack">
         <div class="ms-map"><div class="map-slot"></div>
           <div class="ms-turn" data-show="nav" data-open="maps"><span data-html="turnIcon"></span><div><b data-t="turnDist"></b><span data-t="turnText"></span></div></div>
@@ -324,13 +350,10 @@ const Dash = {
         <div class="ms-side"><div class="wg">${W.turn.html()}<div class="ms-favs" data-show="noNav">
             <button class="big-btn" data-go="home">${svg('house')}Home</button><button class="big-btn" data-go="work">${svg('briefcase')}Work</button></div></div>
           <div class="wg">${W.nowPlaying.html()}</div></div></div>`;
-    else html = `<div class="wgrid ${this.editing ? 'editing' : ''}">${this.widgets().map((id, i, a) => `<div class="wg w-${id}" data-wid="${id}">${W[id].html()}
-        ${this.editing ? `<div class="wg-edit"><button data-dash="left:${id}" aria-label="Move left" ${i ? '' : 'disabled'}>${svg('back')}</button>
-          <button class="x" data-dash="remove:${id}" aria-label="Remove ${W[id].name}">${svg('close')}</button>
-          <button data-dash="right:${id}" aria-label="Move right" ${i < a.length - 1 ? '' : 'disabled'}>${svg('back').replace('<svg', '<svg style="transform:scaleX(-1)"')}</button></div>` : ''}</div>`).join('')}
-        ${this.editing ? `<button class="wg add" data-dash="add">${svg('plus')}<span>Add widget</span></button>` : ''}</div>`;
+    else html = `<div class="wgrid ${this.editing ? 'editing' : ''}">${this.widgets().map((id, i, a) => this.card(id, i, a, 'grid')).join('')}
+        ${this.editing ? `<button class="wg add" data-cw="1" data-ch="1" data-dash="add:grid">${svg('plus')}<span>Add widget</span></button>` : ''}</div>`;
     $('#mapPark').appendChild(this.wrap); // keep the one shared map alive across re-renders
-    root.className = 'dash-root lay-' + this.layout + (this.layout === 'cluster' ? ' st-' + this.style : '') + (this.editing ? ' with-bar' : '');
+    root.className = 'dash-root lay-' + this.layout + (this.layout === 'cluster' ? ' st-' + this.style : '') + (this.editing ? ' with-bar editing' : '');
     root.innerHTML = html;
     this.placeMap(map3d);
     this.renderBar();
@@ -339,19 +362,31 @@ const Dash = {
     this.update(true);
     this.fitGrid(); Bar.show();
   },
-  /** Size the widget grid so every widget fits the visible screen; scroll only when cells would get too small. */
+  /** Pick the column count and row height so every widget (with its spans) fits the visible screen; scroll only when cells would get too small. */
   fitGrid() {
     const g = $('#dashRoot .wgrid'); if (!g) return;
-    const n = g.children.length, W = g.clientWidth, H = g.clientHeight, gap = 12;
+    const items = [...g.children], W = g.clientWidth, H = g.clientHeight, gap = 12;
+    const spans = items.map(el => [+el.dataset.cw || 1, +el.dataset.ch || 1]);
+    const area = spans.reduce((a, [w, h]) => a + w * h, 0);
+    const apply = cols => items.forEach((el, k) => el.style.gridColumn = `span ${Math.min(spans[k][0], cols)}`);
     let best = null;
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols), w = (W - gap * (cols - 1)) / cols, h = (H - gap * (rows - 1)) / rows;
-      if (w / h > 2.4 || h / w > 1.8) continue; // keep cells card-shaped
-      const score = Math.min(w, h);
-      if (!best || score > best.score) best = { cols, h, score };
+    g.style.gridAutoRows = '10px';
+    for (let cols = 1; cols <= Math.max(1, area); cols++) {
+      const cw = (W - gap * (cols - 1)) / cols; if (cw < 96) break;
+      g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`; apply(cols);
+      const rows = getComputedStyle(g).gridTemplateRows.split(' ').length; // rows the dense packing actually used
+      const rh = (H - gap * (rows - 1)) / rows;
+      if (cw / rh > 2.6 || rh / cw > 1.9) continue; // keep cells card-shaped
+      const score = Math.min(cw, rh);
+      if (!best || score > best.score) best = { cols, rh, score };
     }
-    if (best && best.score >= 112) { g.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`; g.style.gridAutoRows = `${Math.floor(best.h)}px`; g.classList.add('fit'); }
-    else { g.style.gridTemplateColumns = ''; g.style.gridAutoRows = ''; g.classList.remove('fit'); }
+    if (best && best.score >= 104) {
+      g.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`; apply(best.cols);
+      g.style.gridAutoRows = `${Math.floor(best.rh)}px`; g.dataset.cols = best.cols; g.classList.add('fit');
+    } else { // too many to fit: fixed-size cells that scroll
+      const cols = Math.max(1, Math.floor((W + gap) / (170 + gap)));
+      g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`; apply(cols); g.style.gridAutoRows = '170px'; g.dataset.cols = cols; g.classList.remove('fit');
+    }
   },
   placeMap(map3d) {
     const slot = $('#dashRoot .map-slot');
@@ -364,7 +399,8 @@ const Dash = {
   renderBar() {
     $('#dashBar').innerHTML = `<div class="seg-pill">${LAYOUTS.map(([id, name, ic]) =>
       `<button class="${id === this.layout ? 'on' : ''}" data-dash="layout:${id}" aria-label="${name} layout">${svg(ic)}<span>${name}</span></button>`).join('')}</div>
-      ${this.layout === 'widgets' ? `<button class="bar-btn ${this.editing ? 'on' : ''}" data-dash="edit">${this.editing ? 'Done' : 'Edit'}</button>` : ''}
+      ${this.layout !== 'map' ? `<button class="bar-btn ${this.editing ? 'on' : ''}" data-dash="edit">${this.editing ? 'Done' : 'Edit'}</button>` : ''}
+      <button class="bar-btn icon" data-action="assistant" aria-label="Voice commands">${svg('mic')}</button>
       <button class="bar-btn icon" data-dash="customize" aria-label="Customize">${svg('sliders')}</button>
       <button class="bar-btn icon ${settings.dockHidden ? 'on' : ''}" data-dash="dock" aria-label="${settings.dockHidden ? 'Show' : 'Hide'} the side dock">${svg('expand')}</button>`;
   },
@@ -385,7 +421,8 @@ const Dash = {
     function set(el, k, v, apply) { const key = '_' + k; if (el[key] !== v) { el[key] = v; apply(v); } }
   },
   cmd(v) {
-    const [c, arg] = v.split(':');
+    const [c, arg, arg2] = v.split(':');
+    const sides = this.sides(), saveSides = () => { store.set('clusterSides', sides); this.render(); };
     if (c === 'layout') { settings.dashLayout = arg; this.editing = false; store.set('settings', settings); this.render(); }
     else if (c === 'edit') { this.editing = !this.editing; this.render(); }
     else if (c === 'customize') this.customize();
@@ -394,7 +431,15 @@ const Dash = {
     else if (c === 'accent') { settings.accent = arg; store.set('settings', settings); this.render(); this.customize(); }
     else if (c === 'motion') Sensors.enable();
     else if (c === 'level') Sensors.zeroTilt();
-    else if (c === 'add') this.addSheet();
+    else if (c === 'add') this.addSheet(arg || 'grid');
+    else if (c === 'adds') { sides[arg].push(arg2); saveSides(); }
+    else if (c === 'sremove') { sides[arg] = sides[arg].filter(id => id !== arg2); saveSides(); }
+    else if (c === 'sswap') { sides[arg] = sides[arg].filter(id => id !== arg2); const o = arg === 'left' ? 'right' : 'left'; if (!sides[o].includes(arg2)) sides[o].push(arg2); saveSides(); }
+    else if (c === 'sup' || c === 'sdown') {
+      const l = sides[arg], i = l.indexOf(arg2), j = i + (c === 'sup' ? -1 : 1);
+      if (i < 0 || j < 0 || j >= l.length) return;
+      [l[i], l[j]] = [l[j], l[i]]; saveSides();
+    }
     else if (c === 'addw') { store.set('widgets', [...this.widgets(), arg]); this.render(); }
     else if (c === 'remove') { store.set('widgets', this.widgets().filter(id => id !== arg)); this.render(); }
     else if (c === 'left' || c === 'right') {
@@ -416,16 +461,18 @@ const Dash = {
       <p class="hint">Roll, pitch and G-force use the phone’s sensors, so mount it upright facing you and tap <b>Set level</b> while parked on flat ground.</p>`,
       [['Done']]);
   },
-  addSheet() {
-    const missing = Object.keys(W).filter(id => !this.widgets().includes(id));
-    if (!missing.length) return toast('All widgets are already on the dashboard');
-    sheet('Add widget', `<div class="cz-styles">${missing.map(id => `<button class="cz-style" data-dash="addw:${id}">${W[id].name}</button>`).join('')}</div>`, [['Done']]);
+  addSheet(where = 'grid') {
+    const have = where === 'grid' ? this.widgets() : this.sides()[where];
+    const missing = Object.keys(W).filter(id => !have.includes(id));
+    if (!missing.length) return toast('All widgets are already there');
+    const title = where === 'grid' ? 'Add widget' : `Add widget · ${where} of the cluster`;
+    sheet(title, `<div class="cz-styles">${missing.map(id => `<button class="cz-style" data-dash="${where === 'grid' ? `addw:${id}` : `adds:${where}:${id}`}">${W[id].name}</button>`).join('')}</div>`, [['Done']]);
   },
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-dash]'); if (!b || b.disabled) return;
   e.stopPropagation();
-  if (b.closest('#sheet') && /^addw:/.test(b.dataset.dash)) closeSheet();
+  if (b.closest('#sheet') && /^(addw|adds):/.test(b.dataset.dash)) closeSheet();
   Dash.cmd(b.dataset.dash);
 }, true);
 // Swipe left/right on the dashboard to change layout.
@@ -436,7 +483,7 @@ document.addEventListener('click', e => {
   root.addEventListener('touchend', e => {
     if (x0 == null) return;
     const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
-    if (Math.abs(dx) < 70 || Math.abs(dy) > 60 || e.target.closest('.wgrid')) return;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > 60 || e.target.closest('.wgrid,.cl-side,.wg-rs')) return;
     const i = LAYOUTS.findIndex(l => l[0] === Dash.layout), n = LAYOUTS.length;
     Dash.cmd('layout:' + LAYOUTS[(i + (dx < 0 ? 1 : -1) + n) % n][0]);
   }, { passive: true });
@@ -454,6 +501,30 @@ const Bar = {
 };
 $('#view-dashboard').addEventListener('pointerdown', () => Bar.show(), true);
 addEventListener('resize', () => requestAnimationFrame(() => Dash.fitGrid()));
+/* Drag a widget's corner handle to resize it in whole cells; the grid re-packs around it. */
+document.addEventListener('pointerdown', e => {
+  const hnd = e.target.closest('[data-rs]'); if (!hnd) return;
+  e.preventDefault(); e.stopPropagation();
+  const [where, id] = hnd.dataset.rs.split(':'), card = hnd.closest('.wg'), box = card.parentElement, r = card.getBoundingClientRect();
+  const w0 = +card.dataset.cw || 1, h0 = +card.dataset.ch || 1, grid = where === 'grid';
+  const cols = grid ? +box.dataset.cols || 1 : 1, cellW = (r.width + 12) / w0, cellH = grid ? (r.height + 12) / h0 : box.clientHeight / 4;
+  const x0 = e.clientX, y0 = e.clientY;
+  let nw = w0, nh = h0;
+  card.classList.add('resizing'); hnd.setPointerCapture?.(e.pointerId);
+  const move = ev => {
+    const w = grid ? Math.max(1, Math.min(cols, w0 + Math.round((ev.clientX - x0) / cellW))) : 1;
+    const h = Math.max(1, Math.min(3, h0 + Math.round((ev.clientY - y0) / cellH)));
+    if (w === nw && h === nh) return;
+    nw = w; nh = h; card.dataset.cw = w; card.dataset.ch = h;
+    if (grid) { card.style.gridColumn = `span ${w}`; card.style.gridRow = `span ${h}`; } else card.style.flexGrow = h;
+  };
+  const end = () => {
+    hnd.removeEventListener('pointermove', move); card.classList.remove('resizing');
+    Dash.setSize(where, id, [nw, nh]); Dash.fitGrid();
+  };
+  hnd.addEventListener('pointermove', move);
+  hnd.addEventListener('pointerup', end, { once: true }); hnd.addEventListener('pointercancel', end, { once: true });
+}, true);
 listeners.push(() => Dash.update());
 setInterval(() => Dash.update(), 1000);
 if (current === 'dashboard') Dash.render();

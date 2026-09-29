@@ -93,6 +93,7 @@ const I = {
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   resize: '<path d="M21 13v8h-8M21 21l-7-7M3 11V3h8M3 3l7 7"/>',
+  share: '<path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cloud: '<path d="M17.5 19H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20.5 12a3.5 3.5 0 0 1-3 7z"/>',
@@ -114,7 +115,7 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, dashLayout: 'cluster', cluster: 'twin', accent: null
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'whisper', voiceLang: 'auto', dashLayout: 'cluster', cluster: 'twin', accent: null
 }, store.get('settings', {}));
 
 const WALLS = [
@@ -248,15 +249,23 @@ function showInstallHelp() {
     [['Got it']]);
 }
 
-function startGPS() {
+function startGPS(quiet) {
   if (!('geolocation' in navigator)) { toast('Geolocation is not supported here'); return; }
   if (!window.isSecureContext) toast('GPS needs HTTPS or localhost');
   stopDemo();
   if (gpsWatch != null) navigator.geolocation.clearWatch(gpsWatch);
   gotFirstFix = false;
   gpsWatch = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-  toast('Acquiring GPS…');
+  if (!quiet) toast('Acquiring GPS…');
 }
+// iPhone can stop delivering positions to a web app after it has been in the background, and may
+// ignore a request that isn't tied to a tap: restart on return, and retry on the first tap.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && store.get('locSource', 'none') === 'gps' && loc.source !== 'demo') startGPS(true);
+});
+document.addEventListener('pointerdown', () => {
+  if (loc.source === 'none' && store.get('locSource', 'none') === 'gps') startGPS(true);
+}, { once: true, capture: true });
 function stopGPS() { if (gpsWatch != null) navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
 function onPosition(p) {
   const c = p.coords, next = { lat: c.latitude, lon: c.longitude };
@@ -267,7 +276,7 @@ function onPosition(p) {
   if (loc.source === 'gps' && moved < 500) addTrip(moved, dt, speed);
   Object.assign(loc, next, { speed, heading, alt: c.altitude, acc: c.accuracy, source: 'gps', ts: p.timestamp });
   store.set('locSource', 'gps');
-  if (!gotFirstFix) { gotFirstFix = true; toast(`GPS locked · ±${Math.round(c.accuracy)} m`); recenterAll(); }
+  if (!gotFirstFix) { gotFirstFix = true; toast(`GPS locked · ±${Math.round(c.accuracy)} m`); recenterAll(true); }
   emit();
 }
 function onPositionError(err) {
@@ -492,10 +501,10 @@ function updateMaps(opts = {}) {
     M.map.easeTo({ ...cam, duration: opts.instant ? 0 : 900, easing: t => t, essential: true });
   }
 }
-function recenterAll() {
+function recenterAll(instant) {
   for (const M of Object.values(maps)) { M.follow = true; if (M.map && !(M === maps.main ? mapMode === '3d' : M.threeD)) M.map.setZoom(nav ? 17 : 16); }
   $('#recenterBtn').classList.remove('on');
-  updateMaps({ force: true });
+  updateMaps({ force: true, instant: !!instant });
 }
 listeners.push(() => updateMaps());
 
@@ -659,7 +668,7 @@ async function startNav(dest) {
     if (token !== navToken) return;
     if (loc.source === 'demo') { route = Routing.approx(DEMO, dest.name); dest = { ...dest, lat: DEMO.at(-1)[0], lon: DEMO.at(-1)[1] }; }
     else route = Routing.approx([[from.lat, from.lon], [dest.lat, dest.lon]], dest.name);
-    toast('Routing is offline, showing an approximate route');
+    toast('Couldn’t reach the routing service. Showing a straight line until a road route loads');
   }
   if (token !== navToken) return;
   if (loc.source === 'demo') startDemoOnRoute(route);
@@ -677,10 +686,11 @@ async function reroute() {
   if (!nav || nav.rerouting) return;
   const cur = nav;
   cur.rerouting = true; cur.lastReroute = Date.now();
-  toast('Rerouting…'); if (settings.voice) speak('Rerouting.');
+  const quiet = cur.route.provider === 'approx'; // background retries for a real road route stay silent
+  if (!quiet) { toast('Rerouting…'); if (settings.voice) speak('Rerouting.'); }
   try {
     const route = await Routing.route({ lat: loc.lat, lon: loc.lon }, cur.dest, routeOpts());
-    if (nav === cur) Object.assign(cur, { route, idx: 0, said: {}, offSince: 0 });
+    if (nav === cur) { Object.assign(cur, { route, idx: 0, said: {}, offSince: 0 }); if (quiet) toast('Road route loaded'); }
   } catch (e) { console.warn('Reroute failed', e); }
   cur.rerouting = false;
 }
@@ -709,8 +719,11 @@ function updateNav() {
   $('#etaArr').textContent = fmtClock(eta).replace(/\s?[AP]M/i, '');
   $('#etaMin').textContent = fmtMins(remainT); $('#etaMinU').textContent = remainT >= 3600 ? 'hr' : 'min';
   $('#etaDist').textContent = rd.v; $('#etaDistU').textContent = rd.u;
-  const delay = r.trafficDelay > 60 ? Math.round(r.trafficDelay / 60) : 0;
-  $('#etaTraffic').hidden = !delay; $('#etaTraffic').textContent = delay ? `+${delay} min traffic` : '';
+  const delay = r.trafficDelay > 60 ? Math.round(r.trafficDelay / 60) : 0, approx = r.provider === 'approx';
+  $('#etaTraffic').hidden = !delay && !approx;
+  $('#etaTraffic').textContent = approx ? 'No road route yet · straight line' : delay ? `+${delay} min traffic` : '';
+  // A straight-line fallback isn't a real route: keep trying for one while on live GPS.
+  if (approx && loc.source === 'gps' && Date.now() - nav.lastReroute > 30000) reroute();
   Object.values(maps).forEach(drawRoute);
   renderLimit();
   announce(si, step, toNext);
@@ -822,7 +835,82 @@ const CONTACTS = [
   { id: 'taylor', n: 'Taylor Kim', c: '#40c8e0', num: '(650) 555-0122' },
   { id: 'chris', n: 'Chris Morgan', c: '#e0a800', num: '(415) 555-0168' },
   { id: 'dana', n: 'Dana Whitfield', c: '#ac8e68', num: '(408) 555-0155' },
-];
+].map(c => ({ ...c, sample: true }));
+// Your own contacts (added in Settings or imported) come first and are the ones that really dial.
+const COLORS = ['#ff375f', '#ff9f0a', '#bf5af2', '#0a84ff', '#30d158', '#40c8e0', '#e0a800'];
+function loadContacts() {
+  const mine = store.get('contacts', []).map((c, i) => ({ ...c, c: c.c || COLORS[i % COLORS.length], fav: true }));
+  CONTACTS.splice(0, CONTACTS.length, ...mine, ...CONTACTS.filter(c => c.sample && !mine.some(m => m.n.toLowerCase() === c.n.toLowerCase())));
+}
+loadContacts();
+
+/* ============================================================
+   Hand-offs to the phone's own apps (calls, SMS, WhatsApp, maps, music)
+   ============================================================ */
+const telNum = n => (n || '').replace(/[^\d+]/g, '');
+/** Open another app by URL scheme; if nothing takes over within a moment, open the web fallback in a new tab. */
+function openExternal(scheme, web) {
+  if (!scheme) { window.open(web, '_blank'); return; }
+  let left = false; const gone = () => { left = true; };
+  document.addEventListener('visibilitychange', gone, { once: true });
+  location.href = scheme;
+  if (web) setTimeout(() => { document.removeEventListener('visibilitychange', gone); if (!left && document.visibilityState === 'visible') window.open(web, '_blank'); }, 1600);
+}
+function textContact(c, body = '') {
+  const num = telNum(c.num); if (!num) return toast(`No number for ${c.n}`);
+  location.href = `sms:${num}${body ? (isIOS ? '&' : '?') + 'body=' + encodeURIComponent(body) : ''}`;
+}
+function whatsappContact(c, body = '') {
+  const num = telNum(c.num).replace(/^\+/, ''); if (!num) return toast(`No number for ${c.n}`);
+  openExternal(`whatsapp://send?phone=${num}&text=${encodeURIComponent(body)}`, `https://wa.me/${num}?text=${encodeURIComponent(body)}`);
+}
+const MAP_APPS = {
+  google: ['Google Maps', d => `comgooglemaps://?daddr=${d.lat},${d.lon}&directionsmode=driving`, d => `https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving`],
+  waze: ['Waze', d => `waze://?ll=${d.lat},${d.lon}&navigate=yes`, d => `https://waze.com/ul?ll=${d.lat},${d.lon}&navigate=yes`],
+  phone: ['Phone’s maps app', d => isIOS ? `maps://?daddr=${d.lat},${d.lon}&dirflg=d` : `geo:${d.lat},${d.lon}?q=${d.lat},${d.lon}`, null],
+};
+function openInMaps(app, d = nav?.dest) {
+  if (!d) return toast('Pick a destination first');
+  const [, scheme, web] = MAP_APPS[app]; openExternal(scheme(d), web?.(d));
+}
+function mapsHandoffSheet() {
+  sheet('Open route in another app', `<p>${nav ? `Destination: <b>${esc(nav.dest.name)}</b>` : 'No active route.'}</p>`,
+    [...Object.entries(MAP_APPS).map(([id, [name]]) => [name, () => openInMaps(id)]), ['Cancel']]);
+}
+const MUSIC_APPS = {
+  demo: ['DriveDeck demo player'],
+  spotify: ['Spotify', q => `spotify:search:${encodeURIComponent(q)}`, q => `https://open.spotify.com/search/${encodeURIComponent(q)}`],
+  ytmusic: ['YouTube Music', null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
+  phone: ['Phone’s music app', () => isIOS ? 'music://' : null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
+};
+/** Play through the chosen music app; returns false when the demo player should handle it. */
+function playInMusicApp(q = '', app = settings.musicApp) {
+  const m = MUSIC_APPS[app]; if (!m || app === 'demo') return false;
+  openExternal(m[1]?.(q) || null, m[2]?.(q || 'music')); return true;
+}
+function contactsSheet() {
+  const mine = store.get('contacts', []);
+  sheet('Contacts', `<p>Your contacts are stored only on this device. Calls, texts and WhatsApp open the phone’s own apps.</p>
+    <div class="ct-list">${mine.map((c, i) => `<div class="ct-row"><b>${esc(c.n)}</b><span>${esc(c.num)}</span><button class="ct-x" data-ctdel="${i}" aria-label="Remove ${esc(c.n)}">${svg('close')}</button></div>`).join('') || '<p class="hint">No contacts yet. Samples like “Mom” are placeholders and won’t dial.</p>'}</div>`,
+    [['Add contact', addContact], ...('contacts' in navigator && 'select' in navigator.contacts ? [['Import from phone', importContacts]] : []), ['Done']]);
+}
+function addContact() {
+  const n = prompt('Contact name'); if (!n) return;
+  const num = prompt(`Phone number for ${n} (with country code, e.g. +91 98765 43210)`); if (!num) return;
+  store.set('contacts', [...store.get('contacts', []), { id: 'c' + Date.now(), n: n.trim(), num: num.trim() }]); loadContacts(); contactsSheet();
+}
+async function importContacts() {
+  try {
+    const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+    const add = picked.filter(c => c.tel?.length).map((c, i) => ({ id: 'c' + Date.now() + i, n: (c.name?.[0] || c.tel[0]).trim(), num: c.tel[0] }));
+    store.set('contacts', [...store.get('contacts', []), ...add]); loadContacts(); toast(`${add.length} contact${add.length === 1 ? '' : 's'} added`);
+  } catch { toast('Contact import was cancelled'); }
+  contactsSheet();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ctdel]'); if (!b) return;
+  const l = store.get('contacts', []); l.splice(+b.dataset.ctdel, 1); store.set('contacts', l); loadContacts(); contactsSheet();
+});
 const contact = id => CONTACTS.find(c => c.id === id);
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 const avatar = (c, size = '') => `<div class="avatar ${size}" style="--c:${c.c}">${esc(initials(c.n))}</div>`;
@@ -861,6 +949,9 @@ let call = null;
 function openCall(c) {
   if (!c) return;
   closeAssistant();
+  const num = telNum(c.num);
+  if (settings.nativeCalls !== false && num && !c.sample) { toast(`Calling ${c.n}…`); location.href = `tel:${num}`; return; }
+  if (c.sample && settings.nativeCalls !== false) toast('Sample contact: this call is simulated. Add real contacts in Settings › Phone & apps');
   clearInterval(call?.timer);
   call = { c, start: null, muted: false, speaker: false };
   call.timer = setInterval(renderCall, 1000);
@@ -1094,6 +1185,20 @@ function renderSettings() {
       ${tog('hudMirror', 'Mirror HUD for the windshield', 'Lay the phone flat below the windshield and read the reflection')}
       ${btn('arReset', 'Reset AR calibration')}
     </div>
+    <div class="group-title">Voice</div>
+    <div class="group">
+      <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this phone, works offline' : 'Whisper base · about 80 MB on first use') : 'The phone’s own recognizer (needs a connection)'}</div></div>${seg('stt', [['whisper', 'On-device'], ['browser', 'Phone']])}</div>
+      ${btn('voiceLang', 'Language you speak', LANGS[settings.voiceLang]?.[0] || 'Auto-detect')}
+      ${store.get('whisperOK') ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
+      ${btn('voiceLogClear', 'Clear conversation history')}
+    </div>
+    <div class="group-title">Phone &amp; apps</div>
+    <div class="group">
+      ${tog('nativeCalls', 'Place real calls and texts', 'Opens the phone’s own dialer, Messages or WhatsApp')}
+      ${btn('contacts', 'Contacts', store.get('contacts', []).length + ' saved')}
+      ${btn('musicAppPick', 'Music plays in', MUSIC_APPS[settings.musicApp]?.[0] || 'Demo player')}
+      ${btn('mapsHandoff', 'Open current route in…', 'Google Maps, Waze')}
+    </div>
     <div class="group-title">Location</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Source</div></div><span class="val">${srcLabel}</span></div>
@@ -1112,30 +1217,16 @@ function renderSettings() {
 /* ============================================================
    Voice assistant
    ============================================================ */
-let rec = null;
-function setAsst(text, hint = '') { $('#asstText').textContent = text; $('#asstHint').textContent = hint; }
-function openAssistant() {
-  $('#assistant').hidden = false;
-  setAsst('What can I help with?');
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { $('#asstHint').textContent = 'Voice input isn’t supported in this browser — tap a suggestion.'; return; }
-  try {
-    rec = new SR(); rec.lang = navigator.language || 'en-US'; rec.interimResults = true;
-    rec.onresult = e => {
-      const text = [...e.results].map(r => r[0].transcript).join(' ');
-      $('#asstText').textContent = `“${text}”`;
-      if (e.results[e.results.length - 1].isFinal) { rec = null; setTimeout(() => handleCommand(text), 350); }
-    };
-    rec.onerror = () => { $('#asstHint').textContent = 'Couldn’t hear you — tap a suggestion.'; };
-    rec.start();
-    $('#asstHint').textContent = 'Listening…';
-  } catch { $('#asstHint').textContent = 'Tap a suggestion.'; }
-}
-function closeAssistant() { try { rec?.abort(); } catch {} rec = null; $('#assistant').hidden = true; }
-function handleCommand(raw) {
-  const t = raw.toLowerCase();
-  $('#assistant').hidden = false;
-  const reply = (msg, then) => { setAsst(msg); speak(msg); setTimeout(() => { closeAssistant(); then?.(); }, 1300); };
+// Listening, speech-to-text and the conversation log live in js/voice.js.
+function setAsst(text, hint = '') { Voice.show(text, hint); }
+function openAssistant() { Voice.start(); }
+function closeAssistant() { if (typeof Voice !== 'undefined') Voice.close(); }
+function handleCommand(raw, spoken) {
+  const t = raw.toLowerCase().trim().replace(/[.?!]+$/, '');
+  Voice.open();
+  if (!spoken) { VoiceLog.you(raw, { engine: 'Tap' }); Voice.show(`“${raw}”`, ''); }
+  // Show the reply in the listening box and the log, say it, then act and fade the box.
+  const reply = (msg, then) => { Voice.reply(msg); speak(msg); Voice.closeT = setTimeout(() => { closeAssistant(); then?.(); }, 1800); };
   if (voiceDrive(t, reply)) return;
   let m;
   if ((m = t.match(/\b(ar|camera|hud|heads.?up|3d|three d|map)\s*(mode|view)\b/)) || /^(ar|hud|3d) ?(mode)?$/.test(t.trim())) {
@@ -1156,6 +1247,9 @@ function handleCommand(raw) {
     player.playing = false; updatePlayerUI(); reply('Paused.');
   } else if (/\b(next|skip)\b/.test(t)) {
     playerAction('next'); reply(`Playing ${curTrack().t}.`);
+  } else if (/\b(play|music|song|podcast|radio|listen to)\b/.test(t) && settings.musicApp !== 'demo') {
+    const q = t.replace(/^(please )?(play|listen to)\s*/, '').replace(/\b(some|music|songs?)\b/g, '').trim();
+    reply(`Opening ${MUSIC_APPS[settings.musicApp][0]}${q ? ` for ${q}` : ''}.`, () => playInMusicApp(q));
   } else if (/\b(play|music|song|podcast|radio|listen to)\b/.test(t)) {
     const src = /podcast/.test(t) ? 'podcasts' : /radio/.test(t) ? 'radio' : player.source;
     if (src !== player.source) setSource(src);
@@ -1166,12 +1260,14 @@ function handleCommand(raw) {
     c ? reply(`Calling ${c.n}.`, () => openCall(c)) : reply(`I couldn’t find “${q}” in your contacts.`);
   } else if (/(read|message|text)/.test(t)) {
     const th = THREADS.find(x => x.unread) || THREADS[0];
-    closeAssistant(); openView('messages'); openThread(th.id, true);
+    reply(`Reading your messages from ${contact(th.id)?.n || 'your inbox'}.`, () => { openView('messages'); openThread(th.id, true); });
   } else if (/(weather|temperature|rain|forecast)/.test(t)) {
     const w = wx || mockWeather();
     reply(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
   } else reply('Sorry, I didn’t catch that.');
 }
+const findContact = q => { q = q.trim().replace(/[.?!]$/, '').toLowerCase();
+  return CONTACTS.find(c => c.n.toLowerCase() === q) || CONTACTS.find(c => c.n.toLowerCase().split(' ').some(w => q.split(' ').includes(w))); };
 /** Driving, layout and app commands. Returns true when it handled the phrase. */
 function voiceDrive(t, reply) {
   const v = nav?.view, say = s => (reply(s), true);
@@ -1190,6 +1286,24 @@ function voiceDrive(t, reply) {
     return say(loc.source === 'none' ? 'Location is off.' : `${st ? `You’re on ${st}, ` : ''}heading ${CARD_FULL[cardinal(loc.heading || 0)]}.`);
   }
   if (/\b(re-?center|centre|center the map)\b/.test(t)) return say('Recentering.', recenterAll());
+  let a;
+  if ((a = t.match(/^(?:send a |send )?(text|message|sms|whatsapp)\s+(?:to\s+)?(.+?)(?:\s+(?:saying|that says|that|say)\s+(.+))?$/))) {
+    const c = findContact(a[2]); if (!c) return say(`I couldn’t find ${a[2]} in your contacts.`);
+    if (c.sample) return say(`${c.n} is a sample contact. Add real contacts in Settings.`);
+    const body = a[3] || '';
+    return say(`${a[1] === 'whatsapp' ? 'WhatsApp' : 'Message'} to ${c.n}${body ? ': ' + body : ''}.`, setTimeout(() => (a[1] === 'whatsapp' ? whatsappContact : textContact)(c, body), 1200));
+  }
+  if ((a = t.match(/\bcall\s+([+\d][\d\s()-]{5,})$/))) return say(`Calling ${a[1]}.`, setTimeout(() => openCall({ n: a[1], num: a[1] }), 1200));
+  if ((a = t.match(/\b(google maps|waze)\b/)) && /\b(navigate|directions|route|open|take me|go)\b/.test(t)) {
+    const app = a[1] === 'waze' ? 'waze' : 'google', q = (t.match(/\bto\s+(.+?)\s+(?:with|on|in|using)\s+(?:google maps|waze)/) || [])[1];
+    if (!q) return nav ? say(`Opening the route in ${MAP_APPS[app][0]}.`, setTimeout(() => openInMaps(app), 1200)) : say('Say where to, like “navigate to Indiranagar with Waze”.');
+    Routing.search(q, loc).then(r => r[0] ? reply(`Opening ${r[0].name} in ${MAP_APPS[app][0]}.`, () => openInMaps(app, r[0])) : reply(`I couldn’t find ${q}.`)).catch(() => reply('Place search is offline right now.'));
+    return true;
+  }
+  if ((a = t.match(/^play\s+(.+?)\s+(?:on|in)\s+(spotify|youtube music|my music app|apple music)$/))) {
+    const app = { spotify: 'spotify', 'youtube music': 'ytmusic' }[a[2]] || 'phone';
+    return say(`Playing ${a[1]} on ${MUSIC_APPS[app][0]}.`, setTimeout(() => playInMusicApp(a[1], app), 1200));
+  }
   if (/\bzoom (in|out)\b/.test(t)) { const inn = /zoom in/.test(t); maps.main.map?.[inn ? 'zoomIn' : 'zoomOut'](); return say(inn ? 'Zooming in.' : 'Zooming out.'); }
   let m;
   if ((m = t.match(/\b(cluster|widgets?|map)\s+(layout|screen|page|dashboard)\b/)) || (m = t.match(/\bshow (?:the |me )?(cluster|widgets?)\b/))) {
@@ -1281,7 +1395,7 @@ const ACTIONS = {
   zoomIn: () => maps.main.map?.zoomIn(), zoomOut: () => maps.main.map?.zoomOut(), recenter: recenterAll,
   endNav: () => { endNav(); toast('Route ended'); },
   endCall, mute: () => { call.muted = !call.muted; renderCall(); }, speaker: () => { call.speaker = !call.speaker; renderCall(); },
-  dial: () => { if (!dialed) return; openCall({ n: dialed, c: '#8e8e93' }); dialed = ''; renderPhone(); },
+  dial: () => { if (!dialed) return; openCall({ n: dialed, num: dialed, c: '#8e8e93' }); dialed = ''; renderPhone(); },
   delDigit: () => { dialed = dialed.slice(0, -1); renderPhone(); },
   listen: () => { const th = THREADS.find(t => t.id === activeThread); if (th) { readThread(th); renderMessages(); } },
   closeThread: () => { activeThread = null; renderMessages(); },
@@ -1296,6 +1410,15 @@ const ACTIONS = {
     toast(settings.tomtomKey ? 'TomTom traffic routing on' : 'TomTom key removed');
   },
   installHelp: () => showInstallHelp(),
+  contacts: () => contactsSheet(),
+  voiceLang: () => sheet('Language you speak', '<p>Whisper understands all of these. Anything that isn’t English is translated into an English command.</p>',
+    [...Object.entries(LANGS).map(([id, [name]]) => [name + (settings.voiceLang === id ? ' ✓' : ''), () => { settings.voiceLang = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
+  voiceModel: () => { Voice.open(); Voice.show('Downloading voice model…', 'Whisper base · one time'); Voice.loadModel().then(() => { Voice.show('Voice model ready', 'Works offline from now on'); if (current === 'settings') renderSettings(); }).catch(e => Voice.fail(e)); },
+  voiceLogClear: () => { VoiceLog.clear(); toast('Conversation history cleared'); },
+  mapsHandoff: () => mapsHandoffSheet(),
+  openMusicApp: () => { if (!playInMusicApp(curTrack().t)) sheet('Music app', '<p>Choose where music plays: the demo player, or hand off to a music app on your phone.</p>', [['Choose app', () => ACTIONS.musicAppPick()], ['Cancel']]); },
+  musicAppPick: () => sheet('Music plays in', '<p>Voice commands like “play jazz” open this app with a search.</p>',
+    [...Object.entries(MUSIC_APPS).map(([id, [name]]) => [name + (settings.musicApp === id ? ' ✓' : ''), () => { settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   backToDash: () => { closeModeMenu(); openView('dashboard'); },
   dockShow: () => { settings.dockHidden = false; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); },
   dismissInstall: () => { store.set('installTipOff', true); $('#installTip').hidden = true; },

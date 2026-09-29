@@ -453,6 +453,10 @@ svg{display:block;flex:none}
    Mode switcher
    ============================================================ */
 .mode-btn{display:flex;flex-direction:column;gap:0;line-height:1}
+.back-btn{display:flex;flex-direction:column;gap:0;line-height:1;background:var(--acc);color:#000}
+.back-btn svg{width:22px;height:22px}
+.back-btn small{font-size:11px;font-weight:800;margin-top:2px}
+@media (max-height:560px){.map-btn.zoom{display:none}}
 .mode-btn svg{width:22px;height:22px}
 .mode-btn small{font-size:11px;font-weight:800;margin-top:2px;letter-spacing:.02em}
 .mode-menu{position:absolute;right:80px;top:12px;z-index:3;display:grid;grid-template-columns:repeat(2,minmax(0,150px));gap:10px;padding:12px;border-radius:var(--radius);
@@ -783,7 +787,7 @@ svg{display:block;flex:none}
 
 /* Widgets */
 .wgrid.fit{overflow:hidden}
-.wgrid{height:100%;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(160px,21vw,240px),1fr));grid-auto-rows:clamp(180px,42vh,250px);gap:12px;align-content:start;scrollbar-width:none}
+.wgrid{grid-auto-flow:row dense;height:100%;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(160px,21vw,240px),1fr));grid-auto-rows:clamp(180px,42vh,250px);gap:12px;align-content:start;scrollbar-width:none}
 .wgrid::-webkit-scrollbar{display:none}
 .wg{position:relative;container-type:size;min-width:0;min-height:0;border-radius:28px;background:var(--panel-2);border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
 .wxw,.npw,.turnw,.clockw,.compw,.gw,.calw,.routew{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
@@ -802,7 +806,8 @@ svg{display:block;flex:none}
 .w-cta.sm{min-height:44px;font-size:14px}
 .wg .ring{flex:1;height:auto;min-height:0}
 .wg .rows{flex:1;min-height:0}
-.wg .rows .r{min-height:0;flex:1}
+.wg .rows .r{min-height:0;flex:1;max-height:64px}
+.wg .rows{justify-content:center}
 .wg .tape{margin-top:auto}
 .turnw{justify-content:center;cursor:pointer}
 .turnw > span:first-child svg{width:clamp(40px,10vh,64px);height:clamp(40px,10vh,64px);color:var(--acc)}
@@ -837,6 +842,26 @@ svg{display:block;flex:none}
 .wg-edit button:disabled{opacity:.3}
 .wg.add{align-items:center;justify-content:center;border-style:dashed;color:var(--text-2);font-weight:700}
 .wg.add svg{width:36px;height:36px}
+
+/* Widgets beside the cluster */
+.cl-wrap{height:100%;display:flex;gap:10px;min-height:0}
+.cl-main{flex:1;min-width:0;height:100%}
+.cl-side{flex:none;width:clamp(150px,19%,260px);display:flex;flex-direction:column;gap:10px;min-height:0}
+.cl-side .wg{flex:1 1 0;min-height:0}
+.cl-side .wg.add{flex:0 0 64px;flex-direction:row;gap:8px}
+.cl-side .wg.add svg{width:24px;height:24px}
+.lay-cluster.editing .cl-main{opacity:.55;pointer-events:none}
+/* Edit handles */
+.wg-edit.two{display:grid;grid-template-columns:repeat(2,56px);align-content:center;justify-content:center}
+.wg-rs{position:absolute;right:0;bottom:0;z-index:4;width:56px;height:56px;display:grid;place-items:center;border-radius:18px 0 26px 0;background:var(--acc);color:#000;cursor:nwse-resize;touch-action:none}
+.wg-rs.v{cursor:ns-resize}
+.wg-rs svg{width:24px;height:24px}
+.wg.resizing{animation:none!important;outline:3px solid var(--acc);outline-offset:-3px;z-index:5}
+
+.update-bar{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:280;display:flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;
+  border-radius:24px;background:var(--glass-strong);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:1px solid var(--line);box-shadow:var(--shadow);width:max-content;max-width:calc(100% - 24px)}
+.update-bar > svg{width:22px;height:22px;color:var(--acc)}
+.update-bar .big-btn{flex:none;height:56px;padding:0 18px;font-size:16px}
 
 /* Customize sheet */
 .cz-title{margin:16px 0 8px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
@@ -881,6 +906,10 @@ svg{display:block;flex:none}
   .mode-menu{right:12px;left:12px;top:auto;bottom:110px;grid-template-columns:repeat(2,minmax(0,1fr))}
   .dash-root{padding:10px}
   .dash-root.with-bar{padding-bottom:78px}
+  .cl-wrap{flex-direction:column}
+  .cl-side{width:auto;height:clamp(110px,20%,190px);flex-direction:row}
+  .cl-side .wg{flex:1 1 0;min-width:0}
+  .cl-side .wg.add{flex:0 0 64px;flex-direction:column}
   #app.dock-hidden{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 0}
   #app.dock-hidden .stage{border-radius:0}
   .cl{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr);padding:8px;border-radius:30px}

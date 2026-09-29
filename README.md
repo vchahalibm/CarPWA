@@ -55,7 +55,8 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - **Dashboard** (start screen), three layouts; swipe sideways or use the pill at the bottom to switch:
   - **Cluster**: an instrument cluster in one of eight styles: **Chronograph** (orange-rimmed needle speedometer with G-meter, clock, elevation, compass, route, temperature and distance-to-go sub-dials), **Twin Dials** (speed and heading dials around a 3D map), **Arc** (thick arcs and a trip/route card), **Analog** (needle speedometer with G-meter, clock and compass sub-dials), **Bars** (big numbers over progress bars and a heading tape), **Band** (full-width gradient with speed, analog clock and now playing), **Telltale** (status icons, speed dial, heading tape and route bar on black) and **Map First** (3D map with glass pills).
   - **Map**: map card with the next turn, arrival/time/distance and street name, plus next-turn (or Home/Work) and now-playing cards.
-  - **Widgets**: an editable grid. Tap **Edit** to remove, reorder or add widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
+  - **Widgets beside the cluster**: in the Cluster layout tap **Edit**, then **Add** on either side to stack widgets in a column left or right of the cluster. You can move them up or down, swap sides, remove them, or drag the corner handle to make one taller.
+  - **Widgets**: a flexible grid. Tap **Edit** to remove, reorder, add or **resize** widgets. Drag a widget's corner handle to change its width and height in whole cells; the rest re-pack around it and the rows re-fit the screen. Widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
   - **Customize** (sliders button): cluster style, accent colour (cyan, magenta, red, orange, khaki, yellow, wine, green) and motion sensors.
   - Every reading is real: GPS, route, clock, weather, player, and the phone's motion sensors for roll, pitch and G-force. There are no fake car readings (gear, rpm, tyres), because a phone can't read them.
 - **Car-friendly design**: 56–78px tap targets, frosted-glass cards, dark by default, plus a light theme and 4 wallpapers.
@@ -84,6 +85,11 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - Phone calls: simulated call screen (a real build would hand off to the dialer via `tel:`).
 - Contacts, messages and calendar are sample data. Home and Work are samples until you save your own.
 - A fake message arrives 25 s after load to show the notification banner.
+
+### Getting around
+- The **Maps** screen has a blue **Home** button at the top of its controls that returns to the dashboard, plus a mic button, so you're never stuck even with the dock hidden.
+- **Updates**: when a new version is published, DriveDeck downloads it in the background and shows **Update available · Update now**. Choosing **Later** installs it the next time you close and reopen the app. Installed apps check for updates on launch, when you return to them, and every 30 minutes.
+- **Voice** (mic in the dock, dashboard bar or Maps controls): "navigate to …", "take me home", "what's my ETA", "how far", "what's next", "how fast am I going", "where am I", "stop navigation", "recenter", "zoom in", "show the widgets" / "cluster layout", "chronograph style", "hide the dock", "dark mode", "open music", "AR mode", "find parking", "call Mom" and more. It uses the browser's speech recognition; where that's missing, tap a suggestion.
 
 ### Full screen on a phone or tablet
 - **Install it** to run without the browser bars. On iPhone/iPad, open the site in **Safari**, tap **Share › Add to Home Screen**, keep **Open as Web App** on, then launch DriveDeck from the Home Screen. Browsers have no automatic install prompt on iPhone. **Settings › Install on this device** shows the steps, and on Android it offers the install button.

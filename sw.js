@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -19,6 +19,7 @@ const SHELL = [
   'js/modes.js',
   'js/dash.js',
   'js/voice.js',
+  'js/commands.js',
   'vendor/fonts/inter-latin-wght.woff2',
   'manifest.webmanifest',
   'vendor/maplibre/maplibre-gl.css',
@@ -93,6 +94,6 @@ self.addEventListener('fetch', e => {
   else if (url.hostname === 's3.amazonaws.com' && url.pathname.startsWith('/elevation-tiles-prod/')) e.respondWith(tile(req, TERRAIN_CACHE, MAX_TERRAIN));
   else if (url.hostname === 'api.open-meteo.com') e.respondWith(fresh(req));
   // On-device Whisper: transformers.js and the ONNX runtime come from versioned CDN URLs, so cache-first. Model files are cached by the library itself.
-  else if (url.hostname === 'cdn.jsdelivr.net' && /^\/npm\/(onnxruntime-web|@huggingface\/transformers)@/.test(url.pathname)) e.respondWith(tile(req, VOICE_CACHE, 20));
+  else if (url.hostname === 'cdn.jsdelivr.net' && /^\/npm\/(onnxruntime-web|@huggingface\/transformers|kokoro-js)@/.test(url.pathname)) e.respondWith(tile(req, VOICE_CACHE, 20));
   else if (url.origin === self.location.origin) e.respondWith(shell(req));
 });

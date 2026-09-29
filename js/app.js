@@ -115,7 +115,7 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'whisper', voiceLang: 'auto', dashLayout: 'cluster', cluster: 'twin', accent: null
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'whisper', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null
 }, store.get('settings', {}));
 
 const WALLS = [
@@ -882,6 +882,8 @@ const MUSIC_APPS = {
   spotify: ['Spotify', q => `spotify:search:${encodeURIComponent(q)}`, q => `https://open.spotify.com/search/${encodeURIComponent(q)}`],
   ytmusic: ['YouTube Music', null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
   phone: ['Phone’s music app', () => isIOS ? 'music://' : null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
+  // A shortcut you make once (input: text → your music app's “play” action) starts playback directly, not just a search.
+  shortcut: ['A phone shortcut (plays straight away)', q => `shortcuts://run-shortcut?name=${encodeURIComponent(settings.musicShortcut || 'DriveDeck Play')}&input=text&text=${encodeURIComponent(q)}`, null],
 };
 /** Play through the chosen music app; returns false when the demo player should handle it. */
 function playInMusicApp(q = '', app = settings.musicApp) {
@@ -1151,6 +1153,7 @@ listeners.push(updateDrive);
 let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 function renderSettings() {
+  if (typeof CmdUI !== 'undefined' && CmdUI.shown) return CmdUI.render();
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${k}:${v}" class="${settings[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const tog = (k, t, s = '') => `<div class="row"><div class="main"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div><button class="switch ${settings[k] ? 'on' : ''}" data-toggle="${k}" role="switch" aria-checked="${!!settings[k]}" aria-label="${t}"></button></div>`;
   const btn = (a, t, v = '') => `<button class="row btn" data-action="${a}"><div class="main"><div class="t">${t}</div></div><span class="val">${v}</span></button>`;
@@ -1188,8 +1191,13 @@ function renderSettings() {
     <div class="group-title">Voice</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this phone, works offline' : 'Whisper base · about 80 MB on first use') : 'The phone’s own recognizer (needs a connection)'}</div></div>${seg('stt', [['whisper', 'On-device'], ['browser', 'Phone']])}</div>
-      ${btn('voiceLang', 'Language you speak', LANGS[settings.voiceLang]?.[0] || 'Auto-detect')}
+      ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
       ${store.get('whisperOK') ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
+      <div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">On-device listening waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>
+      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this phone, works offline' : 'Kokoro · about 90 MB on first use, the phone’s voice until then') : settings.tts === 'phone' ? 'The phone’s built-in voice' : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['neural', 'On-device'], ['phone', 'Phone'], ['off', 'Off']])}</div>
+      ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
+      ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
+      ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
     </div>
     <div class="group-title">Phone &amp; apps</div>
@@ -1221,120 +1229,12 @@ function renderSettings() {
 function setAsst(text, hint = '') { Voice.show(text, hint); }
 function openAssistant() { Voice.start(); }
 function closeAssistant() { if (typeof Voice !== 'undefined') Voice.close(); }
-function handleCommand(raw, spoken) {
-  const t = raw.toLowerCase().trim().replace(/[.?!]+$/, '');
-  Voice.open();
-  if (!spoken) { VoiceLog.you(raw, { engine: 'Tap' }); Voice.show(`“${raw}”`, ''); }
-  // Show the reply in the listening box and the log, say it, then act and fade the box.
-  const reply = (msg, then) => { Voice.reply(msg); speak(msg); Voice.closeT = setTimeout(() => { closeAssistant(); then?.(); }, 1800); };
-  if (voiceDrive(t, reply)) return;
-  let m;
-  if ((m = t.match(/\b(ar|camera|hud|heads.?up|3d|three d|map)\s*(mode|view)\b/)) || /^(ar|hud|3d) ?(mode)?$/.test(t.trim())) {
-    const w = (m ? m[1] : t.trim().split(' ')[0]), id = /hud|heads/.test(w) ? 'hud' : /ar|camera/.test(w) ? 'ar' : /3d|three/.test(w) ? '3d' : 'map';
-    reply(`${MODES.find(x => x.id === id).name} mode.`, () => setMode(id));
-  } else if (/\b(home|work)\b/.test(t) && /(take|navigate|directions|go|drive|route|get)/.test(t)) {
-    const id = /work/.test(t) ? 'work' : 'home';
-    reply(`Getting directions to ${id === 'home' ? 'Home' : 'Work'}.`, () => startNav(destinations().find(d => d.id === id)));
-  } else if ((m = t.match(/(?:navigate|directions|take me|drive|go) to (.+)/))) {
-    const q = m[1].trim().replace(/[.?!]$/, '');
-    setAsst(`Looking for ${q}…`);
-    Routing.search(q, loc).then(r => r[0] ? reply(`Getting directions to ${r[0].name}.`, () => startNav(r[0])) : reply(`I couldn’t find ${q}.`))
-      .catch(() => reply('Place search is offline right now.'));
-  } else if ((m = t.match(/(gas|fuel|parking|charg|coffee|food|restaurant)/))) {
-    const cat = { gas: 'Gas', fuel: 'Gas', parking: 'Parking', charg: 'EV Chargers', coffee: 'Coffee', food: 'Food', restaurant: 'Food' }[m[1]];
-    reply(`Here’s ${cat.toLowerCase()} nearby.`, () => { panel.mode = 'category'; panel.cat = cat; panel.collapsed = false; openView('maps'); renderMapPanel(); });
-  } else if (/\b(pause|stop)\b/.test(t)) {
-    player.playing = false; updatePlayerUI(); reply('Paused.');
-  } else if (/\b(next|skip)\b/.test(t)) {
-    playerAction('next'); reply(`Playing ${curTrack().t}.`);
-  } else if (/\b(play|music|song|podcast|radio|listen to)\b/.test(t) && settings.musicApp !== 'demo') {
-    const q = t.replace(/^(please )?(play|listen to)\s*/, '').replace(/\b(some|music|songs?)\b/g, '').trim();
-    reply(`Opening ${MUSIC_APPS[settings.musicApp][0]}${q ? ` for ${q}` : ''}.`, () => playInMusicApp(q));
-  } else if (/\b(play|music|song|podcast|radio|listen to)\b/.test(t)) {
-    const src = /podcast/.test(t) ? 'podcasts' : /radio/.test(t) ? 'radio' : player.source;
-    if (src !== player.source) setSource(src);
-    player.playing = true; updatePlayerUI();
-    reply(`Playing ${curTrack().t} by ${curTrack().a}.`, () => openView('music'));
-  } else if ((m = t.match(/call\s+(.+)/))) {
-    const q = m[1].trim().replace(/[.?!]$/, ''), c = CONTACTS.find(c => c.n.toLowerCase().split(' ').some(w => q.includes(w)));
-    c ? reply(`Calling ${c.n}.`, () => openCall(c)) : reply(`I couldn’t find “${q}” in your contacts.`);
-  } else if (/(read|message|text)/.test(t)) {
-    const th = THREADS.find(x => x.unread) || THREADS[0];
-    reply(`Reading your messages from ${contact(th.id)?.n || 'your inbox'}.`, () => { openView('messages'); openThread(th.id, true); });
-  } else if (/(weather|temperature|rain|forecast)/.test(t)) {
-    const w = wx || mockWeather();
-    reply(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
-  } else reply('Sorry, I didn’t catch that.');
-}
-const findContact = q => { q = q.trim().replace(/[.?!]$/, '').toLowerCase();
-  return CONTACTS.find(c => c.n.toLowerCase() === q) || CONTACTS.find(c => c.n.toLowerCase().split(' ').some(w => q.split(' ').includes(w))); };
-/** Driving, layout and app commands. Returns true when it handled the phrase. */
-function voiceDrive(t, reply) {
-  const v = nav?.view, say = s => (reply(s), true);
-  const spokenSpeed = () => `${speedVal(loc.speed)} ${imperial() ? 'miles' : 'kilometers'} per hour`;
-  if (/\b(end|stop|cancel|exit)\b.*\b(route|navigation|directions|trip)\b/.test(t)) return nav ? say('Route ended.', endNav()) : say('There’s no active route.');
-  if (/\b(eta|arriv\w*|how long|time left|when will)\b/.test(t)) return v
-    ? say(`You’ll arrive at ${fmtClock(v.eta)}, in ${fmtMins(v.remainT)} ${v.remainT >= 3600 ? 'hours' : 'minutes'}. ${spokenDist(v.remain)} to go.`) : say('There’s no active route. Say “navigate to” and a place.');
-  if (/\b(how far|distance left|how much further)\b/.test(t)) return v ? say(`${spokenDist(v.remain)} to go.`) : say('There’s no active route.');
-  if (/\bnext (turn|direction|step)\b|what['’]?s next/.test(t)) return v ? say(`In ${spokenDist(v.toNext)}, ${lowerFirst(v.step.text)}.`) : say('There’s no active route.');
-  if (/\b(my speed|how fast|speed limit)\b/.test(t)) {
-    const lim = limitVal();
-    return say(loc.source === 'none' ? 'Location is off.' : `You’re doing ${spokenSpeed()}.${lim ? ` The limit is ${lim}.` : ''}`);
-  }
-  if (/\b(where am i|what street|which road|what road)\b/.test(t)) {
-    const st = typeof currentStreet === 'function' ? currentStreet() : '';
-    return say(loc.source === 'none' ? 'Location is off.' : `${st ? `You’re on ${st}, ` : ''}heading ${CARD_FULL[cardinal(loc.heading || 0)]}.`);
-  }
-  if (/\b(re-?center|centre|center the map)\b/.test(t)) return say('Recentering.', recenterAll());
-  let a;
-  if ((a = t.match(/^(?:send a |send )?(text|message|sms|whatsapp)\s+(?:to\s+)?(.+?)(?:\s+(?:saying|that says|that|say)\s+(.+))?$/))) {
-    const c = findContact(a[2]); if (!c) return say(`I couldn’t find ${a[2]} in your contacts.`);
-    if (c.sample) return say(`${c.n} is a sample contact. Add real contacts in Settings.`);
-    const body = a[3] || '';
-    return say(`${a[1] === 'whatsapp' ? 'WhatsApp' : 'Message'} to ${c.n}${body ? ': ' + body : ''}.`, setTimeout(() => (a[1] === 'whatsapp' ? whatsappContact : textContact)(c, body), 1200));
-  }
-  if ((a = t.match(/\bcall\s+([+\d][\d\s()-]{5,})$/))) return say(`Calling ${a[1]}.`, setTimeout(() => openCall({ n: a[1], num: a[1] }), 1200));
-  if ((a = t.match(/\b(google maps|waze)\b/)) && /\b(navigate|directions|route|open|take me|go)\b/.test(t)) {
-    const app = a[1] === 'waze' ? 'waze' : 'google', q = (t.match(/\bto\s+(.+?)\s+(?:with|on|in|using)\s+(?:google maps|waze)/) || [])[1];
-    if (!q) return nav ? say(`Opening the route in ${MAP_APPS[app][0]}.`, setTimeout(() => openInMaps(app), 1200)) : say('Say where to, like “navigate to Indiranagar with Waze”.');
-    Routing.search(q, loc).then(r => r[0] ? reply(`Opening ${r[0].name} in ${MAP_APPS[app][0]}.`, () => openInMaps(app, r[0])) : reply(`I couldn’t find ${q}.`)).catch(() => reply('Place search is offline right now.'));
-    return true;
-  }
-  if ((a = t.match(/^play\s+(.+?)\s+(?:on|in)\s+(spotify|youtube music|my music app|apple music)$/))) {
-    const app = { spotify: 'spotify', 'youtube music': 'ytmusic' }[a[2]] || 'phone';
-    return say(`Playing ${a[1]} on ${MUSIC_APPS[app][0]}.`, setTimeout(() => playInMusicApp(a[1], app), 1200));
-  }
-  if (/\bzoom (in|out)\b/.test(t)) { const inn = /zoom in/.test(t); maps.main.map?.[inn ? 'zoomIn' : 'zoomOut'](); return say(inn ? 'Zooming in.' : 'Zooming out.'); }
-  let m;
-  if ((m = t.match(/\b(cluster|widgets?|map)\s+(layout|screen|page|dashboard)\b/)) || (m = t.match(/\bshow (?:the |me )?(cluster|widgets?)\b/))) {
-    const id = m[1].startsWith('widget') ? 'widgets' : m[1];
-    return say(`${id[0].toUpperCase() + id.slice(1)} layout.`, (openView('dashboard'), Dash.cmd('layout:' + id)));
-  }
-  if (/\b(dashboard|home screen)\b/.test(t) && /\b(show|open|go|back)\b/.test(t)) return say('Dashboard.', openView('dashboard'));
-  if ((m = t.match(/\b(chrono\w*|analog|twin|arc|bars|band|telltale|map first)\b.*\b(style|cluster|dials?|gauges?)\b/))) {
-    const id = { analog: 'analog', twin: 'twin', arc: 'arc', bars: 'bars', band: 'band', telltale: 'telltale', 'map first': 'mapfirst' }[m[1]] || 'chrono';
-    openView('dashboard'); Dash.cmd('style:' + id); closeSheet();
-    return say(`${CLUSTERS[id].name} style.`);
-  }
-  if ((m = t.match(/\b(hide|show)\b.*\bdock\b/)) || /\bfull ?screen\b/.test(t)) {
-    settings.dockHidden = m ? m[1] === 'hide' : true; store.set('settings', settings); applyDock();
-    if (typeof Dash !== 'undefined') Dash.renderBar();
-    return say(settings.dockHidden ? 'Dock hidden. Tap the left edge to bring it back.' : 'Dock shown.');
-  }
-  if ((m = t.match(/\b(dark|light)\s+(mode|theme)\b/))) { settings.theme = m[1]; applySettings(); return say(`${m[1] === 'dark' ? 'Dark' : 'Light'} theme.`); }
-  if ((m = t.match(/\b(?:open|show|launch)\s+(?:the\s+)?(music|phone|messages|weather|calendar|settings|drive|maps?|trip computer)\b/))) {
-    const id = { map: 'maps', 'trip computer': 'drive' }[m[1]] || m[1];
-    return say(`Opening ${id}.`, openApp(id));
-  }
-  return false;
-}
+// What you say or type is matched to a command in js/commands.js (handleCommand); replies are spoken by Voice.speak.
+/** Say something out loud: the on-device voice when it's downloaded, else the phone's. Resolves when done. */
 function speak(text) {
-  try {
-    if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.rate = 1.03;
-    speechSynthesis.speak(u);
-  } catch {}
+  if (typeof Voice !== 'undefined') return Voice.speak(text);
+  try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch {}
+  return Promise.resolve();
 }
 
 /* ============================================================
@@ -1417,8 +1317,14 @@ const ACTIONS = {
   voiceLogClear: () => { VoiceLog.clear(); toast('Conversation history cleared'); },
   mapsHandoff: () => mapsHandoffSheet(),
   openMusicApp: () => { if (!playInMusicApp(curTrack().t)) sheet('Music app', '<p>Choose where music plays: the demo player, or hand off to a music app on your phone.</p>', [['Choose app', () => ACTIONS.musicAppPick()], ['Cancel']]); },
-  musicAppPick: () => sheet('Music plays in', '<p>Voice commands like “play jazz” open this app with a search.</p>',
-    [...Object.entries(MUSIC_APPS).map(([id, [name]]) => [name + (settings.musicApp === id ? ' ✓' : ''), () => { settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
+  musicAppPick: () => sheet('Music plays in', `<p>“Play music from Maroon 5” opens this app with Maroon 5. Music apps’ links open the artist’s search results; to start playing straight away, choose <b>a phone shortcut</b> and make one once in your phone’s shortcuts app: name it “${esc(settings.musicShortcut || 'DriveDeck Play')}”, let it take text input, and add your music app’s “play” action with the shortcut input as what to play.</p>`,
+    [...Object.entries(MUSIC_APPS).map(([id, [name]]) => [name + (settings.musicApp === id ? ' ✓' : ''), () => {
+      if (id === 'shortcut') { const n = prompt('Name of the shortcut that plays music:', settings.musicShortcut || 'DriveDeck Play'); if (!n) return; settings.musicShortcut = n.trim(); }
+      settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
+  commands: () => CmdUI.open(),
+  ttsVoice: () => sheet('Reply voice', '<p>The on-device voice that answers you and reads directions.</p>',
+    [...Object.entries(TTS_VOICES).map(([id, [name]]) => [name + (settings.ttsVoice === id ? ' ✓' : ''), () => { settings.ttsVoice = id; applySettings(); renderSettings(); Voice.speak('This is how I sound.'); }]), ['Cancel']]),
+  ttsModel: () => { Voice.open(); Voice.show('Downloading the reply voice…', 'Kokoro · one time'); Voice.loadTTS(true).then(() => { Voice.show('Reply voice ready', 'Works offline from now on'); Voice.speak('Reply voice ready.'); Voice.closeT = setTimeout(() => Voice.close(), 2500); if (current === 'settings') renderSettings(); }).catch(e => { console.warn(e); Voice.show('Couldn’t download the reply voice', 'Check the connection and try again'); }); },
   backToDash: () => { closeModeMenu(); openView('dashboard'); },
   dockShow: () => { settings.dockHidden = false; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); },
   dismissInstall: () => { store.set('installTipOff', true); $('#installTip').hidden = true; },

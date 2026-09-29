@@ -1006,3 +1006,29 @@ svg{display:block;flex:none}
   .ar-stats .ar-speed{flex-basis:100%;justify-content:center}
   .event{flex-wrap:wrap}
 }
+
+/* ---------- Settings › Voice commands ---------- */
+.back-row{margin:4px 0 -4px}
+.back-row .t{font-weight:600}
+.cmd-try{display:flex;gap:10px;padding:12px}
+.cmd-try input{flex:1;min-width:0;height:56px;border-radius:14px;border:0;background:var(--surface-2);padding:0 16px;font-size:17px}
+.cmd-try .big-btn{flex:none}
+.cmd-test{padding:0 18px 14px;font-size:15px;line-height:1.45;color:var(--text-2)}
+.cmd-test b{color:var(--text)}
+.cmd-test code{font:600 13px ui-monospace,Menlo,monospace;color:var(--accent)}
+.cmd-help{margin:12px 36px;font-size:14px;line-height:1.45;color:var(--text-2)}
+.cmd-row .row .t small{margin-left:6px;font-size:12px;font-weight:700;color:var(--accent)}
+.cmd-sw{display:flex;align-items:center;padding-right:18px}
+.cmd-form .fld{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.cmd-form .fld[hidden]{display:none}
+.cmd-form .fld > span{font-size:14px;font-weight:600;color:var(--text-2)}
+.cmd-form input,.cmd-form select,.cmd-form textarea{width:100%;min-height:52px;border-radius:12px;border:1px solid var(--sep);background:var(--surface-2);color:var(--text);padding:12px 14px;font:inherit;font-size:17px}
+.cmd-form textarea{min-height:112px;resize:vertical;font:16px/1.4 ui-monospace,Menlo,monospace}
+.cmd-form .hint{font-size:13px}
+.cmd-form .cmd-test{padding:0;color:var(--red)}
+@media (max-width:560px){
+  .group .row:has(> .seg){flex-wrap:wrap;row-gap:10px}
+  .group .row:has(> .seg) .main{flex-basis:100%}
+  .group .row:has(> .seg) .seg{width:100%}
+  .group .row:has(> .seg) .seg button{flex:1;padding:10px 6px}
+}

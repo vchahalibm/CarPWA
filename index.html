@@ -86,6 +86,7 @@
           <div class="eta-cell"><b id="etaArr">--:--</b><span>arrival</span></div>
           <div class="eta-cell"><b id="etaMin">0</b><span id="etaMinU">min</span><small class="eta-traffic" id="etaTraffic" hidden></small></div>
           <div class="eta-cell"><b id="etaDist">0</b><span id="etaDistU">mi</span></div>
+          <button class="eta-more" data-action="mapsHandoff" aria-label="Open the route in another app"><span data-icon="share"></span></button>
           <button class="end-btn" data-action="endNav">End</button>
         </div>
       </div>
@@ -98,6 +99,7 @@
         <div class="seg" id="musicSeg">
           <button data-src="music">Music</button><button data-src="podcasts">Podcasts</button><button data-src="radio">Radio</button>
         </div>
+        <button class="pill-btn" data-action="openMusicApp">Open music app</button>
       </header>
       <div class="music-body">
         <div class="mb-art"><div class="art" data-np="art"></div></div>
@@ -196,20 +198,23 @@
 
     <!-- Overlays -->
     <div class="call-screen" id="callScreen" hidden></div>
-    <div class="assistant" id="assistant" data-action="closeAssistant" hidden>
-      <div class="orb"></div>
-      <div class="asst-card" data-action="noop">
-        <div class="asst-text" id="asstText">What can I help with?</div>
-        <div class="asst-hint" id="asstHint"></div>
-        <div class="chips">
+    <div class="vbox" id="assistant" role="dialog" aria-label="Voice assistant" hidden>
+      <div class="vbox-card">
+        <div class="vbox-row">
+          <button class="vbox-orb" id="vOrb" aria-label="Talk / done talking"><span data-icon="mic"></span></button>
+          <div class="vbox-main"><div class="vbox-state" id="asstHint">Listening…</div><div class="vbox-text" id="asstText">Say a command</div></div>
+          <button class="vbox-x" data-action="closeAssistant" aria-label="Close"><span data-icon="close"></span></button>
+        </div>
+        <div class="vbox-prog" id="vProg" hidden><i></i><span></span></div>
+        <div class="vbox-reply" id="vReply" hidden></div>
+        <div class="chips" id="vChips">
           <button class="chip" data-cmd="take me home">“Take me home”</button>
+          <button class="chip" data-cmd="what's my eta">“What’s my ETA?”</button>
           <button class="chip" data-cmd="play some music">“Play some music”</button>
           <button class="chip" data-cmd="call mom">“Call Mom”</button>
           <button class="chip" data-cmd="read my messages">“Read my messages”</button>
           <button class="chip" data-cmd="find parking nearby">“Find parking”</button>
-          <button class="chip" data-cmd="what's my eta">“What’s my ETA?”</button>
           <button class="chip" data-cmd="show the widgets">“Show the widgets”</button>
-          <button class="chip" data-cmd="chronograph style">“Chronograph style”</button>
           <button class="chip" data-cmd="what's the weather">“What’s the weather?”</button>
         </div>
       </div>
@@ -269,5 +274,6 @@
 <script src="js/app.js"></script>
 <script src="js/modes.js"></script>
 <script src="js/dash.js"></script>
+<script src="js/voice.js"></script>
 </body>
 </html>

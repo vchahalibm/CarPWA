@@ -12,7 +12,10 @@
    }
    ============================================================ */
 const Routing = (() => {
-  const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving/';
+  const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';               // FOSSGIS, used by openstreetmap.org
+  const OSRM_URLS = ['https://routing.openstreetmap.de/routed-car/route/v1/driving/', // FOSSGIS
+    'https://router.project-osrm.org/route/v1/driving/'];                           // OSRM demo server
+  const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
   const TOMTOM_URL = 'https://api.tomtom.com/routing/1/calculateRoute/';
   const PHOTON_URL = 'https://photon.komoot.io/api/';
   const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
@@ -67,8 +70,8 @@ const Routing = (() => {
   }
 
   /* ---------- OSRM (free, no key, no live traffic) ---------- */
-  async function osrm(from, to) {
-    const url = `${OSRM_URL}${from.lon},${from.lat};${to.lon},${to.lat}` +
+  async function osrm(from, to, base = OSRM_URLS[0]) {
+    const url = `${base}${from.lon},${from.lat};${to.lon},${to.lat}` +
       '?overview=full&geometries=geojson&steps=true&annotations=duration,maxspeed&alternatives=false';
     const j = await getJSON(url);
     if (j.code !== 'Ok' || !j.routes?.length) throw new Error(j.message || 'No route');
@@ -137,16 +140,74 @@ const Routing = (() => {
       trafficDelay: null, segLimit: [], steps };
   }
 
-  /** Best available route: TomTom when a key is set, else OSRM. Throws when every provider fails. */
-  async function route(from, to, opts = {}) {
-    if (opts.provider === 'tomtom' && opts.tomtomKey) {
-      try { return await tomtom(from, to, opts.tomtomKey); } catch (e) { console.warn('TomTom routing failed, falling back to OSRM', e); }
+  /* ---------- Valhalla (free, no key; road-class aware, good turn-by-turn) ---------- */
+  function decode6(str) { // Valhalla shapes are polyline-encoded with 6-digit precision
+    const out = []; let i = 0, lat = 0, lon = 0;
+    while (i < str.length) {
+      for (const k of [0, 1]) {
+        let b, shift = 0, res = 0;
+        do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        const d = res & 1 ? ~(res >> 1) : res >> 1;
+        if (k) lon += d; else lat += d;
+      }
+      out.push([lat / 1e6, lon / 1e6]);
     }
-    return osrm(from, to);
+    return out;
+  }
+  const VH_ICON = { 2: 'turnRight', 3: 'turnLeft', 4: 'flag', 5: 'flag', 6: 'flag', 9: 'slightRight', 10: 'turnRight', 11: 'turnRight', 12: 'uturn', 13: 'uturn',
+    14: 'turnLeft', 15: 'turnLeft', 16: 'slightLeft', 18: 'slightRight', 19: 'slightLeft', 20: 'slightRight', 21: 'slightLeft', 23: 'slightRight', 24: 'slightLeft',
+    25: 'merge', 26: 'roundabout', 27: 'roundabout', 37: 'merge', 38: 'merge' };
+  async function valhalla(from, to) {
+    const req = {
+      // The destination snaps to a proper street, not a golf-cart path or car-park aisle inside a campus.
+      locations: [{ lat: from.lat, lon: from.lon, type: 'break' },
+        { lat: to.lat, lon: to.lon, type: 'break', search_filter: { min_road_class: 'residential' } }],
+      costing: 'auto',
+      costing_options: { auto: { use_tracks: 0, service_penalty: 60, service_factor: 2.5, use_living_streets: 0.2 } },
+      units: 'kilometers', language: 'en-US', directions_type: 'instructions',
+    };
+    const j = await getJSON(`${VALHALLA_URL}?json=${encodeURIComponent(JSON.stringify(req))}`);
+    const leg = j.trip?.legs?.[0]; if (!leg) throw new Error(j.error || 'No route');
+    const coords = decode6(leg.shape), cum = cumulative(coords), n = coords.length;
+    const tcum = new Array(n).fill(0);
+    for (const m of leg.maneuvers) { // spread each maneuver's time over its stretch of road by distance
+      const a = m.begin_shape_index, b = Math.min(m.end_shape_index, n - 1), t0 = tcum[a], span = cum[b] - cum[a];
+      for (let k = a + 1; k <= b; k++) tcum[k] = t0 + (span ? (cum[k] - cum[a]) / span : 1) * m.time;
+    }
+    const steps = leg.maneuvers.map(m => ({ at: cum[Math.min(m.begin_shape_index, n - 1)], icon: VH_ICON[m.type] || 'straight',
+      text: m.instruction.replace(/\.$/, ''), street: (m.street_names || [])[0] || ([4, 5, 6].includes(m.type) ? 'Destination' : '') }));
+    return { provider: 'valhalla', coords, cum, tcum, distance: cum.at(-1), duration: j.trip.summary.time, trafficDelay: null, segLimit: [], steps };
+  }
+
+  /** Best available route. TomTom (live traffic) when a key is set, then Valhalla, then two OSRM servers. Throws when all fail. */
+  async function route(from, to, opts = {}) {
+    const tries = [];
+    if (opts.provider === 'tomtom' && opts.tomtomKey) tries.push(['TomTom', () => tomtom(from, to, opts.tomtomKey)]);
+    tries.push(['Valhalla', () => valhalla(from, to)], ...OSRM_URLS.map((u, i) => [`OSRM ${i + 1}`, () => osrm(from, to, u)]));
+    let last;
+    for (const [name, fn] of tries) {
+      try { return await fn(); } catch (e) { last = e; console.warn(`${name} routing failed`, e); }
+    }
+    throw last;
   }
 
   /* ---------- Place search (Photon, OpenStreetMap data) ---------- */
+  /** Photon and Nominatim together: better recall for local names, abbreviations and addresses. */
   async function search(q, near) {
+    const [a, b] = await Promise.allSettled([photon(q, near), nominatim(q, near)]);
+    const list = [...(a.value || []), ...(b.value || [])];
+    if (!list.length && a.status === 'rejected' && b.status === 'rejected') throw a.reason;
+    return list.filter((p, i) => !list.slice(0, i).some(o => dist([o.lat, o.lon], [p.lat, p.lon]) < 60 && o.name === p.name)).slice(0, 10);
+  }
+  async function nominatim(q, near) {
+    const box = near ? `&viewbox=${near.lon - 0.6},${near.lat + 0.6},${near.lon + 0.6},${near.lat - 0.6}` : '';
+    const j = await getJSON(`${NOMINATIM_URL}?q=${encodeURIComponent(q)}&format=jsonv2&limit=6&addressdetails=0${box}`, {}, 8000);
+    return (j || []).map(r => {
+      const parts = (r.display_name || '').split(', ');
+      return { id: 'nm' + r.place_id, name: r.name || parts[0], sub: parts.slice(1, 4).join(', '), lat: +r.lat, lon: +r.lon, icon: 'pin', color: '#ff375f', remote: true };
+    });
+  }
+  async function photon(q, near) {
     const u = `${PHOTON_URL}?q=${encodeURIComponent(q)}&limit=8&lang=en` + (near ? `&lat=${near.lat.toFixed(4)}&lon=${near.lon.toFixed(4)}` : '');
     const j = await getJSON(u, {}, 8000);
     return (j.features || []).map((f, i) => {
@@ -173,5 +234,5 @@ const Routing = (() => {
     }).filter(p => p.lat != null);
   }
 
-  return { route, osrm, tomtom, approx, search, nearby, cumulative, dist };
+  return { route, valhalla, osrm, tomtom, approx, search, nearby, cumulative, dist, decode6 };
 })();

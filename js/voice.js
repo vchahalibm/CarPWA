@@ -111,27 +111,34 @@ const Voice = {
       unlike Web Audio, it isn't silenced by the phone's ring/silent switch. */
   async speakNeural(text, id) {
     const el = this.player(), queue = [], voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
-    let generating = true, playing = false, finish;
+    let generating = true, playing = false, started = false, fail = null, finish;
     const done = new Promise(r => (finish = r)); this.stopNeural = () => finish();
     const next = () => {
       if (id !== this.sayId) return finish();
       const url = queue.shift();
       if (!url) { playing = false; if (!generating) finish(); return; }
-      playing = true; el.src = url;
+      playing = started = true; el.src = url;
       el.onended = () => { URL.revokeObjectURL(url); next(); };
       el.onerror = () => { URL.revokeObjectURL(url); next(); };
       el.play().catch(e => { console.warn('Reply audio blocked', e); this.blocked = true; queue.length = 0; generating = false; finish(); });
     };
-    const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
-    try {
-      for await (const { audio } of this.tts.stream(text, { voice })) {
-        if (id !== this.sayId) return;
-        queue.push(URL.createObjectURL(wavBlob(audio.audio, audio.sampling_rate)));
-        if (!playing) next();
-      }
-    } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
-    await done;
+    // A stuck or very slow model must not leave you in silence: after 8 s without sound, the phone's voice takes over.
+    const watchdog = setTimeout(() => { if (!started) { fail = new Error('The reply voice took too long'); finish(); } }, 8000);
+    (async () => {
+      const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
+      try {
+        // Hand kokoro-js a closed sentence splitter: given a plain string it waits for more text and never speaks the last sentence.
+        const split = new this.Splitter(); split.push(text); split.close();
+        for await (const { audio } of this.tts.stream(split, { voice })) {
+          if (id !== this.sayId || fail) return;
+          queue.push(URL.createObjectURL(wavBlob(audio.audio, audio.sampling_rate)));
+          if (!playing) next();
+        }
+      } catch (e) { fail ||= e; } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
+    })();
+    await done; clearTimeout(watchdog);
     if (this.blocked) { this.blocked = false; throw new Error('Audio playback was blocked'); }
+    if (fail && !started) throw fail;
   },
   hush() {
     this.sayId++; this.stopNeural?.(); this.stopNeural = null;
@@ -154,7 +161,8 @@ const Voice = {
   loadTTS(show) {
     if (this.tts) return Promise.resolve(this.tts);
     this.ttsLoading ||= (async () => {
-      const { KokoroTTS } = await import(KOKORO_URL), files = {};
+      const { KokoroTTS, TextSplitterStream } = await import(KOKORO_URL), files = {};
+      this.Splitter = TextSplitterStream;
       const tts = await KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: 'q8', device: 'wasm', progress_callback: show ? p => this.progress(p, files, 'reply voice') : null });
       $('#vProg').hidden = true; store.set('kokoroOK', true);
       return tts;

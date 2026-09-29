@@ -274,8 +274,8 @@ const DEFAULT_COMMANDS = [
   { id: 'phone.read', name: 'Read my messages', match: 'keywords', say: ['read, message|messages|texts|text', 'new messages|any messages|unread', 'check, messages|texts'], do: { type: 'builtin', fn: 'readMessages' } },
   // Information
   { id: 'info.weather', name: 'Weather', match: 'keywords', say: ['weather', 'temperature', 'rain|raining|umbrella', 'forecast', 'how hot|how cold'], do: { type: 'builtin', fn: 'weather' } },
-  { id: 'info.time', name: 'What time is it?', match: 'keywords', say: ['time is it', 'what’s the time|whats the time|current time|the time now|tell me the time'], do: { type: 'builtin', fn: 'time' } },
-  { id: 'info.date', name: 'What’s the date?', match: 'keywords', say: ['what’s the date|whats the date|today’s date|todays date|what date', 'what day is|which day is'], do: { type: 'builtin', fn: 'date' } },
+  { id: 'info.time', name: 'What time is it?', match: 'keywords', say: ['time is it', 'what’s the time|whats the time|what is the time|current time|the time now|tell me the time'], do: { type: 'builtin', fn: 'time' } },
+  { id: 'info.date', name: 'What’s the date?', match: 'keywords', say: ['what’s the date|whats the date|what is the date|the date today|today’s date|todays date|what date', 'what day is|which day is'], do: { type: 'builtin', fn: 'date' } },
   { id: 'info.help', name: 'What can I say?', say: ['what can (i|you) (say|do|ask)', 'help [me]', '[show] [the] [voice] commands', 'what are [the|my] commands'], do: { type: 'builtin', fn: 'help' } },
   // Dashboard & display
   { id: 'dash.layout', name: 'Cluster, map or widget layout', say: ['[show|open|switch to|go to] [the] {layout} (layout|dashboard|screen|page)', 'show [me] [the] {layout}'], do: { type: 'builtin', fn: 'layout' } },

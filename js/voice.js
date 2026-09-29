@@ -88,47 +88,69 @@ const Voice = {
     this.hush(); const id = ++this.sayId;
     text = String(text || '').replace(/[“”"«»]/g, '').trim();
     if (!text || settings.tts === 'off') return Promise.resolve();
-    if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => { console.warn('Reply voice failed', e); return id === this.sayId && this.speakPhone(text); });
+    if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => { console.warn('Reply voice failed', e); return id === this.sayId && this.speakPhone(text, id); });
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // from cache, ready for the next reply
-    return this.speakPhone(text);
+    return this.speakPhone(text, id);
   },
-  speakPhone(text) {
+  speakPhone(text, id) {
     return new Promise(res => {
       if (!('speechSynthesis' in window)) return res();
-      try { const u = new SpeechSynthesisUtterance(text); u.rate = 1.03; u.onend = u.onerror = () => res(); speechSynthesis.speak(u); } catch { res(); }
-      setTimeout(res, 1500 + text.length * 85);
+      // Speaking straight after cancel() is dropped on some phones: give it a moment.
+      setTimeout(() => {
+        if (id !== this.sayId) return res();
+        try {
+          const u = this.utt = new SpeechSynthesisUtterance(text); // kept referenced, or onend may never fire
+          u.rate = 1.03; u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
+          u.onend = u.onerror = () => res(); speechSynthesis.speak(u);
+        } catch { res(); }
+      }, this.cancelled ? 150 : 0);
+      setTimeout(res, 1800 + text.length * 85);
     });
   },
+  /** Kokoro, one sentence at a time (the first plays while the rest are generated), through an <audio> element:
+      unlike Web Audio, it isn't silenced by the phone's ring/silent switch. */
   async speakNeural(text, id) {
-    const ctx = this.audio(); if (ctx.state !== 'running') await ctx.resume().catch(() => {});
-    if (ctx.state !== 'running') throw new Error('Audio is locked until the screen is tapped');
-    // One sentence at a time: the first starts playing while the rest are generated. One generation at a time.
+    const el = this.player(), queue = [], voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
+    let generating = true, playing = false, finish;
+    const done = new Promise(r => (finish = r)); this.stopNeural = () => finish();
+    const next = () => {
+      if (id !== this.sayId) return finish();
+      const url = queue.shift();
+      if (!url) { playing = false; if (!generating) finish(); return; }
+      playing = true; el.src = url;
+      el.onended = () => { URL.revokeObjectURL(url); next(); };
+      el.onerror = () => { URL.revokeObjectURL(url); next(); };
+      el.play().catch(e => { console.warn('Reply audio blocked', e); this.blocked = true; queue.length = 0; generating = false; finish(); });
+    };
     const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
-    let at = 0, last = null;
     try {
-      // “Transient” ducks other audio (music) while we talk. It also blocks the microphone, so it must always be undone.
-      this.session('transient');
-      try {
-        for await (const { audio } of this.tts.stream(text, { voice: TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart' })) {
-          if (id !== this.sayId) return;
-          const buf = ctx.createBuffer(1, audio.audio.length, audio.sampling_rate); buf.copyToChannel(audio.audio, 0);
-          const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
-          at = Math.max(at, ctx.currentTime + 0.03); src.start(at); at += buf.duration; this.playing.push(src); last = src;
-        }
-      } finally { release(); }
-      if (last) await new Promise(r => { last.onended = r; setTimeout(r, (at - ctx.currentTime) * 1000 + 400); });
-    } finally { if (id === this.sayId || !this.playing.length) this.session('auto'); }
+      for await (const { audio } of this.tts.stream(text, { voice })) {
+        if (id !== this.sayId) return;
+        queue.push(URL.createObjectURL(wavBlob(audio.audio, audio.sampling_rate)));
+        if (!playing) next();
+      }
+    } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
+    await done;
+    if (this.blocked) { this.blocked = false; throw new Error('Audio playback was blocked'); }
   },
   hush() {
-    this.sayId++; this.playing.forEach(s => { try { s.stop(); } catch {} }); this.playing = [];
-    try { speechSynthesis.cancel(); } catch {}
+    this.sayId++; this.stopNeural?.(); this.stopNeural = null;
+    if (this.el && !this.el.paused && this.el.src !== silenceUrl) try { this.el.pause(); } catch {}
+    this.cancelled = false;
+    try { if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); this.cancelled = true; } } catch {}
     this.session('auto');
   },
   /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */
   session(type) { try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch {} },
-  audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
-  /** Phones only let a page play sound after a tap: resume the reply voice's audio on every touch. */
-  unlock() { if (this.ac?.state === 'suspended' || (!this.ac && store.get('kokoroOK'))) this.audio().resume().catch(() => {}); },
+  player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
+  /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
+      of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
+  unlock() {
+    if (this.unlocked) return;
+    const el = this.player();
+    try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; }).catch(() => {}); } catch {}
+    try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch {}
+  },
   loadTTS(show) {
     if (this.tts) return Promise.resolve(this.tts);
     this.ttsLoading ||= (async () => {
@@ -204,7 +226,7 @@ const Voice = {
      Whisper already transcribes what it has; if you say nothing more, that guess is used, so the action happens right at the deadline. */
   async listenWhisper() {
     // Nothing may be playing or holding the audio session while the microphone opens.
-    this.hush(); this.ac?.state === 'running' && this.ac.suspend().catch(() => {});
+    this.hush();
     const opts = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia(opts); }
@@ -316,6 +338,16 @@ const Voice = {
     setTimeout(() => handleCommand(text, true), 350);
   },
 };
+/** 16-bit mono WAV, for the reply player. */
+function wavBlob(f32, rate) {
+  const n = f32.length, b = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
+  return new Blob([b], { type: 'audio/wav' });
+}
+let silenceUrl;
+const SILENCE = () => (silenceUrl ||= URL.createObjectURL(wavBlob(new Float32Array(1200), 24000)));
 async function resample(data, from, to) {
   const ctx = new OfflineAudioContext(1, Math.ceil(data.length * to / from), to);
   const buf = ctx.createBuffer(1, data.length, from); buf.copyToChannel(data, 0);

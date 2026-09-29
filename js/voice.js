@@ -106,21 +106,26 @@ const Voice = {
     const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
     let at = 0, last = null;
     try {
-      if (navigator.audioSession) try { navigator.audioSession.type = 'transient'; } catch {}
-      for await (const { audio } of this.tts.stream(text, { voice: TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart' })) {
-        if (id !== this.sayId) return;
-        const buf = ctx.createBuffer(1, audio.audio.length, audio.sampling_rate); buf.copyToChannel(audio.audio, 0);
-        const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
-        at = Math.max(at, ctx.currentTime + 0.03); src.start(at); at += buf.duration; this.playing.push(src); last = src;
-      }
-    } finally { release(); }
-    if (last) await new Promise(r => { last.onended = r; setTimeout(r, (at - ctx.currentTime) * 1000 + 400); });
-    if (id === this.sayId && navigator.audioSession) try { navigator.audioSession.type = 'auto'; } catch {}
+      // “Transient” ducks other audio (music) while we talk. It also blocks the microphone, so it must always be undone.
+      this.session('transient');
+      try {
+        for await (const { audio } of this.tts.stream(text, { voice: TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart' })) {
+          if (id !== this.sayId) return;
+          const buf = ctx.createBuffer(1, audio.audio.length, audio.sampling_rate); buf.copyToChannel(audio.audio, 0);
+          const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+          at = Math.max(at, ctx.currentTime + 0.03); src.start(at); at += buf.duration; this.playing.push(src); last = src;
+        }
+      } finally { release(); }
+      if (last) await new Promise(r => { last.onended = r; setTimeout(r, (at - ctx.currentTime) * 1000 + 400); });
+    } finally { if (id === this.sayId || !this.playing.length) this.session('auto'); }
   },
   hush() {
     this.sayId++; this.playing.forEach(s => { try { s.stop(); } catch {} }); this.playing = [];
     try { speechSynthesis.cancel(); } catch {}
+    this.session('auto');
   },
+  /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */
+  session(type) { try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch {} },
   audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
   /** Phones only let a page play sound after a tap: resume the reply voice's audio on every touch. */
   unlock() { if (this.ac?.state === 'suspended' || (!this.ac && store.get('kokoroOK'))) this.audio().resume().catch(() => {}); },
@@ -198,9 +203,17 @@ const Voice = {
   /* Listening: record until you've been quiet for the “act after” time (5 s by default). About 0.7 s into a pause
      Whisper already transcribes what it has; if you say nothing more, that guess is used, so the action happens right at the deadline. */
   async listenWhisper() {
+    // Nothing may be playing or holding the audio session while the microphone opens.
+    this.hush(); this.ac?.state === 'running' && this.ac.suspend().catch(() => {});
+    const opts = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
     let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-    catch { return this.show('Microphone is blocked', 'Allow microphone access for this site in Settings'); }
+    try { stream = await navigator.mediaDevices.getUserMedia(opts); }
+    catch (e) {
+      // Often the microphone is still being released from the last turn or a reply: reset and try once more.
+      console.warn('Microphone', e); this.session('auto'); await new Promise(r => setTimeout(r, 400));
+      try { stream = await navigator.mediaDevices.getUserMedia(opts); }
+      catch (e2) { console.warn('Microphone', e2); return this.micError(e2); }
+    }
     let ctx; try { ctx = new AudioContext({ sampleRate: 16000 }); } catch { ctx = new AudioContext(); }
     const src = ctx.createMediaStreamSource(stream), rate = ctx.sampleRate, limit = Math.max(1, +settings.vadSilence || 5);
     const st = { chunks: [], heard: false, quiet: 0, total: 0, noise: 0.008, guess: null, left: 0 };
@@ -230,6 +243,12 @@ const Voice = {
     this.rec = { stream, ctx, node, src, st };
     $('#vOrb').classList.add('live');
   },
+  micError(e) {
+    $('#vOrb').classList.remove('live');
+    if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError')
+      return this.show('Microphone permission is off', 'Allow the microphone for this site in the phone’s settings, then reopen DriveDeck');
+    this.show('The microphone is busy', `Another app may be using it${e?.name ? ` (${e.name})` : ''}. Tap the mic to try again`);
+  },
   /** Transcribe what's been said so far, during a pause. */
   guess(st, rate) {
     const p = this.toAudio(st.chunks.slice(), rate).then(a => this.recognise(a));
@@ -241,7 +260,7 @@ const Voice = {
     try { r.node.disconnect(); r.src.disconnect(); if (r.node.port) r.node.port.onmessage = null; } catch {}
     r.stream.getTracks().forEach(t => t.stop());
     const rate = r.ctx.sampleRate, st = r.st; r.ctx.close().catch(() => {});
-    $('#vOrb').classList.remove('live');
+    $('#vOrb').classList.remove('live'); this.session('auto');
     if (discard) return;
     if (!st.heard) { this.show('I didn’t hear anything', 'Tap the mic and try again'); this.closeT = setTimeout(() => this.close(), 2500); return; }
     if (!st.guess) this.show('Understanding…', 'Whisper · on-device');
@@ -274,14 +293,19 @@ const Voice = {
   listenBrowser() {
     if (!SR) return this.show('Voice input isn’t supported in this browser', 'Tap a suggestion');
     try {
+      this.hush();
       const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true;
+      let text = '', done = false;
+      const finish = () => { if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); };
       r.onresult = e => {
-        const text = [...e.results].map(x => x[0].transcript).join(' ');
+        text = [...e.results].map(x => x[0].transcript).join(' ').trim();
         this.show(`“${text}”`, 'Listening…');
-        if (e.results[e.results.length - 1].isFinal) { this.sr = null; $('#vOrb').classList.remove('live'); this.heard(text, { engine: 'Phone' }); }
+        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); this.heard(text, { engine: 'Phone' }); }
       };
-      r.onerror = () => { this.sr = null; $('#vOrb').classList.remove('live'); this.show('Couldn’t hear you', 'Tap a suggestion or try again'); };
-      r.onend = () => $('#vOrb').classList.remove('live');
+      r.onerror = e => { finish(); if (done) return; done = true;
+        this.show(e.error === 'not-allowed' ? 'Microphone or speech permission is off' : 'Couldn’t hear you', e.error === 'not-allowed' ? 'Allow them for this site in the phone’s settings' : 'Tap the mic and try again'); };
+      // Some phones end without a “final” result: use what was heard so far, and never leave the mic stuck.
+      r.onend = () => { finish(); if (done) return; done = true; text ? this.heard(text, { engine: 'Phone' }) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
       r.start(); $('#vOrb').classList.add('live');
     } catch { this.show('Tap a suggestion'); }
   },

@@ -28,12 +28,103 @@ if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.as
   window.__rsIterShim = true;
 }
 // How replies are played. Adjustable only from the debug Logs tab, to find what works on a given phone.
-//   out:     'element' (<audio>, blob URL) · 'data' (<audio>, data URL) · 'webaudio'
+//   out:     'data' (<audio>, data URL; worked fully on iPad) · 'element' (<audio>, blob URL) · 'webaudio'
 //   session: the WebKit audio session while speaking: 'playback' (loudspeaker, ignores the silent switch) · 'auto' · 'transient'
+//   engine:  'worker' (Kokoro in a background worker: the app stays responsive and sentence 1 plays while 2 is made) · 'main'
+//   device:  'wasm' (CPU, q8, ~90 MB) · 'webgpu' (GPU, fp32, ~310 MB: experimental, can be much faster)
 const Diag = {
-  get: () => ({ out: 'element', session: 'playback', ...store.get('diag', {}) }),
-  set(k, v) { store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`); },
+  get: () => ({ out: 'data', session: 'playback', engine: 'worker', device: 'wasm', ...store.get('diag', {}) }),
+  set(k, v) {
+    store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
+    if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
+  },
 };
+
+/* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
+   sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
+const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
+  ReadableStream.prototype[Symbol.asyncIterator] = async function* () { const r = this.getReader();
+    try { for (;;) { const { done, value } = await r.read(); if (done) return; yield value; } } finally { r.releaseLock(); } }; }`;
+const KOKORO_WORKER = `${STREAM_SHIM}
+let K, tts, chain = Promise.resolve(); const cancelled = new Set();
+const send = (m, t) => self.postMessage(m, t || []);
+self.onmessage = ({ data: m }) => {
+  if (m.type === 'cancel') { cancelled.add(m.id); return; }
+  const job = async () => {
+    try {
+      if (m.type === 'load') {
+        K = await import(m.url);
+        tts = await K.KokoroTTS.from_pretrained(m.model, { dtype: m.dtype, device: m.device, progress_callback: p => send({ type: 'progress', id: m.id, p }) });
+        send({ type: 'loaded', id: m.id });
+      } else if (m.type === 'generate') {
+        const a = await tts.generate(m.text, { voice: m.voice }), f = new Float32Array(a.audio);
+        send({ type: 'audio', id: m.id, f32: f, rate: a.sampling_rate }, [f.buffer]);
+      } else if (m.type === 'speak') {
+        // A closed splitter: given a plain string, kokoro-js waits for more text and never speaks the last sentence.
+        const split = new K.TextSplitterStream(); split.push(m.text); split.close();
+        for await (const { text, audio } of tts.stream(split, { voice: m.voice })) {
+          await new Promise(r => setTimeout(r, 0)); // let a "cancel" message in between sentences
+          if (cancelled.has(m.id)) break;
+          const f = new Float32Array(audio.audio);
+          send({ type: 'chunk', id: m.id, text, f32: f, rate: audio.sampling_rate }, [f.buffer]);
+        }
+        send({ type: 'done', id: m.id });
+      }
+    } catch (e) { send({ type: 'error', id: m.id, message: String((e && e.message) || e), stack: String((e && e.stack) || '').slice(0, 400) }); }
+  };
+  chain = chain.then(job, job); // one job at a time
+};`;
+function kokoroMain(K, tts) {
+  let lock = Promise.resolve();
+  return { kind: 'main thread',
+    async generate(text, voice) { const a = await tts.generate(text, { voice }); return { f32: a.audio, rate: a.sampling_rate }; },
+    async *sentences(text, voice) {
+      const prev = lock; let release; lock = new Promise(r => (release = r)); await prev;
+      try {
+        const split = new K.TextSplitterStream(); split.push(text); split.close();
+        for await (const { text: t, audio } of tts.stream(split, { voice })) yield { text: t, f32: audio.audio, rate: audio.sampling_rate };
+      } finally { release(); }
+    },
+    terminate() {} };
+}
+function kokoroWorker() {
+  const w = new Worker(URL.createObjectURL(new Blob([KOKORO_WORKER], { type: 'text/javascript' })), { type: 'module' });
+  const pending = new Map(); let seq = 0;
+  w.onmessage = ({ data: m }) => pending.get(m.id)?.(m);
+  w.onerror = e => { Log.e('tts', 'Voice worker error', { message: e.message, file: e.filename, line: e.lineno }); e.preventDefault?.();
+    for (const h of [...pending.values()]) h({ type: 'error', message: e.message || 'Voice worker crashed' }); };
+  const call = (msg, h) => { const id = ++seq; pending.set(id, h); w.postMessage({ ...msg, id }); return id; };
+  return { kind: 'background worker',
+    load(opts, onProgress) {
+      return new Promise((res, rej) => call({ type: 'load', url: KOKORO_URL, model: KOKORO_MODEL, ...opts }, m => {
+        if (m.type === 'progress') return onProgress?.(m.p);
+        pending.delete(m.id); m.type === 'loaded' ? res() : rej(Object.assign(new Error(m.message), { stack: m.stack }));
+      }));
+    },
+    generate(text, voice) {
+      return new Promise((res, rej) => call({ type: 'generate', text, voice }, m => {
+        pending.delete(m.id); m.type === 'audio' ? res({ f32: m.f32, rate: m.rate }) : rej(new Error(m.message));
+      }));
+    },
+    sentences(text, voice) {
+      const q = [], waiting = []; let over = false, err = null;
+      const put = v => (waiting.length ? waiting.shift()(v) : q.push(v));
+      const id = call({ type: 'speak', text, voice }, m => {
+        if (m.type === 'chunk') return put({ text: m.text, f32: m.f32, rate: m.rate });
+        pending.delete(m.id); if (m.type === 'error') err = new Error(m.message); put(null);
+      });
+      return { [Symbol.asyncIterator]() { return this; },
+        async next() {
+          if (over) return { done: true, value: undefined };
+          const v = q.length ? q.shift() : await new Promise(r => waiting.push(r));
+          if (v) return { done: false, value: v };
+          over = true; if (err) throw err; return { done: true, value: undefined };
+        },
+        async return() { if (!over) { over = true; w.postMessage({ type: 'cancel', id }); pending.delete(id); } return { done: true, value: undefined }; } };
+    },
+    terminate() { w.terminate(); for (const h of [...pending.values()]) h({ type: 'error', message: 'Voice worker stopped' }); pending.clear(); },
+  };
+}
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const LANGS = { auto: ['Auto-detect', null, navigator.language || 'en-IN'], en: ['English', 'en', 'en-IN'], hi: ['हिन्दी Hindi', 'hi', 'hi-IN'],
   kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'] };
@@ -144,7 +235,7 @@ const Voice = {
       if (id !== this.sayId) return finish();
       const item = queue.shift();
       if (!item) { playing = false; if (!generating) finish(); return; }
-      if (!started) this.session(cfg.session); // loudspeaker, whatever the mic did last
+      if (!started) { this.session(cfg.session); Log.i('tts', `First sound after ${Math.round(performance.now() - t0)} ms`, { engine: this.tts.kind }); } // loudspeaker, whatever the mic did last
       playing = started = true;
       try { await this.playChunk(item, cfg.out); }
       catch (e) { Log.e('tts', `Sentence ${item.n} could not play`, e); this.blocked = true; queue.length = 0; generating = false; return finish(); }
@@ -159,21 +250,16 @@ const Voice = {
       finish();
     }, 8000);
     (async () => {
-      // One generation at a time, but never wait forever behind one that got stuck.
-      const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r));
-      if (prev) await Promise.race([prev, new Promise(r => setTimeout(() => { Log.w('tts', 'Previous generation stuck: not waiting for it'); r(); }, 3000))]);
       try {
-        // Hand kokoro-js a closed sentence splitter: given a plain string it waits for more text and never speaks the last sentence.
-        const split = new this.Splitter(); split.push(text); split.close();
         let g = performance.now();
-        for await (const { text: sentence, audio } of this.tts.stream(split, { voice })) {
-          if (id !== this.sayId || fail) return;
-          const item = { n: ++n, f32: audio.audio, rate: audio.sampling_rate }; this.ttsStalls = 0; this.ttsBroken = '';
+        for await (const { text: sentence, f32, rate } of this.tts.sentences(text, voice)) {
+          if (id !== this.sayId || fail) return; // leaving the loop cancels the rest of the reply
+          const item = { n: ++n, f32, rate }; this.ttsStalls = 0; this.ttsBroken = '';
           Log.i('tts', `Sentence ${n} generated in ${Math.round(performance.now() - g)} ms`, { sentence, seconds: +(item.f32.length / item.rate).toFixed(2), rate: item.rate });
           g = performance.now();
           queue.push(item); if (!playing) next();
         }
-      } catch (e) { fail ||= e; Log.e('tts', 'Generation failed', e); } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
+      } catch (e) { fail ||= e; Log.e('tts', 'Generation failed', e); } finally { generating = false; if (!playing && !queue.length) finish(); }
     })();
     await done; clearTimeout(watchdog);
     if (id === this.sayId) this.session('auto');
@@ -194,13 +280,19 @@ const Voice = {
     }
     const el = this.player(), url = out === 'data' ? await wavDataUrl(f32, rate) : URL.createObjectURL(wavBlob(f32, rate));
     return new Promise((res, rej) => {
-      let over = false; const end = ok => { if (over) return; over = true; if (url.startsWith('blob:')) URL.revokeObjectURL(url); ok ? res() : rej(new Error(`Audio element error ${el.error?.code || ''} ${el.error?.message || ''}`)); };
+      let over = false, guard = 0;
+      const end = (ok, why) => { if (over) return; over = true; clearTimeout(guard); if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        ok ? res() : rej(new Error(why || `Audio element error ${el.error?.code || ''} ${el.error?.message || ''}`)); };
       el.onended = () => { Log.d('tts', `■ sentence ${n} ended`); end(true); };
       el.onerror = () => end(false);
       el.src = url;
-      el.play().then(() => Log.d('tts', `▶ sentence ${n} playing (${out})`, { secs: +secs.toFixed(2), volume: el.volume, muted: el.muted, readyState: el.readyState }),
-        e => { over = true; rej(e); });
-      setTimeout(() => { if (!over) Log.w('tts', `Sentence ${n}: no "ended" event, moving on`, { paused: el.paused, currentTime: el.currentTime }); end(true); }, secs * 1000 + 2000);
+      // If play() never even starts, give up after 10 s; once it plays, allow the sentence's length plus 2 s for "ended".
+      guard = setTimeout(() => end(false, 'Playback never started'), 10000);
+      el.play().then(() => {
+        Log.d('tts', `▶ sentence ${n} playing (${out})`, { secs: +secs.toFixed(2), volume: el.volume, muted: el.muted, readyState: el.readyState });
+        clearTimeout(guard);
+        guard = setTimeout(() => { if (!over) Log.w('tts', `Sentence ${n}: no "ended" event, moving on`, { paused: el.paused, currentTime: el.currentTime }); end(true); }, secs * 1000 + 2000);
+      }, e => end(false, e?.message || 'play() refused'));
     });
   },
   hush() {
@@ -216,6 +308,9 @@ const Voice = {
     try { if (navigator.audioSession && navigator.audioSession.type !== type) { Log.d('audio', `Audio session ${navigator.audioSession.type} → ${type}`); navigator.audioSession.type = type; } }
     catch (e) { Log.w('audio', `Audio session ${type} refused`, e); }
   },
+  audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
+  /** Forget the loaded voice (after changing engine or device in diagnostics); the next reply loads it again. */
+  resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.i('tts', 'On-device voice unloaded'); },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
       of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
@@ -228,21 +323,28 @@ const Voice = {
   loadTTS(show) {
     if (this.tts) return Promise.resolve(this.tts);
     this.ttsLoading ||= (async () => {
-      const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: !!store.get('kokoroOK') });
-      const { KokoroTTS, TextSplitterStream } = await import(KOKORO_URL), files = {};
-      Log.d('tts', `kokoro-js loaded ${Math.round(performance.now() - s)} ms`);
-      this.Splitter = TextSplitterStream;
-      const tts = await KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: 'q8', device: 'wasm', progress_callback: show ? p => this.progress(p, files, 'reply voice') : null });
-      $('#vProg').hidden = true; store.set('kokoroOK', true);
-      Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms`, { streamShim: !!window.__rsIterShim });
+      const cfg = Diag.get(), dtype = cfg.device === 'webgpu' ? 'fp32' : 'q8', files = {}, voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
+      const onProgress = show ? p => this.progress(p, files, 'reply voice') : p => p.status && p.status !== 'progress' && Log.d('model', `reply voice: ${p.status} ${p.file || ''}`);
+      const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: !!store.get('kokoroOK'), engine: cfg.engine, device: cfg.device, dtype });
+      let engine = null;
+      if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
+        try { engine = kokoroWorker(); await engine.load({ dtype, device: cfg.device }, onProgress); }
+        catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
+      }
+      if (!engine) {
+        const K = await import(KOKORO_URL);
+        Log.d('tts', `kokoro-js loaded ${Math.round(performance.now() - s)} ms`);
+        engine = kokoroMain(K, await K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device: cfg.device, progress_callback: onProgress }));
+      }
+      $('#vProg').hidden = true; if (dtype === 'q8') store.set('kokoroOK', true);
+      Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms (${engine.kind}, ${cfg.device})`, { streamShim: !!window.__rsIterShim });
       // Warm-up: one short sentence proves the whole chain (dictionary, phonemes, model) works here, and makes the first reply faster.
       const w = performance.now();
       try {
-        const a = await Promise.race([tts.generate('Ready.', { voice: TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart' }),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
-        this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.audio.length / a.sampling_rate).toFixed(2) });
+        const a = await Promise.race([engine.generate('Ready.', voice), new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
+        this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind });
       } catch (e) { this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e); }
-      return tts;
+      return engine;
     })();
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },

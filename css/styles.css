@@ -1057,3 +1057,9 @@ svg{display:block;flex:none}
 .lg-error .lg-m{color:var(--red);font-weight:700}
 .lg-debug .lg-m{color:var(--text-2)}
 .lg-empty{padding:18px 14px;color:var(--text-2)}
+.bench-phrase{font-size:22px;font-weight:700;color:var(--text);margin:10px 0}
+.sheet-card table.bench{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0;color:var(--text)}
+table.bench th{text-align:left;font-size:12px;color:var(--text-2);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--sep)}
+table.bench td{padding:8px 4px;border-bottom:1px solid var(--sep);vertical-align:top}
+table.bench small{color:var(--text-2)}
+.sheet-card:has(table.bench){width:min(680px,100%)}

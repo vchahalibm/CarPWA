@@ -38,16 +38,27 @@ const gpuOK = () => !!navigator.gpu && !store.get('gpuFailed');
 const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['q8'] : []);
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
-  get: () => ({ out: 'data', session: 'playback', engine: 'worker',
+  get: () => ({ stt: 'wasm', out: 'data', session: 'playback', engine: 'worker',
     device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().includes('fp32')) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
     if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
+    if (k === 'stt' && typeof Voice !== 'undefined') Voice.resetSTT();
   },
 };
 
 /* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
    sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
+/** Whisper settings per device. The GPU build keeps the encoder in full precision and the decoder 4-bit (the
+    combination transformers.js recommends for WebGPU); the CPU build is 8-bit throughout. */
+const WHISPER_OPTS = { wasm: { dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, device: 'wasm' },
+  webgpu: { dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, device: 'webgpu' } };
+async function createWhisper(dev, onProgress) {
+  const T = await import(TRANSFORMERS_URL);
+  T.env.allowLocalModels = false;
+  if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
+  return T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { ...WHISPER_OPTS[dev] || WHISPER_OPTS.wasm, progress_callback: onProgress });
+}
 /** Download size of the reply voice for this device, for the prompts. */
 const ttsSize = () => Diag.get().device === 'webgpu' ? '310 MB' : '90 MB';
 const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
@@ -318,6 +329,7 @@ const Voice = {
   },
   audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
   /** Forget the loaded voice (after changing engine or device in diagnostics); the next reply loads it again. */
+  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; Log.i('stt', 'Whisper unloaded'); },
   resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.i('tts', 'On-device voice unloaded'); },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
@@ -420,17 +432,19 @@ const Voice = {
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
     this.loading ||= (async () => {
-      const s = performance.now(); Log.i('stt', 'Loading Whisper', { cached: !!store.get('whisperOK') });
-      const T = await import(TRANSFORMERS_URL);
-      T.env.allowLocalModels = false;
-      if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
+      let dev = Diag.get().stt;
+      const s = performance.now(); Log.i('stt', 'Loading Whisper', { cached: !!store.get('whisperOK'), device: dev });
       const files = {};
-      const pipe = await T.pipeline('automatic-speech-recognition', WHISPER_MODEL, {
-        dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, device: 'wasm',
-        progress_callback: p => this.progress(p, files, 'voice model'),
-      });
-      $('#vProg').hidden = true; store.set('whisperOK', true);
-      Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms`);
+      let pipe;
+      try { pipe = await createWhisper(dev, p => this.progress(p, files, 'voice model')); }
+      catch (e) {
+        if (dev !== 'webgpu') throw e;
+        Log.w('stt', 'Whisper on the GPU failed: using the CPU', e); Diag.set('stt', 'wasm'); dev = 'wasm';
+        pipe = await createWhisper(dev, p => this.progress(p, files, 'voice model'));
+      }
+      this.pipeDevice = dev;
+      $('#vProg').hidden = true; store.set('whisperOK', true); if (dev === 'webgpu') store.set('whisperGpuOK', true);
+      Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${dev === 'webgpu' ? 'GPU' : 'CPU'})`);
       return pipe;
     })();
     return this.loading.then(p => (this.pipe = p), e => { this.loading = null; Log.e('stt', 'Whisper failed to load', e); throw e; });
@@ -466,7 +480,7 @@ const Voice = {
         if (!st.heard) Log.i('stt', `Speech started at ${st.total.toFixed(1)} s`, { rms: +rms.toFixed(3), noise: +st.noise.toFixed(4) });
         else if (st.left) Log.d('stt', 'More speech; waiting again');
         if (!st.heard || st.left) this.show(st.guess ? $('#asstText').textContent : 'Listening…', 'Speak now · tap the orb when done');
-        st.heard = true; st.quiet = 0; st.guess = null; st.left = 0; // more words: the earlier guess is stale
+        st.heard = true; st.quiet = 0; st.guess = null; st.left = 0; st.lastVoice = performance.now(); // more words: the earlier guess is stale
       } else { st.quiet += dt; if (!st.heard) st.noise = st.noise * 0.9 + rms * 0.1; }
       if (st.heard && st.quiet > 0.7) {
         if (!st.guess && !this.inferring) this.guess(st, rate);
@@ -516,6 +530,8 @@ const Voice = {
     try {
       const res = await (st.guess || this.toAudio(st.chunks, rate).then(a => this.recognise(a)));
       if (!res.text || /^(thank you|thanks for watching|you)[.!]*$/i.test(res.text) && res.secs < 1.6) { Log.w('stt', 'Nothing usable recognised', res); return this.show('I didn’t catch that', 'Tap the mic and try again'); }
+      Log.i('stt', `Recognised ${Math.round(res.doneAt - st.lastVoice)} ms after you stopped talking (Whisper ${this.pipeDevice === 'webgpu' ? 'GPU' : 'CPU'}, ${res.ms} ms to transcribe)`,
+        { text: res.text, actAfterSeconds: +settings.vadSilence || 5, note: 'the action waits for the act-after time' });
       this.heard(res.text, { engine: 'Whisper', lang: res.lang, ms: res.ms });
     } catch (e) { this.fail(e); }
   },
@@ -532,7 +548,7 @@ const Voice = {
       try {
         const out = await this.pipe(audio, { language: lang[1], task: lang[1] === 'en' ? 'transcribe' : 'translate' });
         Log.i('stt', `Whisper ${Math.round(performance.now() - t0)} ms for ${(audio.length / 16000).toFixed(1)} s of audio`, { text: out.text, lang: lang[1] || 'auto' });
-        return { text: (out.text || '').trim().replace(/^[\s"“]+|[\s"”]+$/g, ''), ms: performance.now() - t0, secs: audio.length / 16000,
+        return { text: (out.text || '').trim().replace(/^[\s"“]+|[\s"”]+$/g, ''), ms: Math.round(performance.now() - t0), doneAt: performance.now(), secs: audio.length / 16000,
           lang: lang[1] && lang[1] !== 'en' ? `${lang[1].toUpperCase()} → EN` : '' };
       } finally { this.inferring = false; }
     };
@@ -545,20 +561,23 @@ const Voice = {
     try {
       this.hush();
       const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true;
-      let text = '', done = false;
+      let text = '', done = false, lastChange = performance.now();
+      const latency = () => Log.i('stt', `Recognised ${Math.round(performance.now() - lastChange)} ms after your last word (phone recognizer)`, { text });
       const finish = () => { if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); };
       Log.i('stt', 'Phone recognizer starting', { lang: r.lang });
       r.onstart = () => Log.d('stt', 'Phone recognizer listening');
       r.onresult = e => {
-        text = [...e.results].map(x => x[0].transcript).join(' ').trim();
+        const t = [...e.results].map(x => x[0].transcript).join(' ').trim();
+        if (t !== text) lastChange = performance.now();
+        text = t;
         Log.d('stt', `Phone recognizer ${e.results[e.results.length - 1].isFinal ? 'final' : 'interim'}`, { text });
         this.show(`“${text}”`, 'Listening…');
-        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); this.heard(text, { engine: 'Phone' }); }
+        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.heard(text, { engine: 'Phone' }); }
       };
       r.onerror = e => { Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message }); finish(); if (done) return; done = true;
         this.show(e.error === 'not-allowed' ? 'Microphone or speech permission is off' : 'Couldn’t hear you', e.error === 'not-allowed' ? 'Allow them for this site in the phone’s settings' : 'Tap the mic and try again'); };
       // Some phones end without a “final” result: use what was heard so far, and never leave the mic stuck.
-      r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done }); finish(); if (done) return; done = true; text ? this.heard(text, { engine: 'Phone' }) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
+      r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done }); finish(); if (done) return; done = true; text ? (latency(), this.heard(text, { engine: 'Phone' })) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
       r.start(); $('#vOrb').classList.add('live');
     } catch (e) { Log.e('stt', 'Phone recognizer could not start', e); this.show('Tap a suggestion'); }
   },

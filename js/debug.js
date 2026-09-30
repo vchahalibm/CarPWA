@@ -145,6 +145,8 @@ const DebugUI = {
         ${btn('test:phone:0', 'Test the phone voice now')}
         ${btn('test:phone:3000', 'Test the phone voice in 3 s', 'no tap, like a reply')}
         ${btn('test:mic', 'Test the microphone (3 s)')}
+        ${btn('bench', 'Compare speech recognition', 'phone · Whisper CPU · GPU')}
+        <div class="row"><div class="main"><div class="t">Whisper computes on</div><div class="s">${navigator.gpu ? 'GPU (WebGPU): about 140 MB more to download' : 'This browser has no WebGPU'}</div></div>${seg('stt', [['wasm', 'CPU'], ...(navigator.gpu ? [['webgpu', 'GPU (beta)']] : [])])}</div>
         <div class="row"><div class="main"><div class="t">On-device voice runs in</div><div class="s">Background: the app stays smooth and speech starts sooner</div></div>${seg('engine', [['worker', 'Background'], ['main', 'Main thread']])}</div>
         <div class="row"><div class="main"><div class="t">On-device voice computes on</div><div class="s">${!!navigator.gpu ? 'GPU (WebGPU) can be much faster; about 310 MB to download' : 'This browser has no WebGPU'}</div></div>${seg('device', [['wasm', 'CPU'], ...(!!navigator.gpu ? [['webgpu', 'GPU (beta)']] : [])])}</div>
         <div class="row"><div class="main"><div class="t">On-device voice plays through</div><div class="s">Try another if replies are silent</div></div>${seg('out', [['data', 'Audio (data)'], ['element', 'Audio'], ['webaudio', 'Web Audio']])}</div>
@@ -225,6 +227,7 @@ document.addEventListener('click', e => {
   else if (a === 'filter') { DebugUI.filter = x; DebugUI.render(); }
   else if (a === 'diag') { Diag.set(x, y); DebugUI.render(); }
   else if (a === 'test') x === 'mic' ? DebugUI.micTest() : DebugUI.test(x, +y || 0);
+  else if (a === 'bench') STTBench.ask();
   else if (a === 'env') { Log.i('app', 'Device details', { ...Log.env(), settings, reply: Diag.get() }); }
   else if (a === 'copy') navigator.clipboard?.writeText(Log.text()).then(() => toast('Log copied'), () => toast('Copy isn’t allowed here: use Share'));
   else if (a === 'share') DebugUI.share();
@@ -235,3 +238,119 @@ document.addEventListener('click', e => {
 });
 // Settings may already be on screen (e.g. ?view=settings): show the Logs tab switch now that it exists.
 if (current === 'settings') renderSettings();
+
+/* ---------- Speech recognition comparison ----------
+   You say one phrase. The phone's recognizer listens live while the app records the same audio; Whisper then
+   transcribes that recording on the CPU and on the GPU. For each: the text, how long after your last word the
+   result was ready, word accuracy against the phrase, and the command it would trigger. */
+const STT_PHRASES = ['Take me to Koramangala', 'Play music from Maroon 5', 'Send a text to Priya saying I am running late',
+  'Find the nearest petrol pump', 'What is my ETA', 'Call Mom', 'Switch to dark mode', 'Navigate to Indiranagar with Waze'];
+const NUM = { zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10' };
+const words = t => String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean).map(w => NUM[w] || w);
+/** Word accuracy (1 − word error rate) of what was heard against what should have been said. */
+function wordAccuracy(ref, hyp) {
+  const a = words(ref), b = words(hyp); if (!a.length) return 0;
+  const d = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) { let prev = d[0]; d[0] = i;
+    for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; } }
+  return Math.max(0, 1 - d[b.length] / a.length);
+}
+const STTBench = {
+  pipes: {},
+  ask(phrase = STT_PHRASES[Math.floor(Math.random() * STT_PHRASES.length)]) {
+    const gpu = !!navigator.gpu;
+    sheet('Compare speech recognition', `<p>Tap <b>Start</b>, then say, at your normal pace:</p><p class="bench-phrase">“${esc(phrase)}”</p>
+      <p class="hint">The phone’s recognizer listens while the app records you. Whisper then recognises the same recording on the CPU${gpu ? ' and on the GPU' : ''}.
+      ${gpu && !store.get('whisperGpuOK') ? ' The first run downloads Whisper for the GPU (about 140 MB).' : ''}</p>`,
+      [['Start', () => this.run(phrase)], ['Another phrase', () => this.ask()], ['Cancel']]);
+  },
+  async run(phrase) {
+    const R = { phrase, native: {}, whisper: [] }, SRx = window.SpeechRecognition || window.webkitSpeechRecognition;
+    Log.i('diag', 'STT comparison: start', { phrase });
+    Voice.hush(); Voice.open(); $('#vChips').hidden = true; Voice.show(`Say: “${phrase}”`, 'Recording for the comparison…');
+    // 1. The phone's recognizer, started inside the tap (it must be)
+    const N = R.native; let sr = null;
+    if (SRx) try {
+      sr = new SRx(); sr.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; sr.interimResults = true; sr.continuous = false;
+      N.text = ''; N.t0 = performance.now();
+      sr.onresult = e => { const t = [...e.results].map(x => x[0].transcript).join(' ').trim();
+        if (!N.firstAt) N.firstAt = performance.now(); if (t !== N.text) N.lastChange = performance.now(); N.text = t;
+        if (e.results[e.results.length - 1].isFinal) N.finalAt = performance.now(); };
+      sr.onspeechend = () => { N.speechEndAt = performance.now(); };
+      sr.onerror = e => { N.error = e.error || 'error'; };
+      N.ended = new Promise(r => { sr.onend = () => { N.endAt = performance.now(); r(); }; });
+      sr.start();
+    } catch (e) { N.error = e.message; sr = null; }
+    else N.error = 'not available in this browser';
+    // 2. The app's own recording of the same speech
+    let rec;
+    try { rec = await this.record(); } catch (e) { Log.e('diag', 'STT comparison: microphone refused', e); Voice.show('Microphone refused', e.name || ''); return; }
+    if (sr) { await Promise.race([N.ended, new Promise(r => setTimeout(r, 4000))]); try { sr.abort(); } catch {} }
+    if (!rec.heard) { Voice.show('I didn’t hear anything', 'Try again'); Log.w('diag', 'STT comparison: no speech recorded'); return; }
+    // 3. Whisper on the same recording, CPU and GPU
+    for (const dev of ['wasm', ...(navigator.gpu ? ['webgpu'] : [])]) {
+      const W = { device: dev === 'webgpu' ? 'GPU' : 'CPU' }; R.whisper.push(W);
+      try {
+        Voice.show(`Whisper on the ${W.device}…`, 'Loading the model');
+        const pipe = await this.pipe(dev);
+        const lang = LANGS[settings.voiceLang] || LANGS.auto, opts = { language: lang[1], task: lang[1] && lang[1] !== 'en' ? 'translate' : 'transcribe' };
+        Voice.show(`Whisper on the ${W.device}…`, 'Recognising');
+        let t = performance.now(); let out = await pipe(rec.audio, opts); W.firstMs = Math.round(performance.now() - t);
+        t = performance.now(); out = await pipe(rec.audio, opts); W.ms = Math.round(performance.now() - t); // second run: warm, what you'd get in use
+        W.text = (out.text || '').trim();
+      } catch (e) { W.error = e.message || String(e); Log.e('diag', `STT comparison: Whisper ${W.device} failed`, e); }
+    }
+    // 4. Results
+    const rows = [];
+    const cmd = t => { if (!t) return '—'; const m = Commands.match(t); return m.cmd ? m.cmd.name : 'no command'; };
+    if (SRx) {
+      const end = rec.lastVoiceAt, done = N.finalAt || N.endAt;
+      N.readyMs = done && N.text ? Math.round(done - end) : null;
+      N.afterLastWordMs = done && N.lastChange ? Math.round(done - N.lastChange) : null;
+      N.firstWordsMs = N.firstAt ? Math.round(N.firstAt - rec.speechAt) : null;
+      rows.push({ engine: 'Phone recognizer', text: N.text, ready: N.readyMs, acc: wordAccuracy(phrase, N.text), cmd: cmd(N.text), note: N.error ? `error: ${N.error}` : N.firstAt ? (N.firstWordsMs > 0 ? `first words shown ${(N.firstWordsMs / 1000).toFixed(1)} s after you started` : 'words shown as you speak') : '' });
+    }
+    for (const W of R.whisper) rows.push({ engine: `Whisper · ${W.device}`, text: W.text, ready: W.ms, acc: wordAccuracy(phrase, W.text), cmd: cmd(W.text),
+      note: W.error ? `error: ${W.error}` : W.firstMs > W.ms * 1.5 ? `first run ${W.firstMs} ms` : '' });
+    Log.i('diag', 'STT comparison: result', { phrase, speechSeconds: rec.seconds, rows: rows.map(r => ({ engine: r.engine, text: r.text, readyMs: r.ready, accuracy: Math.round(r.acc * 100), command: r.cmd, note: r.note })) });
+    Voice.close();
+    const ms = v => v == null ? '—' : v < 0 ? 'before you stopped' : `${(v / 1000).toFixed(1)} s`;
+    sheet('Speech recognition compared', `<p>You said: <b>“${esc(phrase)}”</b> (${rec.seconds.toFixed(1)} s)</p>
+      <table class="bench"><tr><th></th><th>Heard</th><th>Ready after your last word</th><th>Words right</th><th>Command</th></tr>
+      ${rows.map(r => `<tr><td><b>${esc(r.engine)}</b>${r.note ? `<br><small>${esc(r.note)}</small>` : ''}</td><td>${esc(r.text || '—')}</td><td>${ms(r.ready)}</td><td>${r.text ? Math.round(r.acc * 100) + '%' : '—'}</td><td>${esc(r.cmd)}</td></tr>`).join('')}</table>
+      <p class="hint">Whisper times are the time to recognise the recording (warm). In use, Whisper starts about 0.7 s into your pause, so it is usually ready before the “act after” wait ends. The phone recognizer decides by itself when you have finished, and its words show live while you speak.</p>`,
+      [['Again', () => this.ask(phrase)], ['Another phrase', () => this.ask()], ['Done']]);
+  },
+  /** Record until 1.2 s of quiet after speech (or 12 s). Returns 16 kHz audio and timings. */
+  async record() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    let ctx; try { ctx = new AudioContext({ sampleRate: 16000 }); } catch { ctx = new AudioContext(); }
+    const src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(4096, 1, 1), chunks = [], rate = ctx.sampleRate;
+    let heard = false, quiet = 0, total = 0, noise = 0.008, speechAt = 0, lastVoiceAt = 0;
+    await new Promise(resolve => {
+      node.onaudioprocess = e => {
+        const d = new Float32Array(e.inputBuffer.getChannelData(0)); chunks.push(d);
+        let sum = 0; for (const x of d) sum += x * x; const rms = Math.sqrt(sum / d.length), dt = d.length / rate; total += dt; Voice.level(rms);
+        if (rms > Math.max(0.018, noise * 3)) { if (!heard) speechAt = performance.now(); heard = true; quiet = 0; lastVoiceAt = performance.now(); }
+        else { quiet += dt; if (!heard) noise = noise * 0.9 + rms * 0.1; }
+        if ((heard && quiet > 1.2) || total > 12 || (!heard && total > 8)) resolve();
+      };
+      src.connect(node); node.connect(ctx.destination);
+    });
+    node.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close().catch(() => {}); Voice.session('auto');
+    let audio = new Float32Array(chunks.reduce((n, c) => n + c.length, 0)), o = 0; for (const c of chunks) { audio.set(c, o); o += c.length; }
+    if (rate !== 16000) audio = await resample(audio, rate, 16000);
+    return { audio, heard, speechAt, lastVoiceAt, seconds: audio.length / 16000 };
+  },
+  /** A Whisper pipeline for a device: the app's own if it matches, else one just for this test. */
+  async pipe(dev) {
+    if (Voice.pipe && Voice.pipeDevice === dev) return Voice.pipe;
+    if (!this.pipes[dev]) {
+      const s = performance.now(), files = {};
+      this.pipes[dev] = await createWhisper(dev, p => Voice.progress(p, files, `Whisper (${dev === 'webgpu' ? 'GPU' : 'CPU'})`));
+      $('#vProg').hidden = true; if (dev === 'webgpu') store.set('whisperGpuOK', true);
+      Log.i('diag', `STT comparison: Whisper ${dev === 'webgpu' ? 'GPU' : 'CPU'} loaded in ${Math.round(performance.now() - s)} ms`);
+    }
+    return this.pipes[dev];
+  },
+};

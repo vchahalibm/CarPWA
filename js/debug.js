@@ -256,7 +256,6 @@ function wordAccuracy(ref, hyp) {
   return Math.max(0, 1 - d[b.length] / a.length);
 }
 const STTBench = {
-  pipes: {},
   ask(phrase = STT_PHRASES[Math.floor(Math.random() * STT_PHRASES.length)]) {
     const gpu = !!navigator.gpu;
     sheet('Compare speech recognition', `<p>Tap <b>Start</b>, then say, at your normal pace:</p><p class="bench-phrase">“${esc(phrase)}”</p>
@@ -265,6 +264,11 @@ const STTBench = {
       [['Start', () => this.run(phrase)], ['Another phrase', () => this.ask()], ['Cancel']]);
   },
   async run(phrase) {
+    if (this.running) return toast('A comparison is already running');
+    this.running = true;
+    try { await this.runOnce(phrase); } finally { this.running = false; }
+  },
+  async runOnce(phrase) {
     const R = { phrase, native: {}, whisper: [] }, SRx = window.SpeechRecognition || window.webkitSpeechRecognition;
     Log.i('diag', 'STT comparison: start', { phrase });
     Voice.hush(); Voice.open(); $('#vChips').hidden = true; Voice.show(`Say: “${phrase}”`, 'Recording for the comparison…');
@@ -287,19 +291,25 @@ const STTBench = {
     try { rec = await this.record(); } catch (e) { Log.e('diag', 'STT comparison: microphone refused', e); Voice.show('Microphone refused', e.name || ''); return; }
     if (sr) { await Promise.race([N.ended, new Promise(r => setTimeout(r, 4000))]); try { sr.abort(); } catch {} }
     if (!rec.heard) { Voice.show('I didn’t hear anything', 'Try again'); Log.w('diag', 'STT comparison: no speech recorded'); return; }
-    // 3. Whisper on the same recording, CPU and GPU
-    for (const dev of ['wasm', ...(navigator.gpu ? ['webgpu'] : [])]) {
+    // 3. Whisper on the same recording, CPU and GPU. Memory is tight on a phone (iOS kills the page when it runs out), so the
+    //    voice models are unloaded first and each Whisper build is loaded, used and freed before the next.
+    const hadVoice = !!Voice.tts;
+    Log.i('diag', 'STT comparison: freeing the voice models to make room'); Voice.resetTTS(); Voice.resetSTT();
+    for (const dev of ['wasm', ...(navigator.gpu && !store.get('gpuFailed') ? ['webgpu'] : [])]) {
       const W = { device: dev === 'webgpu' ? 'GPU' : 'CPU' }; R.whisper.push(W);
+      let pipe = null;
       try {
         Voice.show(`Whisper on the ${W.device}…`, 'Loading the model');
-        const pipe = await this.pipe(dev);
+        pipe = await this.pipe(dev); W.build = pipe.build;
         const lang = LANGS[settings.voiceLang] || LANGS.auto, opts = { language: lang[1], task: lang[1] && lang[1] !== 'en' ? 'translate' : 'transcribe' };
         Voice.show(`Whisper on the ${W.device}…`, 'Recognising');
         let t = performance.now(); let out = await pipe(rec.audio, opts); W.firstMs = Math.round(performance.now() - t);
         t = performance.now(); out = await pipe(rec.audio, opts); W.ms = Math.round(performance.now() - t); // second run: warm, what you'd get in use
         W.text = (out.text || '').trim();
       } catch (e) { W.error = e.message || String(e); Log.e('diag', `STT comparison: Whisper ${W.device} failed`, e); }
+      try { await pipe?.dispose?.(); } catch {} Log.mem('bench-whisper', null);
     }
+    if (hadVoice || settings.tts === 'neural') Voice.loadTTS().catch(() => {}); // the reply voice back, in the background
     // 4. Results
     const rows = [];
     const cmd = t => { if (!t) return '—'; const m = Commands.match(t); return m.cmd ? m.cmd.name : 'no command'; };
@@ -310,7 +320,7 @@ const STTBench = {
       N.firstWordsMs = N.firstAt ? Math.round(N.firstAt - rec.speechAt) : null;
       rows.push({ engine: 'Phone recognizer', text: N.text, ready: N.readyMs, acc: wordAccuracy(phrase, N.text), cmd: cmd(N.text), note: N.error ? `error: ${N.error}` : N.firstAt ? (N.firstWordsMs > 0 ? `first words shown ${(N.firstWordsMs / 1000).toFixed(1)} s after you started` : 'words shown as you speak') : '' });
     }
-    for (const W of R.whisper) rows.push({ engine: `Whisper · ${W.device}`, text: W.text, ready: W.ms, acc: wordAccuracy(phrase, W.text), cmd: cmd(W.text),
+    for (const W of R.whisper) rows.push({ engine: `Whisper · ${W.build || W.device}`, text: W.text, ready: W.ms, acc: wordAccuracy(phrase, W.text), cmd: cmd(W.text),
       note: W.error ? `error: ${W.error}` : W.firstMs > W.ms * 1.5 ? `first run ${W.firstMs} ms` : '' });
     Log.i('diag', 'STT comparison: result', { phrase, speechSeconds: rec.seconds, rows: rows.map(r => ({ engine: r.engine, text: r.text, readyMs: r.ready, accuracy: Math.round(r.acc * 100), command: r.cmd, note: r.note })) });
     Voice.close();
@@ -342,15 +352,20 @@ const STTBench = {
     if (rate !== 16000) audio = await resample(audio, rate, 16000);
     return { audio, heard, speechAt, lastVoiceAt, seconds: audio.length / 16000 };
   },
-  /** A Whisper pipeline for a device: the app's own if it matches, else one just for this test. */
+  /** A Whisper pipeline for this test only (freed after use): the best build for the device that loads. */
   async pipe(dev) {
-    if (Voice.pipe && Voice.pipeDevice === dev) return Voice.pipe;
-    if (!this.pipes[dev]) {
-      const s = performance.now(), files = {};
-      this.pipes[dev] = await createWhisper(dev, p => Voice.progress(p, files, `Whisper (${dev === 'webgpu' ? 'GPU' : 'CPU'})`));
-      $('#vProg').hidden = true; if (dev === 'webgpu') store.set('whisperGpuOK', true);
-      Log.i('diag', `STT comparison: Whisper ${dev === 'webgpu' ? 'GPU' : 'CPU'} loaded in ${Math.round(performance.now() - s)} ms`);
+    if (dev === 'webgpu') await gpuFeatures();
+    let lastErr;
+    for (const build of whisperBuilds(dev)) {
+      try {
+        const s = performance.now(), files = {};
+        const pipe = await Heavy.run(`Whisper ${build.label} (comparison)`, () => createWhisper(build, p => Voice.progress(p, files, `Whisper (${build.label})`)));
+        $('#vProg').hidden = true; if (dev === 'webgpu') store.set('whisperGpuOK', true);
+        pipe.build = build.label; Log.mem('bench-whisper', build.label);
+        Log.i('diag', `STT comparison: Whisper ${build.label} loaded in ${Math.round(performance.now() - s)} ms`);
+        return pipe;
+      } catch (e) { lastErr = e; Log.w('diag', `STT comparison: Whisper ${build.label} failed to load`, e); }
     }
-    return this.pipes[dev];
+    throw lastErr;
   },
 };

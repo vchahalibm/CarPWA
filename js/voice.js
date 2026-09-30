@@ -39,7 +39,7 @@ const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
   get: () => ({ stt: 'wasm', out: 'data', session: 'playback', engine: 'worker',
-    device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().includes('fp32')) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
+    device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().some(d => d.startsWith('fp'))) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
     if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
@@ -51,16 +51,34 @@ const Diag = {
    sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
 /** Whisper settings per device. The GPU build keeps the encoder in full precision and the decoder 4-bit (the
     combination transformers.js recommends for WebGPU); the CPU build is 8-bit throughout. */
-const WHISPER_OPTS = { wasm: { dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, device: 'wasm' },
-  webgpu: { dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, device: 'webgpu' } };
-async function createWhisper(dev, onProgress) {
+/** Whisper builds to try on a device, best first. On the GPU: a 16-bit encoder where the GPU supports it (half the memory), else 32-bit. */
+function whisperBuilds(dev) {
+  const cpu = { device: 'wasm', dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, label: 'CPU q8' };
+  if (dev !== 'webgpu') return [cpu];
+  const gpu = enc => ({ device: 'webgpu', dtype: { encoder_model: enc, decoder_model_merged: 'q4' }, label: `GPU ${enc}/q4` });
+  return [...(store.get('gpuF16') ? [gpu('fp16')] : []), gpu('fp32')];
+}
+async function createWhisper(build, onProgress) {
   const T = await import(TRANSFORMERS_URL);
   T.env.allowLocalModels = false;
   if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
-  return T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { ...WHISPER_OPTS[dev] || WHISPER_OPTS.wasm, progress_callback: onProgress });
+  return T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { device: build.device, dtype: build.dtype, progress_callback: onProgress });
 }
+/** What the GPU can do. 16-bit ('shader-f16') lets the models use half the memory, which matters: iOS kills a page that uses too much. */
+async function gpuFeatures() {
+  if (Voice.gpuInfo) return Voice.gpuInfo;
+  let info = { f16: false };
+  try {
+    const a = await navigator.gpu?.requestAdapter();
+    info = { f16: !!a?.features?.has('shader-f16'), maxBufferMB: a?.limits ? Math.round(a.limits.maxBufferSize / 1048576) : null };
+  } catch (e) { info.error = e.message; }
+  store.set('gpuF16', info.f16); Log.i('gpu', `GPU ${info.f16 ? 'supports' : 'lacks'} 16-bit models`, info);
+  return (Voice.gpuInfo = info);
+}
+/** Big model loads one at a time: loading two at once roughly doubles peak memory. */
+const Heavy = { q: Promise.resolve(), run(name, f) { const p = this.q.then(() => { Log.d('mem', `Loading ${name}`); return f(); }); this.q = p.catch(() => {}); return p; } };
 /** Download size of the reply voice for this device, for the prompts. */
-const ttsSize = () => Diag.get().device === 'webgpu' ? '310 MB' : '90 MB';
+const ttsSize = () => Diag.get().device === 'webgpu' ? (store.get('gpuF16') ? '165 MB' : '310 MB') : '90 MB';
 const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
   ReadableStream.prototype[Symbol.asyncIterator] = async function* () { const r = this.getReader();
     try { for (;;) { const { done, value } = await r.read(); if (done) return; yield value; } } finally { r.releaseLock(); } }; }`;
@@ -192,6 +210,7 @@ const Voice = {
     $('#vReply').hidden = true; $('#vProg').hidden = true; clearTimeout(this.closeT);
   },
   close() {
+    this.startTok = (this.startTok || 0) + 1; // a listen still waiting for its model must not start after this
     this.hush(); this.stopRec(true); try { this.sr?.abort(); } catch {} this.sr = null;
     $('#assistant').hidden = true; $('#vOrb').classList.remove('live');
   },
@@ -329,8 +348,8 @@ const Voice = {
   },
   audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
   /** Forget the loaded voice (after changing engine or device in diagnostics); the next reply loads it again. */
-  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; Log.i('stt', 'Whisper unloaded'); },
-  resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.i('tts', 'On-device voice unloaded'); },
+  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; Log.mem('whisper', null); Log.i('stt', 'Whisper unloaded'); },
+  resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.mem('kokoro', null); Log.i('tts', 'On-device voice unloaded'); },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
       of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
@@ -342,47 +361,56 @@ const Voice = {
   },
   loadTTS(show) {
     if (this.tts) return Promise.resolve(this.tts);
-    this.ttsLoading ||= (async () => {
-      const cfg = Diag.get(), dtype = cfg.device === 'webgpu' ? 'fp32' : 'q8', files = {}, voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
-      const onProgress = show ? p => this.progress(p, files, 'reply voice') : p => p.status && p.status !== 'progress' && Log.d('model', `reply voice: ${p.status} ${p.file || ''}`);
-      const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: !!store.get('kokoroOK'), engine: cfg.engine, device: cfg.device, dtype });
-      let engine = null;
-      if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
-        try { engine = kokoroWorker(); await engine.load({ dtype, device: cfg.device }, onProgress); }
-        catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
-      }
-      if (!engine) try {
-        const K = await import(KOKORO_URL);
-        Log.d('tts', `kokoro-js loaded ${Math.round(performance.now() - s)} ms`);
-        engine = kokoroMain(K, await K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device: cfg.device, progress_callback: onProgress }));
-      } catch (e) {
-        if (cfg.device !== 'webgpu') throw e;
-        return this.gpuFailed(e, show); // the GPU didn't work here: CPU from now on
-      }
-      $('#vProg').hidden = true; store.set('kokoroOK', true); store.set('kokoroDl', [...new Set([...ttsDownloaded(), dtype])]);
-      Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms (${engine.kind}, ${cfg.device})`, { streamShim: !!window.__rsIterShim });
-      // Warm-up: one short sentence proves the whole chain (dictionary, phonemes, model) works here, and makes the first reply faster.
-      const w = performance.now();
-      try {
-        const a = await Promise.race([engine.generate('Ready.', voice), new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
-        this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind });
-      } catch (e) {
-        if (cfg.device === 'webgpu') { try { engine.terminate(); } catch {} return this.gpuFailed(e, show); }
-        this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e);
-      }
-      return engine;
-    })();
+    this.ttsLoading ||= Heavy.run('reply voice', () => this.loadTTSNow(show));
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
-  /** WebGPU failed to load or warm up: remember it, switch to the CPU and load again. */
-  gpuFailed(e, show) {
+  /** Try the best build first: GPU 16-bit (half the memory) → GPU 32-bit → CPU. Each must load and pass a warm-up. */
+  async loadTTSNow(show) {
+    const cfg = Diag.get(), files = {}, voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
+    const onProgress = show ? p => this.progress(p, files, 'reply voice') : p => p.status && !/progress/.test(p.status) && Log.d('model', `reply voice: ${p.status} ${p.file || ''}`);
+    const builds = cfg.device === 'webgpu' ? [...((await gpuFeatures()).f16 ? [['webgpu', 'fp16']] : []), ['webgpu', 'fp32'], ['wasm', 'q8']] : [['wasm', 'q8']];
+    let lastErr;
+    for (const [device, dtype] of builds) {
+      const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: ttsDownloaded().includes(dtype), engine: cfg.engine, device, dtype });
+      let engine = null;
+      try {
+        if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
+          try { engine = kokoroWorker(); await engine.load({ dtype, device }, onProgress); }
+          catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
+        }
+        if (!engine) {
+          const K = await import(KOKORO_URL);
+          engine = kokoroMain(K, await K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device, progress_callback: onProgress }));
+        }
+        $('#vProg').hidden = true; store.set('kokoroOK', true); store.set('kokoroDl', [...new Set([...ttsDownloaded(), dtype])]);
+        Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms (${engine.kind}, ${device} ${dtype})`, { streamShim: !!window.__rsIterShim });
+        // Warm-up: one short sentence proves the whole chain (dictionary, phonemes, model) works here, and makes the first reply faster.
+        const w = performance.now();
+        const a = await Promise.race([engine.generate('Ready.', voice), new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
+        this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind, device, dtype });
+        if (device === 'wasm' && cfg.device === 'webgpu') this.gpuGaveUp(lastErr);
+        engine.device = device; engine.dtype = dtype; Log.mem('kokoro', `${device === 'webgpu' ? 'GPU' : 'CPU'} ${dtype} (${engine.kind})`);
+        return engine;
+      } catch (e) {
+        lastErr = e;
+        if (device === 'wasm') { // the last option: keep it if it loaded; replies fall back to the phone voice
+          if (!engine) throw e;
+          this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e);
+          Log.mem('kokoro', `CPU q8 (${engine.kind}, not working)`); return engine;
+        }
+        try { engine?.terminate(); } catch {}
+        Log.w('tts', `On-device voice ${device} ${dtype} failed: trying the next option`, e);
+      }
+    }
+    throw lastErr;
+  },
+  /** No GPU build worked: remember it; the CPU from now on. */
+  gpuGaveUp(e) {
     Log.w('tts', 'GPU voice failed: switching to the CPU for good on this device', e);
     store.set('gpuFailed', true); const d = store.get('diag', {}); if (d.device === 'webgpu') { delete d.device; store.set('diag', d); }
-    this.ttsLoading = null;
-    return this.loadTTS(show);
   },
   progress(p, files, what) {
-    if (p.status && p.status !== 'progress') Log.d('model', `${what}: ${p.status} ${p.file || ''}`);
+    if (p.status && !/progress/.test(p.status)) Log.d('model', `${what}: ${p.status} ${p.file || ''}`);
     if (p.status !== 'progress' || !p.total) return;
     files[p.file] = [p.loaded, p.total];
     const [l, t] = Object.values(files).reduce((a, [x, y]) => [a[0] + x, a[1] + y], [0, 0]);
@@ -419,7 +447,12 @@ const Voice = {
           ['Keep the phone’s voice', () => { settings.tts = 'phone'; applySettings(); go(); }], ['Later', go]]);
     }
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // warm up while you talk
-    try { if (!this.pipe) { this.show('Loading voice model…', 'Whisper base · on-device'); await this.loadModel(); } this.listenWhisper(); }
+    const tok = this.startTok;
+    try {
+      if (!this.pipe) { this.show('Loading voice model…', 'Whisper base · on-device'); await this.loadModel(); }
+      if (tok !== this.startTok) return Log.d('voice', 'Closed while the model loaded: not listening');
+      this.listenWhisper(tok);
+    }
     catch (e) { this.fail(e); }
   },
   fail(e) {
@@ -431,27 +464,28 @@ const Voice = {
   /* Whisper via transformers.js (ONNX runtime in WebAssembly); model files are cached for offline use. */
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
-    this.loading ||= (async () => {
-      let dev = Diag.get().stt;
-      const s = performance.now(); Log.i('stt', 'Loading Whisper', { cached: !!store.get('whisperOK'), device: dev });
-      const files = {};
-      let pipe;
-      try { pipe = await createWhisper(dev, p => this.progress(p, files, 'voice model')); }
-      catch (e) {
-        if (dev !== 'webgpu') throw e;
-        Log.w('stt', 'Whisper on the GPU failed: using the CPU', e); Diag.set('stt', 'wasm'); dev = 'wasm';
-        pipe = await createWhisper(dev, p => this.progress(p, files, 'voice model'));
+    this.loading ||= Heavy.run('Whisper', async () => {
+      const want = Diag.get().stt, s = performance.now(), files = {};
+      if (want === 'webgpu') await gpuFeatures();
+      Log.i('stt', 'Loading Whisper', { cached: !!store.get('whisperOK'), device: want });
+      let lastErr;
+      for (const build of [...whisperBuilds(want), ...(want === 'webgpu' ? whisperBuilds('wasm') : [])]) {
+        try {
+          const pipe = await createWhisper(build, p => this.progress(p, files, 'voice model'));
+          if (build.device === 'wasm' && want === 'webgpu') { Log.w('stt', 'Whisper on the GPU failed: using the CPU'); Diag.set('stt', 'wasm'); }
+          this.pipeDevice = build.device; this.pipeBuild = build.label; Log.mem('whisper', build.label);
+          $('#vProg').hidden = true; store.set('whisperOK', true); if (build.device === 'webgpu') store.set('whisperGpuOK', true);
+          Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${build.label})`);
+          return pipe;
+        } catch (e) { lastErr = e; Log.w('stt', `Whisper ${build.label} failed to load`, e); }
       }
-      this.pipeDevice = dev;
-      $('#vProg').hidden = true; store.set('whisperOK', true); if (dev === 'webgpu') store.set('whisperGpuOK', true);
-      Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${dev === 'webgpu' ? 'GPU' : 'CPU'})`);
-      return pipe;
-    })();
+      throw lastErr;
+    });
     return this.loading.then(p => (this.pipe = p), e => { this.loading = null; Log.e('stt', 'Whisper failed to load', e); throw e; });
   },
   /* Listening: record until you've been quiet for the “act after” time (5 s by default). About 0.7 s into a pause
      Whisper already transcribes what it has; if you say nothing more, that guess is used, so the action happens right at the deadline. */
-  async listenWhisper() {
+  async listenWhisper(tok = this.startTok) {
     // Nothing may be playing or holding the audio session while the microphone opens.
     this.hush();
     const opts = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
@@ -464,6 +498,7 @@ const Voice = {
       try { stream = await navigator.mediaDevices.getUserMedia(opts); }
       catch (e2) { Log.e('mic', 'Microphone refused', { name: e2.name, message: e2.message }); return this.micError(e2); }
     }
+    if (tok !== this.startTok) { stream.getTracks().forEach(t => t.stop()); return Log.d('voice', 'Closed while the microphone opened: not listening'); }
     const track = stream.getAudioTracks()[0];
     Log.i('mic', `Microphone open ${Math.round(performance.now() - g)} ms`, { label: track?.label, settings: track?.getSettings?.() });
     track?.addEventListener('mute', () => Log.w('mic', 'Microphone muted by the system'));

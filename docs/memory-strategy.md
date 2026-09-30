@@ -76,7 +76,11 @@ Full-duplex needs listening and the reply voice loaded together:
 ## 5. Order of work
 1. ✅ **Whisper into its own worker** (like Kokoro), and end workers on unload. Fixes the iPhone crash, where a freed model's heap was still resident. A build that fails to load has its worker ended before the next one is tried.
 2. ✅ **Lean runtime settings** for Whisper (`enableCpuMemArena: false`, `enableMemPattern: false`). kokoro-js doesn't pass session options through, so the reply voice keeps the defaults; its worker is still ended on unload.
-3. **Device class + budget scheduler + crash-driven downgrade**, including the phone defaults above; the comparison test runs each engine in a fresh worker.
+3. ✅ **Device class + budget scheduler + crash-driven downgrade** (`Budget` in js/voice.js); the comparison test runs each engine in a fresh worker.
+   - Class from the user agent (an iPad reports a Mac user agent with touch; Electron counts as a computer). It can be set by hand in Settings › Logs.
+   - A model needed now (listening, or a download you asked for) unloads the least recently used one when the budget is full. Background preloads only use a free slot. So on a phone with Whisper listening, replies use the phone's voice.
+   - Each load is noted before it starts and cleared after, or when the app is closed normally. A note still there at launch means the app was killed during that load: the build is skipped from then on (the CPU build is always kept as the last resort), and if other models were loaded, the budget drops by one. Settings › Logs can forget this history.
+   - Whisper defaults to the GPU on tablets and computers, unless only the CPU build is downloaded.
 4. **Slim the map while models load** (terrain off on phones during AI loads, smaller tile cache).
 5. **Vision:** detector worker plus camera pipeline, then cloud summaries (with an offline fallback).
 6. Later: one shared runtime for all models; WebNN when Safari ships it; a native shell only if the phone must run many models at once.

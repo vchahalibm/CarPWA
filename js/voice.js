@@ -39,7 +39,8 @@ const gpuOK = () => !!navigator.gpu && !store.get('gpuFailed');
 const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['q8'] : []);
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
-  get: () => ({ stt: 'wasm', out: 'data', session: 'playback', engine: 'worker',
+  // Whisper: the GPU (0.4 s vs 2.2 s on an iPad) on tablets and computers, unless only the CPU build is downloaded here.
+  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker',
     device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().some(d => d.startsWith('fp'))) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
@@ -55,7 +56,7 @@ function whisperBuilds(dev) {
   const cpu = { device: 'wasm', dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, label: 'CPU q8' };
   if (dev !== 'webgpu') return [cpu];
   const gpu = enc => ({ device: 'webgpu', dtype: { encoder_model: enc, decoder_model_merged: 'q4' }, label: `GPU ${enc}/q4` });
-  return [...(store.get('gpuF16') ? [gpu('fp16')] : []), gpu('fp32')];
+  return [...(store.get('gpuF16') ? [gpu('fp16')] : []), gpu('fp32')].filter(b => !Budget.tooBig(`Whisper ${b.label}`));
 }
 /* Whisper runs in its own worker. Unloading it ends the worker, the only way to hand its WebAssembly memory
    (which never shrinks) and its GPU buffers back to the phone: freed in place, a CPU model left ~200 MB behind
@@ -77,7 +78,8 @@ self.onmessage = async ({ data: m }) => {
   } catch (e) { send({ type: 'error', message: String((e && e.message) || e), stack: String((e && e.stack) || '').slice(0, 400) }); }
 };`;
 /** Load a Whisper build. Returns pipe(audio, opts) → { text }, with pipe.dispose() to end it and pipe.kind. */
-async function createWhisper(build, onProgress) {
+async function createWhisper(build, onProgress) { return Budget.guard(`Whisper ${build.label}`, () => whisperNow(build, onProgress)); }
+async function whisperNow(build, onProgress) {
   const threads = self.crossOriginIsolated ? 4 : 1;
   // On the page only without workers, or when chosen in the Logs tab to compare (its memory then stays until the app closes).
   if (typeof Worker === 'undefined' || Diag.get().engine === 'main') {
@@ -121,6 +123,57 @@ async function gpuFeatures() {
 }
 /** Big model loads one at a time: loading two at once roughly doubles peak memory. */
 const Heavy = { q: Promise.resolve(), run(name, f) { const p = this.q.then(() => { Log.d('mem', `Loading ${name}`); return f(); }); this.q = p.catch(() => {}); return p; } };
+/* ---------- Memory budget ----------
+   iOS kills a page that uses too much memory, at a limit it never reveals, and nothing can catch it. So each device
+   class gets a number of large models that may be loaded at once (the phone 1: listening and the reply voice take
+   turns). A model needed now makes room by unloading the least recently used one; background preloads only use a
+   free slot. If the app dies while a model is loading, that build is remembered as too big for this device and is
+   skipped from then on, and if other models were loaded at the time, the budget drops by one. */
+const Budget = {
+  SLOTS: { phone: 1, tablet: 2, desktop: 4 },
+  loaded: new Map(), // name → { label, used, unload }
+  auto() {
+    const ua = navigator.userAgent, touch = navigator.maxTouchPoints > 1, small = Math.min(screen.width, screen.height);
+    if (/Electron\//.test(ua)) return 'desktop';
+    if (/iPhone|iPod/.test(ua) || /Android.*Mobile/.test(ua) || (touch && small < 600)) return 'phone';
+    if (/iPad|Android/.test(ua) || (/Macintosh/.test(ua) && touch)) return 'tablet'; // iPads report a Mac user agent, but with touch
+    return 'desktop';
+  },
+  cls() { return this.SLOTS[store.get('devClass')] ? store.get('devClass') : this.auto(); },
+  slots() { return Math.max(1, this.SLOTS[this.cls()] - store.get('slotsLost', 0)); },
+  add(name, label, unload) { this.loaded.set(name, { label, used: Date.now(), unload }); },
+  drop(name) { this.loaded.delete(name); },
+  use(name) { const m = this.loaded.get(name); if (m) m.used = Date.now(); },
+  /** Room for `name`? If `need`, unload the least recently used models until it fits; a preload never unloads anything. */
+  room(name, need) {
+    const others = () => [...this.loaded].filter(([k]) => k !== name).sort((a, b) => a[1].used - b[1].used);
+    while (others().length >= this.slots()) {
+      if (!need) { Log.d('mem', `No room to preload ${name}`, { slots: this.slots(), loaded: [...this.loaded.keys()] }); return false; }
+      const [k, m] = others()[0];
+      Log.i('mem', `Unloading ${k} (${m.label}) to make room for ${name}`, { class: this.cls(), slots: this.slots() });
+      try { m.unload(); } catch {} this.loaded.delete(k);
+    }
+    return true;
+  },
+  tooBig: label => store.get('tooBig', []).includes(label),
+  /** Run a model load, noting it so a crash during it is caught on the next launch. */
+  async guard(label, f) {
+    store.set('loadingModel', { label, at: Date.now(), others: [...this.loaded.keys()] });
+    try { return await f(); } finally { store.set('loadingModel', null); }
+  },
+  /** At launch: did the app die while a model was loading last time? */
+  boot() {
+    const m = store.get('loadingModel'); if (!m) return;
+    store.set('loadingModel', null);
+    store.set('tooBig', [...new Set([...store.get('tooBig', []), m.label])]);
+    if (m.others.length && this.SLOTS[this.cls()] - store.get('slotsLost', 0) > 1) store.set('slotsLost', store.get('slotsLost', 0) + 1);
+    Log.e('mem', `The app stopped while loading ${m.label}: skipping it on this device from now on`, { others: m.others, slots: this.slots(), class: this.cls() });
+  },
+  reset() { store.set('tooBig', []); store.set('slotsLost', 0); Log.i('mem', 'Memory history cleared', { slots: this.slots() }); },
+};
+Budget.boot();
+// Closing the app on purpose isn't a crash.
+addEventListener('pagehide', () => { if (store.get('loadingModel')) store.set('loadingModel', null); });
 /** Download size of the reply voice for this device, for the prompts. */
 const ttsSize = () => Diag.get().device === 'webgpu' ? (store.get('gpuF16') ? '165 MB' : '310 MB') : '90 MB';
 /* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
@@ -312,6 +365,7 @@ const Voice = {
       unlike Web Audio, it isn't silenced by the phone's ring/silent switch. */
   async speakNeural(text, id) {
     const cfg = Diag.get(), queue = [], voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart', t0 = performance.now();
+    Budget.use('kokoro');
     let generating = true, playing = false, started = false, fail = null, finish, n = 0;
     const done = new Promise(r => (finish = r)); this.stopNeural = () => finish();
     Log.i('tts', 'On-device voice', { text, voice, out: cfg.out, session: cfg.session, unlocked: !!this.unlocked });
@@ -394,8 +448,8 @@ const Voice = {
   },
   audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
   /** Forget the loaded voice (after changing engine or device in diagnostics); the next reply loads it again. */
-  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; this.asrQ = null; Log.mem('whisper', null); Log.i('stt', 'Whisper unloaded'); },
-  resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.mem('kokoro', null); Log.i('tts', 'On-device voice unloaded'); },
+  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; this.asrQ = null; Budget.drop('whisper'); Log.mem('whisper', null); Log.i('stt', 'Whisper unloaded'); },
+  resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Budget.drop('kokoro'); Log.mem('kokoro', null); Log.i('tts', 'On-device voice unloaded'); },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
       of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
@@ -405,8 +459,10 @@ const Voice = {
     try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; Log.i('audio', 'Reply player unlocked by a tap'); }).catch(e => Log.w('audio', 'Reply player unlock refused', e)); } catch (e) { Log.w('audio', 'Unlock failed', e); }
     try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); Log.d('audio', 'Phone voice primed by a tap'); } } catch {}
   },
+  /** Load the reply voice. `show` (asked for by you: progress shown) makes room for it; otherwise it's a preload that only uses a free slot. */
   loadTTS(show) {
-    if (this.tts) return Promise.resolve(this.tts);
+    if (this.tts) { Budget.use('kokoro'); return Promise.resolve(this.tts); }
+    if (!this.ttsLoading && !Budget.room('kokoro', !!show)) return Promise.reject(new Error('No memory to spare for the reply voice on this device right now'));
     this.ttsLoading ||= Heavy.run('reply voice', () => this.loadTTSNow(show));
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
@@ -414,19 +470,20 @@ const Voice = {
   async loadTTSNow(show) {
     const cfg = Diag.get(), files = {}, voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
     const onProgress = show ? p => this.progress(p, files, 'reply voice') : p => p.status && !/progress/.test(p.status) && Log.d('model', `reply voice: ${p.status} ${p.file || ''}`);
-    const builds = cfg.device === 'webgpu' ? [...((await gpuFeatures()).f16 ? [['webgpu', 'fp16']] : []), ['webgpu', 'fp32'], ['wasm', 'q8']] : [['wasm', 'q8']];
+    const builds = (cfg.device === 'webgpu' ? [...((await gpuFeatures()).f16 ? [['webgpu', 'fp16']] : []), ['webgpu', 'fp32'], ['wasm', 'q8']] : [['wasm', 'q8']])
+      .filter(([d, t]) => d === 'wasm' || !Budget.tooBig(`Reply voice ${d} ${t}`)); // the CPU build is always kept as the last resort
     let lastErr;
     for (const [device, dtype] of builds) {
       const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: ttsDownloaded().includes(dtype), engine: cfg.engine, device, dtype });
       let engine = null;
       try {
         if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
-          try { engine = kokoroWorker(); await engine.load({ dtype, device }, onProgress); }
+          try { engine = kokoroWorker(); await Budget.guard(`Reply voice ${device} ${dtype}`, () => engine.load({ dtype, device }, onProgress)); }
           catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
         }
         if (!engine) {
           const K = await import(KOKORO_URL);
-          engine = kokoroMain(K, await K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device, progress_callback: onProgress }));
+          engine = kokoroMain(K, await Budget.guard(`Reply voice ${device} ${dtype}`, () => K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device, progress_callback: onProgress })));
         }
         $('#vProg').hidden = true; store.set('kokoroOK', true); store.set('kokoroDl', [...new Set([...ttsDownloaded(), dtype])]);
         Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms (${engine.kind}, ${device} ${dtype})`, { streamShim: !!window.__rsIterShim });
@@ -436,13 +493,14 @@ const Voice = {
         this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind, device, dtype });
         if (device === 'wasm' && cfg.device === 'webgpu') this.gpuGaveUp(lastErr);
         engine.device = device; engine.dtype = dtype; Log.mem('kokoro', `${device === 'webgpu' ? 'GPU' : 'CPU'} ${dtype} (${engine.kind})`);
+        Budget.add('kokoro', `${device} ${dtype}`, () => this.resetTTS());
         return engine;
       } catch (e) {
         lastErr = e;
         if (device === 'wasm') { // the last option: keep it if it loaded; replies fall back to the phone voice
           if (!engine) throw e;
           this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e);
-          Log.mem('kokoro', `CPU q8 (${engine.kind}, not working)`); return engine;
+          Log.mem('kokoro', `CPU q8 (${engine.kind}, not working)`); Budget.add('kokoro', 'wasm q8', () => this.resetTTS()); return engine;
         }
         try { engine?.terminate(); } catch {}
         Log.w('tts', `On-device voice ${device} ${dtype} failed: trying the next option`, e);
@@ -479,7 +537,7 @@ const Voice = {
       this.close();
       return sheet('On-device voice', `<p>DriveDeck can understand you on the phone itself with <b>Whisper base</b>, OpenAI’s multilingual speech model. It works offline and understands English, Hindi, Kannada, Tamil and more. Other languages are translated to English commands.</p>
         <p>It can answer in a natural voice made on the phone too (<b>Kokoro</b>), instead of the phone’s robotic one.</p>
-        <p class="hint">One-time download: about 80 MB for listening, ${ttsSize()} more for the reply voice (use Wi-Fi). Both are kept on this device.</p>`,
+        <p class="hint">One-time download: about ${Diag.get().stt === 'webgpu' ? 140 : 80} MB for listening, ${ttsSize()} more for the reply voice (use Wi-Fi). Both are kept on this device.</p>`,
         [['Download both', () => { store.set('ttsAsked', true); settings.tts = 'neural'; store.set('settings', settings);
           this.open(); this.loadModel().then(() => { this.listenWhisper(); this.loadTTS().catch(() => {}); }).catch(e => this.fail(e)); }],
           ['Listening only', () => { store.set('ttsAsked', true); this.open(); this.loadModel().then(() => this.listenWhisper()).catch(e => this.fail(e)); }],
@@ -511,6 +569,7 @@ const Voice = {
   /* Whisper via transformers.js (ONNX runtime in WebAssembly); model files are cached for offline use. */
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
+    if (!this.loading) Budget.room('whisper', true);
     this.loading ||= Heavy.run('Whisper', async () => {
       const want = Diag.get().stt, s = performance.now(), files = {};
       if (want === 'webgpu') await gpuFeatures();
@@ -521,6 +580,7 @@ const Voice = {
           const pipe = await createWhisper(build, p => this.progress(p, files, 'voice model'));
           if (build.device === 'wasm' && want === 'webgpu') { Log.w('stt', 'Whisper on the GPU failed: using the CPU'); Diag.set('stt', 'wasm'); }
           this.pipeDevice = build.device; this.pipeBuild = build.label; Log.mem('whisper', `${build.label} (${pipe.kind})`);
+          Budget.add('whisper', build.label, () => this.resetSTT());
           $('#vProg').hidden = true; store.set('whisperOK', true); if (build.device === 'webgpu') store.set('whisperGpuOK', true);
           Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${build.label}, ${pipe.kind})`);
           return pipe;
@@ -626,7 +686,7 @@ const Voice = {
   recognise(audio) {
     const lang = LANGS[settings.voiceLang] || LANGS.auto;
     const run = async () => {
-      this.inferring = true; const t0 = performance.now();
+      this.inferring = true; Budget.use('whisper'); const t0 = performance.now();
       try {
         const out = await this.pipe(audio, { language: lang[1], task: lang[1] === 'en' ? 'transcribe' : 'translate' });
         Log.i('stt', `Whisper ${Math.round(performance.now() - t0)} ms for ${(audio.length / 16000).toFixed(1)} s of audio`, { text: out.text, lang: lang[1] || 'auto' });

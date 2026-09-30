@@ -138,7 +138,7 @@ const DebugUI = {
     $('#settingsBody').innerHTML = `${this.tabs()}
       <div class="group-title">Voice diagnostics</div>
       <div class="group">
-        ${info('This device', `${E.standalone ? 'Installed app' : 'Browser tab'} · WebGPU: ${'gpu' in navigator ? 'yes' : 'no'} · CPU cores: ${E.cores || '?'} · audio session: ${E.audioSession} · AudioWorklet: ${E.audioWorklet ? 'yes' : 'no'} · phone voice: ${E.speechSynthesis ? 'yes' : 'no'} · phone recognizer: ${E.speechRecognition ? 'yes' : 'no'}`)}
+        ${info('This device', `${E.standalone ? 'Installed app' : 'Browser tab'} · WebGPU: ${!!navigator.gpu ? 'yes' : 'no'} · CPU cores: ${E.cores || '?'} · audio session: ${E.audioSession} · AudioWorklet: ${E.audioWorklet ? 'yes' : 'no'} · phone voice: ${E.speechSynthesis ? 'yes' : 'no'} · phone recognizer: ${E.speechRecognition ? 'yes' : 'no'}`)}
         ${info('Voice state', `Listening: ${settings.stt === 'whisper' ? `Whisper ${V.pipe ? 'loaded' : store.get('whisperOK') ? 'downloaded' : 'not downloaded'}` : 'phone recognizer'} · Replies: ${settings.tts}${settings.tts === 'neural' ? ` (Kokoro ${V.tts ? `loaded in ${V.tts.kind}` : store.get('kokoroOK') ? 'downloaded, not loaded' : 'not downloaded'}${V.ttsBroken ? `, NOT WORKING: ${V.ttsBroken}` : ''})` : ''} · reply player ${V.unlocked ? 'unlocked' : 'not unlocked yet'}`)}
         ${btn('test:neural:0', 'Test the on-device voice now')}
         ${btn('test:neural:3000', 'Test the on-device voice in 3 s', 'no tap, like a reply')}
@@ -146,7 +146,7 @@ const DebugUI = {
         ${btn('test:phone:3000', 'Test the phone voice in 3 s', 'no tap, like a reply')}
         ${btn('test:mic', 'Test the microphone (3 s)')}
         <div class="row"><div class="main"><div class="t">On-device voice runs in</div><div class="s">Background: the app stays smooth and speech starts sooner</div></div>${seg('engine', [['worker', 'Background'], ['main', 'Main thread']])}</div>
-        <div class="row"><div class="main"><div class="t">On-device voice computes on</div><div class="s">${'gpu' in navigator ? 'GPU (WebGPU) can be much faster; about 310 MB to download' : 'This browser has no WebGPU'}</div></div>${seg('device', [['wasm', 'CPU'], ...('gpu' in navigator ? [['webgpu', 'GPU (beta)']] : [])])}</div>
+        <div class="row"><div class="main"><div class="t">On-device voice computes on</div><div class="s">${!!navigator.gpu ? 'GPU (WebGPU) can be much faster; about 310 MB to download' : 'This browser has no WebGPU'}</div></div>${seg('device', [['wasm', 'CPU'], ...(!!navigator.gpu ? [['webgpu', 'GPU (beta)']] : [])])}</div>
         <div class="row"><div class="main"><div class="t">On-device voice plays through</div><div class="s">Try another if replies are silent</div></div>${seg('out', [['data', 'Audio (data)'], ['element', 'Audio'], ['webaudio', 'Web Audio']])}</div>
         <div class="row"><div class="main"><div class="t">Audio mode while replying</div><div class="s">Playback: loudspeaker, ignores the silent switch</div></div>${seg('session', [['playback', 'Playback'], ['auto', 'Auto'], ['transient', 'Transient']])}</div>
         ${btn('env', 'Write device details to the log')}
@@ -172,7 +172,7 @@ const DebugUI = {
     const V = Voice, text = kind === 'neural' ? 'This is the on-device voice. If you can hear me, replies work.' : 'This is the phone voice. If you can hear me, replies work.';
     Log.i('diag', `Test: ${kind === 'neural' ? 'on-device' : 'phone'} voice${delay ? ` in ${delay / 1000} s, without a tap` : ''}`, { unlocked: !!V.unlocked, reply: Diag.get() });
     if (kind === 'neural' && !V.tts) {
-      if (!store.get('kokoroOK') && !confirm('The on-device voice isn’t downloaded yet (about 90 MB). Download it now?')) return;
+      if (!store.get('kokoroOK') && !confirm(`The on-device voice isn’t downloaded yet (about ${ttsSize()}). Download it now?`)) return;
       toast('Loading the on-device voice…');
       try { await V.loadTTS(true); } catch (e) { toast('The on-device voice failed to load (see the log)'); return; }
     }

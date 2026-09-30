@@ -31,9 +31,15 @@ if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.as
 //   out:     'data' (<audio>, data URL; worked fully on iPad) · 'element' (<audio>, blob URL) · 'webaudio'
 //   session: the WebKit audio session while speaking: 'playback' (loudspeaker, ignores the silent switch) · 'auto' · 'transient'
 //   engine:  'worker' (Kokoro in a background worker: the app stays responsive and sentence 1 plays while 2 is made) · 'main'
-//   device:  'wasm' (CPU, q8, ~90 MB) · 'webgpu' (GPU, fp32, ~310 MB: experimental, can be much faster)
+//   device:  'webgpu' (GPU, fp32, ~310 MB: on iPad about 3× faster than real time, so no pauses) where WebGPU exists and
+//            hasn't failed here before · else 'wasm' (CPU, q8, ~90 MB: slower than real time on a tablet)
+const gpuOK = () => !!navigator.gpu && !store.get('gpuFailed');
+/** Which reply-voice models are downloaded ('q8' CPU, 'fp32' GPU). Before this was tracked, only the CPU one existed. */
+const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['q8'] : []);
 const Diag = {
-  get: () => ({ out: 'data', session: 'playback', engine: 'worker', device: 'wasm', ...store.get('diag', {}) }),
+  // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
+  get: () => ({ out: 'data', session: 'playback', engine: 'worker',
+    device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().includes('fp32')) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
     if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
@@ -42,6 +48,8 @@ const Diag = {
 
 /* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
    sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
+/** Download size of the reply voice for this device, for the prompts. */
+const ttsSize = () => Diag.get().device === 'webgpu' ? '310 MB' : '90 MB';
 const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
   ReadableStream.prototype[Symbol.asyncIterator] = async function* () { const r = this.getReader();
     try { for (;;) { const { done, value } = await r.read(); if (done) return; yield value; } } finally { r.releaseLock(); } }; }`;
@@ -331,22 +339,35 @@ const Voice = {
         try { engine = kokoroWorker(); await engine.load({ dtype, device: cfg.device }, onProgress); }
         catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
       }
-      if (!engine) {
+      if (!engine) try {
         const K = await import(KOKORO_URL);
         Log.d('tts', `kokoro-js loaded ${Math.round(performance.now() - s)} ms`);
         engine = kokoroMain(K, await K.KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype, device: cfg.device, progress_callback: onProgress }));
+      } catch (e) {
+        if (cfg.device !== 'webgpu') throw e;
+        return this.gpuFailed(e, show); // the GPU didn't work here: CPU from now on
       }
-      $('#vProg').hidden = true; if (dtype === 'q8') store.set('kokoroOK', true);
+      $('#vProg').hidden = true; store.set('kokoroOK', true); store.set('kokoroDl', [...new Set([...ttsDownloaded(), dtype])]);
       Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms (${engine.kind}, ${cfg.device})`, { streamShim: !!window.__rsIterShim });
       // Warm-up: one short sentence proves the whole chain (dictionary, phonemes, model) works here, and makes the first reply faster.
       const w = performance.now();
       try {
         const a = await Promise.race([engine.generate('Ready.', voice), new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
         this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind });
-      } catch (e) { this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e); }
+      } catch (e) {
+        if (cfg.device === 'webgpu') { try { engine.terminate(); } catch {} return this.gpuFailed(e, show); }
+        this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e);
+      }
       return engine;
     })();
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
+  },
+  /** WebGPU failed to load or warm up: remember it, switch to the CPU and load again. */
+  gpuFailed(e, show) {
+    Log.w('tts', 'GPU voice failed: switching to the CPU for good on this device', e);
+    store.set('gpuFailed', true); const d = store.get('diag', {}); if (d.device === 'webgpu') { delete d.device; store.set('diag', d); }
+    this.ttsLoading = null;
+    return this.loadTTS(show);
   },
   progress(p, files, what) {
     if (p.status && p.status !== 'progress') Log.d('model', `${what}: ${p.status} ${p.file || ''}`);
@@ -371,7 +392,7 @@ const Voice = {
       this.close();
       return sheet('On-device voice', `<p>DriveDeck can understand you on the phone itself with <b>Whisper base</b>, OpenAI’s multilingual speech model. It works offline and understands English, Hindi, Kannada, Tamil and more. Other languages are translated to English commands.</p>
         <p>It can answer in a natural voice made on the phone too (<b>Kokoro</b>), instead of the phone’s robotic one.</p>
-        <p class="hint">One-time download: about 80 MB for listening, 90 MB more for the reply voice (use Wi-Fi). Both are kept on this device.</p>`,
+        <p class="hint">One-time download: about 80 MB for listening, ${ttsSize()} more for the reply voice (use Wi-Fi). Both are kept on this device.</p>`,
         [['Download both', () => { store.set('ttsAsked', true); settings.tts = 'neural'; store.set('settings', settings);
           this.open(); this.loadModel().then(() => { this.listenWhisper(); this.loadTTS().catch(() => {}); }).catch(e => this.fail(e)); }],
           ['Listening only', () => { store.set('ttsAsked', true); this.open(); this.loadModel().then(() => this.listenWhisper()).catch(e => this.fail(e)); }],
@@ -381,7 +402,7 @@ const Voice = {
       store.set('ttsAsked', true); this.close();
       const go = () => { this.open(); this.start(); };
       return sheet('A natural reply voice', `<p>Now that DriveDeck listens on the phone, it can also answer in a natural voice made on the phone (<b>Kokoro</b>) instead of the phone’s built-in one. Works offline once downloaded.</p>
-        <p class="hint">One-time download of about 90 MB (use Wi-Fi).</p>`,
+        <p class="hint">One-time download of about ${ttsSize()} (use Wi-Fi).</p>`,
         [['Download now', () => { this.loadTTS(true).then(() => this.speak('Hi, this is my new voice.')).catch(e => console.warn(e)); go(); }],
           ['Keep the phone’s voice', () => { settings.tts = 'phone'; applySettings(); go(); }], ['Later', go]]);
     }
@@ -569,6 +590,8 @@ async function resample(data, from, to) {
   return (await ctx.startRendering()).getChannelData(0);
 }
 $('#vOrb').addEventListener('click', () => Voice.rec ? Voice.stopRec() : Voice.start());
+// Load the downloaded reply voice soon after launch, so even the first reply (or spoken direction) uses it.
+setTimeout(() => { if (settings.tts === 'neural' && store.get('kokoroOK') && !Voice.tts) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().catch(() => {}); } }, 4000);
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
 
 /* ---------- Assistant widget: a hands-free conversation view ---------- */

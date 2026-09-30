@@ -16,6 +16,17 @@ const TTS_VOICES = { af_heart: ['Heart · US, warm'], af_bella: ['Bella · US, b
 const REC_WORKLET = `class R extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}
 process(i){const c=i[0]&&i[0][0];if(c)for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===2048){this.port.postMessage(this.b);this.b=new Float32Array(2048);this.n=0}}return true}}
 registerProcessor('dd-rec',R);`;
+// Safari (iPhone/iPad) can't `for await` over a ReadableStream. kokoro-js does exactly that while unpacking its
+// pronunciation dictionary as it loads; without this the voice never produces a sentence. Must run before the import.
+if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
+  ReadableStream.prototype[Symbol.asyncIterator] = async function* () {
+    const reader = this.getReader();
+    try { for (;;) { const { done, value } = await reader.read(); if (done) return; yield value; } }
+    finally { reader.releaseLock(); }
+  };
+  ReadableStream.prototype.values ||= ReadableStream.prototype[Symbol.asyncIterator];
+  window.__rsIterShim = true;
+}
 // How replies are played. Adjustable only from the debug Logs tab, to find what works on a given phone.
 //   out:     'element' (<audio>, blob URL) · 'data' (<audio>, data URL) · 'webaudio'
 //   session: the WebKit audio session while speaking: 'playback' (loudspeaker, ignores the silent switch) · 'auto' · 'transient'
@@ -65,7 +76,7 @@ const VoiceLog = {
 
 /* ---------- Listening box ---------- */
 const Voice = {
-  pipe: null, loading: null, rec: null, sr: null, tts: null, ttsLoading: null, sayId: 0, respId: 0, playing: [],
+  pipe: null, loading: null, rec: null, sr: null, tts: null, ttsLoading: null, ttsBroken: '', ttsStalls: 0, sayId: 0, respId: 0, playing: [],
   open() {
     const box = $('#assistant'); box.hidden = false;
     $('#vReply').hidden = true; $('#vProg').hidden = true; clearTimeout(this.closeT);
@@ -95,7 +106,8 @@ const Voice = {
     this.hush(); const id = ++this.sayId;
     text = String(text || '').replace(/[“”"«»]/g, '').trim();
     if (!text || settings.tts === 'off') { Log.d('tts', 'Not spoken', { setting: settings.tts, text }); return Promise.resolve(); }
-    if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
+    if (settings.tts === 'neural' && this.tts && this.ttsBroken) Log.w('tts', 'On-device voice not working on this device: phone voice', { reason: this.ttsBroken });
+    else if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
       Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
     if (settings.tts === 'neural') Log.i('tts', store.get('kokoroOK') ? 'On-device voice still loading: phone voice this time' : 'On-device voice not downloaded: phone voice', { text });
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // from cache, ready for the next reply
@@ -139,16 +151,24 @@ const Voice = {
       next();
     };
     // A stuck or very slow model must not leave you in silence: after 8 s without sound, the phone's voice takes over.
-    const watchdog = setTimeout(() => { if (!started) { fail = new Error('The reply voice took too long'); Log.w('tts', 'Watchdog: no sound after 8 s'); finish(); } }, 8000);
+    const watchdog = setTimeout(() => {
+      if (started) return;
+      fail = new Error('The reply voice took too long'); Log.w('tts', 'Watchdog: no sound after 8 s', { sentences: n });
+      // Twice in a row with nothing generated at all: the voice is broken here; stop making every reply wait 8 s.
+      if (!n && ++this.ttsStalls >= 2) { this.ttsBroken = 'No sentence generated twice in a row'; Log.e('tts', 'On-device voice marked as not working: replies use the phone voice'); }
+      finish();
+    }, 8000);
     (async () => {
-      const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
+      // One generation at a time, but never wait forever behind one that got stuck.
+      const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r));
+      if (prev) await Promise.race([prev, new Promise(r => setTimeout(() => { Log.w('tts', 'Previous generation stuck: not waiting for it'); r(); }, 3000))]);
       try {
         // Hand kokoro-js a closed sentence splitter: given a plain string it waits for more text and never speaks the last sentence.
         const split = new this.Splitter(); split.push(text); split.close();
         let g = performance.now();
         for await (const { text: sentence, audio } of this.tts.stream(split, { voice })) {
           if (id !== this.sayId || fail) return;
-          const item = { n: ++n, f32: audio.audio, rate: audio.sampling_rate };
+          const item = { n: ++n, f32: audio.audio, rate: audio.sampling_rate }; this.ttsStalls = 0; this.ttsBroken = '';
           Log.i('tts', `Sentence ${n} generated in ${Math.round(performance.now() - g)} ms`, { sentence, seconds: +(item.f32.length / item.rate).toFixed(2), rate: item.rate });
           g = performance.now();
           queue.push(item); if (!playing) next();
@@ -214,7 +234,14 @@ const Voice = {
       this.Splitter = TextSplitterStream;
       const tts = await KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: 'q8', device: 'wasm', progress_callback: show ? p => this.progress(p, files, 'reply voice') : null });
       $('#vProg').hidden = true; store.set('kokoroOK', true);
-      Log.i('tts', `On-device voice ready ${Math.round(performance.now() - s)} ms`);
+      Log.i('tts', `On-device voice loaded ${Math.round(performance.now() - s)} ms`, { streamShim: !!window.__rsIterShim });
+      // Warm-up: one short sentence proves the whole chain (dictionary, phonemes, model) works here, and makes the first reply faster.
+      const w = performance.now();
+      try {
+        const a = await Promise.race([tts.generate('Ready.', { voice: TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart' }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
+        this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.audio.length / a.sampling_rate).toFixed(2) });
+      } catch (e) { this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e); }
       return tts;
     })();
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });

@@ -30,7 +30,8 @@ if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.as
 // How replies are played. Adjustable only from the debug Logs tab, to find what works on a given phone.
 //   out:     'data' (<audio>, data URL; worked fully on iPad) · 'element' (<audio>, blob URL) · 'webaudio'
 //   session: the WebKit audio session while speaking: 'playback' (loudspeaker, ignores the silent switch) · 'auto' · 'transient'
-//   engine:  'worker' (Kokoro in a background worker: the app stays responsive and sentence 1 plays while 2 is made) · 'main'
+//   engine:  'worker' (Whisper and Kokoro each in a background worker: the app stays responsive, sentence 1 plays while 2 is made,
+//            and unloading hands the memory back) · 'main'
 //   device:  'webgpu' (GPU, fp32, ~310 MB: on iPad about 3× faster than real time, so no pauses) where WebGPU exists and
 //            hasn't failed here before · else 'wasm' (CPU, q8, ~90 MB: slower than real time on a tablet)
 const gpuOK = () => !!navigator.gpu && !store.get('gpuFailed');
@@ -43,12 +44,10 @@ const Diag = {
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
     if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
-    if (k === 'stt' && typeof Voice !== 'undefined') Voice.resetSTT();
+    if ((k === 'stt' || k === 'engine') && typeof Voice !== 'undefined') Voice.resetSTT();
   },
 };
 
-/* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
-   sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
 /** Whisper settings per device. The GPU build keeps the encoder in full precision and the decoder 4-bit (the
     combination transformers.js recommends for WebGPU); the CPU build is 8-bit throughout. */
 /** Whisper builds to try on a device, best first. On the GPU: a 16-bit encoder where the GPU supports it (half the memory), else 32-bit. */
@@ -58,11 +57,56 @@ function whisperBuilds(dev) {
   const gpu = enc => ({ device: 'webgpu', dtype: { encoder_model: enc, decoder_model_merged: 'q4' }, label: `GPU ${enc}/q4` });
   return [...(store.get('gpuF16') ? [gpu('fp16')] : []), gpu('fp32')];
 }
+/* Whisper runs in its own worker. Unloading it ends the worker, the only way to hand its WebAssembly memory
+   (which never shrinks) and its GPU buffers back to the phone: freed in place, a CPU model left ~200 MB behind
+   and the next load got the page killed on iPhone. The runtime is also told not to keep spare memory pools. */
+const WHISPER_WORKER = `let pipe;
+self.onmessage = async ({ data: m }) => {
+  const send = x => self.postMessage({ ...x, id: m.id });
+  try {
+    if (m.type === 'load') {
+      const T = await import(m.url);
+      T.env.allowLocalModels = false;
+      if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = m.threads;
+      pipe = await T.pipeline('automatic-speech-recognition', m.model, { device: m.device, dtype: m.dtype,
+        session_options: { enableCpuMemArena: false, enableMemPattern: false }, progress_callback: p => send({ type: 'progress', p }) });
+      send({ type: 'loaded' });
+    } else if (m.type === 'run') {
+      const out = await pipe(m.audio, m.opts); send({ type: 'out', text: out.text });
+    }
+  } catch (e) { send({ type: 'error', message: String((e && e.message) || e), stack: String((e && e.stack) || '').slice(0, 400) }); }
+};`;
+/** Load a Whisper build. Returns pipe(audio, opts) → { text }, with pipe.dispose() to end it and pipe.kind. */
 async function createWhisper(build, onProgress) {
-  const T = await import(TRANSFORMERS_URL);
-  T.env.allowLocalModels = false;
-  if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
-  return T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { device: build.device, dtype: build.dtype, progress_callback: onProgress });
+  const threads = self.crossOriginIsolated ? 4 : 1;
+  // On the page only without workers, or when chosen in the Logs tab to compare (its memory then stays until the app closes).
+  if (typeof Worker === 'undefined' || Diag.get().engine === 'main') {
+    const T = await import(TRANSFORMERS_URL); T.env.allowLocalModels = false;
+    if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = threads;
+    const p = await T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { device: build.device, dtype: build.dtype, progress_callback: onProgress });
+    const pipe = (audio, opts) => p(audio, opts); pipe.dispose = () => p.dispose?.(); pipe.kind = 'main thread'; return pipe;
+  }
+  const w = new Worker(URL.createObjectURL(new Blob([WHISPER_WORKER], { type: 'text/javascript' })), { type: 'module' });
+  const pending = new Map(); let seq = 0, dead = null;
+  const fail = msg => { dead = msg; for (const h of [...pending.values()]) h({ type: 'error', message: msg }); pending.clear(); };
+  w.onmessage = ({ data: m }) => pending.get(m.id)?.(m);
+  w.onerror = e => { Log.e('stt', 'Whisper worker error', { message: e.message, file: e.filename, line: e.lineno }); e.preventDefault?.(); fail(e.message || 'Whisper worker crashed'); };
+  const call = (msg, onProgress) => new Promise((res, rej) => {
+    if (dead) return rej(new Error(dead));
+    const id = ++seq;
+    pending.set(id, m => {
+      if (m.type === 'progress') return onProgress?.(m.p);
+      pending.delete(id); m.type === 'error' ? rej(Object.assign(new Error(m.message), { stack: m.stack })) : res(m);
+    });
+    w.postMessage({ ...msg, id }); // the audio is copied, not moved: callers may use it again
+  });
+  const pipe = (audio, opts) => call({ type: 'run', audio, opts });
+  pipe.dispose = () => { w.terminate(); fail('Whisper unloaded'); };
+  pipe.alive = () => !dead;
+  pipe.kind = 'background worker';
+  try { await call({ type: 'load', url: TRANSFORMERS_URL, model: WHISPER_MODEL, device: build.device, dtype: build.dtype, threads }, onProgress); }
+  catch (e) { pipe.dispose(); throw e; } // a failed build must not keep its memory while the next one loads
+  return pipe;
 }
 /** What the GPU can do. 16-bit ('shader-f16') lets the models use half the memory, which matters: iOS kills a page that uses too much. */
 async function gpuFeatures() {
@@ -79,6 +123,8 @@ async function gpuFeatures() {
 const Heavy = { q: Promise.resolve(), run(name, f) { const p = this.q.then(() => { Log.d('mem', `Loading ${name}`); return f(); }); this.q = p.catch(() => {}); return p; } };
 /** Download size of the reply voice for this device, for the prompts. */
 const ttsSize = () => Diag.get().device === 'webgpu' ? (store.get('gpuF16') ? '165 MB' : '310 MB') : '90 MB';
+/* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
+   sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
 const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
   ReadableStream.prototype[Symbol.asyncIterator] = async function* () { const r = this.getReader();
     try { for (;;) { const { done, value } = await r.read(); if (done) return; yield value; } } finally { r.releaseLock(); } }; }`;
@@ -348,7 +394,7 @@ const Voice = {
   },
   audio() { return (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); },
   /** Forget the loaded voice (after changing engine or device in diagnostics); the next reply loads it again. */
-  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; Log.mem('whisper', null); Log.i('stt', 'Whisper unloaded'); },
+  resetSTT() { try { this.pipe?.dispose?.(); } catch {} this.pipe = null; this.loading = null; this.asrQ = null; Log.mem('whisper', null); Log.i('stt', 'Whisper unloaded'); },
   resetTTS() { this.hush(); try { this.tts?.terminate(); } catch {} this.tts = null; this.ttsLoading = null; this.ttsBroken = ''; this.ttsStalls = 0; Log.mem('kokoro', null); Log.i('tts', 'On-device voice unloaded'); },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
@@ -425,6 +471,7 @@ const Voice = {
     Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
       voiceLoaded: !!this.tts, voiceDownloaded: !!store.get('kokoroOK'), playerUnlocked: !!this.unlocked, silence: settings.vadSilence, lang: settings.voiceLang });
     this.hush(); this.respId++; this.unlock();
+    if (this.pipe?.alive && !this.pipe.alive()) { Log.w('stt', 'Whisper worker had stopped: reloading it'); this.resetSTT(); }
     this.open(); $('#vChips').hidden = false;
     this.show('Listening…', this.engine() === 'whisper' ? 'On-device · Whisper base' : 'Phone speech recognition');
     if (this.engine() === 'browser') return this.listenBrowser();
@@ -473,9 +520,9 @@ const Voice = {
         try {
           const pipe = await createWhisper(build, p => this.progress(p, files, 'voice model'));
           if (build.device === 'wasm' && want === 'webgpu') { Log.w('stt', 'Whisper on the GPU failed: using the CPU'); Diag.set('stt', 'wasm'); }
-          this.pipeDevice = build.device; this.pipeBuild = build.label; Log.mem('whisper', build.label);
+          this.pipeDevice = build.device; this.pipeBuild = build.label; Log.mem('whisper', `${build.label} (${pipe.kind})`);
           $('#vProg').hidden = true; store.set('whisperOK', true); if (build.device === 'webgpu') store.set('whisperGpuOK', true);
-          Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${build.label})`);
+          Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${build.label}, ${pipe.kind})`);
           return pipe;
         } catch (e) { lastErr = e; Log.w('stt', `Whisper ${build.label} failed to load`, e); }
       }

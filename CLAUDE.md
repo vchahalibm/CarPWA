@@ -11,7 +11,7 @@ Pure HTML/CSS/JavaScript PWA. **No frameworks, no bundler/build step, no npm dep
 - Hand-offs to native apps go through `openExternal(scheme, webFallback)`; sample contacts never dial.
 - New voice abilities: add a `BUILTINS` entry and a `DEFAULT_COMMANDS` entry (phrases) in `js/commands.js`, not regex in app.js. Replies go through `say(msg, then, { leaves })`; set `leaves` when the action opens another app so the reply finishes first. Keep the phrase tests passing (a phrase should not steal another command's words).
 - Debug log: log anything useful for chasing bugs with `Log.i/d/w/e(category, message, data)` (categories like `stt`, `tts`, `audio`, `mic`, `cmd`, `nav`, `net`). It's a no-op unless debug mode is on (`?debug=<key>`, or 7 taps on the version row in Settings; only the key's SHA-256 is in `js/log.js`). Never log secrets; `Log` hides keys/tokens. Voice playback options for testing on a phone live in `Diag` (js/voice.js).
-- Full-duplex voice design: `docs/duplex-voice.md`.
+- Full-duplex voice design: `docs/duplex-voice.md`. Memory: `docs/memory-strategy.md`. Each on-device model runs in its own worker (`createWhisper`, `kokoroWorker` in js/voice.js); unloading ends the worker, the only way iOS gets the memory back. Load big models through `Heavy`.
 - Routes are normalised by `js/routing.js` (`coords`, `cum`, `tcum`, `steps`, `segLimit`); add new providers there, not in app.js.
 - Dashboard gauges bind to live values via `data-t`/`data-arc`/`data-rot`/`data-w`/`data-tf`/`data-show`/`data-html`/`data-cls` keys from `vals()` in `js/dash.js`. Only show data the phone really has.
 - Never use Apple names, logos or assets.

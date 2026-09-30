@@ -138,14 +138,16 @@ const DebugUI = {
     $('#settingsBody').innerHTML = `${this.tabs()}
       <div class="group-title">Voice diagnostics</div>
       <div class="group">
-        ${info('This device', `${E.standalone ? 'Installed app' : 'Browser tab'} · audio session: ${E.audioSession} · AudioWorklet: ${E.audioWorklet ? 'yes' : 'no'} · phone voice: ${E.speechSynthesis ? 'yes' : 'no'} · phone recognizer: ${E.speechRecognition ? 'yes' : 'no'}`)}
-        ${info('Voice state', `Listening: ${settings.stt === 'whisper' ? `Whisper ${V.pipe ? 'loaded' : store.get('whisperOK') ? 'downloaded' : 'not downloaded'}` : 'phone recognizer'} · Replies: ${settings.tts}${settings.tts === 'neural' ? ` (Kokoro ${V.tts ? 'loaded' : store.get('kokoroOK') ? 'downloaded, not loaded' : 'not downloaded'}${V.ttsBroken ? `, NOT WORKING: ${V.ttsBroken}` : ''})` : ''} · reply player ${V.unlocked ? 'unlocked' : 'not unlocked yet'}`)}
+        ${info('This device', `${E.standalone ? 'Installed app' : 'Browser tab'} · WebGPU: ${'gpu' in navigator ? 'yes' : 'no'} · CPU cores: ${E.cores || '?'} · audio session: ${E.audioSession} · AudioWorklet: ${E.audioWorklet ? 'yes' : 'no'} · phone voice: ${E.speechSynthesis ? 'yes' : 'no'} · phone recognizer: ${E.speechRecognition ? 'yes' : 'no'}`)}
+        ${info('Voice state', `Listening: ${settings.stt === 'whisper' ? `Whisper ${V.pipe ? 'loaded' : store.get('whisperOK') ? 'downloaded' : 'not downloaded'}` : 'phone recognizer'} · Replies: ${settings.tts}${settings.tts === 'neural' ? ` (Kokoro ${V.tts ? `loaded in ${V.tts.kind}` : store.get('kokoroOK') ? 'downloaded, not loaded' : 'not downloaded'}${V.ttsBroken ? `, NOT WORKING: ${V.ttsBroken}` : ''})` : ''} · reply player ${V.unlocked ? 'unlocked' : 'not unlocked yet'}`)}
         ${btn('test:neural:0', 'Test the on-device voice now')}
         ${btn('test:neural:3000', 'Test the on-device voice in 3 s', 'no tap, like a reply')}
         ${btn('test:phone:0', 'Test the phone voice now')}
         ${btn('test:phone:3000', 'Test the phone voice in 3 s', 'no tap, like a reply')}
         ${btn('test:mic', 'Test the microphone (3 s)')}
-        <div class="row"><div class="main"><div class="t">On-device voice plays through</div><div class="s">Try another if replies are silent</div></div>${seg('out', [['element', 'Audio'], ['data', 'Audio (data)'], ['webaudio', 'Web Audio']])}</div>
+        <div class="row"><div class="main"><div class="t">On-device voice runs in</div><div class="s">Background: the app stays smooth and speech starts sooner</div></div>${seg('engine', [['worker', 'Background'], ['main', 'Main thread']])}</div>
+        <div class="row"><div class="main"><div class="t">On-device voice computes on</div><div class="s">${'gpu' in navigator ? 'GPU (WebGPU) can be much faster; about 310 MB to download' : 'This browser has no WebGPU'}</div></div>${seg('device', [['wasm', 'CPU'], ...('gpu' in navigator ? [['webgpu', 'GPU (beta)']] : [])])}</div>
+        <div class="row"><div class="main"><div class="t">On-device voice plays through</div><div class="s">Try another if replies are silent</div></div>${seg('out', [['data', 'Audio (data)'], ['element', 'Audio'], ['webaudio', 'Web Audio']])}</div>
         <div class="row"><div class="main"><div class="t">Audio mode while replying</div><div class="s">Playback: loudspeaker, ignores the silent switch</div></div>${seg('session', [['playback', 'Playback'], ['auto', 'Auto'], ['transient', 'Transient']])}</div>
         ${btn('env', 'Write device details to the log')}
       </div>

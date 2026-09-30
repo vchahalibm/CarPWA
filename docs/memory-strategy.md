@@ -74,8 +74,8 @@ Full-duplex needs listening and the reply voice loaded together:
 - **Camera mode on a phone:** pauses duplex, or uses only the phone's engines.
 
 ## 5. Order of work
-1. **Whisper into its own worker** (like Kokoro), and end workers on unload. Fixes the iPhone crash, where a freed model's heap was still resident.
-2. **Lean runtime settings** in both workers; free download buffers.
+1. ✅ **Whisper into its own worker** (like Kokoro), and end workers on unload. Fixes the iPhone crash, where a freed model's heap was still resident. A build that fails to load has its worker ended before the next one is tried.
+2. ✅ **Lean runtime settings** for Whisper (`enableCpuMemArena: false`, `enableMemPattern: false`). kokoro-js doesn't pass session options through, so the reply voice keeps the defaults; its worker is still ended on unload.
 3. **Device class + budget scheduler + crash-driven downgrade**, including the phone defaults above; the comparison test runs each engine in a fresh worker.
 4. **Slim the map while models load** (terrain off on phones during AI loads, smaller tile cache).
 5. **Vision:** detector worker plus camera pipeline, then cloud summaries (with an offline fallback).

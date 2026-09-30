@@ -151,6 +151,12 @@ const DebugUI = {
         <div class="row"><div class="main"><div class="t">On-device voice computes on</div><div class="s">${!!navigator.gpu ? 'GPU (WebGPU) can be much faster; about 310 MB to download' : 'This browser has no WebGPU'}</div></div>${seg('device', [['wasm', 'CPU'], ...(!!navigator.gpu ? [['webgpu', 'GPU (beta)']] : [])])}</div>
         <div class="row"><div class="main"><div class="t">On-device voice plays through</div><div class="s">Try another if replies are silent</div></div>${seg('out', [['data', 'Audio (data)'], ['element', 'Audio'], ['webaudio', 'Web Audio']])}</div>
         <div class="row"><div class="main"><div class="t">Audio mode while replying</div><div class="s">Playback: loudspeaker, ignores the silent switch</div></div>${seg('session', [['playback', 'Playback'], ['auto', 'Auto'], ['transient', 'Transient']])}</div>
+      </div>
+      <div class="group-title">Memory</div>
+      <div class="group">
+        ${info('Budget', `${Budget.cls()} class${store.get('devClass') ? ' (set here)' : ' (detected)'}: ${Budget.slots()} large model${Budget.slots() > 1 ? 's' : ''} at once · loaded: ${[...Budget.loaded].map(([k, m]) => `${k} (${m.label})`).join(', ') || 'none'}${store.get('tooBig', []).length ? ` · too big here: ${store.get('tooBig', []).join(', ')}` : ''}${store.get('slotsLost', 0) ? ` · budget lowered by ${store.get('slotsLost', 0)} after a crash` : ''}`)}
+        <div class="row"><div class="main"><div class="t">Device class</div><div class="s">Phone: listening and the reply voice take turns · tablet: 2 at once · computer: 4</div></div><div class="seg">${[['', 'Auto'], ['phone', 'Phone'], ['tablet', 'Tablet'], ['desktop', 'Computer']].map(([v, l]) => `<button data-dbg="cls:${v}" class="${(store.get('devClass') || '') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        ${btn('budgetReset', 'Forget the crash history', 'try skipped builds again')}
         ${btn('env', 'Write device details to the log')}
       </div>
       <div class="group-title" id="logCount"></div>
@@ -228,7 +234,9 @@ document.addEventListener('click', e => {
   else if (a === 'diag') { Diag.set(x, y); DebugUI.render(); }
   else if (a === 'test') x === 'mic' ? DebugUI.micTest() : DebugUI.test(x, +y || 0);
   else if (a === 'bench') STTBench.ask();
-  else if (a === 'env') { Log.i('app', 'Device details', { ...Log.env(), settings, reply: Diag.get() }); }
+  else if (a === 'cls') { store.set('devClass', x || null); Log.i('mem', `Device class → ${Budget.cls()}`, { slots: Budget.slots() }); DebugUI.render(); }
+  else if (a === 'budgetReset') { Budget.reset(); DebugUI.render(); }
+  else if (a === 'env') { Log.i('app', 'Device details', { ...Log.env(), settings, reply: Diag.get(), memory: { class: Budget.cls(), slots: Budget.slots(), loaded: [...Budget.loaded.keys()], tooBig: store.get('tooBig', []) } }); }
   else if (a === 'copy') navigator.clipboard?.writeText(Log.text()).then(() => toast('Log copied'), () => toast('Copy isn’t allowed here: use Share'));
   else if (a === 'share') DebugUI.share();
   else if (a === 'pause') { DebugUI.paused = !DebugUI.paused; b.textContent = DebugUI.paused ? 'Resume' : 'Pause'; if (!DebugUI.paused) DebugUI.list(); }

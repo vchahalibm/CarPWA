@@ -66,8 +66,17 @@ const Log = (() => {
     const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
     return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   }
+  /* ---------- Crash detection ----------
+     iOS kills a page that uses too much memory and reloads it; nothing gets logged. So a heartbeat records whether the
+     app is on screen and which big models are loaded; the next launch reports how the previous session ended. */
+  const SESSION = 'dd.session', mem = {};
+  let session = null;
+  const beat = () => { if (!session) return; session.beat = Date.now(); session.visible = document.visibilityState === 'visible'; session.mem = mem;
+    try { localStorage.setItem(SESSION, JSON.stringify(session)); } catch {} };
   const api = {
     get on() { return on; }, items, MAX,
+    /** Note a big thing in memory (model name → build), or null when it's gone. Shown if the app is killed. */
+    mem(key, value) { if (value == null) delete mem[key]; else mem[key] = value; beat(); if (on) add('debug', 'mem', `${key}: ${value ?? 'unloaded'}`, { ...mem }); },
     i: (cat, msg, data) => add('info', cat, msg, data),
     d: (cat, msg, data) => add('debug', cat, msg, data),
     w: (cat, msg, data) => add('warn', cat, msg, data),
@@ -133,6 +142,22 @@ const Log = (() => {
     if (!ok) return console.warn('Debug key not accepted');
     if (typeof current !== 'undefined' && current === 'settings' && typeof renderSettings === 'function') renderSettings();
   });
-  if (on) add('info', 'app', '── DriveDeck started ──', env());
+  if (on) {
+    add('info', 'app', '── DriveDeck started ──', env());
+    try {
+      const prev = JSON.parse(localStorage.getItem(SESSION));
+      if (prev && !prev.clean) {
+        const ago = Math.round((Date.now() - prev.beat) / 1000), ranFor = Math.round((prev.beat - prev.start) / 1000);
+        prev.visible
+          ? add('error', 'app', `The previous session ended without closing while on screen: it crashed or iOS killed it (usually for using too much memory)`, { ranForSeconds: ranFor, lastSignSecondsAgo: ago, inMemory: prev.mem, lastLog: prev.last })
+          : add('info', 'app', 'The previous session was closed by the system while in the background', { ranForSeconds: ranFor, inMemory: prev.mem });
+      }
+    } catch {}
+    session = { start: Date.now(), beat: Date.now(), visible: true, clean: false, mem };
+    beat(); setInterval(() => { if (session) { session.last = items.slice(-3).map(e => e.msg); beat(); } }, 2000);
+    document.addEventListener('visibilitychange', beat);
+    addEventListener('pagehide', () => { if (session) { session.clean = true; beat(); } });
+    addEventListener('pageshow', () => { if (session && session.clean) { session.clean = false; beat(); } });
+  }
   return api;
 })();

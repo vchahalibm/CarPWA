@@ -139,7 +139,7 @@ const DebugUI = {
       <div class="group-title">Voice diagnostics</div>
       <div class="group">
         ${info('This device', `${E.standalone ? 'Installed app' : 'Browser tab'} · audio session: ${E.audioSession} · AudioWorklet: ${E.audioWorklet ? 'yes' : 'no'} · phone voice: ${E.speechSynthesis ? 'yes' : 'no'} · phone recognizer: ${E.speechRecognition ? 'yes' : 'no'}`)}
-        ${info('Voice state', `Listening: ${settings.stt === 'whisper' ? `Whisper ${V.pipe ? 'loaded' : store.get('whisperOK') ? 'downloaded' : 'not downloaded'}` : 'phone recognizer'} · Replies: ${settings.tts}${settings.tts === 'neural' ? ` (Kokoro ${V.tts ? 'loaded' : store.get('kokoroOK') ? 'downloaded, not loaded' : 'not downloaded'})` : ''} · reply player ${V.unlocked ? 'unlocked' : 'not unlocked yet'}`)}
+        ${info('Voice state', `Listening: ${settings.stt === 'whisper' ? `Whisper ${V.pipe ? 'loaded' : store.get('whisperOK') ? 'downloaded' : 'not downloaded'}` : 'phone recognizer'} · Replies: ${settings.tts}${settings.tts === 'neural' ? ` (Kokoro ${V.tts ? 'loaded' : store.get('kokoroOK') ? 'downloaded, not loaded' : 'not downloaded'}${V.ttsBroken ? `, NOT WORKING: ${V.ttsBroken}` : ''})` : ''} · reply player ${V.unlocked ? 'unlocked' : 'not unlocked yet'}`)}
         ${btn('test:neural:0', 'Test the on-device voice now')}
         ${btn('test:neural:3000', 'Test the on-device voice in 3 s', 'no tap, like a reply')}
         ${btn('test:phone:0', 'Test the phone voice now')}

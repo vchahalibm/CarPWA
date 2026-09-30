@@ -81,6 +81,7 @@ Full-duplex needs listening and the reply voice loaded together:
    - A model needed now (listening, or a download you asked for) unloads the least recently used one when the budget is full. Background preloads only use a free slot. So on a phone with Whisper listening, replies use the phone's voice.
    - Each load is noted before it starts and cleared after, or when the app is closed normally. A note still there at launch means the app was killed during that load: the build is skipped from then on (the CPU build is always kept as the last resort), and if other models were loaded, the budget drops by one. Settings › Logs can forget this history.
    - Whisper defaults to the GPU on tablets and computers, unless only the CPU build is downloaded.
+3a. ✅ **Desktop build** (`desktop/`, Electron): the same web files as a Mac app. It gets the computer budget (4 models at once), and macOS doesn't kill the app for memory the way iOS kills a tab.
 4. **Slim the map while models load** (terrain off on phones during AI loads, smaller tile cache).
 5. **Vision:** detector worker plus camera pipeline, then cloud summaries (with an offline fallback).
 6. Later: one shared runtime for all models; WebNN when Safari ships it; a native shell only if the phone must run many models at once.

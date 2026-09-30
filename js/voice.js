@@ -5,6 +5,9 @@
    or the browser's own recognizer. Loaded after dash.js.
    ============================================================ */
 const WHISPER_MODEL = 'onnx-community/whisper-base';
+// The desktop app (Electron) has Chromium's recognizer, but it needs a Google key Electron doesn't have: Whisper listens there.
+// It also gets the computer's memory budget.
+const IS_DESKTOP_APP = /Electron\//.test(navigator.userAgent);
 // transformers.js, pinned. Loaded from the CDN on first use (like the ONNX runtime and the model), then cached by the service worker.
 const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
 // Replies: Kokoro (82M, q8) through kokoro-js, which bundles its own transformers.js. Same CDN + service-worker caching as Whisper.
@@ -134,7 +137,7 @@ const Budget = {
   loaded: new Map(), // name → { label, used, unload }
   auto() {
     const ua = navigator.userAgent, touch = navigator.maxTouchPoints > 1, small = Math.min(screen.width, screen.height);
-    if (/Electron\//.test(ua)) return 'desktop';
+    if (IS_DESKTOP_APP) return 'desktop';
     if (/iPhone|iPod/.test(ua) || /Android.*Mobile/.test(ua) || (touch && small < 600)) return 'phone';
     if (/iPad|Android/.test(ua) || (/Macintosh/.test(ua) && touch)) return 'tablet'; // iPads report a Mac user agent, but with touch
     return 'desktop';
@@ -261,7 +264,7 @@ function kokoroWorker() {
     terminate() { w.terminate(); for (const h of [...pending.values()]) h({ type: 'error', message: 'Voice worker stopped' }); pending.clear(); },
   };
 }
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SR = IS_DESKTOP_APP ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
 const LANGS = { auto: ['Auto-detect', null, navigator.language || 'en-IN'], en: ['English', 'en', 'en-IN'], hi: ['हिन्दी Hindi', 'hi', 'hi-IN'],
   kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'] };
 // Which app a reply belongs to, so the log can show where the action went.

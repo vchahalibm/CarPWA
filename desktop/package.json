@@ -1,0 +1,69 @@
+{
+  "name": "drivedeck-desktop",
+  "productName": "DriveDeck",
+  "version": "0.4.0",
+  "description": "DriveDeck, the car dashboard web app, as a desktop app",
+  "repository": "github:vchahalibm/CarPWA",
+  "main": "main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg --arm64 --x64",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.vchahalibm.drivedeck",
+    "productName": "DriveDeck",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "web",
+        "filter": [
+          "index.html",
+          "manifest.webmanifest",
+          "sw.js",
+          "css/**",
+          "js/**",
+          "vendor/**",
+          "icons/**"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.navigation",
+      "icon": "../icons/pwa-512x512.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "DriveDeck listens for your voice commands.",
+        "NSCameraUsageDescription": "DriveDeck uses the camera to recognise what is around the car.",
+        "NSLocationUsageDescription": "DriveDeck shows where you are and guides you.",
+        "NSLocationWhenInUseUsageDescription": "DriveDeck shows where you are and guides you."
+      }
+    },
+    "dmg": {
+      "title": "DriveDeck ${version}"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "../icons/pwa-512x512.png"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "../icons/pwa-512x512.png"
+    },
+    "publish": null
+  }
+}

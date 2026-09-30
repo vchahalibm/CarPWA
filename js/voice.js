@@ -16,6 +16,13 @@ const TTS_VOICES = { af_heart: ['Heart · US, warm'], af_bella: ['Bella · US, b
 const REC_WORKLET = `class R extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}
 process(i){const c=i[0]&&i[0][0];if(c)for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===2048){this.port.postMessage(this.b);this.b=new Float32Array(2048);this.n=0}}return true}}
 registerProcessor('dd-rec',R);`;
+// How replies are played. Adjustable only from the debug Logs tab, to find what works on a given phone.
+//   out:     'element' (<audio>, blob URL) · 'data' (<audio>, data URL) · 'webaudio'
+//   session: the WebKit audio session while speaking: 'playback' (loudspeaker, ignores the silent switch) · 'auto' · 'transient'
+const Diag = {
+  get: () => ({ out: 'element', session: 'playback', ...store.get('diag', {}) }),
+  set(k, v) { store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`); },
+};
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const LANGS = { auto: ['Auto-detect', null, navigator.language || 'en-IN'], en: ['English', 'en', 'en-IN'], hi: ['हिन्दी Hindi', 'hi', 'hi-IN'],
   kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'] };
@@ -75,7 +82,7 @@ const Voice = {
   },
   /** Show and log a reply, say it and act. Hand-offs to other apps wait for the reply to finish (up to 4 s) so it isn't cut off. */
   respond(msg, then, o = {}) {
-    this.reply(msg); clearTimeout(this.closeT);
+    this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves });
     const id = ++this.respId, t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms)), said = speak(msg) || Promise.resolve();
     const done = () => id === this.respId && !this.rec && !this.sr;
     if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => { if (done()) { this.close(); then?.(); } });
@@ -87,8 +94,10 @@ const Voice = {
   speak(text) {
     this.hush(); const id = ++this.sayId;
     text = String(text || '').replace(/[“”"«»]/g, '').trim();
-    if (!text || settings.tts === 'off') return Promise.resolve();
-    if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => { console.warn('Reply voice failed', e); return id === this.sayId && this.speakPhone(text, id); });
+    if (!text || settings.tts === 'off') { Log.d('tts', 'Not spoken', { setting: settings.tts, text }); return Promise.resolve(); }
+    if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
+      Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
+    if (settings.tts === 'neural') Log.i('tts', store.get('kokoroOK') ? 'On-device voice still loading: phone voice this time' : 'On-device voice not downloaded: phone voice', { text });
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // from cache, ready for the next reply
     return this.speakPhone(text, id);
   },
@@ -101,7 +110,12 @@ const Voice = {
         try {
           const u = this.utt = new SpeechSynthesisUtterance(text); // kept referenced, or onend may never fire
           u.rate = 1.03; u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
-          u.onend = u.onerror = () => res(); speechSynthesis.speak(u);
+          const s = performance.now();
+          u.onstart = () => Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s) });
+          u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); res(); };
+          u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); res(); };
+          Log.i('tts', 'Phone voice', { text, lang: u.lang, voices: speechSynthesis.getVoices().length, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking });
+          speechSynthesis.speak(u);
         } catch { res(); }
       }, this.cancelled ? 150 : 0);
       setTimeout(res, 1800 + text.length * 85);
@@ -110,66 +124,103 @@ const Voice = {
   /** Kokoro, one sentence at a time (the first plays while the rest are generated), through an <audio> element:
       unlike Web Audio, it isn't silenced by the phone's ring/silent switch. */
   async speakNeural(text, id) {
-    const el = this.player(), queue = [], voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
-    let generating = true, playing = false, started = false, fail = null, finish;
+    const cfg = Diag.get(), queue = [], voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart', t0 = performance.now();
+    let generating = true, playing = false, started = false, fail = null, finish, n = 0;
     const done = new Promise(r => (finish = r)); this.stopNeural = () => finish();
-    const next = () => {
+    Log.i('tts', 'On-device voice', { text, voice, out: cfg.out, session: cfg.session, unlocked: !!this.unlocked });
+    const next = async () => {
       if (id !== this.sayId) return finish();
-      const url = queue.shift();
-      if (!url) { playing = false; if (!generating) finish(); return; }
-      playing = started = true; el.src = url;
-      el.onended = () => { URL.revokeObjectURL(url); next(); };
-      el.onerror = () => { URL.revokeObjectURL(url); next(); };
-      el.play().catch(e => { console.warn('Reply audio blocked', e); this.blocked = true; queue.length = 0; generating = false; finish(); });
+      const item = queue.shift();
+      if (!item) { playing = false; if (!generating) finish(); return; }
+      if (!started) this.session(cfg.session); // loudspeaker, whatever the mic did last
+      playing = started = true;
+      try { await this.playChunk(item, cfg.out); }
+      catch (e) { Log.e('tts', `Sentence ${item.n} could not play`, e); this.blocked = true; queue.length = 0; generating = false; return finish(); }
+      next();
     };
     // A stuck or very slow model must not leave you in silence: after 8 s without sound, the phone's voice takes over.
-    const watchdog = setTimeout(() => { if (!started) { fail = new Error('The reply voice took too long'); finish(); } }, 8000);
+    const watchdog = setTimeout(() => { if (!started) { fail = new Error('The reply voice took too long'); Log.w('tts', 'Watchdog: no sound after 8 s'); finish(); } }, 8000);
     (async () => {
       const prev = this.ttsLock; let release; this.ttsLock = new Promise(r => (release = r)); await prev;
       try {
         // Hand kokoro-js a closed sentence splitter: given a plain string it waits for more text and never speaks the last sentence.
         const split = new this.Splitter(); split.push(text); split.close();
-        for await (const { audio } of this.tts.stream(split, { voice })) {
+        let g = performance.now();
+        for await (const { text: sentence, audio } of this.tts.stream(split, { voice })) {
           if (id !== this.sayId || fail) return;
-          queue.push(URL.createObjectURL(wavBlob(audio.audio, audio.sampling_rate)));
-          if (!playing) next();
+          const item = { n: ++n, f32: audio.audio, rate: audio.sampling_rate };
+          Log.i('tts', `Sentence ${n} generated in ${Math.round(performance.now() - g)} ms`, { sentence, seconds: +(item.f32.length / item.rate).toFixed(2), rate: item.rate });
+          g = performance.now();
+          queue.push(item); if (!playing) next();
         }
-      } catch (e) { fail ||= e; } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
+      } catch (e) { fail ||= e; Log.e('tts', 'Generation failed', e); } finally { release(); generating = false; if (!playing && !queue.length) finish(); }
     })();
     await done; clearTimeout(watchdog);
+    if (id === this.sayId) this.session('auto');
+    Log.i('tts', `On-device voice finished in ${Math.round(performance.now() - t0)} ms`, { sentences: n, started, blocked: !!this.blocked, failed: !!fail });
     if (this.blocked) { this.blocked = false; throw new Error('Audio playback was blocked'); }
     if (fail && !started) throw fail;
   },
+  /** Play one generated sentence and resolve when it has finished. */
+  async playChunk({ n, f32, rate }, out) {
+    const secs = f32.length / rate;
+    if (out === 'webaudio') {
+      const ctx = this.audio(); if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+      if (ctx.state !== 'running') throw new Error(`Web Audio is ${ctx.state}`);
+      const buf = ctx.createBuffer(1, f32.length, rate); buf.copyToChannel(f32, 0);
+      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+      Log.d('tts', `▶ sentence ${n} (Web Audio)`, { ctxRate: ctx.sampleRate, secs: +secs.toFixed(2) });
+      return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); });
+    }
+    const el = this.player(), url = out === 'data' ? await wavDataUrl(f32, rate) : URL.createObjectURL(wavBlob(f32, rate));
+    return new Promise((res, rej) => {
+      let over = false; const end = ok => { if (over) return; over = true; if (url.startsWith('blob:')) URL.revokeObjectURL(url); ok ? res() : rej(new Error(`Audio element error ${el.error?.code || ''} ${el.error?.message || ''}`)); };
+      el.onended = () => { Log.d('tts', `■ sentence ${n} ended`); end(true); };
+      el.onerror = () => end(false);
+      el.src = url;
+      el.play().then(() => Log.d('tts', `▶ sentence ${n} playing (${out})`, { secs: +secs.toFixed(2), volume: el.volume, muted: el.muted, readyState: el.readyState }),
+        e => { over = true; rej(e); });
+      setTimeout(() => { if (!over) Log.w('tts', `Sentence ${n}: no "ended" event, moving on`, { paused: el.paused, currentTime: el.currentTime }); end(true); }, secs * 1000 + 2000);
+    });
+  },
   hush() {
     this.sayId++; this.stopNeural?.(); this.stopNeural = null;
-    if (this.el && !this.el.paused && this.el.src !== silenceUrl) try { this.el.pause(); } catch {}
+    if (this.el && !this.el.paused && this.el.src !== silenceUrl) try { this.el.pause(); Log.d('tts', 'Reply cut off'); } catch {}
+    try { this.src?.stop(); } catch {} this.src = null;
     this.cancelled = false;
     try { if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); this.cancelled = true; } } catch {}
     this.session('auto');
   },
   /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */
-  session(type) { try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch {} },
+  session(type) {
+    try { if (navigator.audioSession && navigator.audioSession.type !== type) { Log.d('audio', `Audio session ${navigator.audioSession.type} → ${type}`); navigator.audioSession.type = type; } }
+    catch (e) { Log.w('audio', `Audio session ${type} refused`, e); }
+  },
   player() { if (!this.el) { this.el = new Audio(); this.el.playsInline = true; this.el.preload = 'auto'; } return this.el; },
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
       of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
   unlock() {
     if (this.unlocked) return;
     const el = this.player();
-    try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; }).catch(() => {}); } catch {}
-    try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch {}
+    try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; Log.i('audio', 'Reply player unlocked by a tap'); }).catch(e => Log.w('audio', 'Reply player unlock refused', e)); } catch (e) { Log.w('audio', 'Unlock failed', e); }
+    try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); Log.d('audio', 'Phone voice primed by a tap'); } } catch {}
   },
   loadTTS(show) {
     if (this.tts) return Promise.resolve(this.tts);
     this.ttsLoading ||= (async () => {
+      const s = performance.now(); Log.i('tts', 'Loading the on-device voice (Kokoro)', { cached: !!store.get('kokoroOK') });
       const { KokoroTTS, TextSplitterStream } = await import(KOKORO_URL), files = {};
+      Log.d('tts', `kokoro-js loaded ${Math.round(performance.now() - s)} ms`);
       this.Splitter = TextSplitterStream;
       const tts = await KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: 'q8', device: 'wasm', progress_callback: show ? p => this.progress(p, files, 'reply voice') : null });
       $('#vProg').hidden = true; store.set('kokoroOK', true);
+      Log.i('tts', `On-device voice ready ${Math.round(performance.now() - s)} ms`);
       return tts;
     })();
-    return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; throw e; });
+    return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
   progress(p, files, what) {
+    if (p.status && p.status !== 'progress') Log.d('model', `${what}: ${p.status} ${p.file || ''}`);
     if (p.status !== 'progress' || !p.total) return;
     files[p.file] = [p.loaded, p.total];
     const [l, t] = Object.values(files).reduce((a, [x, y]) => [a[0] + x, a[1] + y], [0, 0]);
@@ -181,6 +232,8 @@ const Voice = {
 
   async start() {
     if (!$('#assistant').hidden && (this.rec || this.sr)) return this.stopRec(); // tap again = done talking
+    Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
+      voiceLoaded: !!this.tts, voiceDownloaded: !!store.get('kokoroOK'), playerUnlocked: !!this.unlocked, silence: settings.vadSilence, lang: settings.voiceLang });
     this.hush(); this.respId++; this.unlock();
     this.open(); $('#vChips').hidden = false;
     this.show('Listening…', this.engine() === 'whisper' ? 'On-device · Whisper base' : 'Phone speech recognition');
@@ -208,7 +261,7 @@ const Voice = {
     catch (e) { this.fail(e); }
   },
   fail(e) {
-    console.warn('Voice failed', e);
+    Log.e('voice', 'Voice failed', e);
     this.show('Voice isn’t available right now', SR ? 'Switching to phone recognition' : 'Tap a suggestion instead');
     if (SR && this.engine() === 'whisper') setTimeout(() => this.listenBrowser(), 900);
   },
@@ -217,6 +270,7 @@ const Voice = {
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
     this.loading ||= (async () => {
+      const s = performance.now(); Log.i('stt', 'Loading Whisper', { cached: !!store.get('whisperOK') });
       const T = await import(TRANSFORMERS_URL);
       T.env.allowLocalModels = false;
       if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
@@ -226,9 +280,10 @@ const Voice = {
         progress_callback: p => this.progress(p, files, 'voice model'),
       });
       $('#vProg').hidden = true; store.set('whisperOK', true);
+      Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms`);
       return pipe;
     })();
-    return this.loading.then(p => (this.pipe = p), e => { this.loading = null; throw e; });
+    return this.loading.then(p => (this.pipe = p), e => { this.loading = null; Log.e('stt', 'Whisper failed to load', e); throw e; });
   },
   /* Listening: record until you've been quiet for the “act after” time (5 s by default). About 0.7 s into a pause
      Whisper already transcribes what it has; if you say nothing more, that guess is used, so the action happens right at the deadline. */
@@ -237,13 +292,18 @@ const Voice = {
     this.hush();
     const opts = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
     let stream;
+    const g = performance.now();
     try { stream = await navigator.mediaDevices.getUserMedia(opts); }
     catch (e) {
       // Often the microphone is still being released from the last turn or a reply: reset and try once more.
-      console.warn('Microphone', e); this.session('auto'); await new Promise(r => setTimeout(r, 400));
+      Log.w('mic', 'Microphone refused, retrying', { name: e.name, message: e.message, session: navigator.audioSession?.type }); this.session('auto'); await new Promise(r => setTimeout(r, 400));
       try { stream = await navigator.mediaDevices.getUserMedia(opts); }
-      catch (e2) { console.warn('Microphone', e2); return this.micError(e2); }
+      catch (e2) { Log.e('mic', 'Microphone refused', { name: e2.name, message: e2.message }); return this.micError(e2); }
     }
+    const track = stream.getAudioTracks()[0];
+    Log.i('mic', `Microphone open ${Math.round(performance.now() - g)} ms`, { label: track?.label, settings: track?.getSettings?.() });
+    track?.addEventListener('mute', () => Log.w('mic', 'Microphone muted by the system'));
+    track?.addEventListener('ended', () => Log.w('mic', 'Microphone track ended'));
     let ctx; try { ctx = new AudioContext({ sampleRate: 16000 }); } catch { ctx = new AudioContext(); }
     const src = ctx.createMediaStreamSource(stream), rate = ctx.sampleRate, limit = Math.max(1, +settings.vadSilence || 5);
     const st = { chunks: [], heard: false, quiet: 0, total: 0, noise: 0.008, guess: null, left: 0 };
@@ -253,6 +313,8 @@ const Voice = {
       let sum = 0; for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
       const rms = Math.sqrt(sum / d.length), dt = d.length / rate; st.total += dt; this.level(rms);
       if (rms > Math.max(0.018, st.noise * 3)) {
+        if (!st.heard) Log.i('stt', `Speech started at ${st.total.toFixed(1)} s`, { rms: +rms.toFixed(3), noise: +st.noise.toFixed(4) });
+        else if (st.left) Log.d('stt', 'More speech; waiting again');
         if (!st.heard || st.left) this.show(st.guess ? $('#asstText').textContent : 'Listening…', 'Speak now · tap the orb when done');
         st.heard = true; st.quiet = 0; st.guess = null; st.left = 0; // more words: the earlier guess is stale
       } else { st.quiet += dt; if (!st.heard) st.noise = st.noise * 0.9 + rms * 0.1; }
@@ -261,7 +323,10 @@ const Voice = {
         const left = Math.ceil(limit - st.quiet);
         if (left !== st.left && left > 0) { st.left = left; $('#asstHint').textContent = `Acting in ${left} s · tap the orb to go now`; }
       }
-      if ((st.heard && st.quiet >= limit) || st.total > 30 || (!st.heard && st.total > 8)) this.stopRec();
+      if ((st.heard && st.quiet >= limit) || st.total > 30 || (!st.heard && st.total > 8)) {
+        Log.i('stt', st.heard ? (st.total > 30 ? 'Stopped: 30 s limit' : `Stopped: ${limit} s of quiet`) : 'Stopped: no speech in 8 s', { seconds: +st.total.toFixed(1) });
+        this.stopRec();
+      }
     };
     let node = null;
     if (ctx.audioWorklet && window.AudioWorkletNode) try {
@@ -270,10 +335,12 @@ const Voice = {
     } catch { node = null; }
     if (!node) { node = ctx.createScriptProcessor(4096, 1, 1); node.onaudioprocess = e => onChunk(new Float32Array(e.inputBuffer.getChannelData(0))); }
     src.connect(node); node.connect(ctx.destination);
+    Log.i('mic', 'Recording', { ctxRate: ctx.sampleRate, ctxState: ctx.state, recorder: node.port ? 'AudioWorklet' : 'ScriptProcessor', actAfter: limit });
     this.rec = { stream, ctx, node, src, st };
     $('#vOrb').classList.add('live');
   },
   micError(e) {
+    Log.e('mic', 'Microphone unavailable', { name: e?.name, message: e?.message });
     $('#vOrb').classList.remove('live');
     if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError')
       return this.show('Microphone permission is off', 'Allow the microphone for this site in the phone’s settings, then reopen DriveDeck');
@@ -281,12 +348,14 @@ const Voice = {
   },
   /** Transcribe what's been said so far, during a pause. */
   guess(st, rate) {
+    Log.d('stt', 'Pause: transcribing what was said so far');
     const p = this.toAudio(st.chunks.slice(), rate).then(a => this.recognise(a));
     st.guess = p;
     p.then(r => { if (st.guess === p && this.rec?.st === st && r.text) $('#asstText').textContent = `“${r.text}”`; }).catch(() => {});
   },
   async stopRec(discard) {
     const r = this.rec; if (!r) return; this.rec = null;
+    Log.d('mic', discard ? 'Recording discarded' : 'Recording stopped', { heard: r.st.heard, usingGuess: !!r.st.guess });
     try { r.node.disconnect(); r.src.disconnect(); if (r.node.port) r.node.port.onmessage = null; } catch {}
     r.stream.getTracks().forEach(t => t.stop());
     const rate = r.ctx.sampleRate, st = r.st; r.ctx.close().catch(() => {});
@@ -296,7 +365,7 @@ const Voice = {
     if (!st.guess) this.show('Understanding…', 'Whisper · on-device');
     try {
       const res = await (st.guess || this.toAudio(st.chunks, rate).then(a => this.recognise(a)));
-      if (!res.text || /^(thank you|thanks for watching|you)[.!]*$/i.test(res.text) && res.secs < 1.6) return this.show('I didn’t catch that', 'Tap the mic and try again');
+      if (!res.text || /^(thank you|thanks for watching|you)[.!]*$/i.test(res.text) && res.secs < 1.6) { Log.w('stt', 'Nothing usable recognised', res); return this.show('I didn’t catch that', 'Tap the mic and try again'); }
       this.heard(res.text, { engine: 'Whisper', lang: res.lang, ms: res.ms });
     } catch (e) { this.fail(e); }
   },
@@ -312,6 +381,7 @@ const Voice = {
       this.inferring = true; const t0 = performance.now();
       try {
         const out = await this.pipe(audio, { language: lang[1], task: lang[1] === 'en' ? 'transcribe' : 'translate' });
+        Log.i('stt', `Whisper ${Math.round(performance.now() - t0)} ms for ${(audio.length / 16000).toFixed(1)} s of audio`, { text: out.text, lang: lang[1] || 'auto' });
         return { text: (out.text || '').trim().replace(/^[\s"“]+|[\s"”]+$/g, ''), ms: performance.now() - t0, secs: audio.length / 16000,
           lang: lang[1] && lang[1] !== 'en' ? `${lang[1].toUpperCase()} → EN` : '' };
       } finally { this.inferring = false; }
@@ -327,20 +397,24 @@ const Voice = {
       const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true;
       let text = '', done = false;
       const finish = () => { if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); };
+      Log.i('stt', 'Phone recognizer starting', { lang: r.lang });
+      r.onstart = () => Log.d('stt', 'Phone recognizer listening');
       r.onresult = e => {
         text = [...e.results].map(x => x[0].transcript).join(' ').trim();
+        Log.d('stt', `Phone recognizer ${e.results[e.results.length - 1].isFinal ? 'final' : 'interim'}`, { text });
         this.show(`“${text}”`, 'Listening…');
         if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); this.heard(text, { engine: 'Phone' }); }
       };
-      r.onerror = e => { finish(); if (done) return; done = true;
+      r.onerror = e => { Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message }); finish(); if (done) return; done = true;
         this.show(e.error === 'not-allowed' ? 'Microphone or speech permission is off' : 'Couldn’t hear you', e.error === 'not-allowed' ? 'Allow them for this site in the phone’s settings' : 'Tap the mic and try again'); };
       // Some phones end without a “final” result: use what was heard so far, and never leave the mic stuck.
-      r.onend = () => { finish(); if (done) return; done = true; text ? this.heard(text, { engine: 'Phone' }) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
+      r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done }); finish(); if (done) return; done = true; text ? this.heard(text, { engine: 'Phone' }) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
       r.start(); $('#vOrb').classList.add('live');
-    } catch { this.show('Tap a suggestion'); }
+    } catch (e) { Log.e('stt', 'Phone recognizer could not start', e); this.show('Tap a suggestion'); }
   },
   /** A phrase was recognised: show it, log it, act on it. */
   heard(text, meta) {
+    Log.i('stt', `Heard: “${text}”`, meta);
     this.show(`“${text}”`, 'Heard'); $('#vChips').hidden = true;
     VoiceLog.you(text, meta);
     setTimeout(() => handleCommand(text, true), 350);
@@ -353,6 +427,9 @@ function wavBlob(f32, rate) {
   b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
   for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
   return new Blob([b], { type: 'audio/wav' });
+}
+function wavDataUrl(f32, rate) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(wavBlob(f32, rate)); });
 }
 let silenceUrl;
 const SILENCE = () => (silenceUrl ||= URL.createObjectURL(wavBlob(new Float32Array(1200), 24000)));

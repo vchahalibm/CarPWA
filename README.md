@@ -104,6 +104,13 @@ All paths are relative, so the app runs from the site root or a sub-path such as
   - Matching tries exact phrases first (longer wording wins, your own commands win ties), then keywords, then again with near-miss words corrected (“navigte” → “navigate”).
 - **Assistant widget**: the conversation by day. It shows your words with the time and engine, DriveDeck's reply with a chip for the app it opened (tap to jump there), and one-tap chips for the phrases you use most. Add it to a widget page or a cluster column.
 
+### Debug mode and logs (for testing, hidden from ordinary users)
+- Open the app with `?debug=<key>` in the URL, e.g. `https://vchahalibm.github.io/CarPWA/?debug=<key>`. In the installed app, which has no address bar, go to **Settings**, tap the **DriveDeck** version row 7 times and enter the key. `?debug=off` or **Turn off debug mode** switches it off and deletes the log.
+- **Settings** then gets a **Logs** tab:
+  - **Voice diagnostics**: what this device supports, and whether the listening and reply voices are loaded. There are buttons to test the on-device voice and the phone voice, now or after 3 s without a tap (like a real reply), and to test the microphone. Two switches change how the on-device voice plays (audio element, data URL or Web Audio) and the audio mode while replying (playback, auto, transient).
+  - **The log**: every tap, screen, setting change, GPS fix, route request and provider, network call, command match (which command, how it matched, which words), hand-off to another app, the microphone and speech recognition steps with timings, each reply sentence generated and played, audio-session changes, errors and warnings. Filter by Problems, Voice, Commands, Navigation, Network or App, or search. **Share** saves it as a text file. It keeps the last 2,500 entries and survives the app being closed.
+- The key only keeps the tab away from ordinary users; it isn't security. The log stays on the device unless you share it.
+
 ### Phone's own apps
 - **Calls, texts, WhatsApp**: add real contacts in **Settings › Phone & apps › Contacts** (or import them where the browser allows). “Call Ravi” opens the phone's dialer, “text Ravi saying running late” opens Messages and “WhatsApp Ravi saying …” opens WhatsApp, each with the text filled in. Sample contacts never dial.
 - **Maps hand-off**: the share button in the route bar (or “navigate to … with Waze / Google Maps”) opens the route in Google Maps, Waze or the phone's maps app.

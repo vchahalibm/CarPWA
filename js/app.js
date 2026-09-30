@@ -1154,6 +1154,8 @@ let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 function renderSettings() {
   if (typeof CmdUI !== 'undefined' && CmdUI.shown) return CmdUI.render();
+  const debug = typeof DebugUI !== 'undefined' && Log.on;
+  if (debug && DebugUI.tab === 'logs') return DebugUI.render();
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${k}:${v}" class="${settings[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const tog = (k, t, s = '') => `<div class="row"><div class="main"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div><button class="switch ${settings[k] ? 'on' : ''}" data-toggle="${k}" role="switch" aria-checked="${!!settings[k]}" aria-label="${t}"></button></div>`;
   const btn = (a, t, v = '') => `<button class="row btn" data-action="${a}"><div class="main"><div class="t">${t}</div></div><span class="val">${v}</span></button>`;
@@ -1161,7 +1163,7 @@ function renderSettings() {
   const routerNote = settings.router === 'tomtom'
     ? (settings.tomtomKey ? 'Live-traffic travel times from TomTom' : 'Add your free TomTom key below')
     : 'OpenStreetMap routing · typical travel times, no live traffic';
-  $('#settingsBody').innerHTML = `
+  $('#settingsBody').innerHTML = `${debug ? DebugUI.tabs() : ''}
     <div class="group-title">Display</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Appearance</div></div>${seg('theme', [['auto', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}</div>
@@ -1218,7 +1220,7 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
-      <div class="row"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.3</span></div>
+      <button class="row" data-action="versionTap"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.4${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
 }
 
@@ -1322,6 +1324,7 @@ const ACTIONS = {
       if (id === 'shortcut') { const n = prompt('Name of the shortcut that plays music:', settings.musicShortcut || 'DriveDeck Play'); if (!n) return; settings.musicShortcut = n.trim(); }
       settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   commands: () => CmdUI.open(),
+  versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),
   ttsVoice: () => sheet('Reply voice', '<p>The on-device voice that answers you and reads directions.</p>',
     [...Object.entries(TTS_VOICES).map(([id, [name]]) => [name + (settings.ttsVoice === id ? ' ✓' : ''), () => { settings.ttsVoice = id; applySettings(); renderSettings(); Voice.speak('This is how I sound.'); }]), ['Cancel']]),
   ttsModel: () => { Voice.open(); Voice.show('Downloading the reply voice…', 'Kokoro · one time'); Voice.loadTTS(true).then(() => { Voice.show('Reply voice ready', 'Works offline from now on'); Voice.speak('Reply voice ready.'); Voice.closeT = setTimeout(() => Voice.close(), 2500); if (current === 'settings') renderSettings(); }).catch(e => { console.warn(e); Voice.show('Couldn’t download the reply voice', 'Check the connection and try again'); }); },

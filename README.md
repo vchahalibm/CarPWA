@@ -8,7 +8,7 @@ The original single-file prototype lives in [`docs/prototype.html`](docs/prototy
 
 ## Getting started
 
-Plain HTML, CSS and JavaScript: no frameworks, no bundler, no build step, no npm. Serve the folder with any static web server:
+Plain HTML, CSS and JavaScript: no frameworks, no bundler, no build step, no npm (npm is used only by the optional desktop wrapper in `desktop/`). Serve the folder with any static web server:
 
 ```bash
 python3 -m http.server 8000     # then open http://localhost:8000
@@ -40,7 +40,10 @@ icons/                    App icons; icon.svg is the source artwork
 vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
+docs/memory-strategy.md   How on-device models share a phone's memory
+desktop/                  Electron wrapper: the same web files as a Mac app (DMG)
 .github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)
+.github/workflows/desktop.yml  Builds the Mac DMGs
 ```
 
 All paths are relative, so the app runs from the site root or a sub-path such as `/CarPWA/`.
@@ -130,6 +133,20 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - **Map tiles**: OpenFreeMap is free and keyless. Elevation for 3D terrain comes from the free AWS Terrain Tiles dataset.
 - **AR accuracy**: phone GPS is off by 5–10 m and a car's metal disturbs the compass, so the ribbon shows the road ahead and upcoming turns rather than locking onto a lane. Mount the phone upright, facing forward, then use **Calibrate** once.
 - **HTTPS for GPS and camera**: location, camera and motion sensors work on `localhost` on desktop, but phones need HTTPS. To test on a phone, use the GitHub Pages deploy (below).
+
+## Desktop app (Mac)
+
+The same app as a Mac app, for a laptop or a car computer. There are no separate sources: `desktop/main.js` opens the web files in an Electron window. Differences from the web version:
+- **Memory**: a computer keeps up to four large models loaded (a phone keeps one), so listening, the reply voice and later camera models run together.
+- **Listening**: always Whisper on the device. Chromium's built-in recognizer needs a Google key that Electron doesn't have. On a Mac, Whisper runs on the GPU.
+- **Files**: the app's files ship inside the app, so it opens offline from the first launch. Models download on first use and stay cached, as on the web.
+- **Other apps**: music, maps, messages and shortcut links open the Mac's own apps (or the web page when there's no app).
+
+**Get it:** open **Actions › Desktop app** on GitHub, pick the latest run and download **DriveDeck-mac**. It contains a DMG for Apple silicon (`arm64`) and one for Intel (`x64`). Pushing a tag like `desktop-v0.4.0` also publishes the DMGs as a GitHub release. The app isn't notarised (that needs a paid Apple developer account), so after dragging it to Applications run `xattr -cr /Applications/DriveDeck.app` once in Terminal, or right-click it and choose **Open**. macOS asks once for the microphone and camera. Live location depends on Electron's location support on the Mac; without it, the map and demo drive still work.
+
+**From source:** `cd desktop && npm install && npm start`. `npm run dist` builds the DMGs; this needs a Mac.
+
+The desktop app doesn't update itself: download the new DMG to update. The web version updates on its own.
 
 ## Deployment (GitHub Pages)
 

@@ -1,0 +1,54 @@
+name: Desktop app
+
+# Builds the Mac DMGs (Apple silicon and Intel) from the same web files as the PWA.
+# Every run keeps them as a downloadable artifact; a tag like desktop-v0.4.0 also publishes a GitHub release.
+on:
+  push:
+    branches: [main]
+    tags: ['desktop-v*']
+    paths: ['index.html', 'manifest.webmanifest', 'sw.js', 'css/**', 'js/**', 'vendor/**', 'icons/**', 'desktop/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+      - name: Build the DMGs (ad-hoc signed)
+        working-directory: desktop
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DriveDeck-mac
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: mac
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DriveDeck-mac
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: '*.dmg'
+          body: |
+            DriveDeck for Mac. Download the DMG for your Mac: **arm64** for Apple silicon (M1 and later), **x64** for Intel.
+            The app isn't notarised: after dragging it to Applications, run `xattr -cr /Applications/DriveDeck.app` once in Terminal (or right-click › Open).

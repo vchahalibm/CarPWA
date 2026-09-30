@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: 22
       - name: Syntax-check scripts
-        run: for f in js/*.js sw.js; do node --check "$f"; done
+        run: for f in js/*.js sw.js desktop/main.js; do node --check "$f"; done
       - name: Validate manifest
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'))"
       - name: Check service worker precache list

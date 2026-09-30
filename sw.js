@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v18';
+const VERSION = 'v19';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -36,8 +36,11 @@ const SHELL = [
 
 // A new version installs in the background and waits; the page asks the driver before switching,
 // so an update never swaps code mid-drive. The first install has nothing to replace and activates at once.
+// The desktop app serves its own files from app://, which the Cache API can't hold (and doesn't need): there this
+// worker only caches the voice runtime from the CDN.
+const WEB = /^https?:$/.test(self.location.protocol);
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
+  if (WEB) e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
 });
 
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
@@ -97,5 +100,5 @@ self.addEventListener('fetch', e => {
   else if (url.hostname === 'api.open-meteo.com') e.respondWith(fresh(req));
   // On-device Whisper: transformers.js and the ONNX runtime come from versioned CDN URLs, so cache-first. Model files are cached by the library itself.
   else if (url.hostname === 'cdn.jsdelivr.net' && /^\/npm\/(onnxruntime-web|@huggingface\/transformers|kokoro-js)@/.test(url.pathname)) e.respondWith(tile(req, VOICE_CACHE, 20));
-  else if (url.origin === self.location.origin) e.respondWith(shell(req));
+  else if (WEB && url.origin === self.location.origin) e.respondWith(shell(req));
 });

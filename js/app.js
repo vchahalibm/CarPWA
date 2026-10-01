@@ -139,6 +139,7 @@ function applySettings() {
   $('#app').style.setProperty('--wallpaper', WALLS[settings.wallpaper][theme]);
   renderLimit(); updateSpeedUI(); updateDrive();
   syncWakeLock(); restyleMaps(); applyDock();
+  $('#app').classList.toggle('seamless', !!settings.seamless);
   store.set('settings', settings);
 }
 darkMQ.addEventListener?.('change', () => settings.theme === 'auto' && applySettings());
@@ -1171,6 +1172,7 @@ function renderSettings() {
       <div class="row"><div class="main"><div class="t">Appearance</div></div>${seg('theme', [['auto', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}</div>
       <div class="row"><div class="main"><div class="t">Wallpaper</div></div><div class="swatches">${WALLS.map((w, i) =>
         `<button class="swatch ${settings.wallpaper === i ? 'on' : ''}" data-wall="${i}" style="background:${w[resolvedTheme()]}" aria-label="Wallpaper ${i + 1}"></button>`).join('')}</div></div>
+      ${tog('seamless', 'Seamless widgets', 'Widgets merge into one surface: no gaps, borders or separate cards')}
     </div>
     <div class="group-title">Dashboard</div>
     <div class="group">
@@ -1358,7 +1360,7 @@ const CLICK = {
   panel: v => { if (v === 'back') { panel.mode = 'home'; renderMapPanel(); } else { panel.collapsed = !panel.collapsed; renderMapPanel(); } },
   dest: v => startNav(panelItems[+v]),
   set: v => { const [k, val] = v.split(':'); settings[k] = val; applySettings(); renderSettings(); if (k === 'units') { wx = null; renderDashTiles(); } },
-  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); },
+  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); if (v === 'seamless' && typeof Dash !== 'undefined') requestAnimationFrame(() => Dash.fitGrid()); },
   mode: v => setMode(v),
   sheet: v => { const fn = sheetFns[+v]; closeSheet(); fn?.(); },
   save: v => { const d = panelItems[+v]; if (!d) return;

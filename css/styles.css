@@ -859,6 +859,17 @@ svg{display:block;flex:none}
 .wg.add{align-items:center;justify-content:center;border-style:dashed;color:var(--text-2);font-weight:700}
 .wg.add svg{width:36px;height:36px}
 
+/* Seamless widgets (Settings › Display): the widgets of a page or column share one surface, with no gaps, borders
+   or separate cards. Edit mode still outlines each widget so it can be moved. */
+.seamless .wgrid{gap:0;background:var(--panel-2);border:1px solid var(--line);border-radius:28px;overflow:hidden}
+.seamless .wgrid.fit{overflow:hidden}
+.seamless .cl-side{gap:0;background:var(--panel-2);border:1px solid var(--line);border-radius:28px;overflow:hidden}
+.seamless .pcol{gap:0;background:var(--panel);border:1px solid var(--line);border-radius:28px;overflow:hidden}
+.seamless .pcol > .pane{border:0;border-radius:0}
+.seamless .wg{border-radius:0;border-color:transparent;background:transparent}
+.seamless .editing .wg:not(.add){outline:1px dashed color-mix(in srgb,var(--acc) 55%,transparent);outline-offset:-1px}
+.seamless .wg.add{border-color:transparent}
+
 /* Widgets beside the cluster */
 .cl-wrap{height:100%;display:flex;gap:10px;min-height:0}
 .cl-main{flex:1;min-width:0;height:100%}

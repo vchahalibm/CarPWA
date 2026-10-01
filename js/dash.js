@@ -426,7 +426,7 @@ const Dash = {
   /** Fit every widget page: pick the column count and row height so all widgets (with their spans) fit; scroll only when cells would get too small. */
   fitGrid() { $$('#dashRoot .wgrid').forEach(g => this.fitOne(g)); },
   fitOne(g) {
-    const items = [...g.children], W = g.clientWidth, H = g.clientHeight, gap = 12;
+    const items = [...g.children], W = g.clientWidth, H = g.clientHeight, gap = parseFloat(getComputedStyle(g).rowGap) || 0; // 0 when seamless
     if (!W || !H) return;
     const spans = items.map(el => [+el.dataset.cw || 1, +el.dataset.ch || 1]);
     const area = spans.reduce((a, [w, h]) => a + w * h, 0);

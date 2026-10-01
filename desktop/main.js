@@ -52,6 +52,22 @@ app.whenReady().then(() => {
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, perm, cb) => cb(ALLOWED.has(perm) && wc.getURL().startsWith(ORIGIN)));
   ses.setPermissionCheckHandler((wc, perm, origin) => ALLOWED.has(perm) && String(origin || wc?.getURL() || '').startsWith(ORIGIN));
+  // YouTube's embedded player now requires a referrer, which pages served from app:// don't send: give it the app's web address.
+  ses.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/*', 'https://www.youtube.com/*'] }, (d, cb) => {
+    if (!d.requestHeaders.Referer) d.requestHeaders.Referer = 'https://vchahalibm.github.io/CarPWA/';
+    cb({ requestHeaders: d.requestHeaders });
+  });
+  // Web-page and document widgets: many sites (SharePoint among them) refuse to be shown inside another app. In this app, which
+  // shows only pages the user chose, let them show inside the widget. Only frames inside DriveDeck's own page are affected.
+  ses.webRequest.onHeadersReceived((d, cb) => {
+    if (d.resourceType !== 'subFrame' || !d.frame?.parent || !String(d.frame.parent.url || '').startsWith(ORIGIN)) return cb({});
+    const h = {};
+    for (const [k, v] of Object.entries(d.responseHeaders || {})) {
+      if (k.toLowerCase() === 'x-frame-options') continue;
+      h[k] = k.toLowerCase() === 'content-security-policy' ? v.map(x => x.replace(/frame-ancestors[^;]*;?/gi, '')) : v;
+    }
+    cb({ responseHeaders: h });
+  });
   if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' }, { role: 'editMenu' },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },

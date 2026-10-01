@@ -163,6 +163,12 @@ const BUILTINS = {
   radioNext: { group: 'Radio', name: 'Next radio station', run: (v, say) => Actions.run('radio.next', '', say) },
   radioStop: { group: 'Radio', name: 'Stop the radio', run: (v, say) => Actions.run('radio.stop', '', say) },
   radioStations: { group: 'Radio', name: 'Show the radio stations', run: (v, say) => say('Here are the stations.', () => Radio.browse()) },
+  // Documents & media widgets (js/media.js)
+  docNext: { group: 'Media', name: 'Next page or slide', run: (v, say) => act('doc.next', '', say, 'Next page.') },
+  docPrev: { group: 'Media', name: 'Previous page or slide', run: (v, say) => act('doc.prev', '', say, 'Previous page.') },
+  docPage: { group: 'Media', name: 'Go to a page or slide', run: (v, say) => act('doc.page', v.n || v.q || '', say, `Page ${v.n || v.q}.`) },
+  videoPlay: { group: 'Media', name: 'Play the video', run: (v, say) => act('video.play', '', say, 'Playing the video.') },
+  videoPause: { group: 'Media', name: 'Pause the video', run: (v, say) => act('video.pause', '', say, 'Video paused.') },
   musicApp: { group: 'Music', name: 'Open my music app', run: (v, say) => settings.musicApp === 'demo' ? say('Opening music.', () => openView('music'))
     : say(`Opening ${MUSIC_APPS[settings.musicApp][0]}.`, () => playInMusicApp(''), { leaves: true }) },
 
@@ -231,6 +237,8 @@ function message(v, say, wa) {
   const body = (v.msg || '').trim();
   say(`${wa ? 'WhatsApp' : 'Message'} to ${c.n}${body ? ': ' + body : ''}.`, () => (wa ? whatsappContact : textContact)(c, body), { leaves: true });
 }
+/** Run a widget action by voice, confirming with `ok` unless the action already said something (e.g. that the widget is missing). */
+function act(id, value, say, ok) { let said = false; Actions.run(id, value, (m, then, o) => { said = true; say(m, then, o); }); if (!said) say(ok); }
 function setDock(hide) { settings.dockHidden = hide; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); }
 /** Bring a widget into view: switch to the widget layout, add it to the current page if it isn't on one, then scroll to its page. */
 function showWidget(id, say) {
@@ -277,6 +285,11 @@ const DEFAULT_COMMANDS = [
   { id: 'radio.next', name: 'Next radio station', say: ['(next|another|different) (station|channel|radio station)', 'change [the] (station|channel|radio station|radio)'], do: { type: 'builtin', fn: 'radioNext' } },
   { id: 'radio.stop', name: 'Stop the radio', say: ['(pause|stop|turn off|switch off|mute) [the] radio', 'radio off'], do: { type: 'builtin', fn: 'radioStop' } },
   { id: 'radio.list', name: 'Show the radio stations', say: ['(show|open|list) [the|my] [radio] stations', 'which stations'], do: { type: 'builtin', fn: 'radioStations' } },
+  { id: 'media.next', name: 'Next page or slide', say: ['next (slide|page)', '(go|move|turn) [to] [the] next (slide|page)', 'turn [the] page'], do: { type: 'builtin', fn: 'docNext' } },
+  { id: 'media.prev', name: 'Previous page or slide', say: ['(previous|last) (slide|page)', '(go|move) back [a|one] (slide|page)', '(go|move) [to] [the] previous (slide|page)'], do: { type: 'builtin', fn: 'docPrev' } },
+  { id: 'media.page', name: 'Go to a page or slide', say: ['(go to|show|open|jump to) (slide|page) [number] {n}', '(slide|page) [number] {n}'], do: { type: 'builtin', fn: 'docPage' } },
+  { id: 'media.play', name: 'Play the video', say: ['(play|resume|start|continue) [the] (video|youtube video|clip)'], do: { type: 'builtin', fn: 'videoPlay' } },
+  { id: 'media.pause', name: 'Pause the video', say: ['(pause|stop) [the] (video|youtube video|clip)'], do: { type: 'builtin', fn: 'videoPause' } },
   { id: 'music.app', name: 'Open my music app', say: ['open [my|the] music app'], do: { type: 'builtin', fn: 'musicApp' } },
   // Phone & messages
   { id: 'phone.call', name: 'Call someone', say: ['(call|dial|ring|phone) {who}', '(make|place) a call to {who}', 'give {who} a (call|ring)'], do: { type: 'builtin', fn: 'call' } },
@@ -465,7 +478,7 @@ function handleCommand(raw, spoken) { Commands.run(raw, spoken); }
    ============================================================ */
 const ACTION_TYPES = [['builtin', 'Do a DriveDeck action'], ['action', 'Do a widget action (radio, documents…)'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
   ['widget', 'Show a widget'], ['screen', 'Open a DriveDeck screen'], ['say', 'Just reply']];
-const GROUPS = ['Navigation', 'Music', 'Radio', 'Phone', 'Info', 'Dashboard', 'Assistant'];
+const GROUPS = ['Navigation', 'Music', 'Radio', 'Media', 'Phone', 'Info', 'Dashboard', 'Assistant'];
 function actionLabel(d = {}) {
   if (d.type === 'builtin') return BUILTINS[d.fn]?.name || 'Missing action';
   if (d.type === 'action') return (typeof Actions !== 'undefined' && Actions.list[d.action]?.name) || 'Missing action';

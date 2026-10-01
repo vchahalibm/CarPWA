@@ -370,7 +370,18 @@ const Dash = {
   },
   addTile(where, label = 'Add') { return `<button class="wg add" data-cw="1" data-ch="1" data-dash="add:${where}">${svg('plus')}<span>${label}</span></button>`; },
 
-  show() { this.render(); },
+  /** Coming back to the dashboard: draw it again only if something about it changed, so playing videos, open
+      documents and web pages in widgets carry on where they were. */
+  key() { return JSON.stringify([this.layout, this.style, this.editing, settings.units, settings.accent, store.get('widgetPages'), store.get('widgets'),
+    store.get('clusterSides'), store.get('paneCols'), store.get('wsizes'), store.get('wcfg')]); },
+  show() {
+    if (this.lastKey && this.lastKey === this.key() && $('#dashRoot')?.childElementCount) {
+      this.placeMap(!!(this.layout === 'cluster' && CLUSTERS[this.style].map3d)); this.update(true); this.fitGrid(); Bar.show();
+      const box = $('#wpages'); if (box) box.scrollLeft = Math.min(store.get('wpage', 0), this.pages().length - 1) * box.clientWidth; // e.g. “show page 2”
+      return;
+    }
+    this.render();
+  },
   render() {
     const root = $('#dashRoot'); if (!root) return;
     document.documentElement.dataset.accent = settings.accent || CLUSTERS[this.style].accent;
@@ -408,6 +419,8 @@ const Dash = {
     shownLimit = ''; renderLimit(); updateSpeedUI(); updatePlayerUI();
     this.update(true);
     this.fitGrid(); this.initPages(); Bar.show();
+    this.lastKey = this.key();
+    Bus.emit('dash.rendered');
   },
   /** Turn each cluster pane (dial, map…) into a column that can hold widgets above and below it. */
   columnize(root) {

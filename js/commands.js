@@ -169,6 +169,10 @@ const BUILTINS = {
   docPage: { group: 'Media', name: 'Go to a page or slide', run: (v, say) => act('doc.page', v.n || v.q || '', say, `Page ${v.n || v.q}.`) },
   videoPlay: { group: 'Media', name: 'Play the video', run: (v, say) => act('video.play', '', say, 'Playing the video.') },
   videoPause: { group: 'Media', name: 'Pause the video', run: (v, say) => act('video.pause', '', say, 'Video paused.') },
+  // Camera & objects (js/vision.js)
+  whatSee: { group: 'Camera', name: 'What does the camera see?', run(v, say) { if (settings.detAnswer && settings.detOn) Voice.show('Looking…', 'Camera · on this device'); Vision.describe().then(t => say(t)); } },
+  alertsOn: { group: 'Camera', name: 'Turn object alerts on', run: (v, say) => { settings.detAlerts = true; applySettings(); say(`Object alerts on, for ${(settings.detAlertList || DEFAULT_ALERTS).join(', ')}.`); } },
+  alertsOff: { group: 'Camera', name: 'Turn object alerts off', run: (v, say) => { settings.detAlerts = false; applySettings(); say('Object alerts off.'); } },
   musicApp: { group: 'Music', name: 'Open my music app', run: (v, say) => settings.musicApp === 'demo' ? say('Opening music.', () => openView('music'))
     : say(`Opening ${MUSIC_APPS[settings.musicApp][0]}.`, () => playInMusicApp(''), { leaves: true }) },
 
@@ -285,6 +289,9 @@ const DEFAULT_COMMANDS = [
   { id: 'radio.next', name: 'Next radio station', say: ['(next|another|different) (station|channel|radio station)', 'change [the] (station|channel|radio station|radio)'], do: { type: 'builtin', fn: 'radioNext' } },
   { id: 'radio.stop', name: 'Stop the radio', say: ['(pause|stop|turn off|switch off|mute) [the] radio', 'radio off'], do: { type: 'builtin', fn: 'radioStop' } },
   { id: 'radio.list', name: 'Show the radio stations', say: ['(show|open|list) [the|my] [radio] stations', 'which stations'], do: { type: 'builtin', fn: 'radioStations' } },
+  { id: 'vision.what', name: 'What do you see?', say: ['what (do|can) you see', '(what’s|what is) (around|ahead|in front of) [me|us]', 'describe [the] (road|scene|view|surroundings)', '(what’s|what is) on [the] camera', 'what (is|are) in front of [me|us]'], do: { type: 'builtin', fn: 'whatSee' } },
+  { id: 'vision.alertsOn', name: 'Turn object alerts on', say: ['(turn on|enable|start) [the] (object|camera) (alerts|warnings)', '(warn|alert) me about (objects|people|pedestrians)'], do: { type: 'builtin', fn: 'alertsOn' } },
+  { id: 'vision.alertsOff', name: 'Turn object alerts off', say: ['(turn off|disable|stop) [the] (object|camera) (alerts|warnings)'], do: { type: 'builtin', fn: 'alertsOff' } },
   { id: 'media.next', name: 'Next page or slide', say: ['next (slide|page)', '(go|move|turn) [to] [the] next (slide|page)', 'turn [the] page'], do: { type: 'builtin', fn: 'docNext' } },
   { id: 'media.prev', name: 'Previous page or slide', say: ['(previous|last) (slide|page)', '(go|move) back [a|one] (slide|page)', '(go|move) [to] [the] previous (slide|page)'], do: { type: 'builtin', fn: 'docPrev' } },
   { id: 'media.page', name: 'Go to a page or slide', say: ['(go to|show|open|jump to) (slide|page) [number] {n}', '(slide|page) [number] {n}'], do: { type: 'builtin', fn: 'docPage' } },
@@ -478,7 +485,7 @@ function handleCommand(raw, spoken) { Commands.run(raw, spoken); }
    ============================================================ */
 const ACTION_TYPES = [['builtin', 'Do a DriveDeck action'], ['action', 'Do a widget action (radio, documents…)'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
   ['widget', 'Show a widget'], ['screen', 'Open a DriveDeck screen'], ['say', 'Just reply']];
-const GROUPS = ['Navigation', 'Music', 'Radio', 'Media', 'Phone', 'Info', 'Dashboard', 'Assistant'];
+const GROUPS = ['Navigation', 'Music', 'Radio', 'Media', 'Camera', 'Phone', 'Info', 'Dashboard', 'Assistant'];
 function actionLabel(d = {}) {
   if (d.type === 'builtin') return BUILTINS[d.fn]?.name || 'Missing action';
   if (d.type === 'action') return (typeof Actions !== 'undefined' && Actions.list[d.action]?.name) || 'Missing action';

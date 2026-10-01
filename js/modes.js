@@ -85,6 +85,23 @@ const HUD = {
 };
 listeners.push(() => HUD.render());
 
+/* ---------- The rear camera, shared by AR mode and the Camera widget (phones allow one stream at a time) ---------- */
+const Camera = {
+  stream: null, users: new Set(),
+  async get(user) {
+    this.users.add(user);
+    if (this.stream?.active) return this.stream;
+    this.opening ||= navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+      .finally(() => { this.opening = null; });
+    try { this.stream = await this.opening; Log.i('camera', 'Camera on', { for: [...this.users], settings: this.stream.getVideoTracks()[0]?.getSettings?.() }); return this.stream; }
+    catch (e) { this.users.delete(user); throw e; }
+  },
+  release(user) {
+    this.users.delete(user);
+    if (!this.users.size && this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; Log.i('camera', 'Camera off'); }
+  },
+};
+
 /* ============================================================
    AR: camera + route ribbon projected with the phone's tilt sensors.
    Direction comes from the GPS course while moving (a car's metal throws
@@ -111,8 +128,9 @@ const AR = {
   },
   stop() {
     this.running = false; cancelAnimationFrame(this.raf);
-    this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
+    if (this.stream) Camera.release('ar'); this.stream = null;
     $('#arVideo').srcObject = null; $('#ar').hidden = true; $('#arCal').hidden = true;
+    Bus.emit('ar.stop');
   },
   note(text) { $('#arNote').textContent = text; $('#arNote').hidden = !text; },
   async enableOrientation() {
@@ -134,9 +152,9 @@ const AR = {
   async enableCamera() {
     if (this.stream) return;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      this.stream = await Camera.get('ar'); // shared with the Camera widget: phones give one camera stream at a time
       const v = $('#arVideo'); v.srcObject = this.stream; await v.play();
+      Bus.emit('ar.start');
     } catch (e) {
       console.warn('Camera unavailable', e);
       this.note(window.isSecureContext ? 'Camera unavailable, showing a simulated road' : 'The camera needs HTTPS, showing a simulated road');

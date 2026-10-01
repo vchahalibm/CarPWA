@@ -37,6 +37,7 @@ js/events.js              The app-wide event bus (Bus)
 js/widgets.js             Actions, widget links and Settings › Widget links
 js/radio.js               Internet radio: player, station directory, widget
 js/media.js               Document, video, web page and 3D model widgets
+js/vision.js              Camera widget and offline object recognition (YOLOv10 / D-FINE)
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
@@ -133,6 +134,16 @@ Four widget types you can add as many times as you like, each showing its own th
 - **3D model**: a `.glb` file or a link to a `.glb`/`.gltf`, shown with Google's [model-viewer](https://modelviewer.dev/) (Apache-2.0, `vendor/model-viewer/`): drag to turn, pinch to zoom, slowly turning on its own.
 - Coming back to the dashboard from another screen keeps them exactly where they were (a video keeps playing, a document stays on its page).
 - Links and voice commands can drive them: “Next page or slide”, “Go to a page”, “Show a document”, “Play/Pause the video”, “Show a video”, “Show a web page”, “Show a 3D model”. They also announce **A document changes page** and **A video ends**.
+
+### Camera and object recognition (offline)
+- **Camera widget** (add it in Edit): the rear camera with boxes around what it recognises and a line saying what it sees, e.g. “a person and 2 cars”. Tap **Start camera** once; it starts again by itself next time. **AR mode** draws the same boxes over its camera view (the two share one camera).
+- Recognition runs **on the device, offline**, in its own background worker and within the memory budget, on 2–5 frames a second, each frame shrunk before it's checked. Two models, chosen in **Settings › Camera & objects › Recognition model**:
+  - **YOLOv10 nano** (default): the fastest; licence **AGPL-3.0**.
+  - **D-FINE nano**: more accurate, a little slower; licence **Apache-2.0**.
+  - Both know the 80 everyday COCO objects: people, cars, trucks, buses, bikes, motorbikes, animals, traffic lights and stop signs among them. They don't read speed-limit or other signs. The model downloads once (about 10–15 MB) and is cached.
+- **Spoken alerts** (off until you turn them on): “Person ahead.”, “Dog on the left.” for the objects you pick in **Alert for**, when one is close (big in the frame; traffic lights and stop signs at any size), at most every 10 seconds per kind. Alerts never talk over the assistant. Voice: “turn on object alerts”, “turn off object alerts”.
+- **“What do you see?”** (also “what's ahead?”, “describe the road”): answered from the live view, e.g. “I can see a person ahead and a car on the left.” If the camera isn't on, DriveDeck takes a quick look and turns it off again. **Answer “what do you see?”** in Settings turns this off.
+- For links: **The camera sees something new** (carries a summary) and **The camera spots an alert object**; actions **Start/Stop the camera widget** and **Say what the camera sees**.
 
 ### Widget links (one widget drives another)
 - **Settings › Dashboard › Widget links**: *when* something happens, *do* an action. Events: a route starts, you arrive, a route ends, the car starts moving or stops, a screen opens, you say something, a voice command runs, a station starts or stops, the assistant starts or finishes listening. Actions: play a station, next station, stop the radio, show the stations, say something, run a voice command, navigate somewhere, end the route, open a screen, show a widget page, play or pause music.

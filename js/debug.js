@@ -154,8 +154,8 @@ const DebugUI = {
       </div>
       <div class="group-title">Memory</div>
       <div class="group">
-        ${info('Budget', `${Budget.cls()} class${store.get('devClass') ? ' (set here)' : ' (detected)'}: ${Budget.slots()} large model${Budget.slots() > 1 ? 's' : ''} at once · loaded: ${[...Budget.loaded].map(([k, m]) => `${k} (${m.label})`).join(', ') || 'none'}${store.get('tooBig', []).length ? ` · too big here: ${store.get('tooBig', []).join(', ')}` : ''}${store.get('slotsLost', 0) ? ` · budget lowered by ${store.get('slotsLost', 0)} after a crash` : ''}`)}
-        <div class="row"><div class="main"><div class="t">Device class</div><div class="s">Phone: listening and the reply voice take turns · tablet: 2 at once · computer: 4</div></div><div class="seg">${[['', 'Auto'], ['phone', 'Phone'], ['tablet', 'Tablet'], ['desktop', 'Computer']].map(([v, l]) => `<button data-dbg="cls:${v}" class="${(store.get('devClass') || '') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        ${info('Budget', `${Budget.cls()} class${store.get('devClass') ? ' (set here)' : ' (detected)'}: ${Budget.total()} MB for models, ${Budget.used()} MB in use · loaded: ${[...Budget.loaded].map(([k, m]) => `${k} (${m.label}, ${m.mb} MB)`).join(', ') || 'none'}${store.get('tooBig', []).length ? ` · too big here: ${store.get('tooBig', []).join(', ')}` : ''}${store.get('slotsLost', 0) ? ` · lowered ${store.get('slotsLost', 0)}× after a crash` : ''}`)}
+        <div class="row"><div class="main"><div class="t">Device class</div><div class="s">Memory for models: phone 400 MB (reply voice + detector; Whisper takes turns) · tablet 1.1 GB · computer 3.2 GB</div></div><div class="seg">${[['', 'Auto'], ['phone', 'Phone'], ['tablet', 'Tablet'], ['desktop', 'Computer']].map(([v, l]) => `<button data-dbg="cls:${v}" class="${(store.get('devClass') || '') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
         ${btn('budgetReset', 'Forget the crash history', 'try skipped builds again')}
         ${btn('env', 'Write device details to the log')}
       </div>
@@ -234,9 +234,9 @@ document.addEventListener('click', e => {
   else if (a === 'diag') { Diag.set(x, y); DebugUI.render(); }
   else if (a === 'test') x === 'mic' ? DebugUI.micTest() : DebugUI.test(x, +y || 0);
   else if (a === 'bench') STTBench.ask();
-  else if (a === 'cls') { store.set('devClass', x || null); Log.i('mem', `Device class → ${Budget.cls()}`, { slots: Budget.slots() }); DebugUI.render(); }
+  else if (a === 'cls') { store.set('devClass', x || null); Log.i('mem', `Device class → ${Budget.cls()}`, { totalMB: Budget.total() }); DebugUI.render(); }
   else if (a === 'budgetReset') { Budget.reset(); DebugUI.render(); }
-  else if (a === 'env') { Log.i('app', 'Device details', { ...Log.env(), settings, reply: Diag.get(), memory: { class: Budget.cls(), slots: Budget.slots(), loaded: [...Budget.loaded.keys()], tooBig: store.get('tooBig', []) } }); }
+  else if (a === 'env') { Log.i('app', 'Device details', { ...Log.env(), settings, reply: Diag.get(), memory: { class: Budget.cls(), totalMB: Budget.total(), usedMB: Budget.used(), loaded: [...Budget.loaded.keys()], tooBig: store.get('tooBig', []) } }); }
   else if (a === 'copy') navigator.clipboard?.writeText(Log.text()).then(() => toast('Log copied'), () => toast('Copy isn’t allowed here: use Share'));
   else if (a === 'share') DebugUI.share();
   else if (a === 'pause') { DebugUI.paused = !DebugUI.paused; b.textContent = DebugUI.paused ? 'Resume' : 'Pause'; if (!DebugUI.paused) DebugUI.list(); }

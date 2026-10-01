@@ -84,7 +84,7 @@ Full-duplex needs listening and the reply voice loaded together:
 3a. ✅ **Desktop build** (`desktop/`, Electron): the same web files as a Mac app. It gets the computer budget (4 models at once), and macOS doesn't kill the app for memory the way iOS kills a tab.
 3b. ✅ **Budget by size, and the device's recognizer by default.** Each build has an estimated resident size (Whisper 250–300 MB, reply voice 180–380 MB, detector ~90 MB); allowances are phone 400 MB, tablet 1.1 GB, computer 3.2 GB, lowered a quarter per crash. Listening uses the device's own recognizer by default (no model at all), so a phone's allowance goes to the reply voice and the object detector. Whisper stays an option, and is used where there is no recognizer (the Mac app).
 4. **Slim the map while models load** (terrain off on phones during AI loads, smaller tile cache).
-5. **Vision:** detector worker plus camera pipeline, then cloud summaries (with an offline fallback).
+5. ✅ **Vision (offline):** detector worker (YOLOv10 nano, AGPL-3.0, or D-FINE nano, Apache-2.0), ~90 MB in the budget, 2–5 frames a second shrunk to 640 px and transferred, one shared camera stream for the widget and AR. Summaries are built from the detections on the device (no cloud).
 6. Later: one shared runtime for all models; WebNN when Safari ships it; a native shell only if the phone must run many models at once.
 
 ## Sources

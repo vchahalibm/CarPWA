@@ -118,7 +118,8 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
+  detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
@@ -1188,6 +1189,16 @@ function renderSettings() {
       ${typeof Links !== 'undefined' ? btn('links', 'Widget links', `${Links.all().filter(k => k.on !== false).length} on`) : ''}
       ${typeof Radio !== 'undefined' ? btn('radio', 'Radio stations', Radio.cur ? esc(Radio.cur.name) : 'Choose') : ''}
     </div>
+    ${typeof Vision !== 'undefined' ? `<div class="group-title">Camera &amp; objects</div>
+    <div class="group">
+      ${tog('detOn', 'Recognise objects', 'On this device, offline: people, vehicles, bikes, animals, traffic lights, stop signs')}
+      <div class="row"><div class="main"><div class="t">Recognition model</div><div class="s">${esc(VISION_MODELS[settings.detModel]?.note || '')} · licence ${esc(VISION_MODELS[settings.detModel]?.license || '')}</div></div>${seg('detModel', Object.entries(VISION_MODELS).map(([k, m]) => [k, `${m.name.replace(' nano', '')} · ${m.license}`]))}</div>
+      ${tog('detAR', 'Boxes in AR mode', 'Draws what it recognises over the AR camera view')}
+      ${tog('detAlerts', 'Spoken alerts', 'Says when something you chose is close, e.g. “Person ahead.”')}
+      ${btn('detAlertList', 'Alert for', esc((settings.detAlertList || DEFAULT_ALERTS).join(', ')))}
+      ${tog('detAnswer', 'Answer “what do you see?”', 'Looks through the camera when you ask')}
+      <div class="row"><div class="main"><div class="t">Frames checked per second</div><div class="s">More is quicker to react, less saves battery</div></div>${seg('detFps', [['2', '2'], ['3', '3'], ['5', '5']])}</div>
+    </div>` : ''}
     <div class="group-title">Driving</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Units</div></div>${seg('units', [['imperial', 'mph · mi'], ['metric', 'km/h · km']])}</div>
@@ -1340,6 +1351,12 @@ const ACTIONS = {
       settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   commands: () => CmdUI.open(),
   links: () => LinkUI.open(),
+  detAlertList: () => {
+    const cur = new Set(settings.detAlertList || DEFAULT_ALERTS);
+    sheet('Alert for', `<div class="cz-styles">${ALERTABLE.map(l => `<button class="cz-style ${cur.has(l) ? 'on' : ''}" data-alertpick="${esc(l)}">${esc(l)}</button>`).join('')}</div>`,
+      [['Done', () => { settings.detAlertList = [...$$('[data-alertpick].on')].map(b => b.dataset.alertpick); applySettings(); renderSettings(); }]]);
+    $$('[data-alertpick]').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
+  },
   radio: () => Radio.browse(),
   ttsGpu: () => { Diag.set('device', 'webgpu'); ACTIONS.ttsModel(); },
   versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),

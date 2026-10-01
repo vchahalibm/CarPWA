@@ -128,13 +128,16 @@ async function gpuFeatures() {
 const Heavy = { q: Promise.resolve(), run(name, f) { const p = this.q.then(() => { Log.d('mem', `Loading ${name}`); return f(); }); this.q = p.catch(() => {}); return p; } };
 /* ---------- Memory budget ----------
    iOS kills a page that uses too much memory, at a limit it never reveals, and nothing can catch it. So each device
-   class gets a number of large models that may be loaded at once (the phone 1: listening and the reply voice take
-   turns). A model needed now makes room by unloading the least recently used one; background preloads only use a
-   free slot. If the app dies while a model is loading, that build is remembered as too big for this device and is
-   skipped from then on, and if other models were loaded at the time, the budget drops by one. */
+   class gets a memory allowance for on-device models, and each model build has an estimated cost (what it holds once
+   loaded, not its download). A model needed now makes room by unloading the least recently used ones; background
+   preloads only use what's free. A model alone is always allowed. If the app dies while a model is loading, that build
+   is remembered as too big for this device and skipped from then on, and if other models were loaded at the time, the
+   allowance drops by a quarter. On a phone the reply voice and the object detector fit together; Whisper takes turns. */
 const Budget = {
-  SLOTS: { phone: 1, tablet: 2, desktop: 4 },
-  loaded: new Map(), // name → { label, used, unload }
+  MB: { phone: 400, tablet: 1100, desktop: 3200 },
+  /** Estimated memory per model build, in MB. */
+  COST: { 'whisper wasm': 250, 'whisper webgpu': 300, 'kokoro wasm': 180, 'kokoro webgpu fp16': 220, 'kokoro webgpu fp32': 380, detector: 90 },
+  loaded: new Map(), // name → { label, mb, used, unload }
   auto() {
     const ua = navigator.userAgent, touch = navigator.maxTouchPoints > 1, small = Math.min(screen.width, screen.height);
     if (IS_DESKTOP_APP) return 'desktop';
@@ -142,18 +145,21 @@ const Budget = {
     if (/iPad|Android/.test(ua) || (/Macintosh/.test(ua) && touch)) return 'tablet'; // iPads report a Mac user agent, but with touch
     return 'desktop';
   },
-  cls() { return this.SLOTS[store.get('devClass')] ? store.get('devClass') : this.auto(); },
-  slots() { return Math.max(1, this.SLOTS[this.cls()] - store.get('slotsLost', 0)); },
-  add(name, label, unload) { this.loaded.set(name, { label, used: Date.now(), unload }); },
+  cls() { return this.MB[store.get('devClass')] ? store.get('devClass') : this.auto(); },
+  /** The allowance in MB, lowered a quarter for each crash during a load with other models loaded. */
+  total() { return Math.round(this.MB[this.cls()] * 0.75 ** Math.min(3, store.get('slotsLost', 0))); },
+  used() { let n = 0; for (const m of this.loaded.values()) n += m.mb; return n; },
+  add(name, label, unload, mb) { this.loaded.set(name, { label, mb: mb || 100, used: Date.now(), unload }); },
   drop(name) { this.loaded.delete(name); },
   use(name) { const m = this.loaded.get(name); if (m) m.used = Date.now(); },
-  /** Room for `name`? If `need`, unload the least recently used models until it fits; a preload never unloads anything. */
-  room(name, need) {
+  /** Room for `name` (needing `mb`)? If `need`, unload the least recently used models until it fits; a preload never unloads anything. */
+  room(name, mb, need) {
     const others = () => [...this.loaded].filter(([k]) => k !== name).sort((a, b) => a[1].used - b[1].used);
-    while (others().length >= this.slots()) {
-      if (!need) { Log.d('mem', `No room to preload ${name}`, { slots: this.slots(), loaded: [...this.loaded.keys()] }); return false; }
+    const free = () => this.total() - others().reduce((n, [, m]) => n + m.mb, 0);
+    while (others().length && free() < mb) {
+      if (!need) { Log.d('mem', `No room to preload ${name} (${mb} MB)`, { free: free(), total: this.total(), loaded: [...this.loaded.keys()] }); return false; }
       const [k, m] = others()[0];
-      Log.i('mem', `Unloading ${k} (${m.label}) to make room for ${name}`, { class: this.cls(), slots: this.slots() });
+      Log.i('mem', `Unloading ${k} (${m.label}, ${m.mb} MB) to make room for ${name} (${mb} MB)`, { class: this.cls(), total: this.total() });
       try { m.unload(); } catch {} this.loaded.delete(k);
     }
     return true;
@@ -169,10 +175,10 @@ const Budget = {
     const m = store.get('loadingModel'); if (!m) return;
     store.set('loadingModel', null);
     store.set('tooBig', [...new Set([...store.get('tooBig', []), m.label])]);
-    if (m.others.length && this.SLOTS[this.cls()] - store.get('slotsLost', 0) > 1) store.set('slotsLost', store.get('slotsLost', 0) + 1);
-    Log.e('mem', `The app stopped while loading ${m.label}: skipping it on this device from now on`, { others: m.others, slots: this.slots(), class: this.cls() });
+    if (m.others.length && store.get('slotsLost', 0) < 3) store.set('slotsLost', store.get('slotsLost', 0) + 1);
+    Log.e('mem', `The app stopped while loading ${m.label}: skipping it on this device from now on`, { others: m.others, totalMB: this.total(), class: this.cls() });
   },
-  reset() { store.set('tooBig', []); store.set('slotsLost', 0); Log.i('mem', 'Memory history cleared', { slots: this.slots() }); },
+  reset() { store.set('tooBig', []); store.set('slotsLost', 0); Log.i('mem', 'Memory history cleared', { totalMB: this.total() }); },
 };
 Budget.boot();
 // Closing the app on purpose isn't a crash.
@@ -462,10 +468,14 @@ const Voice = {
     try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; Log.i('audio', 'Reply player unlocked by a tap'); }).catch(e => Log.w('audio', 'Reply player unlock refused', e)); } catch (e) { Log.w('audio', 'Unlock failed', e); }
     try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); Log.d('audio', 'Phone voice primed by a tap'); } } catch {}
   },
+  /** Memory the reply voice needs: the build given, or the best one this device will try first. */
+  ttsCost(device = Diag.get().device, dtype = device === 'webgpu' && store.get('gpuF16') ? 'fp16' : 'fp32') {
+    return Budget.COST[device === 'webgpu' ? `kokoro webgpu ${dtype}` : 'kokoro wasm'] || 220;
+  },
   /** Load the reply voice. `show` (asked for by you: progress shown) makes room for it; otherwise it's a preload that only uses a free slot. */
   loadTTS(show) {
     if (this.tts) { Budget.use('kokoro'); return Promise.resolve(this.tts); }
-    if (!this.ttsLoading && !Budget.room('kokoro', !!show)) return Promise.reject(new Error('No memory to spare for the reply voice on this device right now'));
+    if (!this.ttsLoading && !Budget.room('kokoro', this.ttsCost(), !!show)) return Promise.reject(new Error('No memory to spare for the reply voice on this device right now'));
     this.ttsLoading ||= Heavy.run('reply voice', () => this.loadTTSNow(show));
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
@@ -496,14 +506,14 @@ const Voice = {
         this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind, device, dtype });
         if (device === 'wasm' && cfg.device === 'webgpu') this.gpuGaveUp(lastErr);
         engine.device = device; engine.dtype = dtype; Log.mem('kokoro', `${device === 'webgpu' ? 'GPU' : 'CPU'} ${dtype} (${engine.kind})`);
-        Budget.add('kokoro', `${device} ${dtype}`, () => this.resetTTS());
+        Budget.add('kokoro', `${device} ${dtype}`, () => this.resetTTS(), this.ttsCost(device, dtype));
         return engine;
       } catch (e) {
         lastErr = e;
         if (device === 'wasm') { // the last option: keep it if it loaded; replies fall back to the phone voice
           if (!engine) throw e;
           this.ttsBroken = e?.message || 'Warm-up failed'; Log.e('tts', 'On-device voice warm-up failed: replies use the phone voice', e);
-          Log.mem('kokoro', `CPU q8 (${engine.kind}, not working)`); Budget.add('kokoro', 'wasm q8', () => this.resetTTS()); return engine;
+          Log.mem('kokoro', `CPU q8 (${engine.kind}, not working)`); Budget.add('kokoro', 'wasm q8', () => this.resetTTS(), Budget.COST['kokoro wasm']); return engine;
         }
         try { engine?.terminate(); } catch {}
         Log.w('tts', `On-device voice ${device} ${dtype} failed: trying the next option`, e);
@@ -535,6 +545,16 @@ const Voice = {
     if (this.pipe?.alive && !this.pipe.alive()) { Log.w('stt', 'Whisper worker had stopped: reloading it'); this.resetSTT(); }
     this.open(); $('#vChips').hidden = false;
     this.show('Listening…', this.engine() === 'whisper' ? 'On-device · Whisper base' : 'Phone speech recognition');
+    const whisperFirst = this.engine() === 'whisper' && !this.pipe && !store.get('whisperOK'); // its prompt offers both downloads
+    if (settings.tts === 'neural' && !store.get('kokoroOK') && !store.get('ttsAsked') && !whisperFirst) {
+      store.set('ttsAsked', true); this.close();
+      const go = () => { this.open(); this.start(); };
+      return sheet('A natural reply voice', `<p>DriveDeck can answer in a natural voice made on this device (<b>Kokoro</b>) instead of the built-in, mechanical-sounding one. Works offline once downloaded.</p>
+        <p class="hint">One-time download of about ${ttsSize()} (use Wi-Fi).</p>`,
+        [['Download now', () => { this.loadTTS(true).then(() => this.speak('Hi, this is my new voice.')).catch(e => console.warn(e)); go(); }],
+          ['Keep the phone’s voice', () => { settings.tts = 'phone'; applySettings(); go(); }], ['Later', go]]);
+    }
+    if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // warm up while you talk
     if (this.engine() === 'browser') return this.listenBrowser();
     if (!this.pipe && !store.get('whisperOK')) {
       this.close();
@@ -546,15 +566,6 @@ const Voice = {
           ['Listening only', () => { store.set('ttsAsked', true); this.open(); this.loadModel().then(() => this.listenWhisper()).catch(e => this.fail(e)); }],
           ...(SR ? [['Use phone recognition instead', () => { settings.stt = 'browser'; applySettings(); this.start(); }]] : []), ['Not now']]);
     }
-    if (settings.tts === 'neural' && !store.get('kokoroOK') && !store.get('ttsAsked')) {
-      store.set('ttsAsked', true); this.close();
-      const go = () => { this.open(); this.start(); };
-      return sheet('A natural reply voice', `<p>Now that DriveDeck listens on the phone, it can also answer in a natural voice made on the phone (<b>Kokoro</b>) instead of the phone’s built-in one. Works offline once downloaded.</p>
-        <p class="hint">One-time download of about ${ttsSize()} (use Wi-Fi).</p>`,
-        [['Download now', () => { this.loadTTS(true).then(() => this.speak('Hi, this is my new voice.')).catch(e => console.warn(e)); go(); }],
-          ['Keep the phone’s voice', () => { settings.tts = 'phone'; applySettings(); go(); }], ['Later', go]]);
-    }
-    if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // warm up while you talk
     const tok = this.startTok;
     try {
       if (!this.pipe) { this.show('Loading voice model…', 'Whisper base · on-device'); await this.loadModel(); }
@@ -572,7 +583,7 @@ const Voice = {
   /* Whisper via transformers.js (ONNX runtime in WebAssembly); model files are cached for offline use. */
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
-    if (!this.loading) Budget.room('whisper', true);
+    if (!this.loading) Budget.room('whisper', Budget.COST[`whisper ${Diag.get().stt}`] || 300, true);
     this.loading ||= Heavy.run('Whisper', async () => {
       const want = Diag.get().stt, s = performance.now(), files = {};
       if (want === 'webgpu') await gpuFeatures();
@@ -583,7 +594,7 @@ const Voice = {
           const pipe = await createWhisper(build, p => this.progress(p, files, 'voice model'));
           if (build.device === 'wasm' && want === 'webgpu') { Log.w('stt', 'Whisper on the GPU failed: using the CPU'); Diag.set('stt', 'wasm'); }
           this.pipeDevice = build.device; this.pipeBuild = build.label; Log.mem('whisper', `${build.label} (${pipe.kind})`);
-          Budget.add('whisper', build.label, () => this.resetSTT());
+          Budget.add('whisper', build.label, () => this.resetSTT(), Budget.COST[`whisper ${build.device}`]);
           $('#vProg').hidden = true; store.set('whisperOK', true); if (build.device === 'webgpu') store.set('whisperGpuOK', true);
           Log.i('stt', `Whisper ready ${Math.round(performance.now() - s)} ms (${build.label}, ${pipe.kind})`);
           return pipe;

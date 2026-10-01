@@ -115,8 +115,10 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'whisper', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null
 }, store.get('settings', {}));
+// Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
+if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
 
 const WALLS = [
   { dark: 'radial-gradient(110% 90% at 0% 0%,#1d3a8a 0%,transparent 55%),radial-gradient(90% 80% at 100% 100%,#5b21b6 0%,transparent 55%),#05060b',
@@ -1192,14 +1194,14 @@ function renderSettings() {
     </div>
     <div class="group-title">Voice</div>
     <div class="group">
-      <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this phone, works offline' : 'Whisper base · about 80 MB on first use') : 'The phone’s own recognizer (needs a connection)'}</div></div>${seg('stt', [['whisper', 'On-device'], ['browser', 'Phone']])}</div>
+      <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${(typeof Voice !== 'undefined' && !SR) ? 'Whisper base · on this device, works offline (no built-in recognizer here)' : settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this device, works offline; uses more memory' : 'Whisper base · about 80 MB on first use, works offline; uses more memory') : 'This device’s own recognizer: no download, leaves memory for other features'}</div></div>${(typeof Voice !== 'undefined' && !SR) ? '' : seg('stt', [['browser', 'Device'], ['whisper', 'Whisper']])}</div>
       ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
-      ${store.get('whisperOK') ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
-      <div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">On-device listening waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>
+      ${store.get('whisperOK') || (settings.stt !== 'whisper' && !((typeof Voice !== 'undefined' && !SR))) ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
+      ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? '' : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
       <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this phone, works offline' : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the phone’s voice until then`) : settings.tts === 'phone' ? 'The phone’s built-in voice' : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['neural', 'On-device'], ['phone', 'Phone'], ['off', 'Off']])}</div>
       ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
       ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
-      ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}
+      ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' ? btn('ttsGpu', 'Faster reply voice (GPU)', `Download ${store.get('gpuF16') ? 165 : 310} MB`) : ''}
       ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
     </div>

@@ -32,6 +32,9 @@ const fmtDur = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3
    Icons (24×24 stroke glyphs)
    ============================================================ */
 const I = {
+  doc: '<path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5z"/><path d="M14 2.5v5h5M8.5 13h7M8.5 17h5"/>',
+  globe: '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.8 6 3.8 9.5S14.6 18.7 12 21.5C9.4 18.7 8.2 15.5 8.2 12S9.4 5.3 12 2.5z"/>',
+  alert: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="1" fill="currentColor" stroke="none"/>',
   maps: '<path d="M12 2.5l7.5 18.5-7.5-4.2L4.5 21z" fill="currentColor" stroke="none"/>',
   music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3" fill="currentColor"/><circle cx="18" cy="16" r="3" fill="currentColor"/>',
   phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" fill="currentColor" stroke="none"/>',
@@ -210,7 +213,7 @@ function openView(id, fromApp) {
   Bus.emit('view.open', { value: id });
   renderDock();
   ({
-    dashboard: () => { if (typeof Dash !== 'undefined') Dash.render(); },
+    dashboard: () => { if (typeof Dash !== 'undefined') Dash.show(); },
     maps: () => { ensureMap('main'); renderMapPanel(); },
     weather: () => loadWeather(),
     messages: () => renderMessages(),

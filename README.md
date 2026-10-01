@@ -36,12 +36,15 @@ js/dash.js                Dashboard: cluster styles, map + stack, widget grid, w
 js/events.js              The app-wide event bus (Bus)
 js/widgets.js             Actions, widget links and Settings › Widget links
 js/radio.js               Internet radio: player, station directory, widget
+js/media.js               Document, video, web page and 3D model widgets
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
 icons/                    App icons; icon.svg is the source artwork
 vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
-vendor/hls/               hls.js light (Apache-2.0), for HLS radio streams outside Safari
+vendor/hls/               hls.js light (Apache-2.0), for HLS radio and video streams outside Safari
+vendor/pdfjs/             pdf.js (Apache-2.0, legacy build + standard fonts), for PDF documents
+vendor/model-viewer/      model-viewer (Apache-2.0), for 3D models
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 docs/memory-strategy.md   How on-device models share a phone's memory
@@ -64,7 +67,7 @@ All paths are relative, so the app runs from the site root or a sub-path such as
   - **Map**: map card with the next turn, arrival/time/distance and street name, plus next-turn (or Home/Work) and now-playing cards.
   - **Widgets in the cluster**: in Edit, every cluster column (each dial, the map, and the columns either side) has an **Add** tile. Stack widgets above or below a dial, move the dial itself up or down, and drag the corner handle to size it.
   - **Seamless widgets** (**Settings › Display**): the widgets of a page or column merge into one surface, with no gaps, borders or separate cards; a column's dial and its widgets share one frame. Edit mode still outlines each widget. Turn it off for the separate cards. One switch for the whole app for now; per page and per tab later.
-  - **Widgets you can add more than once** (documents, web pages and similar coming next) get their own settings: in Edit, tap a widget's ⚙.
+  - **Widgets you can add more than once** (documents, videos, web pages, 3D models) get their own settings: in Edit, tap a widget's ⚙.
   - **Widgets beside the cluster**: in the Cluster layout tap **Edit**, then **Add** on either side to stack widgets in a column left or right of the cluster. You can move them up or down, swap sides, remove them, or drag the corner handle to make one taller.
   - **Widgets**: swipe sideways between **pages**, each with its own widgets and sizes (**Edit › New page**, or delete a page). Each page is a flexible grid. Tap **Edit** to remove, reorder, add or **resize** widgets. Drag a widget's corner handle to change its width and height in whole cells; the rest re-pack around it and the rows re-fit the screen. Widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
   - **Customize** (sliders button): cluster style, accent colour (cyan, magenta, red, orange, khaki, yellow, wine, green) and motion sensors.
@@ -118,6 +121,18 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 - **Stations** come from the free [Radio Browser](https://www.radio-browser.info/) directory: **India** first (the most played), then **US** and **Europe** (UK, Germany, France, Netherlands, Italy, Spain, Ireland), plus search for any station by name. ☆ keeps a station in **Favourites**. Only HTTPS streams are listed, because a secure web app can't play `http://` ones. The lists are cached for a day; if the directory can't be reached, a few long-running US and European stations are built in.
 - One player for the whole app: it keeps playing while you rearrange the dashboard or switch screens, shows on the lock screen, and stops the demo music player. **It pauses while you talk to the assistant and resumes when the reply is done.** HLS (`.m3u8`) streams play natively in Safari and through [hls.js](https://github.com/video-dev/hls.js) (Apache-2.0, in `vendor/hls/`) elsewhere.
 - Voice: “play the radio”, “play Radio Mirchi”, “play BBC World Service radio”, “tune to Vividh Bharati”, “next station”, “stop the radio”, “show the stations”. A station asked for by voice starts when the reply finishes.
+
+### Documents, videos, web pages and 3D models
+Four widget types you can add as many times as you like, each showing its own thing. Add one in Edit, choose a link or a file from this device, and give it a title if you like; tap its ⚙ in Edit to change it. Files are kept in the app's own storage on this device. They don't hide or pause while driving.
+- **Document**:
+  - **PDF**: a file or a link, drawn page by page with [pdf.js](https://mozilla.github.io/pdf.js/) (Apache-2.0, `vendor/pdfjs/`), with ‹ › buttons. Voice: “next slide”, “previous page”, “go to slide 5”.
+  - **PowerPoint, Word or Excel**: by **link**. SharePoint and OneDrive links open in their embed view; other links go through Microsoft's online viewer, which needs a link anyone can open. Office files on this device can't be shown in a web app: save them as PDF first.
+  - **SharePoint links that need your work sign-in**: Safari and Chrome block signing in inside another app's frame, so in the web app these may ask you to open them instead. The **Mac app** lets them show in the widget.
+- **Video**: a YouTube link (video, short, live, playlist; a `t=` start time is kept) in YouTube's privacy-enhanced player, or a video file or link (`.mp4`, `.webm`, `.m3u8`). Voice: “play the video”, “pause the video”.
+- **Web page**: any `https://` address. Many big sites (Google, banks, most news) refuse to be shown inside another app; the ⤢ button opens them outside. The Mac app shows them anyway.
+- **3D model**: a `.glb` file or a link to a `.glb`/`.gltf`, shown with Google's [model-viewer](https://modelviewer.dev/) (Apache-2.0, `vendor/model-viewer/`): drag to turn, pinch to zoom, slowly turning on its own.
+- Coming back to the dashboard from another screen keeps them exactly where they were (a video keeps playing, a document stays on its page).
+- Links and voice commands can drive them: “Next page or slide”, “Go to a page”, “Show a document”, “Play/Pause the video”, “Show a video”, “Show a web page”, “Show a 3D model”. They also announce **A document changes page** and **A video ends**.
 
 ### Widget links (one widget drives another)
 - **Settings › Dashboard › Widget links**: *when* something happens, *do* an action. Events: a route starts, you arrive, a route ends, the car starts moving or stops, a screen opens, you say something, a voice command runs, a station starts or stops, the assistant starts or finishes listening. Actions: play a station, next station, stop the radio, show the stations, say something, run a voice command, navigate somewhere, end the route, open a screen, show a widget page, play or pause music.

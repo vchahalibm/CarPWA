@@ -1074,3 +1074,38 @@ table.bench th{text-align:left;font-size:12px;color:var(--text-2);font-weight:60
 table.bench td{padding:8px 4px;border-bottom:1px solid var(--sep);vertical-align:top}
 table.bench small{color:var(--text-2)}
 .sheet-card:has(table.bench){width:min(680px,100%)}
+
+/* Radio widget and station browser */
+.radiow{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+.rw-logo{width:clamp(48px,28cqh,96px);height:clamp(48px,28cqh,96px);border-radius:18px;object-fit:cover;background:var(--surface-2);flex:none}
+.rw-logo.none{display:grid;place-items:center;background:linear-gradient(160deg,#ff8a5c,#e5383b);color:#fff}
+.rw-logo.none svg{width:50%;height:50%}
+.rw-meta{min-width:0;max-width:100%;display:flex;flex-direction:column}
+.rw-meta b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rw-meta span{color:var(--text-2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rw-state{font-size:13px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:6px}
+.rw-state.playing{color:var(--red)}
+.rw-state.error{color:var(--orange,#ff9f0a)}
+.rw-live{width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;animation:rwpulse 1.4s ease-in-out infinite}
+@keyframes rwpulse{50%{opacity:.3}}
+.radiow .np-controls{width:100%}
+.radiow .w-cta{width:100%;margin-top:auto}
+@container (max-height:260px){.radiow .rw-logo{display:none}}
+.rb{display:flex;flex-direction:column;gap:12px;min-height:0}
+.rb-search input{width:100%;min-height:56px;border-radius:16px;padding:0 16px;background:var(--surface-2);color:var(--text);border:0;font-size:17px}
+.rb-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.rb-tabs .chip{min-height:48px}
+.rb-tabs .chip.on{background:var(--text);color:var(--bg)}
+.rb-list{max-height:min(52vh,520px);overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.rb-row{display:flex;align-items:center;gap:6px;border-radius:16px}
+.rb-row.cur{background:var(--surface-2)}
+.rb-st{flex:1;min-width:0;min-height:60px;display:flex;align-items:center;gap:12px;padding:6px 8px;text-align:left}
+.rb-st span{min-width:0;display:flex;flex-direction:column}
+.rb-st b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-st small{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-logo{width:44px;height:44px;border-radius:12px;object-fit:cover;flex:none;background:var(--surface-2)}
+.rb-logo.none{display:grid;place-items:center;background:linear-gradient(160deg,#ff8a5c,#e5383b);color:#fff}
+.rb-logo.none svg{width:24px;height:24px}
+.rb-fav{width:56px;height:56px;flex:none;font-size:24px;color:var(--text-2)}
+.rb-fav.on{color:#ffcc00}
+.rb-empty{padding:24px 8px;color:var(--text-2);text-align:center}

@@ -155,7 +155,14 @@ const BUILTINS = {
   next: { group: 'Music', name: 'Next track', run: (v, say) => { playerAction('next'); player.playing = true; updatePlayerUI(); say(`Playing ${curTrack().t}.`); } },
   prev: { group: 'Music', name: 'Previous track', run: (v, say) => { playerAction('prev'); player.playing = true; updatePlayerUI(); say(`Playing ${curTrack().t}.`); } },
   podcasts: { group: 'Music', name: 'Play podcasts', run: (v, say) => { setSource('podcasts'); player.playing = true; updatePlayerUI(); say(`Playing ${curTrack().t}.`, () => openView('music')); } },
-  radio: { group: 'Music', name: 'Play the radio', run: (v, say) => { setSource('radio'); player.playing = true; updatePlayerUI(); say(`Playing ${curTrack().t}.`, () => openView('music')); } },
+  radio: { group: 'Radio', name: 'Play the radio', run(v, say) {
+    if (Radio.cur) { Radio.play(); return say(`Playing ${Radio.cur.name}.`); }
+    say('Choose a station.', () => Radio.browse());
+  } },
+  radioStation: { group: 'Radio', name: 'Play a radio station', run: (v, say) => Actions.run('radio.play', v.station || v.q || '', say) },
+  radioNext: { group: 'Radio', name: 'Next radio station', run: (v, say) => Actions.run('radio.next', '', say) },
+  radioStop: { group: 'Radio', name: 'Stop the radio', run: (v, say) => Actions.run('radio.stop', '', say) },
+  radioStations: { group: 'Radio', name: 'Show the radio stations', run: (v, say) => say('Here are the stations.', () => Radio.browse()) },
   musicApp: { group: 'Music', name: 'Open my music app', run: (v, say) => settings.musicApp === 'demo' ? say('Opening music.', () => openView('music'))
     : say(`Opening ${MUSIC_APPS[settings.musicApp][0]}.`, () => playInMusicApp(''), { leaves: true }) },
 
@@ -227,8 +234,8 @@ function message(v, say, wa) {
 function setDock(hide) { settings.dockHidden = hide; store.set('settings', settings); applyDock(); if (typeof Dash !== 'undefined') Dash.renderBar(); }
 /** Bring a widget into view: switch to the widget layout, add it to the current page if it isn't on one, then scroll to its page. */
 function showWidget(id, say) {
-  const pages = Dash.pages(); let p = pages.findIndex(pg => pg.includes(id));
-  if (p < 0) { p = Math.min(store.get('wpage', 0), pages.length - 1); Dash.setList('pg' + p, [...pages[p], id]); }
+  const pages = Dash.pages(); let p = pages.findIndex(pg => pg.some(x => wtype(x) === id));
+  if (p < 0) { p = Math.min(store.get('wpage', 0), pages.length - 1); Dash.setList('pg' + p, [...pages[p], W[id].multi ? `${id}~${Math.random().toString(36).slice(2, 6)}` : id]); }
   store.set('wpage', p);
   say(`${W[id].name}.`, () => { settings.dashLayout = 'widgets'; store.set('settings', settings); openView('dashboard'); });
 }
@@ -261,11 +268,15 @@ const DEFAULT_COMMANDS = [
   { id: 'music.resume', name: 'Resume music', say: ['(play|resume|continue|unpause|start) [the] [music|song|playback|audio|something]', 'play [some] (music|songs|something)', 'turn [the] music (on|back on)'], do: { type: 'builtin', fn: 'resume' } },
   { id: 'music.on', name: 'Play on Spotify / YouTube Music', say: ['(play|listen to|put on) {q} (on|in|using|with|through) (spotify|youtube music|my music app|the music app|my shortcut)', '(play|listen to|put on) {q} (on|in|using|with) {app}'], do: { type: 'builtin', fn: 'playOn' } },
   { id: 'music.play', name: 'Play an artist, song or album', say: ['play [some] (music|songs|tracks|hits|album|albums) (from|by|of) {q}', 'play [the] (album|song|track|artist|playlist) {q}', 'play [some] {q} (music|songs)', 'play {q}', '(listen to|put on) {q}', 'i want to (hear|listen to) {q}'], do: { type: 'builtin', fn: 'play' } },
-  { id: 'music.pause', name: 'Pause', say: ['(pause|stop) [the] [music|song|playback|audio|podcast|radio]', '(mute|silence) [the] (music|audio)', 'turn [the] music off'], do: { type: 'builtin', fn: 'pause' } },
+  { id: 'music.pause', name: 'Pause', say: ['(pause|stop) [the] [music|song|playback|audio|podcast]', '(mute|silence) [the] (music|audio)', 'turn [the] music off'], do: { type: 'builtin', fn: 'pause' } },
   { id: 'music.next', name: 'Next track', say: ['(next|skip) [this] [song|track|one|episode]', 'play [the] next [song|track|one]'], do: { type: 'builtin', fn: 'next' } },
   { id: 'music.prev', name: 'Previous track', say: ['(previous|last|go back) [song|track|one]', 'play [the] (previous|last) [song|track|one] [again]', '(back|replay) [that|this|the] (song|track)'], do: { type: 'builtin', fn: 'prev' } },
   { id: 'music.podcasts', name: 'Podcasts', say: ['(play|open|listen to|put on) [a|some|my] (podcast|podcasts)'], do: { type: 'builtin', fn: 'podcasts' } },
   { id: 'music.radio', name: 'Radio', say: ['(play|open|listen to|put on|turn on) [the] radio'], do: { type: 'builtin', fn: 'radio' } },
+  { id: 'radio.station', name: 'Play a radio station', say: ['play {station} (radio|fm|radio station|station)', '(play|tune to|tune in to|switch to|put on|listen to) [the] (radio|station|radio station) {station}', 'tune [in] to {station}', 'play {station} on [the] radio'], do: { type: 'builtin', fn: 'radioStation' } },
+  { id: 'radio.next', name: 'Next radio station', say: ['(next|another|different) (station|channel|radio station)', 'change [the] (station|channel|radio station|radio)'], do: { type: 'builtin', fn: 'radioNext' } },
+  { id: 'radio.stop', name: 'Stop the radio', say: ['(pause|stop|turn off|switch off|mute) [the] radio', 'radio off'], do: { type: 'builtin', fn: 'radioStop' } },
+  { id: 'radio.list', name: 'Show the radio stations', say: ['(show|open|list) [the|my] [radio] stations', 'which stations'], do: { type: 'builtin', fn: 'radioStations' } },
   { id: 'music.app', name: 'Open my music app', say: ['open [my|the] music app'], do: { type: 'builtin', fn: 'musicApp' } },
   // Phone & messages
   { id: 'phone.call', name: 'Call someone', say: ['(call|dial|ring|phone) {who}', '(make|place) a call to {who}', 'give {who} a (call|ring)'], do: { type: 'builtin', fn: 'call' } },
@@ -412,11 +423,20 @@ const Commands = {
     const r = this.match(raw);
     if (!r.cmd) return say('Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     const c = r.cmd, v = r.vars, d = c.do || {}, custom = c.reply ? fillIn(c.reply, v) : '';
+    Bus.emit('cmd.run', { value: Object.entries(v).find(([k, x]) => x && k !== 'text' && k !== 'rest')?.[1] || '', command: c.name, id: c.id, text: raw });
     const reply = (auto, then, o) => say(custom || auto, then, o);
     try {
       if (d.type === 'builtin') {
         const b = BUILTINS[d.fn]; if (!b) return say('That command’s action is missing. Edit it in Settings.');
         return b.run(v, custom ? (m, then, o) => say(custom, then, o) : say);
+      }
+      if (d.type === 'action') {
+        if (typeof Actions === 'undefined' || !Actions.list[d.action]) return say('That action isn’t available. Edit the command in Settings.');
+        const first = Object.entries(v).find(([k, x]) => x && k !== 'text' && k !== 'rest')?.[1] || '';
+        let said = false; const sayA = (m, then, o) => { said = true; say(custom || m, then, o); };
+        Actions.run(d.action, d.input ? fillIn(d.input, v) : first, sayA, { value: first });
+        if (!said) say(custom || 'Okay.');
+        return;
       }
       if (d.type === 'app') {
         const name = d.app === 'custom' ? (c.name || 'the app') : APP_LINKS[d.app]?.[0] || 'the app';
@@ -443,11 +463,12 @@ function handleCommand(raw, spoken) { Commands.run(raw, spoken); }
 /* ============================================================
    Settings › Voice commands: list, test, edit, add
    ============================================================ */
-const ACTION_TYPES = [['builtin', 'Do a DriveDeck action'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
+const ACTION_TYPES = [['builtin', 'Do a DriveDeck action'], ['action', 'Do a widget action (radio, documents…)'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
   ['widget', 'Show a widget'], ['screen', 'Open a DriveDeck screen'], ['say', 'Just reply']];
-const GROUPS = ['Navigation', 'Music', 'Phone', 'Info', 'Dashboard', 'Assistant'];
+const GROUPS = ['Navigation', 'Music', 'Radio', 'Phone', 'Info', 'Dashboard', 'Assistant'];
 function actionLabel(d = {}) {
   if (d.type === 'builtin') return BUILTINS[d.fn]?.name || 'Missing action';
+  if (d.type === 'action') return (typeof Actions !== 'undefined' && Actions.list[d.action]?.name) || 'Missing action';
   if (d.type === 'app') return APP_LINKS[d.app]?.[0] || 'App';
   if (d.type === 'shortcut') return `Shortcut: ${d.shortcut || '?'}`;
   if (d.type === 'widget') return `Widget: ${W[d.widget]?.name || '?'}`;
@@ -508,6 +529,8 @@ const CmdUI = {
     const opt = (list, val) => list.map(([v, l]) => `<option value="${esc(v)}" ${v === val ? 'selected' : ''}>${esc(l)}</option>`).join('');
     const builtins = GROUPS.map(g => `<optgroup label="${g}">${opt(Object.entries(BUILTINS).filter(([, b]) => b.group === g).map(([k, b]) => [k, b.name]), d.fn)}</optgroup>`).join('');
     const screens = [['dashboard', 'Dashboard'], ...APPS.map(a => [a.id, a.name]), ['commands', 'Voice commands']];
+    const ag = {}; if (typeof Actions !== 'undefined') Object.entries(Actions.list).forEach(([k, a]) => (ag[a.group] ||= []).push([k, a.name]));
+    const widgetActions = Object.entries(ag).map(([g, l]) => `<optgroup label="${esc(g)}">${opt(l, d.action)}</optgroup>`).join('');
     sheet(id ? 'Edit command' : 'New command', `<div class="cmd-form">
       <label class="fld"><span>Name</span><input id="ceName" value="${esc(c.name || '')}" placeholder="Play an artist on Spotify"></label>
       <label class="fld"><span>When I say (one phrase per line)</span><textarea id="ceSay" rows="4" placeholder="play {q} on spotify">${esc([].concat(c.say || []).join('\n'))}</textarea></label>
@@ -515,12 +538,13 @@ const CmdUI = {
       <label class="fld"><span>Match using</span><select id="ceMatch">${opt([['phrase', 'Phrases'], ['keywords', 'Keywords'], ['regex', 'Regular expressions']], c.match || 'phrase')}</select></label>
       <label class="fld"><span>Then</span><select id="ceType">${opt(ACTION_TYPES, d.type || 'builtin')}</select></label>
       <label class="fld" data-for="builtin"><span>DriveDeck action</span><select id="ceFn">${builtins}</select></label>
+      <label class="fld" data-for="action"><span>Widget action</span><select id="ceAction">${widgetActions}</select></label>
       <label class="fld" data-for="app"><span>App</span><select id="ceApp">${opt(Object.entries(APP_LINKS).map(([k, a]) => [k, a[0]]), d.app || 'spotify')}</select></label>
       <label class="fld" data-for="app-custom"><span>Link, with {q} where the words go</span><input id="ceUrl" value="${esc(d.url || '')}" placeholder="myapp://search?q={q}" autocapitalize="off"></label>
       <label class="fld" data-for="shortcut"><span>Shortcut name (as named in your phone’s shortcuts app)</span><input id="ceSc" value="${esc(d.shortcut || '')}" placeholder="Play Artist"></label>
       <label class="fld" data-for="widget"><span>Widget</span><select id="ceWidget">${opt(Object.entries(W).map(([k, w]) => [k, w.name]), d.widget)}</select></label>
       <label class="fld" data-for="screen"><span>Screen</span><select id="ceScreen">${opt(screens, d.screen)}</select></label>
-      <label class="fld" data-for="builtin app shortcut"><span>Pass along (blank = the first captured words)</span><input id="ceInput" value="${esc(d.input ?? '')}" placeholder="{q}" autocapitalize="off"></label>
+      <label class="fld" data-for="builtin action app shortcut"><span>Pass along (blank = the first captured words)</span><input id="ceInput" value="${esc(d.input ?? '')}" placeholder="{q}" autocapitalize="off"></label>
       <label class="fld"><span id="ceReplyL">Say back (optional, can use {q})</span><input id="ceReply" value="${esc(d.type === 'say' ? d.text || '' : c.reply || '')}" placeholder="Playing {q} on Spotify"></label>
       <div class="cmd-test" id="ceErr"></div></div>`,
       [['Save', () => this.saveDraft(id)], ...(c.custom && id ? [['Delete', () => this.remove(id)]] : c.edited ? [['Reset to default', () => this.reset(id)]] : []), ['Cancel', () => { this.draft = null; }]]);
@@ -536,12 +560,13 @@ const CmdUI = {
   readForm(id) {
     const type = $('#ceType').value, d = { type };
     if (type === 'builtin') d.fn = $('#ceFn').value;
+    if (type === 'action') d.action = $('#ceAction').value;
     if (type === 'app') { d.app = $('#ceApp').value; if (d.app === 'custom') d.url = $('#ceUrl').value.trim(); }
     if (type === 'shortcut') d.shortcut = $('#ceSc').value.trim();
     if (type === 'widget') d.widget = $('#ceWidget').value;
     if (type === 'screen') d.screen = $('#ceScreen').value;
     if (type === 'say') d.text = $('#ceReply').value.trim();
-    if (['builtin', 'app', 'shortcut'].includes(type) && $('#ceInput').value.trim()) d.input = $('#ceInput').value.trim();
+    if (['builtin', 'action', 'app', 'shortcut'].includes(type) && $('#ceInput').value.trim()) d.input = $('#ceInput').value.trim();
     return { id: id || 'my.' + Date.now().toString(36), name: $('#ceName').value.trim() || 'My command',
       say: $('#ceSay').value.split('\n').map(s => s.trim()).filter(Boolean), match: $('#ceMatch').value, do: d,
       reply: type === 'say' ? '' : $('#ceReply').value.trim() };

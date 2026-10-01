@@ -32,12 +32,16 @@ index.html                App shell markup (dock, views, overlays)
 js/routing.js             Routing, place search and nearby places (OSRM, TomTom, Photon, Overpass)
 js/app.js                 App logic (state, GPS/demo, maps, navigation, media, assistant, …)
 js/modes.js               Driving modes: Map, 3D, AR camera and HUD
-js/dash.js                Dashboard: cluster styles, map + stack, widget grid, motion sensors
+js/dash.js                Dashboard: cluster styles, map + stack, widget grid, widget instances, motion sensors
+js/events.js              The app-wide event bus (Bus)
+js/widgets.js             Actions, widget links and Settings › Widget links
+js/radio.js               Internet radio: player, station directory, widget
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
 icons/                    App icons; icon.svg is the source artwork
 vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
+vendor/hls/               hls.js light (Apache-2.0), for HLS radio streams outside Safari
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 docs/memory-strategy.md   How on-device models share a phone's memory
@@ -60,6 +64,7 @@ All paths are relative, so the app runs from the site root or a sub-path such as
   - **Map**: map card with the next turn, arrival/time/distance and street name, plus next-turn (or Home/Work) and now-playing cards.
   - **Widgets in the cluster**: in Edit, every cluster column (each dial, the map, and the columns either side) has an **Add** tile. Stack widgets above or below a dial, move the dial itself up or down, and drag the corner handle to size it.
   - **Seamless widgets** (**Settings › Display**): the widgets of a page or column merge into one surface, with no gaps, borders or separate cards; a column's dial and its widgets share one frame. Edit mode still outlines each widget. Turn it off for the separate cards. One switch for the whole app for now; per page and per tab later.
+  - **Widgets you can add more than once** (documents, web pages and similar coming next) get their own settings: in Edit, tap a widget's ⚙.
   - **Widgets beside the cluster**: in the Cluster layout tap **Edit**, then **Add** on either side to stack widgets in a column left or right of the cluster. You can move them up or down, swap sides, remove them, or drag the corner handle to make one taller.
   - **Widgets**: swipe sideways between **pages**, each with its own widgets and sizes (**Edit › New page**, or delete a page). Each page is a flexible grid. Tap **Edit** to remove, reorder, add or **resize** widgets. Drag a widget's corner handle to change its width and height in whole cells; the rest re-pack around it and the rows re-fit the screen. Widgets: Speed, Current Trip, Route, Next Turn, Weather, Calendar, Clock, Now Playing, Heading, Compass, Roll, Pitch, Elevation and G-Force.
   - **Customize** (sliders button): cluster style, accent colour (cyan, magenta, red, orange, khaki, yellow, wine, green) and motion sensors.
@@ -107,6 +112,19 @@ All paths are relative, so the app runs from the site root or a sub-path such as
   - **Pass along** chooses what goes to the action (default: the first captured words); **Say back** sets the reply, e.g. `Playing {q}`.
   - Matching tries exact phrases first (longer wording wins, your own commands win ties), then keywords, then again with near-miss words corrected (“navigte” → “navigate”).
 - **Assistant widget**: the conversation by day. It shows your words with the time and engine, DriveDeck's reply with a chip for the app it opened (tap to jump there), and one-tap chips for the phrases you use most. Add it to a widget page or a cluster column.
+
+### Radio
+- **Radio widget** (add it in Edit, or say “show the radio widget”): the station's logo, name and country, play/pause, previous/next station (your favourites, else the last list shown) and **Stations**. Also in **Settings › Dashboard › Radio stations** and on the home screen's **Radio**.
+- **Stations** come from the free [Radio Browser](https://www.radio-browser.info/) directory: **India** first (the most played), then **US** and **Europe** (UK, Germany, France, Netherlands, Italy, Spain, Ireland), plus search for any station by name. ☆ keeps a station in **Favourites**. Only HTTPS streams are listed, because a secure web app can't play `http://` ones. The lists are cached for a day; if the directory can't be reached, a few long-running US and European stations are built in.
+- One player for the whole app: it keeps playing while you rearrange the dashboard or switch screens, shows on the lock screen, and stops the demo music player. **It pauses while you talk to the assistant and resumes when the reply is done.** HLS (`.m3u8`) streams play natively in Safari and through [hls.js](https://github.com/video-dev/hls.js) (Apache-2.0, in `vendor/hls/`) elsewhere.
+- Voice: “play the radio”, “play Radio Mirchi”, “play BBC World Service radio”, “tune to Vividh Bharati”, “next station”, “stop the radio”, “show the stations”. A station asked for by voice starts when the reply finishes.
+
+### Widget links (one widget drives another)
+- **Settings › Dashboard › Widget links**: *when* something happens, *do* an action. Events: a route starts, you arrive, a route ends, the car starts moving or stops, a screen opens, you say something, a voice command runs, a station starts or stops, the assistant starts or finishes listening. Actions: play a station, next station, stop the radio, show the stations, say something, run a voice command, navigate somewhere, end the route, open a screen, show a widget page, play or pause music.
+- **{value}** in the action stands for what the event carries (the destination, the station, the words heard). **Only when it carries these words** limits a link, e.g. only routes to “Office”. Three examples are included, switched off.
+- The same actions are available to voice commands: **Settings › Voice commands › Then › Do a widget action**. For example, make “my station” play a chosen station.
+- A link can set off other links, three deep at most, and no link runs more than 3 times in 10 seconds, so links can't loop.
+- Widgets also react to app events themselves (the radio pausing while you talk is one).
 
 ### Debug mode and logs (for testing, hidden from ordinary users)
 - Open the app with `?debug=<key>` in the URL, e.g. `https://vchahalibm.github.io/CarPWA/?debug=<key>`. In the installed app, which has no address bar, go to **Settings**, tap the **DriveDeck** version row 7 times and enter the key. `?debug=off` or **Turn off debug mode** switches it off and deletes the log.

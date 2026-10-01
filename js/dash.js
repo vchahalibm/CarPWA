@@ -298,6 +298,23 @@ const W = {
   gforce: { name: 'G-Force', html: () => `<h5 class="acc">G-Force <b data-t="gMag"></b></h5><div class="gw">${gMeter()}</div>
       <button class="w-cta sm" data-show="tiltOff" data-dash="motion">Enable motion</button>` },
 };
+/* Widget instances. A list holds widget ids: a type ('weather'), or for types that can be added more than once
+   (W[type].multi) an instance 'type~xxxx' with its own settings (a PDF, a station list…). W[type].html(id) renders it;
+   W[type].config(id) opens its settings (the ⚙ in edit mode). */
+const wtype = id => String(id).split('~')[0];
+const Wcfg = {
+  all: () => store.get('wcfg', {}),
+  get(id) { return this.all()[id] || {}; },
+  set(id, v) { const a = this.all(); a[id] = { ...a[id], ...v }; store.set('wcfg', a); },
+  del(id) { const a = this.all(); delete a[id]; store.set('wcfg', a); },
+};
+/** Every widget instance currently on the dashboard (any page, column or pane). */
+function widgetIds() {
+  const ids = new Set(Dash.pages().flat());
+  for (const w of ['left', 'right']) Dash.list(w).forEach(i => ids.add(i));
+  for (const l of Object.values(store.get('paneCols', {}))) l.forEach(i => i !== '@' && ids.add(i));
+  return [...ids].filter(i => W[wtype(i)]);
+}
 const DEFAULT_WIDGETS = ['chat', 'trip', 'weather', 'calendar', 'clock', 'nowPlaying', 'roll', 'pitch', 'elevation'];
 
 /* ---------- Layouts & rendering ---------- */
@@ -315,12 +332,12 @@ const Dash = {
      'pg<n>'             widget pages                                                    */
   pages() {
     const p = store.get('widgetPages');
-    return (Array.isArray(p) && p.length ? p : [store.get('widgets', DEFAULT_WIDGETS)]).map(pg => pg.filter(id => W[id]));
+    return (Array.isArray(p) && p.length ? p : [store.get('widgets', DEFAULT_WIDGETS)]).map(pg => pg.filter(id => W[wtype(id)]));
   },
   list(where) {
-    if (where === 'left' || where === 'right') return (store.get('clusterSides', {})[where] || []).filter(id => W[id]);
+    if (where === 'left' || where === 'right') return (store.get('clusterSides', {})[where] || []).filter(id => W[wtype(id)]);
     if (where.startsWith('pg')) return this.pages()[+where.slice(2)] || [];
-    const l = (store.get('paneCols', {})[where] || ['@']).filter(id => id === '@' || W[id]);
+    const l = (store.get('paneCols', {})[where] || ['@']).filter(id => id === '@' || W[wtype(id)]);
     return l.includes('@') ? l : ['@', ...l];
   },
   setList(where, l) {
@@ -336,7 +353,7 @@ const Dash = {
 
   /** One widget card. Edit mode adds move/remove buttons and a corner resize handle. */
   card(id, i, list, where) {
-    const [w, h] = this.size(where, id), name = W[id].name, grid = where.startsWith('pg');
+    const [w, h] = this.size(where, id), t = wtype(id), def = W[t], name = Wcfg.get(id).title || def.name, grid = where.startsWith('pg');
     const ic = r => svg('back').replace('<svg', `<svg style="transform:rotate(${r}deg)"`);
     const [prev, next] = grid ? [ic(0), ic(180)] : [ic(90), ic(-90)];
     let edit = '';
@@ -344,11 +361,12 @@ const Dash = {
       edit = `<div class="wg-edit ${grid ? '' : 'two'}"><button data-dash="up:${where}:${id}" aria-label="Move ${name} ${grid ? 'earlier' : 'up'}" ${i ? '' : 'disabled'}>${prev}</button>
         <button class="x" data-dash="rm:${where}:${id}" aria-label="Remove ${name}">${svg('close')}</button>
         <button data-dash="down:${where}:${id}" aria-label="Move ${name} ${grid ? 'later' : 'down'}" ${i < list.length - 1 ? '' : 'disabled'}>${next}</button>
-        ${where === 'left' || where === 'right' ? `<button data-dash="swap:${where}:${id}" aria-label="Move ${name} to the other side">${where === 'left' ? ic(180) : ic(0)}</button>` : ''}</div>
+        ${where === 'left' || where === 'right' ? `<button data-dash="swap:${where}:${id}" aria-label="Move ${name} to the other side">${where === 'left' ? ic(180) : ic(0)}</button>` : ''}
+        ${def.config ? `<button data-dash="cfg:${where}:${id}" aria-label="${name} settings">${svg('sliders')}</button>` : ''}</div>
         <div class="wg-rs ${grid ? '' : 'v'}" data-rs="${where}:${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>`;
     }
     const style = grid ? `grid-column:span ${w};grid-row:span ${h}` : `flex-grow:${h}`;
-    return `<div class="wg w-${id}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${W[id].html()}${edit}</div>`;
+    return `<div class="wg w-${t}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${def.html(id)}${edit}</div>`;
   },
   addTile(where, label = 'Add') { return `<button class="wg add" data-cw="1" data-ch="1" data-dash="add:${where}">${svg('plus')}<span>${label}</span></button>`; },
 
@@ -493,8 +511,13 @@ const Dash = {
     else if (c === 'motion') Sensors.enable();
     else if (c === 'level') Sensors.zeroTilt();
     else if (c === 'add') this.addSheet(where);
-    else if (c === 'adds') { const l = this.list(where); if (!l.includes(id)) l.push(id); this.setList(where, l); this.render(); }
-    else if (c === 'rm') { this.setList(where, this.list(where).filter(x => x !== id)); this.render(); }
+    else if (c === 'adds') {
+      const l = this.list(where), inst = W[id]?.multi ? `${id}~${Math.random().toString(36).slice(2, 6)}` : id;
+      if (!l.includes(inst)) l.push(inst); this.setList(where, l); this.render();
+      if (inst !== id && W[id].config) W[id].config(inst, true); // a new instance: choose what it shows
+    }
+    else if (c === 'cfg') W[wtype(id)]?.config?.(id);
+    else if (c === 'rm') { this.setList(where, this.list(where).filter(x => x !== id)); if (id.includes('~') && !widgetIds().includes(id)) Wcfg.del(id); this.render(); }
     else if (c === 'swap') {
       const o = where === 'left' ? 'right' : 'left', to = this.list(o);
       this.setList(where, this.list(where).filter(x => x !== id)); if (!to.includes(id)) this.setList(o, [...to, id]); this.render();
@@ -521,7 +544,7 @@ const Dash = {
       [['Done']]);
   },
   addSheet(where) {
-    const have = this.list(where), missing = Object.keys(W).filter(id => !have.includes(id));
+    const have = this.list(where), missing = Object.keys(W).filter(id => W[id].multi || !have.includes(id));
     if (!missing.length) return toast('All widgets are already there');
     const place = where.startsWith('pg') ? `page ${+where.slice(2) + 1}` : where === 'left' || where === 'right' ? `${where} of the cluster` : 'this column';
     sheet(`Add widget · ${place}`, `<div class="cz-styles">${missing.map(id => `<button class="cz-style" data-dash="adds:${where}:${id}">${W[id].name}</button>`).join('')}</div>`, [['Done']]);

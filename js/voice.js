@@ -321,6 +321,7 @@ const Voice = {
     this.startTok = (this.startTok || 0) + 1; // a listen still waiting for its model must not start after this
     this.hush(); this.stopRec(true); try { this.sr?.abort(); } catch {} this.sr = null;
     $('#assistant').hidden = true; $('#vOrb').classList.remove('live');
+    Bus.emit('voice.idle');
   },
   show(text, hint = '') { $('#asstText').textContent = text; $('#asstHint').textContent = hint; },
   reply(text) {
@@ -335,7 +336,7 @@ const Voice = {
     const done = () => id === this.respId && !this.rec && !this.sr;
     if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => { if (done()) { this.close(); then?.(); } });
     setTimeout(() => { if (id === this.respId) then?.(); }, 600); // in-app actions happen while the reply is spoken
-    Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) $('#assistant').hidden = true; });
+    Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) { $('#assistant').hidden = true; Bus.emit('voice.idle'); } });
   },
 
   /* ---------- Speaking: Kokoro on the phone when downloaded, else the phone's own voice ---------- */
@@ -541,7 +542,7 @@ const Voice = {
     if (!$('#assistant').hidden && (this.rec || this.sr)) return this.stopRec(); // tap again = done talking
     Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
       voiceLoaded: !!this.tts, voiceDownloaded: !!store.get('kokoroOK'), playerUnlocked: !!this.unlocked, silence: settings.vadSilence, lang: settings.voiceLang });
-    this.hush(); this.respId++; this.unlock();
+    this.hush(); this.respId++; this.unlock(); Bus.emit('voice.listen');
     if (this.pipe?.alive && !this.pipe.alive()) { Log.w('stt', 'Whisper worker had stopped: reloading it'); this.resetSTT(); }
     this.open(); $('#vChips').hidden = false;
     this.show('Listening…', this.engine() === 'whisper' ? 'On-device · Whisper base' : 'Phone speech recognition');
@@ -741,7 +742,7 @@ const Voice = {
   heard(text, meta) {
     Log.i('stt', `Heard: “${text}”`, meta);
     this.show(`“${text}”`, 'Heard'); $('#vChips').hidden = true;
-    VoiceLog.you(text, meta);
+    VoiceLog.you(text, meta); Bus.emit('voice.heard', { value: text, engine: meta?.engine });
     setTimeout(() => handleCommand(text, true), 350);
   },
 };

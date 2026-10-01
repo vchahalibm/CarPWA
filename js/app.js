@@ -162,7 +162,7 @@ const APPS = [
   { id: 'calendar', name: 'Calendar', icon: 'calendar', bg: 'linear-gradient(160deg,#ff6b6b,#d0213f)' },
   { id: 'settings', name: 'Settings', icon: 'settings', bg: 'linear-gradient(160deg,#a1a1a8,#5b5b62)' },
   { id: 'podcasts', name: 'Podcasts', icon: 'podcasts', bg: 'linear-gradient(160deg,#d68bff,#8a2be2)', view: 'music', source: 'podcasts' },
-  { id: 'radio', name: 'Radio', icon: 'radio', bg: 'linear-gradient(160deg,#ff8a5c,#e5383b)', view: 'music', source: 'radio' },
+  { id: 'radio', name: 'Radio', icon: 'radio', bg: 'linear-gradient(160deg,#ff8a5c,#e5383b)', run: () => typeof Radio !== 'undefined' && Radio.browse() },
   { id: 'parking', name: 'Parking', icon: 'parking', bg: 'linear-gradient(160deg,#6ad4ff,#0070c9)', view: 'maps', category: 'Parking' },
   { id: 'charging', name: 'EV Charging', icon: 'bolt', bg: 'linear-gradient(160deg,#63e6be,#0ca678)', view: 'maps', category: 'EV Chargers' },
 ];
@@ -197,6 +197,7 @@ function pushRecent(id) {
 }
 function openApp(id) {
   const a = appById(id); if (!a) return;
+  if (a.run) { pushRecent(id); return a.run(); }
   if (a.source && a.source !== player.source) setSource(a.source);
   if (a.category) { panel.mode = 'category'; panel.cat = a.category; panel.collapsed = false; renderMapPanel(); }
   pushRecent(id);
@@ -206,6 +207,7 @@ function openView(id, fromApp) {
   if (!fromApp && appById(id)) pushRecent(id);
   current = id;
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
+  Bus.emit('view.open', { value: id });
   renderDock();
   ({
     dashboard: () => { if (typeof Dash !== 'undefined') Dash.render(); },
@@ -684,6 +686,7 @@ async function startNav(dest) {
   if (settings.voice) speak(`Starting route to ${dest.name}. ${mins} minute${mins === 1 ? '' : 's'}` +
     (route.trafficDelay > 120 ? `, including ${Math.round(route.trafficDelay / 60)} minutes of traffic.` : '.'));
   updateNav();
+  Bus.emit('nav.start', { value: dest.name, dest });
 }
 async function reroute() {
   if (!nav || nav.rerouting) return;
@@ -738,8 +741,9 @@ function announce(si, step, toNext) {
   if (!said.near && toNext <= near) { said.near = said.prep = true; speak(step.text + '.'); }
   else if (!said.prep && toNext > near * 1.6 && toNext < Math.max(500, loc.speed * 35)) { said.prep = true; speak(`In ${spokenDist(toNext)}, ${lowerFirst(step.text)}.`); }
 }
-function arrive() { const n = nav.dest.name; endNav(); toast(`Arrived at ${n}`); if (settings.voice) speak(`You have arrived at ${n}.`); }
+function arrive() { const n = nav.dest.name; Bus.emit('nav.arrive', { value: n, dest: nav.dest }); endNav(); toast(`Arrived at ${n}`); if (settings.voice) speak(`You have arrived at ${n}.`); }
 function endNav() {
+  if (nav) Bus.emit('nav.end', { value: nav.dest.name, dest: nav.dest });
   nav = null; navToken++;
   $('#view-maps').classList.remove('navigating'); $('#view-dashboard').classList.remove('navigating');
   $('#dashMan').hidden = true;
@@ -1157,6 +1161,7 @@ let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 function renderSettings() {
   if (typeof CmdUI !== 'undefined' && CmdUI.shown) return CmdUI.render();
+  if (typeof LinkUI !== 'undefined' && LinkUI.shown) return LinkUI.render();
   const debug = typeof DebugUI !== 'undefined' && Log.on;
   if (debug && DebugUI.tab === 'logs') return DebugUI.render();
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${k}:${v}" class="${settings[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -1177,6 +1182,8 @@ function renderSettings() {
     <div class="group-title">Dashboard</div>
     <div class="group">
       ${btn('dashCustomize', 'Cluster style, accent &amp; sensors')}
+      ${typeof Links !== 'undefined' ? btn('links', 'Widget links', `${Links.all().filter(k => k.on !== false).length} on`) : ''}
+      ${typeof Radio !== 'undefined' ? btn('radio', 'Radio stations', Radio.cur ? esc(Radio.cur.name) : 'Choose') : ''}
     </div>
     <div class="group-title">Driving</div>
     <div class="group">
@@ -1329,6 +1336,8 @@ const ACTIONS = {
       if (id === 'shortcut') { const n = prompt('Name of the shortcut that plays music:', settings.musicShortcut || 'DriveDeck Play'); if (!n) return; settings.musicShortcut = n.trim(); }
       settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   commands: () => CmdUI.open(),
+  links: () => LinkUI.open(),
+  radio: () => Radio.browse(),
   ttsGpu: () => { Diag.set('device', 'webgpu'); ACTIONS.ttsModel(); },
   versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),
   ttsVoice: () => sheet('Reply voice', '<p>The on-device voice that answers you and reads directions.</p>',

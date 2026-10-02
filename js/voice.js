@@ -334,7 +334,7 @@ const Voice = {
   },
   /** Show and log a reply, say it and act. Hand-offs to other apps wait for the reply to finish (up to 4 s) so it isn't cut off. */
   respond(msg, then, o = {}) {
-    this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves });
+    this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves }); Bus.emit('voice.reply', { value: msg });
     const id = ++this.respId, t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms)), said = speak(msg) || Promise.resolve();
     const done = () => id === this.respId && !this.rec && !this.sr;
     if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => { if (done()) { this.close(); then?.(); } });

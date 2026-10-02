@@ -72,7 +72,7 @@ const Radio = {
   audio() {
     if (this.el) return this.el;
     const el = this.el = new Audio(); el.preload = 'none'; el.playsInline = true; el.crossOrigin = null;
-    el.addEventListener('playing', () => this.setState('playing'));
+    el.addEventListener('playing', () => { this.setState('playing'); if (typeof Voice !== 'undefined') Voice.played = true; });
     el.addEventListener('waiting', () => this.setState('buffering'));
     el.addEventListener('pause', () => { if (this.state !== 'off') this.setState(this.held ? 'held' : 'paused'); });
     el.addEventListener('error', () => { if (!el.getAttribute('src')) return; Log.e('radio', 'Stream failed', { url: this.cur?.url, code: el.error?.code });

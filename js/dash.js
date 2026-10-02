@@ -594,7 +594,26 @@ const Bar = {
   },
 };
 $('#view-dashboard').addEventListener('pointerdown', () => Bar.show(), true);
-addEventListener('resize', () => requestAnimationFrame(() => Dash.fitGrid()));
+/* Rotating the phone or tablet (or the dock sliding away) changes the dashboard's size, and iOS reports the new size a moment
+   after the "resize" event. So watch the dashboard itself and refit everything sized in pixels when it really changes:
+   the widget grids, the page the pager shows, the maps, PDFs and camera boxes (via 'dash.resized'). */
+Dash.refit = () => {
+  Dash.fitGrid();
+  const box = $('#wpages'); if (box) box.scrollLeft = Math.min(store.get('wpage', 0), Dash.pages().length - 1) * box.clientWidth;
+  Object.values(maps).forEach(M => M.map?.resize());
+  Bus.emit('dash.resized');
+};
+(() => {
+  let raf = 0, last = '';
+  const go = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
+    const r = $('#dashRoot')?.getBoundingClientRect(); const k = r ? `${Math.round(r.width)}x${Math.round(r.height)}` : '';
+    if (k && k !== last) { last = k; Dash.refit(); }
+  }); };
+  if (window.ResizeObserver && $('#dashRoot')) new ResizeObserver(go).observe($('#dashRoot'));
+  addEventListener('resize', go);
+  addEventListener('orientationchange', () => { go(); setTimeout(() => { last = ''; go(); }, 400); }); // iOS settles late
+  screen.orientation?.addEventListener?.('change', () => setTimeout(() => { last = ''; go(); }, 300));
+})();
 /* Drag a widget's corner handle to resize it in whole cells; the grid re-packs around it. */
 document.addEventListener('pointerdown', e => {
   const hnd = e.target.closest('[data-rs]'); if (!hnd) return;

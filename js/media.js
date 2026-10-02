@@ -11,6 +11,10 @@
    app's own storage (IndexedDB). Loaded after radio.js.
    ============================================================ */
 const PDFJS = 'vendor/pdfjs/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
+// 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
+const BUILTIN_MODELS = {
+  robot: { name: 'Assistant robot', note: 'waves, nods and reacts to what happens', src: 'vendor/models/robot-expressive.glb', avatar: true },
+};
 Bus.define('doc.page', 'A document changes page', 'the page number');
 Bus.define('video.ended', 'A video ends', 'the video’s link');
 
@@ -53,7 +57,7 @@ const MEDIA_KINDS = {
   doc: { name: 'Document', icon: 'doc', accept: '.pdf,application/pdf', hint: 'A PDF from this device or a link; PowerPoint, Word or Excel by link (SharePoint, OneDrive or any public link); Google Slides “publish to web” links. To use a PowerPoint file from this device, save it as PDF first.' },
   video: { name: 'Video', icon: 'play', accept: 'video/*', hint: 'A YouTube link (video, short, live or playlist), a video link (.mp4, .webm, .m3u8) or a video from this device.' },
   web: { name: 'Web page', icon: 'globe', accept: '', hint: 'Any web address. Many big sites (Google, banks, most news) refuse to be shown inside another app: use Open for those.' },
-  model: { name: '3D model', icon: 'cube', accept: '.glb,.gltf,model/gltf-binary,model/gltf+json', hint: 'A glTF model: a .glb file from this device, or a link to a .glb or .gltf.' },
+  model: { name: '3D model', icon: 'cube', accept: '.glb,.gltf,model/gltf-binary,model/gltf+json', hint: 'A glTF model: a .glb file from this device, or a link to a .glb or .gltf. Leave both empty for the built-in model.' },
 };
 
 const Media = {
@@ -63,7 +67,7 @@ const Media = {
   html(id) {
     const k = wtype(id), c = Wcfg.get(id), K = MEDIA_KINDS[k];
     return `<div class="mw mw-${k}" data-media="${esc(id)}"><div class="mw-body"><div class="mw-empty">${svg(K.icon)}<b>${esc(c.title || K.name)}</b>
-        <span>${c.url || c.file ? 'Loading…' : 'Nothing chosen yet'}</span>${c.url || c.file ? '' : `<button class="w-cta" data-media-cfg="${esc(id)}">Choose</button>`}</div></div>
+        <span>${c.url || c.file || k === 'model' ? 'Loading…' : 'Nothing chosen yet'}</span>${c.url || c.file || k === 'model' ? '' : `<button class="w-cta" data-media-cfg="${esc(id)}">Choose</button>`}</div></div>
       ${k === 'doc' ? `<div class="mw-bar" data-pdfbar hidden><button class="ctl" data-mact="prev:${esc(id)}" aria-label="Previous page">${svg('back')}</button>
         <span class="mw-page" data-pdfpage></span><button class="ctl" data-mact="next:${esc(id)}" aria-label="Next page">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button></div>` : ''}
       ${c.url && k !== 'model' ? `<button class="mw-open" data-mact="open:${esc(id)}" aria-label="Open outside DriveDeck">${svg('expand')}</button>` : ''}</div>`;
@@ -73,8 +77,9 @@ const Media = {
   async mount(id, el = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`)) {
     if (!el) return;
     const k = wtype(id), c = Wcfg.get(id), body = $('.mw-body', el);
-    if (!c.url && !c.file) return;
-    let src = c.url;
+    const builtin = k === 'model' && !c.url && !c.file ? BUILTIN_MODELS[c.builtin] || Object.values(BUILTIN_MODELS)[0] : null;
+    if (!c.url && !c.file && !builtin) return;
+    let src = builtin ? builtin.src : c.url;
     try { if (c.file) src = await Files.url(c.file.key); } catch (e) { Log.e('media', 'Stored file unreadable', e); }
     if (!src) return this.problem(body, 'The file isn’t on this device any more. Choose it again.', id);
     Log.i('media', `Showing ${k}`, { id, src: c.file ? `file: ${c.file.name}` : src });
@@ -82,7 +87,7 @@ const Media = {
       if (k === 'doc') return await this.doc(id, el, body, src, c);
       if (k === 'video') return await this.video(id, body, src, c);
       if (k === 'web') return this.frame(body, src, 'web');
-      if (k === 'model') return await this.model(body, src);
+      if (k === 'model') return await this.model(body, src, builtin);
     } catch (e) { Log.e('media', `${k} failed`, e); this.problem(body, k === 'doc' ? 'This document couldn’t be opened here. The site may not allow it: try Open.' : 'This couldn’t be shown here.', id); }
   },
   problem(body, msg, id) { body.innerHTML = `<div class="mw-empty">${svg('alert')}<span>${esc(msg)}</span><button class="w-cta" data-media-cfg="${esc(id)}">Change</button></div>`; },
@@ -170,9 +175,14 @@ const Media = {
   },
 
   /* ---------- 3D ---------- */
-  async model(body, src) {
-    if (!customElements.get('model-viewer')) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = MODEL_VIEWER; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
-    body.innerHTML = `<model-viewer class="mw-model" src="${esc(src)}" camera-controls auto-rotate touch-action="pan-y" interaction-prompt="none" shadow-intensity="0.8" exposure="1" alt="3D model"></model-viewer>`;
+  async model(body, src, builtin) {
+    // One load for all 3D widgets: two loading it at once define the element twice and fail.
+    if (!customElements.get('model-viewer')) await (this.mvLoad ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = MODEL_VIEWER; s.onload = res; s.onerror = e => { this.mvLoad = null; rej(e); }; document.head.appendChild(s); }));
+    body.innerHTML = builtin?.avatar
+      // An avatar faces you and stands still (no spinning), idling until something happens.
+      ? `<model-viewer class="mw-model" data-avatar src="${esc(src)}" camera-controls camera-orbit="0deg 80deg 110%" animation-name="Idle" autoplay
+          animation-crossfade-duration="350" touch-action="pan-y" interaction-prompt="none" shadow-intensity="0.9" exposure="1.05" alt="${esc(builtin.name)}"></model-viewer>`
+      : `<model-viewer class="mw-model" src="${esc(src)}" camera-controls auto-rotate touch-action="pan-y" interaction-prompt="none" shadow-intensity="0.8" exposure="1" alt="3D model"></model-viewer>`;
   },
 
   /* ---------- Choosing what a widget shows ---------- */
@@ -182,6 +192,7 @@ const Media = {
       <label class="fld"><span>Link</span><input id="mwUrl" type="url" value="${esc(c.url || '')}" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       ${K.accept !== '' ? `<div class="mw-file"><button class="big-btn" id="mwPick">${svg('plus')}Choose a file</button><span id="mwFileName">${c.file ? esc(c.file.name) : 'or a file from this device'}</span>
         <input type="file" id="mwFile" accept="${K.accept}" hidden></div>` : ''}
+      ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || 'robot') === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}</option>`).join('')}</select></label>` : ''}
       <label class="fld"><span>Title (optional)</span><input id="mwTitle" value="${esc(c.title || '')}" placeholder="${K.name}" autocomplete="off"></label>
       <p class="hint">${esc(K.hint)}</p></div>`,
       [['Save', () => this.saveCfg(id)], ...(isNew ? [] : [['Clear', () => this.clearCfg(id)]]), ['Cancel']]);
@@ -194,6 +205,7 @@ const Media = {
     const url = $('#mwUrl')?.value.trim() || '', title = $('#mwTitle')?.value.trim() || '', f = this.picked, old = Wcfg.get(id);
     if (url && !/^https:\/\//i.test(url)) { toast('Use a link starting with https://'); return this.config(id); }
     const v = { title, url: f ? '' : url || (old.file ? '' : old.url || '') }; this.resetPage(id);
+    if ($('#mwBuiltin')) v.builtin = $('#mwBuiltin').value;
     if (f) {
       const key = `${id}:${Date.now()}`;
       try { await Files.put(key, f); } catch (e) { Log.e('media', 'Saving the file failed', e); return toast('Couldn’t keep that file on this device'); }
@@ -241,4 +253,48 @@ Actions.define('video.open', { group: 'Documents & media', name: 'Show a video',
 Actions.define('web.open', { group: 'Documents & media', name: 'Show a web page', arg: 'Web address', run(v, say) { const id = needs('web', say); if (id && v) { Wcfg.set(id, { url: /^https?:/i.test(v) ? v : 'https://' + v, file: null }); Dash.render(); } } });
 Actions.define('model.open', { group: 'Documents & media', name: 'Show a 3D model', arg: 'Link to a .glb or .gltf', run(v, say) { const id = needs('model', say); if (id && v) { Wcfg.set(id, { url: v, file: null }); Dash.render(); } } });
 const WORD_NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, first: 1, second: 2, third: 3, last: 9999 };
+
+/* ---------- The built-in avatar: gestures and expressions in response to what happens ----------
+   Gestures are the model's own animations, played once and then back to idling; expressions are its face morph targets
+   (Angry, Surprised, Sad), eased in and out. model-viewer has no API for morph targets, so they're set on its three.js scene. */
+const Avatar = {
+  els: () => $$('#dashRoot model-viewer[data-avatar]').filter(m => m.loaded),
+  gesture(name, times = 1) {
+    for (const mv of this.els()) {
+      if (!mv.availableAnimations?.includes(name)) continue;
+      mv.animationName = name; mv.play({ repetitions: times });
+      // Back to idling when it's done: on 'finished', or by the clock if that event is missed (e.g. while hidden).
+      const back = () => { clearTimeout(mv.idleT); if (mv.animationName === name) { mv.animationName = 'Idle'; mv.play(); } };
+      mv.addEventListener('finished', back, { once: true });
+      clearTimeout(mv.idleT); mv.idleT = setTimeout(back, ((mv.duration || 2) * times + 0.4) * 1000);
+    }
+    Log.d('avatar', `Gesture ${name}`);
+  },
+  face(name, ms = 1600) {
+    for (const mv of this.els()) {
+      const sym = Object.getOwnPropertySymbols(mv).find(x => x.description === 'scene'), scene = sym && mv[sym];
+      const meshes = []; scene?.traverse?.(o => { if (o.morphTargetDictionary && name in o.morphTargetDictionary) meshes.push(o); });
+      if (!meshes.length) continue;
+      const t0 = performance.now(), step = t => {
+        const k = (t - t0) / ms, w = k < 0.2 ? k / 0.2 : k > 0.8 ? Math.max(0, (1 - k) / 0.2) : 1; // ease in, hold, ease out
+        meshes.forEach(o => { o.morphTargetInfluences[o.morphTargetDictionary[name]] = w; });
+        scene.queueRender?.();
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+    Log.d('avatar', `Face ${name}`);
+  },
+};
+const SAD = /\b(sorry|couldn’t|couldn't|can’t|isn’t|didn’t|no active|not available|failed|off in settings)\b/i;
+Bus.on('voice.listen', () => Avatar.gesture('Wave'));
+Bus.on('voice.heard', () => Avatar.gesture('Yes'));
+Bus.on('voice.reply', d => { if (SAD.test(d.value || '')) { Avatar.gesture('No'); Avatar.face('Sad', 2200); } else Avatar.gesture('ThumbsUp'); });
+Bus.on('camera.alert', () => { Avatar.face('Surprised', 1800); Avatar.gesture('Jump'); });
+Bus.on('radio.play', () => Avatar.gesture('Dance', 2));
+Bus.on('nav.start', () => Avatar.gesture('ThumbsUp'));
+Bus.on('nav.arrive', () => { Avatar.gesture('Wave'); Avatar.face('Surprised', 1200); });
+document.addEventListener('click', e => { if (e.target.closest?.('model-viewer[data-avatar]') && !Dash.editing) { Avatar.gesture('Wave'); Avatar.face('Surprised', 900); } });
+Actions.define('avatar.gesture', { group: 'Documents & media', name: '3D assistant: gesture', arg: 'Wave, Yes, No, ThumbsUp, Dance or Jump', run: v => Avatar.gesture(cap(v.trim()).replace(/^Thumbsup$/i, 'ThumbsUp') || 'Wave') });
+Actions.define('avatar.face', { group: 'Documents & media', name: '3D assistant: expression', arg: 'Surprised, Sad or Angry', run: v => Avatar.face(cap(v.trim()) || 'Surprised') });
 if (current === 'dashboard') Dash.render(); // the widget types now exist

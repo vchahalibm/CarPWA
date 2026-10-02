@@ -11,11 +11,12 @@ const Bus = (() => {
   const EVENTS = {};
   return {
     EVENTS,
+    quiet: new Set(), // events too frequent or bulky for the debug log (e.g. audio samples for lip-sync)
     define(id, label, carries = '') { EVENTS[id] = [label, carries]; },
     on(name, fn) { if (!subs.has(name)) subs.set(name, new Set()); subs.get(name).add(fn); return () => subs.get(name)?.delete(fn); },
     /** Tell everyone. `data.value` is the main thing the event carries (a place, a station, the words heard…). */
     emit(name, data = {}) {
-      if (typeof Log !== 'undefined') Log.d('event', name, data);
+      if (typeof Log !== 'undefined' && !this.quiet.has(name)) Log.d('event', name, data);
       for (const key of [name, '*']) for (const fn of subs.get(key) || []) {
         try { fn(data, name); } catch (e) { if (typeof Log !== 'undefined') Log.e('event', `A listener for ${name} failed`, e); }
       }

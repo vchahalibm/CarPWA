@@ -462,17 +462,19 @@ const Dash = {
     const spans = items.map(el => [+el.dataset.cw || 1, +el.dataset.ch || 1]);
     const area = spans.reduce((a, [w, h]) => a + w * h, 0);
     const apply = cols => items.forEach((el, k) => el.style.gridColumn = `span ${Math.min(spans[k][0], cols)}`);
-    let best = null;
+    let best = null, loose = null;
     g.style.gridAutoRows = '10px';
     for (let cols = 1; cols <= Math.max(1, area); cols++) {
       const cw = (W - gap * (cols - 1)) / cols; if (cw < 96) break;
       g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`; apply(cols);
       const rows = getComputedStyle(g).gridTemplateRows.split(' ').length; // rows the dense packing actually used
       const rh = (H - gap * (rows - 1)) / rows;
-      if (cw / rh > 2.6 || rh / cw > 1.9) continue; // keep cells card-shaped
       const score = Math.min(cw, rh);
+      if (!loose || score > loose.score) loose = { cols, rh, score };
+      if (cw / rh > 2.6 || rh / cw > 1.9) continue; // prefer card-shaped cells
       if (!best || score > best.score) best = { cols, rh, score };
     }
+    best ||= loose; // e.g. one or two widgets on a tall phone: fill the page rather than shrink to small tiles
     if (best && best.score >= 104) {
       g.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`; apply(best.cols);
       g.style.gridAutoRows = `${Math.floor(best.rh)}px`; g.dataset.cols = best.cols; g.classList.add('fit');

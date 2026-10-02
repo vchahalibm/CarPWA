@@ -37,6 +37,7 @@ js/events.js              The app-wide event bus (Bus)
 js/widgets.js             Actions, widget links and Settings › Widget links
 js/radio.js               Internet radio: player, station directory, widget
 js/media.js               Document, video, web page and 3D model widgets
+js/avatar.js              VRM avatars in the 3D widget: lip-sync, blinking, gestures
 js/vision.js              Camera widget and offline object recognition (YOLOv10 / D-FINE)
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
@@ -46,6 +47,8 @@ vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally
 vendor/hls/               hls.js light (Apache-2.0), for HLS radio and video streams outside Safari
 vendor/pdfjs/             pdf.js (Apache-2.0, legacy build + standard fonts), for PDF documents
 vendor/model-viewer/      model-viewer (Apache-2.0), for 3D models
+vendor/three-vrm/         three.js + three-vrm bundle (MIT), for VRM avatars
+vendor/models/            Built-in 3D models (CC0): Vita (VRM) and the robot
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 docs/memory-strategy.md   How on-device models share a phone's memory
@@ -133,7 +136,8 @@ Four widget types you can add as many times as you like, each showing its own th
 - **Video**: a YouTube link (video, short, live, playlist; a `t=` start time is kept) in YouTube's privacy-enhanced player, or a video file or link (`.mp4`, `.webm`, `.m3u8`). Voice: “play the video”, “pause the video”.
 - **Web page**: any `https://` address. Many big sites (Google, banks, most news) refuse to be shown inside another app; the ⤢ button opens them outside. The Mac app shows them anyway.
 - **3D model**: a `.glb` file or a link to a `.glb`/`.gltf`, shown with Google's [model-viewer](https://modelviewer.dev/) (Apache-2.0, `vendor/model-viewer/`): drag to turn, pinch to zoom, slowly turning on its own.
-  - **Built-in: Assistant robot** (CC0, by Quaternius with expressions by Don McCurdy; `vendor/models/`). A 3D widget with no link or file shows it. It faces you and idles, and reacts: it **waves** when you start talking (or tap it), **nods** when it has heard you, gives a **thumbs up** for a done command or a new route, **shakes its head and looks sad** when it couldn't help, **jumps, surprised** at a camera alert, and **dances** when a radio station starts. Links can make it gesture (Wave, Yes, No, ThumbsUp, Dance, Jump) or pull a face (Surprised, Sad, Angry).
+  - **Built-in: Vita** (the default; anime-style VRoid sample model by pixiv, CC0, `vendor/models/vita.vrm`), drawn with [three.js](https://threejs.org/) and pixiv's [three-vrm](https://github.com/pixiv/three-vrm) (both MIT, one bundle in `vendor/three-vrm/`). She **talks with lip-sync** to the on-device reply voice (loudness opens the mouth, the sound picks the shape: a, i, u, e, o; with the phone's own voice the mouth simply moves while it speaks), **blinks**, breathes, **looks at you**, and reacts like the robot: waves when you start talking or tap her, leans in while listening, nods, gives a thumbs up, shakes her head and looks sad, looks surprised at a camera alert, and dances to the radio. Any **`.vrm` avatar** file or link works the same way, so a realistic VRM avatar can replace her later. She's drawn only while the dashboard is on screen (up to 30 frames a second) and counts 120 MB in the memory budget; if memory runs short she's put away with a **Show again** button.
+  - **Built-in: Assistant robot** (CC0, by Quaternius with expressions by Don McCurdy; `vendor/models/`), the other built-in choice. It faces you and idles, and reacts: it **waves** when you start talking (or tap it), **nods** when it has heard you, gives a **thumbs up** for a done command or a new route, **shakes its head and looks sad** when it couldn't help, **jumps, surprised** at a camera alert, and **dances** when a radio station starts. Links can make it gesture (Wave, Yes, No, ThumbsUp, Dance, Jump) or pull a face (Surprised, Sad, Angry).
 - Coming back to the dashboard from another screen keeps them exactly where they were (a video keeps playing, a document stays on its page).
 - Links and voice commands can drive them: “Next page or slide”, “Go to a page”, “Show a document”, “Play/Pause the video”, “Show a video”, “Show a web page”, “Show a 3D model”. They also announce **A document changes page** and **A video ends**.
 

@@ -13,6 +13,7 @@
 const PDFJS = 'vendor/pdfjs/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
+  vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/vita.vrm', vrm: true },
   robot: { name: 'Assistant robot', note: 'waves, nods and reacts to what happens', src: 'vendor/models/robot-expressive.glb', avatar: true },
 };
 Bus.define('doc.page', 'A document changes page', 'the page number');
@@ -57,7 +58,7 @@ const MEDIA_KINDS = {
   doc: { name: 'Document', icon: 'doc', accept: '.pdf,application/pdf', hint: 'A PDF from this device or a link; PowerPoint, Word or Excel by link (SharePoint, OneDrive or any public link); Google Slides “publish to web” links. To use a PowerPoint file from this device, save it as PDF first.' },
   video: { name: 'Video', icon: 'play', accept: 'video/*', hint: 'A YouTube link (video, short, live or playlist), a video link (.mp4, .webm, .m3u8) or a video from this device.' },
   web: { name: 'Web page', icon: 'globe', accept: '', hint: 'Any web address. Many big sites (Google, banks, most news) refuse to be shown inside another app: use Open for those.' },
-  model: { name: '3D model', icon: 'cube', accept: '.glb,.gltf,model/gltf-binary,model/gltf+json', hint: 'A glTF model: a .glb file from this device, or a link to a .glb or .gltf. Leave both empty for the built-in model.' },
+  model: { name: '3D model', icon: 'cube', accept: '.glb,.gltf,.vrm,model/gltf-binary,model/gltf+json', hint: 'A glTF model (.glb or .gltf) or a VRM avatar (.vrm: it talks with lip-sync and reacts like the built-in one), as a file from this device or a link. Leave both empty for a built-in model.' },
 };
 
 const Media = {
@@ -87,7 +88,7 @@ const Media = {
       if (k === 'doc') return await this.doc(id, el, body, src, c);
       if (k === 'video') return await this.video(id, body, src, c);
       if (k === 'web') return this.frame(body, src, 'web');
-      if (k === 'model') return await this.model(body, src, builtin);
+      if (k === 'model') return await ((builtin ? builtin.vrm : ext(c.file?.name || c.url) === 'vrm') ? VrmAvatar.mount(id, body, src) : this.model(body, src, builtin));
     } catch (e) { Log.e('media', `${k} failed`, e); this.problem(body, k === 'doc' ? 'This document couldn’t be opened here. The site may not allow it: try Open.' : 'This couldn’t be shown here.', id); }
   },
   problem(body, msg, id) { body.innerHTML = `<div class="mw-empty">${svg('alert')}<span>${esc(msg)}</span><button class="w-cta" data-media-cfg="${esc(id)}">Change</button></div>`; },
@@ -192,7 +193,7 @@ const Media = {
       <label class="fld"><span>Link</span><input id="mwUrl" type="url" value="${esc(c.url || '')}" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       ${K.accept !== '' ? `<div class="mw-file"><button class="big-btn" id="mwPick">${svg('plus')}Choose a file</button><span id="mwFileName">${c.file ? esc(c.file.name) : 'or a file from this device'}</span>
         <input type="file" id="mwFile" accept="${K.accept}" hidden></div>` : ''}
-      ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || 'robot') === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}</option>`).join('')}</select></label>` : ''}
+      ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || Object.keys(BUILTIN_MODELS)[0]) === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}</option>`).join('')}</select></label>` : ''}
       <label class="fld"><span>Title (optional)</span><input id="mwTitle" value="${esc(c.title || '')}" placeholder="${K.name}" autocomplete="off"></label>
       <p class="hint">${esc(K.hint)}</p></div>`,
       [['Save', () => this.saveCfg(id)], ...(isNew ? [] : [['Clear', () => this.clearCfg(id)]]), ['Cancel']]);
@@ -269,6 +270,7 @@ const Avatar = {
       clearTimeout(mv.idleT); mv.idleT = setTimeout(back, ((mv.duration || 2) * times + 0.4) * 1000);
     }
     Log.d('avatar', `Gesture ${name}`);
+    if (typeof VrmAvatar !== 'undefined') VrmAvatar.gesture(name, times);
   },
   face(name, ms = 1600) {
     for (const mv of this.els()) {
@@ -284,6 +286,7 @@ const Avatar = {
       requestAnimationFrame(step);
     }
     Log.d('avatar', `Face ${name}`);
+    if (typeof VrmAvatar !== 'undefined') VrmAvatar.face(name, ms);
   },
 };
 const SAD = /\b(sorry|couldn’t|couldn't|can’t|isn’t|didn’t|no active|not available|failed|off in settings)\b/i;

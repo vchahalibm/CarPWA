@@ -212,7 +212,7 @@ const Media = {
 
 for (const [k, K] of Object.entries(MEDIA_KINDS)) W[k] = { name: K.name, multi: true, html: id => Media.html(id), config: (id, isNew) => Media.config(id, isNew) };
 Bus.on('dash.rendered', () => Media.mountAll());
-addEventListener('resize', () => { clearTimeout(Media.rt); Media.rt = setTimeout(() => Object.keys(Media.pdf).forEach(id => Media.pdfDraw(id)), 300); });
+Bus.on('dash.resized', () => { clearTimeout(Media.rt); Media.rt = setTimeout(() => Object.keys(Media.pdf).forEach(id => Media.pdfDraw(id)), 150); });
 // YouTube player events (with enablejsapi): a video ending.
 addEventListener('message', e => {
   if (!/youtube(-nocookie)?\.com$/.test((() => { try { return new URL(e.origin).hostname; } catch { return ''; } })())) return;

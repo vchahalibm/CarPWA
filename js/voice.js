@@ -43,7 +43,7 @@ const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
   // Whisper: the GPU (0.4 s vs 2.2 s on an iPad) on tablets and computers, unless only the CPU build is downloaded here.
-  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker',
+  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker', sr: 'reset',
     device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().some(d => d.startsWith('fp'))) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
@@ -205,6 +205,8 @@ self.onmessage = ({ data: m }) => {
         const a = await tts.generate(m.text, { voice: m.voice }), f = new Float32Array(a.audio);
         send({ type: 'audio', id: m.id, f32: f, rate: a.sampling_rate }, [f.buffer]);
       } else if (m.type === 'speak') {
+        if (cancelled.has(m.id)) { send({ type: 'done', id: m.id }); return; } // replaced before it began
+        send({ type: 'start', id: m.id });
         // A closed splitter: given a plain string, kokoro-js waits for more text and never speaks the last sentence.
         const split = new K.TextSplitterStream(); split.push(m.text); split.close();
         for await (const { text, audio } of tts.stream(split, { voice: m.voice })) {
@@ -251,10 +253,11 @@ function kokoroWorker() {
         pending.delete(m.id); m.type === 'audio' ? res({ f32: m.f32, rate: m.rate }) : rej(new Error(m.message));
       }));
     },
-    sentences(text, voice) {
+    sentences(text, voice, onStart) {
       const q = [], waiting = []; let over = false, err = null;
       const put = v => (waiting.length ? waiting.shift()(v) : q.push(v));
       const id = call({ type: 'speak', text, voice }, m => {
+        if (m.type === 'start') return onStart?.();
         if (m.type === 'chunk') return put({ text: m.text, f32: m.f32, rate: m.rate });
         pending.delete(m.id); if (m.type === 'error') err = new Error(m.message); put(null);
       });
@@ -359,6 +362,7 @@ const Voice = {
         if (id !== this.sayId) return res();
         try {
           const u = this.utt = new SpeechSynthesisUtterance(text); // kept referenced, or onend may never fire
+          this.played = true;
           u.rate = 1.03; u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
           const s = performance.now();
           u.onstart = () => Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s) });
@@ -390,17 +394,20 @@ const Voice = {
       next();
     };
     // A stuck or very slow model must not leave you in silence: after 8 s without sound, the phone's voice takes over.
-    const watchdog = setTimeout(() => {
+    let watchdog = 0;
+    const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(() => {
       if (started) return;
       fail = new Error('The reply voice took too long'); Log.w('tts', 'Watchdog: no sound after 8 s', { sentences: n });
       // Twice in a row with nothing generated at all: the voice is broken here; stop making every reply wait 8 s.
       if (!n && ++this.ttsStalls >= 2) { this.ttsBroken = 'No sentence generated twice in a row'; Log.e('tts', 'On-device voice marked as not working: replies use the phone voice'); }
       finish();
-    }, 8000);
+    }, 8000); };
+    // The timer starts when the worker begins this reply: a sentence of the previous reply may still be finishing.
+    arm();
     (async () => {
       try {
         let g = performance.now();
-        for await (const { text: sentence, f32, rate } of this.tts.sentences(text, voice)) {
+        for await (const { text: sentence, f32, rate } of this.tts.sentences(text, voice, () => { if (!started && !n) arm(); })) {
           if (id !== this.sayId || fail) return; // leaving the loop cancels the rest of the reply
           const item = { n: ++n, f32, rate }; this.ttsStalls = 0; this.ttsBroken = '';
           Log.i('tts', `Sentence ${n} generated in ${Math.round(performance.now() - g)} ms`, { sentence, seconds: +(item.f32.length / item.rate).toFixed(2), rate: item.rate });
@@ -422,10 +429,11 @@ const Voice = {
       const ctx = this.audio(); if (ctx.state !== 'running') await ctx.resume().catch(() => {});
       if (ctx.state !== 'running') throw new Error(`Web Audio is ${ctx.state}`);
       const buf = ctx.createBuffer(1, f32.length, rate); buf.copyToChannel(f32, 0);
-      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); this.played = true;
       Log.d('tts', `▶ sentence ${n} (Web Audio)`, { ctxRate: ctx.sampleRate, secs: +secs.toFixed(2) });
       return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); });
     }
+    this.played = true; // the next phone-recognizer turn resets the microphone first
     const el = this.player(), url = out === 'data' ? await wavDataUrl(f32, rate) : URL.createObjectURL(wavBlob(f32, rate));
     return new Promise((res, rej) => {
       let over = false, guard = 0;
@@ -713,30 +721,82 @@ const Voice = {
   },
 
   /* Browser engine: live partial results while you speak. */
-  listenBrowser() {
+  /* Phone recognizer. On iPhone/iPad it works once, then often hears nothing after a reply has played: WebKit leaves the
+     phone's audio session set up for playback, so the recognizer gets no microphone audio and gives up with "No speech
+     detected". So before listening: free the reply player, put the session in record mode, and (after anything has played)
+     open and close the microphone once, which resets the session. If it still gets no audio within 3 s, it's reset and
+     restarted once, and after that Whisper takes over for the turn when it's downloaded. Diag 'sr' = 'plain' turns this off. */
+  async listenBrowser(retry = 0) {
     if (!SR) return this.show('Voice input isn’t supported in this browser', 'Tap a suggestion');
+    const tok = this.startTok, cfg = Diag.get();
+    this.hush();
+    if (cfg.sr !== 'plain') {
+      this.releasePlayer();
+      if (this.played || retry) await this.primeMic();
+      if (tok !== this.startTok) return;
+      this.session('play-and-record');
+    }
     try {
-      this.hush();
       const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true;
-      let text = '', done = false, lastChange = performance.now();
+      let text = '', done = false, lastChange = performance.now(), audio = false, guard = 0;
       const latency = () => Log.i('stt', `Recognised ${Math.round(performance.now() - lastChange)} ms after your last word (phone recognizer)`, { text });
-      const finish = () => { if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); };
-      Log.i('stt', 'Phone recognizer starting', { lang: r.lang });
-      r.onstart = () => Log.d('stt', 'Phone recognizer listening');
+      const finish = () => { clearTimeout(guard); if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); if (cfg.sr !== 'plain') this.session('auto'); };
+      Log.i('stt', 'Phone recognizer starting', { lang: r.lang, retry, primed: cfg.sr !== 'plain' && (this.played || !!retry), session: navigator.audioSession?.type });
+      r.onstart = () => {
+        Log.d('stt', 'Phone recognizer listening');
+        // No microphone audio at all within 3 s means the recognizer is stuck, not that you're quiet.
+        guard = setTimeout(() => { if (audio || done || this.sr !== r) return; Log.w('stt', 'Phone recognizer gets no audio: resetting'); done = true; this.recover(r, retry); }, 3000);
+      };
+      r.onaudiostart = () => { audio = true; Log.d('stt', 'Phone recognizer audio started'); };
+      r.onsoundstart = () => Log.d('stt', 'Phone recognizer hears sound');
+      r.onspeechstart = () => Log.d('stt', 'Phone recognizer hears speech');
       r.onresult = e => {
+        audio = true;
         const t = [...e.results].map(x => x[0].transcript).join(' ').trim();
         if (t !== text) lastChange = performance.now();
         text = t;
         Log.d('stt', `Phone recognizer ${e.results[e.results.length - 1].isFinal ? 'final' : 'interim'}`, { text });
         this.show(`“${text}”`, 'Listening…');
-        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.heard(text, { engine: 'Phone' }); }
+        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.srFails = 0; this.heard(text, { engine: 'Phone' }); }
       };
-      r.onerror = e => { Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message }); finish(); if (done) return; done = true;
-        this.show(e.error === 'not-allowed' ? 'Microphone or speech permission is off' : 'Couldn’t hear you', e.error === 'not-allowed' ? 'Allow them for this site in the phone’s settings' : 'Tap the mic and try again'); };
+      r.onerror = e => {
+        Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message, audio }); finish(); if (done) return; done = true;
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') return this.show('Microphone or speech permission is off', 'Allow them for this site in the phone’s settings');
+        if (e.error === 'aborted' && $('#assistant').hidden) return; // you closed it
+        if (!audio && cfg.sr !== 'plain') return this.recover(r, retry);
+        this.show('Couldn’t hear you', 'Tap the mic and try again');
+      };
       // Some phones end without a “final” result: use what was heard so far, and never leave the mic stuck.
-      r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done }); finish(); if (done) return; done = true; text ? (latency(), this.heard(text, { engine: 'Phone' })) : this.show('I didn’t hear anything', 'Tap the mic and try again'); };
+      r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done, audio }); finish(); if (done) return; done = true;
+        if (text) { latency(); this.srFails = 0; return this.heard(text, { engine: 'Phone' }); }
+        if (!audio && cfg.sr !== 'plain') return this.recover(r, retry);
+        this.show('I didn’t hear anything', 'Tap the mic and try again'); };
       r.start(); $('#vOrb').classList.add('live');
-    } catch (e) { Log.e('stt', 'Phone recognizer could not start', e); this.show('Tap a suggestion'); }
+    } catch (e) { Log.e('stt', 'Phone recognizer could not start', e); this.session('auto'); this.show('Tap a suggestion'); }
+  },
+  /** The recognizer got no audio: try once more after resetting the microphone, then Whisper (if downloaded). */
+  recover(r, retry) {
+    try { r.abort(); } catch {}
+    if (this.sr === r) this.sr = null;
+    this.srFails = (this.srFails || 0) + 1;
+    if ($('#assistant').hidden) return;
+    if (!retry) { this.show('Listening…', 'Resetting the microphone'); return this.listenBrowser(1); }
+    if (store.get('whisperOK')) { Log.w('stt', 'Phone recognizer still deaf: Whisper takes this turn'); this.show('Listening…', 'On-device · Whisper base');
+      return this.loadModel().then(() => this.listenWhisper()).catch(e => this.fail(e)); }
+    this.show('The phone’s recognizer isn’t hearing the microphone', 'Tap the mic to try again, or choose Whisper in Settings › Voice');
+  },
+  /** Stop the reply player holding the audio session (iOS keeps it in playback mode while an <audio> has a source). */
+  releasePlayer() {
+    const el = this.el; if (el && el.getAttribute('src') && el.src !== silenceUrl) { try { el.pause(); el.removeAttribute('src'); el.load(); } catch {} }
+    // The radio, paused while you talk, holds the session too: let go of its stream (it reconnects when it resumes).
+    if (typeof Radio !== 'undefined' && Radio.held && Radio.el?.getAttribute('src')) { try { Radio.hlsObj?.destroy(); Radio.hlsObj = null; Radio.el.removeAttribute('src'); Radio.el.load(); } catch {} }
+  },
+  /** Open and close the microphone: resets the phone's audio session so the recognizer can hear again. */
+  async primeMic() {
+    const t = performance.now();
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(x => x.stop()); this.played = false;
+      Log.d('mic', `Microphone primed for the recognizer in ${Math.round(performance.now() - t)} ms`); }
+    catch (e) { Log.w('mic', 'Priming the microphone failed', { name: e.name, message: e.message }); }
   },
   /** A phrase was recognised: show it, log it, act on it. */
   heard(text, meta) {

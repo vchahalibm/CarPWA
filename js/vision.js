@@ -235,7 +235,7 @@ document.addEventListener('click', e => {
   if (b.dataset.cam === 'start') { store.set('camOn', true); Vision.start('widget'); }
   else if (b.dataset.cam === 'stop') { store.set('camOn', false); Vision.stop('widget'); }
 }, true);
-addEventListener('resize', () => Vision.paint());
+Bus.on('dash.resized', () => Vision.paint());
 
 /* ---------- Actions ---------- */
 Actions.define('camera.start', { group: 'Camera', name: 'Start the camera widget', arg: '', run: () => { store.set('camOn', true); Vision.start('widget'); } });

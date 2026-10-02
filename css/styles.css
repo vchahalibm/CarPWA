@@ -1118,7 +1118,10 @@ table.bench small{color:var(--text-2)}
 .mw-empty svg{width:40px;height:40px}
 .mw-empty b{color:var(--text);font-size:17px}
 .mw-empty .w-cta{margin-top:8px;width:min(220px,100%)}
-.mw-frame{width:100%;height:100%;border:0;background:#fff}
+/* iOS sizes an iframe to its page's content unless it's 1px with a 100% minimum: then it fills the widget and stays centred. */
+.mw-body{position:relative}
+.mw-frame{position:absolute;inset:0;width:1px;min-width:100%;height:1px;min-height:100%;border:0;background:#fff}
+.w-video .mw-frame{background:#000}
 .mw-video{width:100%;height:100%;object-fit:contain;background:#000}
 .mw-pdf{display:block;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.35)}
 .w-doc .mw-body{background:var(--surface-2)}

@@ -365,9 +365,9 @@ const Voice = {
           this.played = true;
           u.rate = 1.03; u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
           const s = performance.now();
-          u.onstart = () => Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s) });
-          u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); res(); };
-          u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); res(); };
+          u.onstart = () => { Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s) }); Bus.emit('voice.talk', { on: true }); };
+          u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); Bus.emit('voice.talk', { on: false }); res(); };
+          u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); Bus.emit('voice.talk', { on: false }); res(); };
           Log.i('tts', 'Phone voice', { text, lang: u.lang, voices: speechSynthesis.getVoices().length, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking });
           speechSynthesis.speak(u);
         } catch { res(); }
@@ -431,13 +431,14 @@ const Voice = {
       const buf = ctx.createBuffer(1, f32.length, rate); buf.copyToChannel(f32, 0);
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); this.played = true;
       Log.d('tts', `▶ sentence ${n} (Web Audio)`, { ctxRate: ctx.sampleRate, secs: +secs.toFixed(2) });
-      return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); });
+      const at = ctx.currentTime; Bus.emit('voice.audio', { f32, rate, now: () => ctx.currentTime - at });
+      return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); }).finally(() => Bus.emit('voice.audio.end'));
     }
     this.played = true; // the next phone-recognizer turn resets the microphone first
     const el = this.player(), url = out === 'data' ? await wavDataUrl(f32, rate) : URL.createObjectURL(wavBlob(f32, rate));
     return new Promise((res, rej) => {
       let over = false, guard = 0;
-      const end = (ok, why) => { if (over) return; over = true; clearTimeout(guard); if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      const end = (ok, why) => { if (over) return; over = true; clearTimeout(guard); if (url.startsWith('blob:')) URL.revokeObjectURL(url); Bus.emit('voice.audio.end');
         ok ? res() : rej(new Error(why || `Audio element error ${el.error?.code || ''} ${el.error?.message || ''}`)); };
       el.onended = () => { Log.d('tts', `■ sentence ${n} ended`); end(true); };
       el.onerror = () => end(false);
@@ -446,6 +447,7 @@ const Voice = {
       guard = setTimeout(() => end(false, 'Playback never started'), 10000);
       el.play().then(() => {
         Log.d('tts', `▶ sentence ${n} playing (${out})`, { secs: +secs.toFixed(2), volume: el.volume, muted: el.muted, readyState: el.readyState });
+        Bus.emit('voice.audio', { f32, rate, now: () => el.currentTime }); // lip-sync for the avatar
         clearTimeout(guard);
         guard = setTimeout(() => { if (!over) Log.w('tts', `Sentence ${n}: no "ended" event, moving on`, { paused: el.paused, currentTime: el.currentTime }); end(true); }, secs * 1000 + 2000);
       }, e => end(false, e?.message || 'play() refused'));
@@ -457,6 +459,7 @@ const Voice = {
     try { this.src?.stop(); } catch {} this.src = null;
     this.cancelled = false;
     try { if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); this.cancelled = true; } } catch {}
+    Bus.emit('voice.talk', { on: false }); Bus.emit('voice.audio.end');
     this.session('auto');
   },
   /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */

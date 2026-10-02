@@ -1154,3 +1154,7 @@ table.bench small{color:var(--text-2)}
 .cam-stop svg{width:22px;height:22px}
 .camw.alert{animation:camalert .9s ease-out}
 @keyframes camalert{0%{box-shadow:inset 0 0 0 6px #ff9f0a}100%{box-shadow:inset 0 0 0 0 transparent}}
+
+/* VRM avatar */
+.mw-vrm{display:block;width:100%;height:100%;touch-action:pan-y}
+.w-model .mw-body:has(.mw-vrm){background:radial-gradient(120% 90% at 50% 20%,var(--panel-2),var(--panel) 70%)}

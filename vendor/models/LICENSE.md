@@ -8,3 +8,8 @@ Don McCurdy (https://donmccurdy.com/), from the three.js examples
 
 Animations: Dance, Death, Idle, Jump, No, Punch, Running, Sitting, Standing, ThumbsUp, Walking,
 WalkJump, Wave, Yes. Morph targets (Head): Angry, Surprised, Sad.
+
+## vita.vrm
+"Vita", a VRoid Studio β sample model by pixiv Inc., released under CC0 1.0 (the licence is recorded in the
+file's own VRM metadata; see https://vroid.pixiv.help/hc/en-us/articles/4402614652569). VRM 0.x with
+expressions a/i/u/e/o (mouth shapes for lip-sync), blink, joy, angry, sorrow and fun, and a humanoid skeleton.

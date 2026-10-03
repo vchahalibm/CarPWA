@@ -1158,3 +1158,7 @@ table.bench small{color:var(--text-2)}
 /* VRM avatar */
 .mw-vrm{display:block;width:100%;height:100%;touch-action:pan-y}
 .w-model .mw-body:has(.mw-vrm){background:radial-gradient(120% 90% at 50% 20%,var(--panel-2),var(--panel) 70%)}
+
+/* Conversation mode: the orb keeps a slow ring while the conversation is open */
+#vOrb.convo{box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 55%,transparent);animation:convoring 2.4s ease-in-out infinite}
+@keyframes convoring{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--green) 25%,transparent)}}

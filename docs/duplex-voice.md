@@ -5,7 +5,7 @@
 - DriveDeck never reacts to its own voice coming out of the car speakers.
 - Nothing gets stuck, whatever the phone, the silent switch, Bluetooth or an incoming call does.
 
-**Status:** design only; nothing here is built yet. It builds on the pieces that already exist: on-device Whisper, the Kokoro reply voice, the command engine in `js/commands.js`, and the debug log in `js/log.js`.
+**Status:** first version shipped as **Conversation mode (beta)** in `js/duplex.js` (AudioEngine, the VAD/turn logic in `Convo`, echo layers 1–3, barge-in, Moonshine for English and Whisper for other languages). Not yet built: streaming Kokoro that stops mid-sentence at the sample level (replies are cut at the next chunk), and Bluetooth route handling. It builds on the pieces that already exist: on-device Whisper, the Kokoro reply voice, the command engine in `js/commands.js`, and the debug log in `js/log.js`.
 
 ---
 

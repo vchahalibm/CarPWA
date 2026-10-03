@@ -14,6 +14,7 @@ const PDFJS = 'vendor/pdfjs/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
   vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/vita.vrm', vrm: true },
+  ren: { name: 'Ren', note: 'anime-style male assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/ren.vrm', vrm: true },
   robot: { name: 'Assistant robot', note: 'waves, nods and reacts to what happens', src: 'vendor/models/robot-expressive.glb', avatar: true },
 };
 Bus.define('doc.page', 'A document changes page', 'the page number');

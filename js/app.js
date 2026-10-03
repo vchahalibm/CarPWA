@@ -119,7 +119,7 @@ const settings = Object.assign({
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
   arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
-  detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
+  convo: false, convoGap: '1', detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
@@ -1218,6 +1218,8 @@ function renderSettings() {
     <div class="group-title">Voice</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${(typeof Voice !== 'undefined' && !SR) ? 'Whisper base · on this device, works offline (no built-in recognizer here)' : settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this device, works offline; uses more memory' : 'Whisper base · about 80 MB on first use, works offline; uses more memory') : 'This device’s own recognizer: no download, leaves memory for other features'}</div></div>${(typeof Voice !== 'undefined' && !SR) ? '' : seg('stt', [['browser', 'Device'], ['whisper', 'Whisper']])}</div>
+      ${tog('convo', 'Conversation mode (beta)', 'Tap the mic once and keep talking: it listens while it replies, so you can interrupt. Listens on this device: Moonshine for English (about 50 MB), Whisper for other languages')}
+      ${settings.convo ? `<div class="row"><div class="main"><div class="t">Reply after a pause of</div><div class="s">How long you stop talking before it answers</div></div>${seg('convoGap', [['0.7', '0.7 s'], ['1', '1 s'], ['1.5', '1.5 s']])}</div>` : ''}
       ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
       ${store.get('whisperOK') || (settings.stt !== 'whisper' && !((typeof Voice !== 'undefined' && !SR))) ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
       ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? '' : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
@@ -1339,7 +1341,7 @@ const ACTIONS = {
   },
   installHelp: () => showInstallHelp(),
   contacts: () => contactsSheet(),
-  voiceLang: () => sheet('Language you speak', '<p>Whisper understands all of these. Anything that isn’t English is translated into an English command.</p>',
+  voiceLang: () => sheet('Language you speak', '<p>Whisper understands all of these. Anything that isn’t English is translated into an English command. In conversation mode, English and Auto-detect use Moonshine (faster, English only); any other choice uses Whisper.</p>',
     [...Object.entries(LANGS).map(([id, [name]]) => [name + (settings.voiceLang === id ? ' ✓' : ''), () => { settings.voiceLang = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   voiceModel: () => { Voice.open(); Voice.show('Downloading voice model…', 'Whisper base · one time'); Voice.loadModel().then(() => { Voice.show('Voice model ready', 'Works offline from now on'); if (current === 'settings') renderSettings(); }).catch(e => Voice.fail(e)); },
   voiceLogClear: () => { VoiceLog.clear(); toast('Conversation history cleared'); },

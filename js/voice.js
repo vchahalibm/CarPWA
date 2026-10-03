@@ -81,14 +81,15 @@ self.onmessage = async ({ data: m }) => {
   } catch (e) { send({ type: 'error', message: String((e && e.message) || e), stack: String((e && e.stack) || '').slice(0, 400) }); }
 };`;
 /** Load a Whisper build. Returns pipe(audio, opts) → { text }, with pipe.dispose() to end it and pipe.kind. */
-async function createWhisper(build, onProgress) { return Budget.guard(`Whisper ${build.label}`, () => whisperNow(build, onProgress)); }
-async function whisperNow(build, onProgress) {
+async function createWhisper(build, onProgress, model = WHISPER_MODEL) { return Budget.guard(`${model === WHISPER_MODEL ? 'Whisper' : model.split('/').pop()} ${build.label}`, () => whisperNow(build, onProgress, model)); }
+/** The same worker runs any transformers.js speech model: Whisper, or Moonshine for conversation mode. */
+async function whisperNow(build, onProgress, model) {
   const threads = self.crossOriginIsolated ? 4 : 1;
   // On the page only without workers, or when chosen in the Logs tab to compare (its memory then stays until the app closes).
   if (typeof Worker === 'undefined' || Diag.get().engine === 'main') {
     const T = await import(TRANSFORMERS_URL); T.env.allowLocalModels = false;
     if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = threads;
-    const p = await T.pipeline('automatic-speech-recognition', WHISPER_MODEL, { device: build.device, dtype: build.dtype, progress_callback: onProgress });
+    const p = await T.pipeline('automatic-speech-recognition', model, { device: build.device, dtype: build.dtype, progress_callback: onProgress });
     const pipe = (audio, opts) => p(audio, opts); pipe.dispose = () => p.dispose?.(); pipe.kind = 'main thread'; return pipe;
   }
   const w = new Worker(URL.createObjectURL(new Blob([WHISPER_WORKER], { type: 'text/javascript' })), { type: 'module' });
@@ -109,7 +110,7 @@ async function whisperNow(build, onProgress) {
   pipe.dispose = () => { w.terminate(); fail('Whisper unloaded'); };
   pipe.alive = () => !dead;
   pipe.kind = 'background worker';
-  try { await call({ type: 'load', url: TRANSFORMERS_URL, model: WHISPER_MODEL, device: build.device, dtype: build.dtype, threads }, onProgress); }
+  try { await call({ type: 'load', url: TRANSFORMERS_URL, model, device: build.device, dtype: build.dtype, threads }, onProgress); }
   catch (e) { pipe.dispose(); throw e; } // a failed build must not keep its memory while the next one loads
   return pipe;
 }
@@ -275,7 +276,7 @@ function kokoroWorker() {
 }
 const SR = IS_DESKTOP_APP ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
 const LANGS = { auto: ['Auto-detect', null, navigator.language || 'en-IN'], en: ['English', 'en', 'en-IN'], hi: ['हिन्दी Hindi', 'hi', 'hi-IN'],
-  kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'] };
+  kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'], multi: ['Several languages (Whisper)', null, navigator.language || 'en-IN'] };
 // Which app a reply belongs to, so the log can show where the action went.
 const APP_OF = [[/call|dial/i, 'phone'], [/message|text|whatsapp|sms/i, 'messages'], [/play|music|paus|spotify|song|radio|podcast/i, 'music'],
   [/weather|degrees|forecast/i, 'weather'], [/route|direction|arriv|to go|turn|recenter|zoom|navigat|parking|gas|charg|coffee|food|mode|map/i, 'maps'],
@@ -321,6 +322,7 @@ const Voice = {
     $('#vReply').hidden = true; $('#vProg').hidden = true; clearTimeout(this.closeT);
   },
   close() {
+    if (typeof Convo !== 'undefined' && Convo.active) return Convo.end('closed');
     this.startTok = (this.startTok || 0) + 1; // a listen still waiting for its model must not start after this
     this.hush(); this.stopRec(true); try { this.sr?.abort(); } catch {} this.sr = null;
     $('#assistant').hidden = true; $('#vOrb').classList.remove('live');
@@ -336,7 +338,8 @@ const Voice = {
   respond(msg, then, o = {}) {
     this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves }); Bus.emit('voice.reply', { value: msg });
     const id = ++this.respId, t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms)), said = speak(msg) || Promise.resolve();
-    const done = () => id === this.respId && !this.rec && !this.sr;
+    const done = () => id === this.respId && !this.rec && !this.sr && !(typeof Convo !== 'undefined' && Convo.active);
+    if (typeof Convo !== 'undefined' && Convo.active) Convo.replying(msg, said, o);
     if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => { if (done()) { this.close(); then?.(); } });
     setTimeout(() => { if (id === this.respId) then?.(); }, 600); // in-app actions happen while the reply is spoken
     Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) { $('#assistant').hidden = true; Bus.emit('voice.idle'); } });
@@ -424,6 +427,7 @@ const Voice = {
   },
   /** Play one generated sentence and resolve when it has finished. */
   async playChunk({ n, f32, rate }, out) {
+    if (typeof Convo !== 'undefined' && Convo.active) return Convo.play({ n, f32, rate });
     const secs = f32.length / rate;
     if (out === 'webaudio') {
       const ctx = this.audio(); if (ctx.state !== 'running') await ctx.resume().catch(() => {});
@@ -457,6 +461,7 @@ const Voice = {
     this.sayId++; this.stopNeural?.(); this.stopNeural = null;
     if (this.el && !this.el.paused && this.el.src !== silenceUrl) try { this.el.pause(); Log.d('tts', 'Reply cut off'); } catch {}
     try { this.src?.stop(); } catch {} this.src = null;
+    if (typeof AudioEngine !== 'undefined') AudioEngine.stopPlayback();
     this.cancelled = false;
     try { if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); this.cancelled = true; } } catch {}
     Bus.emit('voice.talk', { on: false }); Bus.emit('voice.audio.end');
@@ -464,6 +469,7 @@ const Voice = {
   },
   /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */
   session(type) {
+    if (typeof Convo !== 'undefined' && Convo.active) type = 'play-and-record'; // a conversation plays and records all along
     try { if (navigator.audioSession && navigator.audioSession.type !== type) { Log.d('audio', `Audio session ${navigator.audioSession.type} → ${type}`); navigator.audioSession.type = type; } }
     catch (e) { Log.w('audio', `Audio session ${type} refused`, e); }
   },
@@ -550,6 +556,7 @@ const Voice = {
   engine() { return settings.stt === 'browser' && SR ? 'browser' : settings.stt === 'whisper' ? 'whisper' : SR ? 'browser' : 'whisper'; },
 
   async start() {
+    if (settings.convo && typeof Convo !== 'undefined') return Convo.toggle();
     if (!$('#assistant').hidden && (this.rec || this.sr)) return this.stopRec(); // tap again = done talking
     Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
       voiceLoaded: !!this.tts, voiceDownloaded: !!store.get('kokoroOK'), playerUnlocked: !!this.unlocked, silence: settings.vadSilence, lang: settings.voiceLang });

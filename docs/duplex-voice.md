@@ -165,3 +165,13 @@ It will also keep per-conversation counters: barge-in latency (target < 500 ms),
 3. **Continuous listening with VAD segmentation and partials.** Conversation mode without barge-in: listening resumes the moment a reply ends.
 4. **Echo layers 2 and 3** plus duck-and-confirm barge-in, behind **Settings › Voice › Conversation mode (beta)**.
 5. **Automatic downgrade and route handling.** Make it the default once the counters in section 4 meet their targets in real drives.
+
+## Phone recognizer inside a conversation (experimental)
+
+Settings › Voice › Listening in conversations › Phone: `NativeSR` in js/duplex.js runs the system recognizer
+continuously (restarted on every `end`) beside the AudioEngine. It only supplies text: the engine's VAD still decides
+each utterance, and `NativeSR.take(start)` returns the final results that arrived from just before the utterance began
+until up to 2.5 s after it ended (or the interim text at the deadline). Results outside utterances are discarded, so the
+echo and barge-in logic is unchanged. Fallback to on-device listening (`Convo.nativeFallback`) on a hard error
+(not-allowed, audio-capture, network…), over 30 restarts a minute, or two utterances of 0.8 s+ with no words; it lasts
+for that conversation, and the next one tries the phone recognizer again. Counters go to the end-of-conversation log.

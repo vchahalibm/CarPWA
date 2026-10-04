@@ -91,8 +91,10 @@ const Convo = {
   // English: Settings › Voice › Listening in conversations; "Automatic" is Moonshine on a phone (memory), Whisper on tablets and
   // computers (Moonshine tiny misheard an Indian-English speaker often on an iPad; Whisper base on the GPU takes about 0.4 s there).
   model() {
+    // The phone's own recognizer (experimental), unless it failed in this conversation: then the on-device one below.
+    if (settings.convoStt === 'native' && SR && !this.nativeFailed) return 'native';
     if (!['auto', 'en'].includes(settings.voiceLang || 'auto')) return 'whisper';
-    const c = settings.convoStt || 'auto';
+    const c = settings.convoStt === 'native' ? 'auto' : settings.convoStt || 'auto';
     // iPhone and iPad too: with the reply voice and an avatar, Whisper on the GPU got an iPad's app killed for memory.
     return c === 'auto' ? (Budget.cls() === 'phone' || (isIOS && !IS_DESKTOP_APP) ? 'moonshine' : 'whisper') : c;
   },
@@ -102,11 +104,13 @@ const Convo = {
     this.starting = true;
     Voice.hush(); Voice.respId++; Voice.unlock(); Voice.open(); $('#vChips').hidden = true;
     Voice.show('Starting the conversation…', 'Conversation mode (beta) · on-device');
+    this.nativeFailed = false;
     Log.i('duplex', 'Conversation starting', { model: this.model(), lang: settings.voiceLang });
     try {
       await this.loadSTT();
-      this.warm();
+      if (this.stt.which !== 'native') this.warm();
       await AudioEngine.start(f => this.frame(f), why => this.lost(why));
+      if (this.stt.which === 'native') NativeSR.start();
     } catch (e) {
       this.starting = false; AudioEngine.stop(); Voice.session('auto');
       Log.e('duplex', 'Conversation mode couldn’t start: tap-to-talk instead', e);
@@ -126,8 +130,8 @@ const Convo = {
   end(why) {
     if (!this.active && !this.starting) return;
     this.active = false; this.starting = false; clearInterval(this.idleT);
-    AudioEngine.stop(); Voice.session('auto');
-    const s = this.stats; Log.i('duplex', `Conversation ended (${why})`, s && { ...s, sttMs: s.sttMs.length ? Math.round(s.sttMs.reduce((a, b) => a + b, 0) / s.sttMs.length) : null, minutes: +((Date.now() - s.started) / 60000).toFixed(1) });
+    NativeSR.stop(); AudioEngine.stop(); Voice.session('auto');
+    const s = this.stats; if (s && NativeSR.used) s.native = { ...NativeSR.stats, fellBack: !!this.nativeFailed }; Log.i('duplex', `Conversation ended (${why})`, s && { ...s, sttMs: s.sttMs.length ? Math.round(s.sttMs.reduce((a, b) => a + b, 0) / s.sttMs.length) : null, minutes: +((Date.now() - s.started) / 60000).toFixed(1) });
     $('#vOrb').classList.remove('live', 'convo');
     Voice.close();
   },
@@ -138,6 +142,7 @@ const Convo = {
     const want = this.model();
     if (this.stt?.which === want) return Promise.resolve(this.stt);
     this.stt?.dispose?.(); this.stt = null; Budget.drop('convo-stt');
+    if (want === 'native') return Promise.resolve(this.stt = { which: 'native', dispose() {} }); // nothing to load
     if (want === 'whisper') return Voice.loadModel().then(p => (this.stt = Object.assign(t => p(t, this.whisperOpts()), { which: 'whisper', dispose() {} })));
     const dev = gpuOK() && Budget.cls() !== 'phone' ? 'webgpu' : 'wasm', files = {};
     const builds = [...(dev === 'webgpu' ? [{ device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, label: 'GPU fp32/q4' }] : []), { device: 'wasm', dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, label: 'CPU q8' }];
@@ -161,6 +166,16 @@ const Convo = {
     if (this.stt?.warmed) return; const s = this.stt; if (s) s.warmed = true;
     const t = performance.now();
     this.recognise(new Float32Array(16000)).then(() => Log.d('duplex', `Listening model warmed up in ${Math.round(performance.now() - t)} ms`), () => {});
+  },
+  /** The phone's recognizer isn't hearing (deaf, refused, no network): the on-device one for the rest of this conversation. */
+  nativeFallback(why) {
+    if (this.nativeFailed || !this.active) return;
+    this.nativeFailed = true; NativeSR.stop();
+    Log.w('duplex', `Phone recognizer: ${why}. Listening on the device instead for this conversation`, NativeSR.stats);
+    Voice.show('Switching to on-device listening', 'The phone’s recognizer wasn’t hearing you');
+    this.stt = null;
+    this.loadSTT().then(() => { Log.i('duplex', `Now listening with ${this.stt.which}`); if (this.active && !this.utt) this.listenUI(); })
+      .catch(e => { Log.e('duplex', 'On-device listening couldn’t load either', e); this.end('no recognizer'); });
   },
   whisperOpts() { const l = LANGS[settings.voiceLang] || LANGS.auto; return { language: l[1], task: l[1] && l[1] !== 'en' ? 'translate' : 'transcribe' }; },
   recognise(audio) {
@@ -209,7 +224,12 @@ const Convo = {
     frames.forEach((f, i) => audio.set(f, i * 320));
     this.stats.turns++;
     let r;
-    try { r = await this.recognise(audio); }
+    if (!this.stt) { Log.w('duplex', 'Not heard: the listening model is still loading', { secs: +(audio.length / 16000).toFixed(1) }); if (u.duringReply) AudioEngine.duck(false); return; }
+    if (this.stt.which === 'native') { // the phone's words for this stretch of speech
+      r = await NativeSR.take(u.t, audio.length / 16000);
+      if (!r.text && audio.length >= 16000 * 0.8 && ++NativeSR.misses >= 2) this.nativeFallback('it heard nothing twice while you spoke');
+      if (r.text) NativeSR.misses = 0; this.stats.sttMs.push(r.ms);
+    } else try { r = await this.recognise(audio); }
     catch (e) { Log.w('duplex', 'Recognition failed', e); if (u.duringReply) AudioEngine.duck(false); else Voice.show('Sorry, I didn’t catch that', 'Say it again'); return; }
     if (!this.active) return;
     const text = r.text, w = convoWords(text);
@@ -234,8 +254,8 @@ const Convo = {
     if (typeof People !== 'undefined' && People.running && People.owner != null && settings.ownerOnly && typeof Stage !== 'undefined' && Stage.on && !People.spoke(u.at, performance.now() - 200)) {
       Log.i('duplex', 'Ignored: not the presenter speaking', { text }); AudioEngine.duck(false); return;
     }
-    if (BYE.test(text)) { VoiceLog.you(text, { engine: this.stt?.which === 'whisper' ? 'Whisper' : 'Moonshine' }); return Voice.respond('Okay. Talk to you later.', () => this.end('you said goodbye'), { leaves: true }); }
-    Voice.heard(text, { engine: this.stt?.which === 'whisper' ? 'Whisper' : 'Moonshine', ms: r.ms });
+    if (BYE.test(text)) { VoiceLog.you(text, { engine: ({ whisper: 'Whisper', native: 'Phone' })[this.stt?.which] || 'Moonshine' }); return Voice.respond('Okay. Talk to you later.', () => this.end('you said goodbye'), { leaves: true }); }
+    Voice.heard(text, { engine: ({ whisper: 'Whisper', native: 'Phone' })[this.stt?.which] || 'Moonshine', ms: r.ms });
   },
 
   /* ---------- Replies ---------- */
@@ -262,6 +282,60 @@ document.addEventListener('visibilitychange', () => {
     Convo.paused = 0; Voice.open(); $('#vChips').hidden = true; Voice.show('Conversation paused', 'Tap the mic to carry on talking');
   }
 });
+/* The phone's own recognizer inside a conversation (Settings › Voice › Listening in conversations › Phone, experimental).
+   It only supplies words: the engine's microphone still finds where you start and stop, tells you from the reply,
+   handles interruptions and drives the avatar. It runs continuously and is restarted whenever it stops; results are
+   kept with the time they came, and each stretch of your speech takes the words that arrived during and just after it.
+   If it errors (refused, no network, no audio) or hears nothing twice while you spoke, Convo switches to on-device
+   listening (Convo.nativeFallback). */
+const NativeSR = {
+  sr: null, on: false, finals: [], interim: null, misses: 0, used: false, stats: null, starts: [],
+  start() {
+    this.on = true; this.used = true; this.finals = []; this.interim = null; this.misses = 0; this.starts = [];
+    this.stats = { restarts: 0, results: 0, errors: {} };
+    this.open();
+  },
+  open() {
+    if (!this.on) return;
+    const now = Date.now(); this.starts = this.starts.filter(t => now - t < 60000); this.starts.push(now);
+    if (this.starts.length > 30) return Convo.nativeFallback('it kept stopping (over 30 restarts a minute)');
+    const r = this.sr = new SR();
+    r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.continuous = true; r.interimResults = true;
+    r.onresult = e => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = (e.results[i][0]?.transcript || '').trim(); if (!t) continue;
+        if (e.results[i].isFinal) { this.finals.push({ text: t, at: Date.now() }); this.interim = null; this.stats.results++; }
+        else this.interim = { text: t, at: Date.now() };
+      }
+    };
+    r.onerror = e => {
+      this.stats.errors[e.error] = (this.stats.errors[e.error] || 0) + 1;
+      Log.d('duplex', `Phone recognizer: ${e.error}`);
+      if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'language-not-supported'].includes(e.error)) Convo.nativeFallback(`error “${e.error}”`);
+    };
+    r.onend = () => { if (this.sr === r && this.on) { this.stats.restarts++; setTimeout(() => this.sr === r && this.open(), 150); } }; // it stops after pauses: start again
+    try { r.start(); Log.d('duplex', 'Phone recognizer listening', { lang: r.lang }); }
+    catch (e) { Log.w('duplex', 'Phone recognizer wouldn’t start', e); Convo.nativeFallback('it wouldn’t start'); }
+  },
+  stop() {
+    this.on = false; const r = this.sr; this.sr = null;
+    if (r) { r.onend = r.onresult = r.onerror = null; try { r.abort(); } catch {} }
+  },
+  /** The words for speech that started at `since` (ms): final results from then on, waiting up to 2.5 s for them;
+      at the deadline, what it was still working on counts too. */
+  async take(since, secs) {
+    const t0 = performance.now(), from = since - 500, deadline = Date.now() + 2500;
+    const got = () => this.finals.filter(f => f.at >= from);
+    while (Date.now() < deadline && this.on) {
+      if (got().length && (!this.interim || this.interim.at < Date.now() - 600)) break; // a final, and nothing more coming
+      await new Promise(r => setTimeout(r, 100));
+    }
+    let text = got().map(f => f.text).join(' ');
+    if (!text && this.interim?.at >= from) text = this.interim.text;
+    this.finals = this.finals.filter(f => f.at < from); this.interim = null; // used up
+    return { text, ms: Math.round(performance.now() - t0), secs };
+  },
+};
 Bus.define('voice.interrupt', 'You interrupt a reply', 'what you said');
 // The phone's own voice can't go through the engine: track when it talks so the mic is stricter meanwhile.
 Bus.on('voice.talk', d => { Convo.phoneTalking = !!d.on; if (!d.on) Convo.replyEnd = Date.now(); });

@@ -50,9 +50,9 @@ const VrmAvatar = {
     L.VRMUtils.rotateVRM0(vrm); // older VRMs face away: turn them to the camera
     vrm.scene.traverse(o => { o.frustumCulled = false; });
     scene.add(vrm.scene);
-    vrm.lookAt && (vrm.lookAt.target = camera);
     const inst = new AvatarInstance({ L, src, canvas, renderer, scene, camera, vrm });
-    inst.rest(); vrm.update(0); inst.frame();
+    inst.eye = new L.Object3D(); scene.add(inst.eye); vrm.lookAt && (vrm.lookAt.target = inst.eye); // its eyes follow inst.eye (the viewer, or the presenter)
+    inst.rest(); vrm.update(0); inst.calibrate(); inst.frame();
     Log.i('avatar', `Avatar ready ${Math.round(performance.now() - t0)} ms`, { name: vrm.meta?.name || vrm.meta?.title, expressions: Object.keys(vrm.expressionManager?.expressionMap || {}) });
     return inst;
   },
@@ -72,6 +72,8 @@ const VrmAvatar = {
     this.raf = requestAnimationFrame(x => this.tick(x));
   },
   gesture(name, times) { for (const i of this.all.values()) i.gesture(name, times); },
+  /** Look at someone the camera sees: c = [x, y] in the camera picture (0..1, not mirrored), or null to look ahead. */
+  look(c) { this.gaze = c ? { x: (0.5 - c[0]) * 2, y: (0.5 - c[1]) * 2 } : null; },
   face(name, ms) { for (const i of this.all.values()) i.face(name, ms); },
 };
 
@@ -118,6 +120,15 @@ class AvatarInstance {
     ['head', 'neck', 'spine', 'chest', 'hips', 'leftHand', 'rightHand'].forEach(n => set(n, 0, 0, 0));
     const hips = this.bone('hips'); if (hips) hips.position.y = this.hipsY ??= hips.position.y;
   }
+  /** Which way a head turn goes on screen differs between VRM 0 and 1 models: find out once, from the eyes. */
+  calibrate() {
+    const H = this.vrm.humanoid, head = this.bone('head'), le = H?.getRawBoneNode('leftEye'), re = H?.getRawBoneNode('rightEye'), rh = H?.getRawBoneNode('head');
+    this.yaw = 1; if (!head || !le || !re || !rh) return;
+    const V = this.L.Vector3, eyesX = () => { this.vrm.update(0); this.scene.updateMatrixWorld(true); const a = new V(), b = new V(), h = new V();
+      le.getWorldPosition(a); re.getWorldPosition(b); rh.getWorldPosition(h); return (a.x + b.x) / 2 - h.x; };
+    head.rotation.y = 0.4; const x1 = eyesX(); head.rotation.y = 0; const x0 = eyesX();
+    this.yaw = x1 > x0 ? 1 : -1;
+  }
   /** Frame the head and shoulders, whatever the widget's shape. */
   frame() {
     const head = this.bone('head'); if (!head) return;
@@ -157,6 +168,11 @@ class AvatarInstance {
     const head = B('head'), neck = B('neck');
     if (head) { head.rotation.y = Math.sin(time * 0.37) * 0.06; head.rotation.x = Math.sin(time * 0.53) * 0.03; }
     if (this.listening > 0) { this.listening -= dt; if (head) head.rotation.z = 0.12; if (chest) chest.rotation.x += 0.05; }
+    // Looking at the presenter (Stage, people tracking): the head turns part of the way, the eyes the rest.
+    const G = VrmAvatar.gaze, gz = this.gz ||= { x: 0, y: 0 };
+    gz.x += ((G ? G.x : 0) - gz.x) * Math.min(1, dt * 4); gz.y += ((G ? G.y : 0) - gz.y) * Math.min(1, dt * 4);
+    if (head) { head.rotation.y += gz.x * 0.45 * this.yaw; head.rotation.x -= gz.y * 0.1; }
+    const cp = this.camera.position; this.eye?.position.set(cp.x + gz.x * 1.6, cp.y + gz.y * 0.6, cp.z);
     // Gestures
     const g = this.gest;
     if (g) {

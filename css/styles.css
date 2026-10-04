@@ -1236,3 +1236,7 @@ table.bench small{color:var(--text-2)}
 .sui-code{font:13px/1.4 ui-monospace,Menlo,monospace;background:var(--surface-2);border-radius:12px;padding:12px;overflow:auto;max-height:50vh}
 .sui-acts{width:100%;border-collapse:collapse;font-size:14px}
 .sui-acts td{padding:6px 8px;border-top:1px solid var(--sep);vertical-align:top}
+/* People tracking overlay in the Camera widget (Stage) */
+.camw canvas.ppl{z-index:2}
+.ppl-blur{position:absolute;inset:0;pointer-events:none;z-index:1}
+.ppl-blur i{position:absolute;border-radius:40%;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}

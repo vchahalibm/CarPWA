@@ -229,6 +229,10 @@ const Convo = {
       Voice.hush(); Bus.emit('voice.interrupt', { value: text });
       if (BARGE.test(text) && w.length <= 3) { Voice.show('Okay.', 'Listening…'); setTimeout(() => this.active && this.listenUI(), 900); return; }
     }
+    // On Stage, following the presenter: only their speech counts (their mouth was moving while it was said).
+    if (typeof People !== 'undefined' && People.running && People.owner != null && settings.ownerOnly && typeof Stage !== 'undefined' && Stage.on && !People.spoke(u.at, performance.now() - 200)) {
+      Log.i('duplex', 'Ignored: not the presenter speaking', { text }); AudioEngine.duck(false); return;
+    }
     if (BYE.test(text)) { VoiceLog.you(text, { engine: this.stt?.which === 'whisper' ? 'Whisper' : 'Moonshine' }); return Voice.respond('Okay. Talk to you later.', () => this.end('you said goodbye'), { leaves: true }); }
     Voice.heard(text, { engine: this.stt?.which === 'whisper' ? 'Whisper' : 'Moonshine', ms: r.ms });
   },

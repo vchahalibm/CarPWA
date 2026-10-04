@@ -152,6 +152,23 @@ const Media = {
         .map(sp => [...sp.getElementsByTagName('a:p')].map(p => [...p.getElementsByTagName('a:t')].map(t => t.textContent).join('')).join('\n')).join('\n').trim();
     }));
   },
+  /** Resolves true once a document widget has its PDF or PowerPoint loaded (false after 10 s, or for other documents). */
+  async ready(id) {
+    for (let t = 0; t < 100; t++) {
+      const P = this.pdf[id]; if (P?.pages && (P.doc || P.viewer) && !P.loading) return true;
+      const c = Wcfg.get(id); if (!c.url && !c.file) return false;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  },
+  /** Show a page in a web widget. Same page: nothing. Already showing a page: navigate its frame (no dashboard redraw, the rest keeps playing). */
+  webOpen(id, url) {
+    const c = Wcfg.get(id), f = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"] iframe`);
+    if (c.url === url && !c.file) return;
+    Wcfg.set(id, { url, file: null });
+    if (f && !c.file) { f.src = url; Dash.lastKey = Dash.key(); Log.i('media', 'Web page', { id, url }); }
+    else Dash.render();
+  },
   /** The current slide's speaker notes (PowerPoint), for the assistant to present. */
   notes(id) { const P = this.pdf[id]; return P?.notes?.[(P.page || 1) - 1] || ''; },
   /** How to show a document link: SharePoint/OneDrive in their embed view, other Office files through Microsoft's viewer. */
@@ -183,7 +200,9 @@ const Media = {
     if (P.kind === 'pptx') {
       const dpr = Math.min(2, devicePixelRatio || 1);
       cv.width = Math.round(box.clientWidth * dpr); cv.height = Math.round(box.clientHeight * dpr); cv.style.width = box.clientWidth + 'px'; cv.style.height = box.clientHeight + 'px';
-      return P.viewer.renderSlide(P.page - 1, cv);
+      const page = P.page;
+      return (P.drawing = (P.drawing || Promise.resolve()).then(() => token === P.token && cv.isConnected && cv.width && P.viewer.renderSlide(page - 1, cv))
+        .catch(e => Log.w('media', 'Slide not drawn', { page, error: e.message })));
     }
     const page = await P.doc.getPage(P.page); if (token !== P.token) return;
     const v1 = page.getViewport({ scale: 1 }), fit = Math.min(box.clientWidth / v1.width, box.clientHeight / v1.height) || 1, dpr = Math.min(2, devicePixelRatio || 1);
@@ -296,16 +315,18 @@ document.addEventListener('click', e => {
 
 /* ---------- Actions (voice commands and links) ---------- */
 const needs = (kind, say) => { const id = Media.first(kind); if (!id) say(`Add a ${MEDIA_KINDS[kind].name.toLowerCase()} widget first.`); return id; };
-Actions.define('doc.next', { group: 'Documents & media', name: 'Next page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) + 1)) say('Page turning works for PDF and PowerPoint documents.'); } });
-Actions.define('doc.prev', { group: 'Documents & media', name: 'Previous page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) - 1)) say('Page turning works for PDF and PowerPoint documents.'); } });
-Actions.define('doc.page', { group: 'Documents & media', name: 'Go to a page or slide', arg: 'Page number', run(v, say) { const id = needs('doc', say), n = parseInt(v, 10) || WORD_NUM[v.toLowerCase()];
-  if (id && n && !Media.go(id, n)) say('Page turning works for PDF and PowerPoint documents.'); } });
-Actions.define('doc.notes', { group: 'Documents & media', name: 'Present the slide’s speaker notes', arg: '', run(v, say) { const id = needs('doc', say); if (id) Voice.respond(Media.notes(id) || 'This slide has no speaker notes.'); } }); // spoken even from a link or script
-Actions.define('doc.open', { group: 'Documents & media', name: 'Show a document', arg: 'Link to the document', run(v, say) { const id = needs('doc', say); if (id && v) { delete Media.pdf[id]; Media.resetPage(id); Wcfg.set(id, { url: v, file: null }); Dash.render(); } } });
+Actions.define('doc.next', { group: 'Documents & media', name: 'Next page or slide', arg: '', async run(v, say) { const id = needs('doc', say); if (id && !(await Media.ready(id) && Media.go(id, (Media.pdf[id]?.page || 1) + 1))) say('Page turning works for PDF and PowerPoint documents.'); } });
+Actions.define('doc.prev', { group: 'Documents & media', name: 'Previous page or slide', arg: '', async run(v, say) { const id = needs('doc', say); if (id && !(await Media.ready(id) && Media.go(id, (Media.pdf[id]?.page || 1) - 1))) say('Page turning works for PDF and PowerPoint documents.'); } });
+Actions.define('doc.page', { group: 'Documents & media', name: 'Go to a page or slide', arg: 'Page number', async run(v, say) { const id = needs('doc', say), n = parseInt(v, 10) || WORD_NUM[v.toLowerCase()];
+  if (id && n && !(await Media.ready(id) && Media.go(id, n))) say('Page turning works for PDF and PowerPoint documents.'); } });
+Actions.define('doc.notes', { group: 'Documents & media', name: 'Present the slide’s speaker notes', arg: '', async run(v, say) { const id = needs('doc', say); if (id) { await Media.ready(id); return Voice.respond(Media.notes(id) || 'This slide has no speaker notes.'); } } }); // spoken even from a link or script
+Actions.define('doc.open', { group: 'Documents & media', name: 'Show a document', arg: 'Link to the document', async run(v, say) { const id = needs('doc', say); if (!id || !v) return;
+  if (Wcfg.get(id).url === v && !Wcfg.get(id).file) return Media.ready(id); // already showing it: keep its page (a script going back replays this)
+  delete Media.pdf[id]; Media.resetPage(id); Wcfg.set(id, { url: v, file: null }); Dash.render(); await Media.ready(id); } });
 Actions.define('video.play', { group: 'Documents & media', name: 'Play the video', arg: '', run(v, say) { const id = needs('video', say); if (id) Media.videoCmd(id, true); } });
 Actions.define('video.pause', { group: 'Documents & media', name: 'Pause the video', arg: '', run(v, say) { const id = needs('video', say); if (id) Media.videoCmd(id, false); } });
 Actions.define('video.open', { group: 'Documents & media', name: 'Show a video', arg: 'YouTube or video link', run(v, say) { const id = needs('video', say); if (id && v) { Wcfg.set(id, { url: v, file: null }); Dash.render(); } } });
-Actions.define('web.open', { group: 'Documents & media', name: 'Show a web page', arg: 'Web address', run(v, say) { const id = needs('web', say); if (id && v) { Wcfg.set(id, { url: /^https?:/i.test(v) ? v : 'https://' + v, file: null }); Dash.render(); } } });
+Actions.define('web.open', { group: 'Documents & media', name: 'Show a web page', arg: 'Web address', run(v, say) { const id = needs('web', say); if (id && v) Media.webOpen(id, /^(https?:|\.{0,2}\/|samples\/)/i.test(v) ? v : 'https://' + v); } });
 Actions.define('model.open', { group: 'Documents & media', name: 'Show a 3D model', arg: 'Link to a .glb or .gltf', run(v, say) { const id = needs('model', say); if (id && v) { Wcfg.set(id, { url: v, file: null }); Dash.render(); } } });
 const WORD_NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, first: 1, second: 2, third: 3, last: 9999 };
 

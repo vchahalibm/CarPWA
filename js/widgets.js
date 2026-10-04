@@ -17,8 +17,10 @@ const Actions = {
     const a = this.list[id];
     if (!a) { Log.w('link', `No action ${id}`); return false; }
     Log.i('link', `Action ${id}`, { value });
-    try { a.run(String(value ?? '').trim(), say, event); return true; }
-    catch (e) { Log.e('link', `Action ${id} failed`, e); return false; }
+    try {
+      const r = a.run(String(value ?? '').trim(), say, event);
+      return r && typeof r.then === 'function' ? r.then(() => true, e => { Log.e('link', `Action ${id} failed`, e); return false; }) : true; // async actions (a web step): a promise
+    } catch (e) { Log.e('link', `Action ${id} failed`, e); return false; }
   },
 };
 /** Feedback for actions run by a link: shown as a toast, not spoken (a link that wants speech uses the Say action). */

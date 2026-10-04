@@ -57,6 +57,7 @@ const Stage = {
         ? `Stage: presenting on a big screen. The assistant gestures and moves; the Stage layout shows your content, the presenter and captions${this.moving ? '. Moving now, so Drive rules apply until you stop' : ''}`
         : 'Driving: the assistant only changes its expression, nothing moving to catch your eye'}</div></div>${seg('appMode', [['drive', 'Drive'], ['stage', 'Stage']])}</div>
       ${this.chosen ? tog('captions', 'Captions', 'Shows what you said and the reply along the bottom of the Stage layout') : ''}
+      ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations the assistant leads`) : ''}
     </div>
     <div class="group-title">Cameras</div>
     <div class="group">

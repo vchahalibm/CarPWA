@@ -346,6 +346,7 @@ const Voice = {
       if (convo()) { if (id === this.respId) then?.(); } else if (done()) { this.close(); then?.(); } });
     setTimeout(() => { if (id === this.respId) then?.(); }, 600); // in-app actions happen while the reply is spoken
     Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) { $('#assistant').hidden = true; Bus.emit('voice.idle'); } });
+    return said; // resolves when it has been said (scripts wait for it)
   },
 
   /* ---------- Speaking: Kokoro on the phone when downloaded, else the phone's own voice ---------- */

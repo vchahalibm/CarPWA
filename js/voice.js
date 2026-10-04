@@ -137,6 +137,9 @@ const Heavy = { q: Promise.resolve(), run(name, f) { const p = this.q.then(() =>
    allowance drops by a quarter. On a phone the reply voice and the object detector fit together; Whisper takes turns. */
 const Budget = {
   MB: { phone: 400, tablet: 1100, desktop: 3200 },
+  // iOS kills a web app well before an iPad's memory is used up: an iPad was killed with the reply voice (GPU, 32-bit),
+  // Whisper (GPU) and an avatar loaded (about 800 MB by these estimates), so iPads get less.
+  MB_IOS: { phone: 400, tablet: 640, desktop: 640 },
   /** Estimated memory per model build, in MB. */
   COST: { 'whisper wasm': 250, 'whisper webgpu': 300, 'kokoro wasm': 180, 'kokoro webgpu fp16': 220, 'kokoro webgpu fp32': 380, detector: 90 },
   loaded: new Map(), // name → { label, mb, used, unload }
@@ -149,7 +152,7 @@ const Budget = {
   },
   cls() { return this.MB[store.get('devClass')] ? store.get('devClass') : this.auto(); },
   /** The allowance in MB, lowered a quarter for each crash during a load with other models loaded. */
-  total() { return Math.round(this.MB[this.cls()] * 0.75 ** Math.min(3, store.get('slotsLost', 0))); },
+  total() { return Math.round((isIOS && !IS_DESKTOP_APP ? this.MB_IOS : this.MB)[this.cls()] * 0.75 ** Math.min(3, store.get('slotsLost', 0))); },
   used() { let n = 0; for (const m of this.loaded.values()) n += m.mb; return n; },
   add(name, label, unload, mb) { this.loaded.set(name, { label, mb: mb || 100, used: Date.now(), unload }); },
   drop(name) { this.loaded.delete(name); },
@@ -516,7 +519,12 @@ const Voice = {
       try {
         if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
           try { engine = kokoroWorker(); await Budget.guard(`Reply voice ${device} ${dtype}`, () => engine.load({ dtype, device }, onProgress)); }
-          catch (e) { Log.w('tts', 'Background worker failed: loading on the main thread instead', e); try { engine?.terminate(); } catch {} engine = null; }
+          catch (e) {
+            try { engine?.terminate(); } catch {} engine = null;
+            // Out of memory: loading it again on the main thread is what gets the app killed; try the next (smaller) build.
+            if (/out of memory|RangeError/i.test(`${e?.message} ${e?.stack}`)) { Log.w('tts', `Reply voice ${device} ${dtype}: out of memory, trying a smaller build`, e); throw e; }
+            Log.w('tts', 'Background worker failed: loading on the main thread instead', e);
+          }
         }
         if (!engine) {
           const K = await import(KOKORO_URL);
@@ -528,7 +536,8 @@ const Voice = {
         const w = performance.now();
         const a = await Promise.race([engine.generate('Ready.', voice), new Promise((_, rej) => setTimeout(() => rej(new Error('Warm-up took over 20 s')), 20000))]);
         this.ttsBroken = ''; Log.i('tts', `On-device voice works: warm-up ${Math.round(performance.now() - w)} ms`, { seconds: +(a.f32.length / a.rate).toFixed(2), engine: engine.kind, device, dtype });
-        if (device === 'wasm' && cfg.device === 'webgpu') this.gpuGaveUp(lastErr);
+        // Out of memory is about what else was loaded then, not the GPU: try it again next time.
+        if (device === 'wasm' && cfg.device === 'webgpu' && !/out of memory|RangeError/i.test(`${lastErr?.message} ${lastErr?.stack}`)) this.gpuGaveUp(lastErr);
         engine.device = device; engine.dtype = dtype; Log.mem('kokoro', `${device === 'webgpu' ? 'GPU' : 'CPU'} ${dtype} (${engine.kind})`);
         Budget.add('kokoro', `${device} ${dtype}`, () => this.resetTTS(), this.ttsCost(device, dtype));
         return engine;

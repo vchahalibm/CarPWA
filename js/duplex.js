@@ -93,7 +93,8 @@ const Convo = {
   model() {
     if (!['auto', 'en'].includes(settings.voiceLang || 'auto')) return 'whisper';
     const c = settings.convoStt || 'auto';
-    return c === 'auto' ? (Budget.cls() === 'phone' ? 'moonshine' : 'whisper') : c;
+    // iPhone and iPad too: with the reply voice and an avatar, Whisper on the GPU got an iPad's app killed for memory.
+    return c === 'auto' ? (Budget.cls() === 'phone' || (isIOS && !IS_DESKTOP_APP) ? 'moonshine' : 'whisper') : c;
   },
   toggle() { return this.active ? this.end('tapped') : this.start(); },
   async start() {

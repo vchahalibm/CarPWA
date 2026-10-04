@@ -17,4 +17,5 @@ Pure HTML/CSS/JavaScript PWA. **No frameworks, no bundler/build step, no npm dep
 - Routes are normalised by `js/routing.js` (`coords`, `cum`, `tcum`, `steps`, `segLimit`); add new providers there, not in app.js.
 - Dashboard gauges bind to live values via `data-t`/`data-arc`/`data-rot`/`data-w`/`data-tf`/`data-show`/`data-html`/`data-cls` keys from `vals()` in `js/dash.js`. Only show data the phone really has.
 - Never use Apple names, logos or assets.
+- `tools/trainer/` is a separate local tool (Python server, stdlib HTTP + torch/torchvision; plain HTML/JS page in `ui/`) for labeling, capturing the user's own pages and training detectors exported as ONNX; it isn't part of the PWA or `SHELL`. Keep the default engine permissively licensed (torchvision); Ultralytics stays optional and labelled AGPL.
 - `docs/prototype.html` is the original reference prototype. Don't edit it.

@@ -60,6 +60,7 @@ vendor/models/            Built-in 3D models (CC0): Vita and Ren (VRM) and the r
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 docs/memory-strategy.md   How on-device models share a phone's memory
+tools/trainer/            DriveDeck Trainer: a local HTML + Python tool to label, capture and train your own detector (ONNX)
 desktop/                  Electron wrapper: the same web files as a Mac app (DMG)
 .github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)
 .github/workflows/desktop.yml  Builds the Mac DMGs
@@ -207,6 +208,13 @@ Four widget types you can add as many times as you like, each showing its own th
 - **Map tiles**: OpenFreeMap is free and keyless. Elevation for 3D terrain comes from the free AWS Terrain Tiles dataset.
 - **AR accuracy**: phone GPS is off by 5–10 m and a car's metal disturbs the compass, so the ribbon shows the road ahead and upcoming turns rather than locking onto a lane. Mount the phone upright, facing forward, then use **Calibrate** once.
 - **HTTPS for GPS and camera**: location, camera and motion sensors work on `localhost` on desktop, but phones need HTTPS. To test on a phone, use the GitHub Pages deploy (below).
+
+## DriveDeck Trainer (train your own models)
+`tools/trainer/` is a local tool for your Mac: an HTML page on a small Python server (`python3 server.py`, then
+http://127.0.0.1:8765). Make datasets, label pictures by drawing boxes (or pre-label them with a model you trained),
+**capture your own web pages** to get screenshots labeled automatically (buttons, links, fields, tabs…), **train** a
+detector on the Mac's GPU (torchvision SSDLite or Faster R-CNN, BSD-licensed; Ultralytics YOLO optional, AGPL) with a live
+chart, test it, and **export** ONNX (+ 8-bit) for DriveDeck. See [tools/trainer/README.md](tools/trainer/README.md).
 
 ## Desktop app (Mac)
 

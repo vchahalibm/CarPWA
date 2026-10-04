@@ -18,7 +18,9 @@ jobs:
         with:
           node-version: 22
       - name: Syntax-check scripts
-        run: for f in js/*.js sw.js desktop/main.js; do node --check "$f"; done
+        run: for f in js/*.js sw.js desktop/main.js bridge/*.js tools/trainer/ui/*.js; do node --check "$f"; done
+      - name: Syntax-check the trainer (Python)
+        run: python3 -m py_compile tools/trainer/server.py tools/trainer/trainer/*.py tools/trainer/trainer/engines/*.py
       - name: Validate manifest
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'))"
       - name: Check service worker precache list

@@ -1,0 +1,9 @@
+# DriveDeck Trainer. Python 3.10+; on a Mac with Apple silicon, PyTorch uses the GPU (MPS) by itself.
+torch>=2.2
+torchvision>=0.17
+pillow>=10
+numpy>=1.24
+onnx>=1.15
+onnxruntime>=1.17        # checks each export and makes the 8-bit copy
+playwright>=1.40         # Capture web pages (then run: playwright install chromium)
+# Optional, AGPL-3.0 (models trained with it are AGPL too): pip install ultralytics

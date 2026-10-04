@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DriveDeck Trainer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>DriveDeck Trainer</h1>
+  <nav id="tabs">
+    <button data-tab="datasets" class="on">Datasets</button>
+    <button data-tab="label">Label</button>
+    <button data-tab="capture">Capture web pages</button>
+    <button data-tab="train">Train</button>
+    <button data-tab="models">Models</button>
+  </nav>
+  <span id="status" class="muted"></span>
+</header>
+<main>
+  <!-- Datasets -->
+  <section id="datasets" class="on">
+    <div class="intro">A dataset is pictures with boxes around the things to find, each box with a class. Make one, then add pictures
+      (or a zip in YOLO layout), label them, or capture your own web pages to have them labeled for you.</div>
+    <div class="cards" id="dsList"></div>
+    <form class="card form" id="dsNew">
+      <h3>New dataset</h3>
+      <label>Name <input name="name" required pattern="[\w][\w .-]{0,63}" placeholder="screen-elements"></label>
+      <label>Classes, one per line <textarea name="classes" rows="8"></textarea></label>
+      <button class="primary">Create</button>
+    </form>
+  </section>
+
+  <!-- Label -->
+  <section id="label">
+    <div class="bar">
+      <select id="lbDs"></select>
+      <label class="btn">Add pictures or a zip<input type="file" id="lbUpload" multiple accept="image/*,.zip" hidden></label>
+      <span class="sep"></span>
+      <span id="lbClasses" class="chips"></span>
+      <span class="sep"></span>
+      <select id="lbAssist"><option value="">Pre-label with a model…</option></select>
+      <button id="lbSave" class="primary">Save</button>
+    </div>
+    <div class="label-main">
+      <aside id="lbFiles"></aside>
+      <div class="editor">
+        <div class="canvas-wrap"><canvas id="lbCanvas"></canvas></div>
+        <div class="muted help">Drag to draw a box with the chosen class (keys 1–9 pick one). Click a box to select it, drag to move it,
+          Delete removes it. ← → previous / next picture (saves). Unsaved changes are kept when you switch pictures.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capture -->
+  <section id="capture">
+    <div class="intro">Opens <b>your own</b> pages in a headless browser at the screen sizes and themes you pick, takes screenshots and
+      labels every visible button, link, field, checkbox, select, tab, icon and image from the page itself. Give your controls
+      <code>data-testid</code>s and roles and the labels get even better. Needs <code>pip install playwright &amp;&amp; playwright install chromium</code>.</div>
+    <form class="card form wide" id="cap">
+      <label>Into dataset <select name="dataset" id="capDs"></select></label>
+      <label>Page addresses, one per line <textarea name="urls" rows="6" placeholder="http://localhost:8000/samples/demo-page.html#usage
+http://localhost:8000/samples/demo-page.html#live"></textarea></label>
+      <div class="row"><span>Screen sizes</span><span id="capVp" class="checks"></span></div>
+      <div class="row"><span>Themes</span><span class="checks"><label><input type="checkbox" name="theme" value="light" checked> light</label><label><input type="checkbox" name="theme" value="dark" checked> dark</label></span></div>
+      <label>Screens per page (scrolls down) <input type="number" name="screens" value="2" min="1" max="10"></label>
+      <button class="primary">Capture</button>
+    </form>
+    <div class="card"><h3>Progress</h3><div id="capLog" class="log"></div><div id="capShots" class="thumbs"></div></div>
+  </section>
+
+  <!-- Train -->
+  <section id="train">
+    <form class="card form wide" id="tr">
+      <label>Dataset <select name="dataset" id="trDs"></select></label>
+      <div id="trEngines" class="engines"></div>
+      <div id="trParams" class="params"></div>
+      <div class="row"><button class="primary" id="trGo">Start training</button><button type="button" id="trStop" hidden>Stop</button><span id="trState" class="muted"></span></div>
+    </form>
+    <div class="card"><h3>Progress</h3><canvas id="trChart" height="220"></canvas><div id="trLog" class="log"></div></div>
+  </section>
+
+  <!-- Models -->
+  <section id="models">
+    <div class="intro">Each training run keeps its best model. Test it on pictures, then export it as ONNX (with an 8-bit copy) for DriveDeck.</div>
+    <div id="runList" class="cards"></div>
+    <div class="card" id="runView" hidden>
+      <h3 id="rvTitle"></h3>
+      <canvas id="rvChart" height="200"></canvas>
+      <div id="rvClasses" class="perclass"></div>
+      <h4>Test</h4>
+      <div class="bar"><label class="btn">A picture from this computer<input type="file" id="rvFile" accept="image/*" hidden></label>
+        <select id="rvDsImg"><option value="">…or one from its dataset</option></select>
+        <label>Confidence <input type="range" id="rvConf" min="0.05" max="0.95" step="0.05" value="0.3"> <span id="rvConfV">0.30</span></label><span id="rvMs" class="muted"></span></div>
+      <div class="canvas-wrap test"><canvas id="rvCanvas"></canvas></div>
+      <h4>Export</h4>
+      <div class="bar"><input id="rvName" placeholder="Model name"><label><input type="checkbox" id="rvInt8" checked> also an 8-bit copy (smaller, faster)</label>
+        <button id="rvExport" class="primary">Export ONNX</button><span id="rvFiles"></span></div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

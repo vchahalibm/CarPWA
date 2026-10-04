@@ -1171,6 +1171,7 @@ addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInsta
 function renderSettings() {
   if (typeof CmdUI !== 'undefined' && CmdUI.shown) return CmdUI.render();
   if (typeof LinkUI !== 'undefined' && LinkUI.shown) return LinkUI.render();
+  if (typeof ScriptUI !== 'undefined' && ScriptUI.shown) return ScriptUI.render();
   const debug = typeof DebugUI !== 'undefined' && Log.on;
   if (debug && DebugUI.tab === 'logs') return DebugUI.render();
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${k}:${v}" class="${settings[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;

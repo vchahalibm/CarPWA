@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DriveDeck live demo page</title>
+<!-- A sample "live" web page for the Stage demo script: the same numbers as the demo deck, updating.
+     Tabs follow the address's #hash (#usage, #speed, #live) and every control has a data-testid,
+     so scripts can open a tab by link or record clicks on it. -->
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--line:#30363d;--text:#e6edf3;--muted:#8b949e;--acc:#35c8ff;--ok:#30d158}
+  @media (prefers-color-scheme:light){:root{--bg:#f6f8fa;--card:#fff;--line:#d0d7de;--text:#1f2328;--muted:#59636e;--acc:#0969da;--ok:#1a7f37}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:clamp(12px,3vw,32px)}
+  h1{font-size:clamp(20px,3vw,34px);margin:0 0 4px} p.sub{color:var(--muted);margin:0 0 18px}
+  nav{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  nav button{min-height:48px;padding:0 20px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
+  nav button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  section{display:none} section.on{display:block}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .card b{display:block;font-size:clamp(26px,4vw,48px);font-variant-numeric:tabular-nums}
+  .card span{color:var(--muted)}
+  .card.hi{outline:3px solid var(--acc)}
+  .bars{display:flex;align-items:flex-end;gap:16px;height:220px;margin-top:16px;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:16px}
+  .bars div{flex:1;background:var(--acc);border-radius:8px 8px 0 0;position:relative;transition:height .6s}
+  .bars div::after{content:attr(data-label);position:absolute;bottom:-26px;left:0;right:0;text-align:center;color:var(--muted);font-size:14px}
+  .live-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ok);margin-right:6px;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  ul.feed{list-style:none;padding:0;margin:12px 0 0;max-height:240px;overflow:auto}
+  ul.feed li{padding:8px 12px;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<h1>DriveDeck · live</h1>
+<p class="sub">Sample page for the Stage demo script</p>
+<nav>
+  <button data-tab="usage" data-testid="tab-usage">Usage</button>
+  <button data-tab="speed" data-testid="tab-speed">Response time</button>
+  <button data-tab="live" data-testid="tab-live">Live</button>
+</nav>
+<section id="usage">
+  <div class="cards">
+    <div class="card" data-testid="m-jul"><span>July</span><b>12k</b></div>
+    <div class="card" data-testid="m-aug"><span>August</span><b>15k</b></div>
+    <div class="card hi" data-testid="m-sep"><span>September</span><b id="sepNow">23k</b></div>
+  </div>
+  <div class="bars"><div style="height:52%" data-label="Jul"></div><div style="height:65%" data-label="Aug"></div><div style="height:100%" data-label="Sep"></div></div>
+</section>
+<section id="speed">
+  <div class="cards">
+    <div class="card" data-testid="v1"><span>v1</span><b>2.4 s</b></div><div class="card" data-testid="v2"><span>v2</span><b>1.6 s</b></div>
+    <div class="card" data-testid="v3"><span>v3</span><b>0.9 s</b></div><div class="card hi" data-testid="v4"><span>v4</span><b>0.5 s</b></div>
+  </div>
+</section>
+<section id="live">
+  <div class="cards">
+    <div class="card"><span><i class="live-dot"></i>Drivers now</span><b id="now" data-testid="drivers-now">1,204</b></div>
+    <div class="card"><span>Commands this minute</span><b id="cmds" data-testid="cmds-minute">318</b></div>
+  </div>
+  <ul class="feed" id="feed" data-testid="feed"></ul>
+</section>
+<script>
+  const show = t => { t = ['usage', 'speed', 'live'].includes(t) ? t : 'usage';
+    document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === t));
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); };
+  document.querySelector('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) location.hash = b.dataset.tab; });
+  addEventListener('hashchange', () => show(location.hash.slice(1))); show(location.hash.slice(1));
+  const said = ['take me home', 'play the radio', 'what’s my ETA', 'next slide', 'call Mom', 'stage mode'];
+  let n = 1204, c = 318;
+  setInterval(() => {
+    n += Math.round(Math.random() * 8 - 3); c += Math.round(Math.random() * 6 - 2);
+    document.getElementById('now').textContent = n.toLocaleString(); document.getElementById('cmds').textContent = c;
+    const li = document.createElement('li'); li.textContent = `“${said[Math.floor(Math.random() * said.length)]}” · just now`;
+    const f = document.getElementById('feed'); f.prepend(li); while (f.children.length > 8) f.lastChild.remove();
+  }, 1500);
+</script>
+</body>
+</html>

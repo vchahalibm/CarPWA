@@ -1194,3 +1194,45 @@ table.bench small{color:var(--text-2)}
 .camw.mirror video{transform:scaleX(-1)}
 .pick-list{display:flex;flex-direction:column;gap:10px}
 .pick-list .big-btn{width:100%;justify-content:flex-start}
+
+/* ---------- Scripts: controls on Stage, Settings › Scripts ---------- */
+.st-beats{bottom:6px;align-items:center;gap:6px;padding:6px;border-radius:999px;background:var(--glass-strong);box-shadow:var(--shadow);z-index:5}
+.st-beats[hidden]{display:none}
+.st-ctl{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:var(--text)}
+.st-ctl svg{width:24px;height:24px}
+.st-dots{display:flex;gap:8px;align-items:center;min-height:56px;padding:0 10px}
+.st-dots i{width:12px;height:12px;border-radius:50%;background:var(--text-3)}
+.st-dots i.done{background:var(--text-2)}
+.st-dots i.on{background:var(--acc);transform:scale(1.35)}
+.stage:has(.st-beats:not([hidden])) .st-cap{padding-bottom:76px}
+.link-btn{color:var(--accent);font-weight:600;font-size:inherit;padding:10px 0;min-height:44px}
+.group .link-btn{display:block;margin:0 20px 8px}
+.sui-btns{display:flex;gap:8px;align-items:center;flex:none}
+.sui-btns .big-btn{flex:none;padding:0 14px;min-width:56px}
+.row-wrap .sui-btns{padding-right:12px}
+.sui-bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 20px}
+.sui-bar .big-btn{flex:none}
+.sui-card{padding:6px 20px 14px}
+.sui-head{padding:4px 20px}
+.sui-card .fld,.sui-head .fld{display:flex;flex-direction:column;gap:6px;margin:10px 0;min-width:0}
+.sui-card .fld > span,.sui-head .fld > span{font-size:14px;font-weight:600;color:var(--text-2)}
+.sui-card input,.sui-card select,.sui-card textarea,.sui-head input{min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:8px 12px;font:inherit;font-size:16px;width:100%}
+.sui-card textarea{resize:vertical}
+.sui-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.sui-row .fld{flex:1 1 150px}
+.sui-row .fld.grow{flex:3 1 240px}
+.sui-row .fld.chk{flex-direction:row;align-items:center;gap:10px;flex:2 1 220px;min-height:48px}
+.sui-row .fld.chk input{width:24px;height:24px;min-height:0}
+.sui-do{display:flex;gap:8px;align-items:center;margin:6px 0}
+.sui-do select{flex:1 1 45%}
+.sui-do input{flex:1 1 40%}
+.sui-do .big-btn{flex:none;width:56px;padding:0}
+.sui-sub{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);margin:14px 0 2px}
+.sui-json{width:100%;min-height:50vh;font:13px/1.4 ui-monospace,Menlo,monospace;border-radius:12px;padding:10px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)}
+.sui-probs{margin:4px 0 12px;padding-left:20px;font-size:15px;line-height:1.4}
+.sui-probs.err{color:var(--red)}
+.sui-help{padding:4px 20px 16px;font-size:16px;line-height:1.5}
+.sui-help h4{margin:16px 0 6px}
+.sui-code{font:13px/1.4 ui-monospace,Menlo,monospace;background:var(--surface-2);border-radius:12px;padding:12px;overflow:auto;max-height:50vh}
+.sui-acts{width:100%;border-collapse:collapse;font-size:14px}
+.sui-acts td{padding:6px 8px;border-top:1px solid var(--sep);vertical-align:top}

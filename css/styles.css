@@ -1162,3 +1162,35 @@ table.bench small{color:var(--text-2)}
 /* Conversation mode: the orb keeps a slow ring while the conversation is open */
 #vOrb.convo{box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 55%,transparent);animation:convoring 2.4s ease-in-out infinite}
 @keyframes convoring{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--green) 25%,transparent)}}
+
+/* ---------- Stage layout (big screens): content, presenter column, captions ---------- */
+.stage{height:100%;display:grid;grid-template-columns:minmax(0,1fr) clamp(240px,30%,520px);grid-template-rows:minmax(0,1fr) auto;gap:12px;min-height:0;position:relative}
+.st-main,.st-side{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.st-main .wg,.st-side .wg{flex:1 1 0;min-height:0}
+.st-main .wg.add,.st-side .wg.add{flex:0 0 64px;flex-direction:row;gap:8px}
+.st-main .wg.add svg,.st-side .wg.add svg{width:24px;height:24px}
+.st-side .w-model{flex-grow:2.2}
+.stage .w-doc .mw-body{background:#fff}
+.st-cap{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;padding:0 4%;min-height:0}
+.st-cap > div{max-width:min(1400px,100%);padding:10px 22px;border-radius:16px;background:var(--glass-strong);font-weight:600;line-height:1.3;
+  font-size:clamp(18px,1.9vw,40px);box-shadow:var(--shadow);animation:capIn .25s ease-out}
+.st-cap .cap-you{color:var(--text-2);font-size:clamp(15px,1.4vw,30px);font-style:italic}
+.st-cap .cap-ai{color:var(--text)}
+.st-cap [hidden]{display:none}
+@keyframes capIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.st-beats{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);display:flex;gap:8px}
+/* Big screens: the dock and the layout bar get out of the way on Stage */
+[data-mode="stage"] .dash-root.lay-stage{padding:clamp(10px,1.2vw,28px)}
+[data-mode="stage"] .lay-stage .wg{border-radius:clamp(20px,1.6vw,36px)}
+/* 4:3 (an iPad mirrored to a TV) and narrower: a wider presenter column */
+@media (max-aspect-ratio:3/2){ .stage{grid-template-columns:minmax(0,1fr) clamp(220px,34%,460px)} }
+/* Portrait: content on top, the presenter row below */
+@media (orientation:portrait){
+  .stage{grid-template-columns:1fr;grid-template-rows:minmax(0,1.6fr) minmax(0,1fr) auto}
+  .st-side{flex-direction:row}
+  .st-side .wg{min-width:0}
+}
+/* Front camera and webcams show you as in a mirror */
+.camw.mirror video{transform:scaleX(-1)}
+.pick-list{display:flex;flex-direction:column;gap:10px}
+.pick-list .big-btn{width:100%;justify-content:flex-start}

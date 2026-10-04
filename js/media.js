@@ -10,7 +10,7 @@
    A source is a link or a file from the device; files are kept in the
    app's own storage (IndexedDB). Loaded after radio.js.
    ============================================================ */
-const PDFJS = 'vendor/pdfjs/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
+const PDFJS = 'vendor/pdfjs/', PPTX = 'vendor/pptx/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
   vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/vita.vrm', vrm: true },
@@ -56,7 +56,7 @@ const isOffice = e => /^(pptx?|ppsx?|docx?|xlsx?|odp|odt|ods)$/.test(e);
 const isMs = u => /(^|\.)sharepoint\.com$|(^|\.)onedrive\.live\.com$|^1drv\.ms$/.test((() => { try { return new URL(u).hostname; } catch { return ''; } })());
 
 const MEDIA_KINDS = {
-  doc: { name: 'Document', icon: 'doc', accept: '.pdf,application/pdf', hint: 'A PDF from this device or a link; PowerPoint, Word or Excel by link (SharePoint, OneDrive or any public link); Google Slides “publish to web” links. To use a PowerPoint file from this device, save it as PDF first.' },
+  doc: { name: 'Document', icon: 'doc', accept: '.pdf,application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation', hint: 'A PDF or PowerPoint (.pptx) from this device or a link: both are drawn here, so voice commands, links and scripts can turn the pages, and the assistant can read a slide’s speaker notes. PowerPoint is drawn without animations, transitions or video (save as PDF for an exact copy). Word or Excel by link (SharePoint, OneDrive or any public link); Google Slides “publish to web” links.' },
   video: { name: 'Video', icon: 'play', accept: 'video/*', hint: 'A YouTube link (video, short, live or playlist), a video link (.mp4, .webm, .m3u8) or a video from this device.' },
   web: { name: 'Web page', icon: 'globe', accept: '', hint: 'Any web address. Many big sites (Google, banks, most news) refuse to be shown inside another app: use Open for those.' },
   model: { name: '3D model', icon: 'cube', accept: '.glb,.gltf,.vrm,model/gltf-binary,model/gltf+json', hint: 'A glTF model (.glb or .gltf) or a VRM avatar (.vrm: it talks with lip-sync and reacts like the built-in one), as a file from this device or a link. Leave both empty for a built-in model.' },
@@ -104,9 +104,56 @@ const Media = {
   async doc(id, el, body, src, c) {
     const e = ext(c.file?.name || src), pdf = c.file ? /pdf/.test(c.file.type) || e === 'pdf' : e === 'pdf';
     if (pdf) return this.pdfShow(id, el, body, src);
-    if (c.file) return this.problem(body, 'PowerPoint, Word and Excel files from this device can’t be shown here: save the file as PDF, or use a SharePoint or OneDrive link.', id);
+    if (e === 'pptx' && !isMs(src)) {
+      try { return await this.pptxShow(id, el, body, src); }
+      catch (err) { if (c.file) throw err; Log.w('media', 'PowerPoint link couldn’t be read here: Microsoft’s viewer instead', err); } // e.g. the site doesn't allow it (CORS)
+    }
+    if (c.file) return this.problem(body, 'Word and Excel files from this device can’t be shown here: save the file as PDF, or use a SharePoint or OneDrive link.', id);
     this.frame(body, this.docUrl(src), 'doc');
   },
+  /** PowerPoint, drawn here with PptxViewJS (vendor/pptx, loaded on first use). Pages work like a PDF's (Media.go). */
+  pptxLib() {
+    const add = f => new Promise((res, rej) => { const s = document.createElement('script'); s.src = PPTX + f; s.onload = res; s.onerror = () => rej(new Error('Couldn’t load ' + f)); document.head.appendChild(s); });
+    return (this.pptxLoad ||= (async () => {
+      if (!window.JSZip) await add('jszip.min.js');
+      if (!window.Chart) await add('chart.umd.min.js');
+      if (!window.PptxViewJS) await add('PptxViewJS.min.js');
+      return window.PptxViewJS;
+    })().catch(e => { this.pptxLoad = null; throw e; }));
+  },
+  async pptxShow(id, el, body, src) {
+    const lib = await this.pptxLib(), P = this.pdf[id] ||= { page: store.get('docPages', {})[id] || 1 };
+    if (P.src !== src) { // one load per file, even when the widget is drawn twice meanwhile
+      if (P.loading?.src !== src) P.loading = Object.assign((async () => {
+        const buf = await (await fetch(src)).arrayBuffer(), t = performance.now();
+        const v = new lib.PPTXViewer({ backgroundColor: '#ffffff' }); await v.loadFile(buf);
+        const notes = await this.pptxNotes(buf).catch(e => { Log.w('media', 'Speaker notes unreadable', e); return []; });
+        P.viewer?.destroy?.(); Object.assign(P, { viewer: v, kind: 'pptx', src, pages: v.getSlideCount(), notes });
+        Log.i('media', `PowerPoint ready ${Math.round(performance.now() - t)} ms`, { slides: P.pages, notes: notes.filter(Boolean).length });
+      })().finally(() => { P.loading = null; }), { src });
+      await P.loading;
+    }
+    body.innerHTML = '<canvas class="mw-pdf"></canvas>';
+    $('[data-pdfbar]', el).hidden = P.pages < 2;
+    await this.pdfDraw(id);
+  },
+  /** Speaker notes per slide, in slide order (ppt/presentation.xml → slides → their notes pages). */
+  async pptxNotes(buf) {
+    const z = await window.JSZip.loadAsync(buf), xml = async f => new DOMParser().parseFromString(await z.file(f)?.async('string') || '<x/>', 'application/xml');
+    const rels = async f => Object.fromEntries([...(await xml(f)).getElementsByTagName('Relationship')].map(r => [r.getAttribute('Id'), r.getAttribute('Target')]));
+    const pres = await xml('ppt/presentation.xml'), pr = await rels('ppt/_rels/presentation.xml.rels');
+    const ids = [...pres.getElementsByTagName('p:sldId')].map(s => s.getAttribute('r:id'));
+    return Promise.all(ids.map(async rid => {
+      const slide = (pr[rid] || '').replace(/^\/?(ppt\/)?/, ''), name = slide.split('/').pop();
+      const target = Object.values(await rels(`ppt/slides/_rels/${name}.rels`)).find(t => /notesSlide/.test(t)); if (!target) return '';
+      const notes = await xml('ppt/notesSlides/' + target.split('/').pop());
+      // The notes body is the placeholder of type "body"; the slide image and number are other shapes.
+      return [...notes.getElementsByTagName('p:sp')].filter(sp => [...sp.getElementsByTagName('p:ph')].some(ph => ph.getAttribute('type') === 'body'))
+        .map(sp => [...sp.getElementsByTagName('a:p')].map(p => [...p.getElementsByTagName('a:t')].map(t => t.textContent).join('')).join('\n')).join('\n').trim();
+    }));
+  },
+  /** The current slide's speaker notes (PowerPoint), for the assistant to present. */
+  notes(id) { const P = this.pdf[id]; return P?.notes?.[(P.page || 1) - 1] || ''; },
   /** How to show a document link: SharePoint/OneDrive in their embed view, other Office files through Microsoft's viewer. */
   docUrl(src) {
     if (isMs(src)) { try { const u = new URL(src); if (!/1drv\.ms$/.test(u.hostname)) u.searchParams.set('action', 'embedview'); return u.href; } catch { return src; } }
@@ -128,11 +175,16 @@ const Media = {
     await this.pdfDraw(id);
   },
   async pdfDraw(id) {
-    const P = this.pdf[id], el = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`); if (!P?.doc || !el) return;
+    const P = this.pdf[id], el = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`); if (!(P?.doc || P?.viewer) || !el) return;
     const cv = $('.mw-pdf', el), box = $('.mw-body', el); if (!cv) return;
     P.page = Math.max(1, Math.min(P.pages, P.page));
     $('[data-pdfpage]', el).textContent = `${P.page} / ${P.pages}`;
     const token = P.token = (P.token || 0) + 1;
+    if (P.kind === 'pptx') {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      cv.width = Math.round(box.clientWidth * dpr); cv.height = Math.round(box.clientHeight * dpr); cv.style.width = box.clientWidth + 'px'; cv.style.height = box.clientHeight + 'px';
+      return P.viewer.renderSlide(P.page - 1, cv);
+    }
     const page = await P.doc.getPage(P.page); if (token !== P.token) return;
     const v1 = page.getViewport({ scale: 1 }), fit = Math.min(box.clientWidth / v1.width, box.clientHeight / v1.height) || 1, dpr = Math.min(2, devicePixelRatio || 1);
     const vp = page.getViewport({ scale: fit * dpr });
@@ -141,7 +193,7 @@ const Media = {
     try { await P.task.promise; } catch (e) { if (e?.name !== 'RenderingCancelledException') throw e; }
   },
   go(id, to) {
-    const P = this.pdf[id]; if (!P?.doc) return false;
+    const P = this.pdf[id]; if (!P?.doc && !P?.viewer) return false;
     const n = Math.max(1, Math.min(P.pages, to)); if (n === P.page) return true;
     // The page is kept outside Wcfg: a page turn mustn't make the dashboard redraw.
     P.page = n; store.set('docPages', { ...store.get('docPages', {}), [id]: n }); this.pdfDraw(id); Bus.emit('doc.page', { value: String(n), id });
@@ -244,10 +296,11 @@ document.addEventListener('click', e => {
 
 /* ---------- Actions (voice commands and links) ---------- */
 const needs = (kind, say) => { const id = Media.first(kind); if (!id) say(`Add a ${MEDIA_KINDS[kind].name.toLowerCase()} widget first.`); return id; };
-Actions.define('doc.next', { group: 'Documents & media', name: 'Next page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) + 1)) say('Page turning works for PDF documents.'); } });
-Actions.define('doc.prev', { group: 'Documents & media', name: 'Previous page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) - 1)) say('Page turning works for PDF documents.'); } });
+Actions.define('doc.next', { group: 'Documents & media', name: 'Next page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) + 1)) say('Page turning works for PDF and PowerPoint documents.'); } });
+Actions.define('doc.prev', { group: 'Documents & media', name: 'Previous page or slide', arg: '', run(v, say) { const id = needs('doc', say); if (id && !Media.go(id, (Media.pdf[id]?.page || 1) - 1)) say('Page turning works for PDF and PowerPoint documents.'); } });
 Actions.define('doc.page', { group: 'Documents & media', name: 'Go to a page or slide', arg: 'Page number', run(v, say) { const id = needs('doc', say), n = parseInt(v, 10) || WORD_NUM[v.toLowerCase()];
-  if (id && n && !Media.go(id, n)) say('Page turning works for PDF documents.'); } });
+  if (id && n && !Media.go(id, n)) say('Page turning works for PDF and PowerPoint documents.'); } });
+Actions.define('doc.notes', { group: 'Documents & media', name: 'Present the slide’s speaker notes', arg: '', run(v, say) { const id = needs('doc', say); if (id) Voice.respond(Media.notes(id) || 'This slide has no speaker notes.'); } }); // spoken even from a link or script
 Actions.define('doc.open', { group: 'Documents & media', name: 'Show a document', arg: 'Link to the document', run(v, say) { const id = needs('doc', say); if (id && v) { delete Media.pdf[id]; Media.resetPage(id); Wcfg.set(id, { url: v, file: null }); Dash.render(); } } });
 Actions.define('video.play', { group: 'Documents & media', name: 'Play the video', arg: '', run(v, say) { const id = needs('video', say); if (id) Media.videoCmd(id, true); } });
 Actions.define('video.pause', { group: 'Documents & media', name: 'Pause the video', arg: '', run(v, say) { const id = needs('video', say); if (id) Media.videoCmd(id, false); } });
@@ -262,7 +315,7 @@ const WORD_NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
 const Avatar = {
   els: () => $$('#dashRoot model-viewer[data-avatar]').filter(m => m.loaded),
   gesture(name, times = 1) {
-    for (const mv of this.els()) {
+    for (const mv of typeof Stage === 'undefined' || Stage.on ? this.els() : []) { // Drive mode: expressions only
       if (!mv.availableAnimations?.includes(name)) continue;
       mv.animationName = name; mv.play({ repetitions: times });
       // Back to idling when it's done: on 'finished', or by the clock if that event is missed (e.g. while hidden).

@@ -137,8 +137,10 @@ class AvatarInstance {
   gesture(name, times = 1) {
     const len = { Wave: 1.8, Yes: 1.2, No: 1.3, ThumbsUp: 1.6, Dance: 3.2, Jump: 0.9, Listen: 1.5 }[name];
     if (!len) return;
-    this.gest = { name, t: 0, len: len * (name === 'Dance' ? times : 1) };
-    if (name === 'Wave' || name === 'ThumbsUp' || name === 'Dance') this.face('Happy', this.gest.len * 1000);
+    const total = len * (name === 'Dance' ? times : 1);
+    // Drive mode: expressions only, no moving arms or body to catch the driver's eye (Settings › Mode).
+    if (typeof Stage === 'undefined' || Stage.on) this.gest = { name, t: 0, len: total };
+    if (name === 'Wave' || name === 'ThumbsUp' || name === 'Dance') this.face('Happy', total * 1000);
     if (name === 'No') this.face('Sad', 1800);
   }
   face(name, ms = 1600) {

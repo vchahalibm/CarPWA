@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v29';
+const VERSION = 'v30';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -27,7 +27,7 @@ const SHELL = [
   'js/radio.js',
   'js/media.js',
   'js/avatar.js',
-  'js/vision.js',
+  'js/vision.js', 'js/stage.js',
   'js/debug.js',
   'vendor/fonts/inter-latin-wght.woff2',
   'manifest.webmanifest',

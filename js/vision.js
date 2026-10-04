@@ -104,7 +104,7 @@ const Vision = {
   },
   /** The video to read frames from: the widget's own, else AR's. */
   video() { const v = $('#dashRoot .camw video'); return v?.readyState >= 2 ? v : $('#arVideo')?.readyState >= 2 && AR.running ? $('#arVideo') : null; },
-  attach() { $$('#dashRoot .camw video').forEach(v => { if (v.srcObject !== this.stream) { v.srcObject = this.stream; this.stream && v.play().catch(() => {}); } }); this.paintWidget(); },
+  attach() { $$('#dashRoot .camw').forEach(w => w.classList.toggle('mirror', Camera.mirrored)); $$('#dashRoot .camw video').forEach(v => { if (v.srcObject !== this.stream) { v.srcObject = this.stream; this.stream && v.play().catch(() => {}); } }); this.paintWidget(); },
   stopLoop() { clearTimeout(this.timer); this.timer = 0; },
   loop() {
     this.stopLoop();
@@ -201,7 +201,8 @@ const Vision = {
     const s = Math.max(cv.width / L.w, cv.height / L.h), ox = (cv.width - L.w * s) / 2, oy = (cv.height - L.h * s) / 2, want = settings.detAlertList || DEFAULT_ALERTS;
     x.lineWidth = 3 * dpr; x.font = `600 ${14 * dpr}px system-ui,sans-serif`; x.textBaseline = 'top';
     for (const d of L.dets) {
-      const [x0, y0, x1, y1] = d.box, bx = ox + x0 * L.w * s, by = oy + y0 * L.h * s, bw = (x1 - x0) * L.w * s, bh = (y1 - y0) * L.h * s;
+      const flip = Camera.mirrored && cv.closest('.camw'); // the video is shown mirrored: boxes follow, labels stay readable
+      const [x0, y0, x1, y1] = flip ? [1 - d.box[2], d.box[1], 1 - d.box[0], d.box[3]] : d.box, bx = ox + x0 * L.w * s, by = oy + y0 * L.h * s, bw = (x1 - x0) * L.w * s, bh = (y1 - y0) * L.h * s;
       const col = want.includes(d.label) ? '#ff9f0a' : '#35c8ff';
       x.strokeStyle = col; x.strokeRect(bx, by, bw, bh);
       const t = `${d.label} ${Math.round(d.score * 100)}%`, tw = x.measureText(t).width + 10 * dpr;
@@ -242,3 +243,5 @@ Actions.define('camera.start', { group: 'Camera', name: 'Start the camera widget
 Actions.define('camera.stop', { group: 'Camera', name: 'Stop the camera widget', arg: '', run: () => { store.set('camOn', false); Vision.stop('widget'); } });
 Actions.define('camera.describe', { group: 'Camera', name: 'Say what the camera sees', arg: '', async run(v, say) { say(await Vision.describe()); } });
 if (current === 'dashboard') Dash.render(); // the widget type now exists
+// Settings › Cameras or the mode changed while the widget shows the camera: pick up the new stream.
+Bus.on('camera.switch', async () => { if (!Vision.users.has('widget')) return; try { Vision.stream = await Camera.get('vision'); } catch (e) { Log.w('vision', 'Camera refused', e); Vision.stream = null; } Vision.attach(); });

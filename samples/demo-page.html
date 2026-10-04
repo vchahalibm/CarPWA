@@ -29,6 +29,8 @@
   @keyframes pulse{50%{opacity:.3}}
   ul.feed{list-style:none;padding:0;margin:12px 0 0;max-height:240px;overflow:auto}
   ul.feed li{padding:8px 12px;border-bottom:1px solid var(--line)}
+  ul.feed li[hidden]{display:none}
+  input.filter{margin-top:14px;width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;padding:0 14px}
 </style>
 </head>
 <body>
@@ -58,6 +60,7 @@
     <div class="card"><span><i class="live-dot"></i>Drivers now</span><b id="now" data-testid="drivers-now">1,204</b></div>
     <div class="card"><span>Commands this minute</span><b id="cmds" data-testid="cmds-minute">318</b></div>
   </div>
+  <input class="filter" id="filter" data-testid="feed-filter" placeholder="Filter the feed, e.g. radio" autocomplete="off">
   <ul class="feed" id="feed" data-testid="feed"></ul>
 </section>
 <script>
@@ -65,6 +68,8 @@
     document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === t));
     document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); };
   document.querySelector('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) location.hash = b.dataset.tab; });
+  document.getElementById('filter').addEventListener('input', e => { const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#feed li').forEach(li => { li.hidden = !!q && !li.textContent.toLowerCase().includes(q); }); });
   addEventListener('hashchange', () => show(location.hash.slice(1))); show(location.hash.slice(1));
   const said = ['take me home', 'play the radio', 'what’s my ETA', 'next slide', 'call Mom', 'stage mode'];
   let n = 1204, c = 318;
@@ -72,8 +77,11 @@
     n += Math.round(Math.random() * 8 - 3); c += Math.round(Math.random() * 6 - 2);
     document.getElementById('now').textContent = n.toLocaleString(); document.getElementById('cmds').textContent = c;
     const li = document.createElement('li'); li.textContent = `“${said[Math.floor(Math.random() * said.length)]}” · just now`;
-    const f = document.getElementById('feed'); f.prepend(li); while (f.children.length > 8) f.lastChild.remove();
+    const f = document.getElementById('feed'), q = document.getElementById('filter').value.trim().toLowerCase();
+    li.hidden = !!q && !li.textContent.toLowerCase().includes(q); f.prepend(li); while (f.children.length > 8) f.lastChild.remove();
   }, 1500);
 </script>
+<!-- Lets DriveDeck record and replay clicks here when this page is served from another address (see bridge/README.md). -->
+<script src="../bridge/drivedeck-bridge.js" data-allow="https://vchahalibm.github.io app://drivedeck"></script>
 </body>
 </html>

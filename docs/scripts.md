@@ -40,3 +40,8 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
   `script.restart`, `script.goto`, `script.stop`, `stage.widgets`, `wait`.
 - The sample (`SAMPLE_SCRIPT`) presents `samples/drivedeck-demo.pptx` beside `samples/demo-page.html`, a live page whose tabs
   follow its `#hash` and whose controls carry `data-testid`s for recorded clicks.
+- **Web steps** (`js/webdrive.js`): `web.step` (value: a recorded step, JSON `{ "t": "click"|"type", "loc": { testid, id, css,
+  tag, role, text, name, x, y }, "value", "expect" }`), `web.play` (a named recorded sequence, kept in `dd.webRecs`) and
+  `web.click` (by text or data-testid). Recorded in the editor (Record web steps) on the page in a web widget. Same-origin
+  pages are driven directly; other pages need `bridge/drivedeck-bridge.js` with `data-allow` listing DriveDeck's origin.
+  Shown replays move a pointer and draw a ring; quiet ones (going back) don't. Password-like fields are never recorded.

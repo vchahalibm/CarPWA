@@ -441,7 +441,7 @@ const Commands = {
     if (!spoken) { VoiceLog.you(raw, { engine: 'Typed' }); Voice.show(`“${raw}”`, ''); }
     const say = (msg, then, o = {}) => Voice.respond(msg, then, o);
     const r = this.match(raw);
-    if (!r.cmd) return say('Sorry, I didn’t catch that. Say “what can I say” for ideas.');
+    if (!r.cmd) return say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     const c = r.cmd, v = r.vars, d = c.do || {}, custom = c.reply ? fillIn(c.reply, v) : '';
     Bus.emit('cmd.run', { value: Object.entries(v).find(([k, x]) => x && k !== 'text' && k !== 'rest')?.[1] || '', command: c.name, id: c.id, text: raw });
     const reply = (auto, then, o) => say(custom || auto, then, o);

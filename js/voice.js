@@ -43,7 +43,7 @@ const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
   // Whisper: the GPU (0.4 s vs 2.2 s on an iPad) on tablets and computers, unless only the CPU build is downloaded here.
-  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker', sr: 'reset',
+  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker', sr: 'reset', convoBoost: '',
     device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().some(d => d.startsWith('fp'))) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
@@ -185,7 +185,7 @@ Budget.boot();
 // Closing the app on purpose isn't a crash.
 addEventListener('pagehide', () => { if (store.get('loadingModel')) store.set('loadingModel', null); });
 /** Download size of the reply voice for this device, for the prompts. */
-const ttsSize = () => Diag.get().device === 'webgpu' ? (store.get('gpuF16') ? '165 MB' : '310 MB') : '90 MB';
+const ttsSize = () => Diag.get().device === 'webgpu' ? '310 MB' : '90 MB';
 /* ---------- Kokoro engines: the same small interface on the main thread or in a worker ----------
    sentences(text, voice) → async iterable of { text, f32, rate } · generate(text, voice) → { f32, rate } · terminate() */
 const STREAM_SHIM = `if (typeof ReadableStream !== 'undefined' && !ReadableStream.prototype[Symbol.asyncIterator]) {
@@ -340,7 +340,10 @@ const Voice = {
     const id = ++this.respId, t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms)), said = speak(msg) || Promise.resolve();
     const done = () => id === this.respId && !this.rec && !this.sr && !(typeof Convo !== 'undefined' && Convo.active);
     if (typeof Convo !== 'undefined' && Convo.active) Convo.replying(msg, said, o);
-    if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => { if (done()) { this.close(); then?.(); } });
+    // In a conversation the hand-off doesn't close it: it pauses when the other app actually comes to the front (Convo.hidden).
+    const convo = () => typeof Convo !== 'undefined' && Convo.active;
+    if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => {
+      if (convo()) { if (id === this.respId) then?.(); } else if (done()) { this.close(); then?.(); } });
     setTimeout(() => { if (id === this.respId) then?.(); }, 600); // in-app actions happen while the reply is spoken
     Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) { $('#assistant').hidden = true; Bus.emit('voice.idle'); } });
   },
@@ -487,7 +490,7 @@ const Voice = {
     try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); Log.d('audio', 'Phone voice primed by a tap'); } } catch {}
   },
   /** Memory the reply voice needs: the build given, or the best one this device will try first. */
-  ttsCost(device = Diag.get().device, dtype = device === 'webgpu' && store.get('gpuF16') ? 'fp16' : 'fp32') {
+  ttsCost(device = Diag.get().device, dtype = 'fp32') {
     return Budget.COST[device === 'webgpu' ? `kokoro webgpu ${dtype}` : 'kokoro wasm'] || 220;
   },
   /** Load the reply voice. `show` (asked for by you: progress shown) makes room for it; otherwise it's a preload that only uses a free slot. */
@@ -497,11 +500,12 @@ const Voice = {
     this.ttsLoading ||= Heavy.run('reply voice', () => this.loadTTSNow(show));
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
-  /** Try the best build first: GPU 16-bit (half the memory) → GPU 32-bit → CPU. Each must load and pass a warm-up. */
+  /** Try the best build first: GPU 32-bit → CPU. Each must load and pass a warm-up. No 16-bit GPU build: Kokoro's authors
+      recommend fp32 on WebGPU, and fp16 sounded robotic, with breaks, on an iPad. */
   async loadTTSNow(show) {
     const cfg = Diag.get(), files = {}, voice = TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart';
     const onProgress = show ? p => this.progress(p, files, 'reply voice') : p => p.status && !/progress/.test(p.status) && Log.d('model', `reply voice: ${p.status} ${p.file || ''}`);
-    const builds = (cfg.device === 'webgpu' ? [...((await gpuFeatures()).f16 ? [['webgpu', 'fp16']] : []), ['webgpu', 'fp32'], ['wasm', 'q8']] : [['wasm', 'q8']])
+    const builds = (cfg.device === 'webgpu' ? [['webgpu', 'fp32'], ['wasm', 'q8']] : [['wasm', 'q8']])
       .filter(([d, t]) => d === 'wasm' || !Budget.tooBig(`Reply voice ${d} ${t}`)); // the CPU build is always kept as the last resort
     let lastErr;
     for (const [device, dtype] of builds) {

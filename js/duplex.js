@@ -35,7 +35,11 @@ const AudioEngine = {
     const mute = this.ctx.createGain(); mute.gain.value = 0; // Safari only runs a worklet that's connected to the output
     src.connect(node); node.connect(mute); mute.connect(this.ctx.destination);
     node.port.onmessage = e => onFrame(e.data);
-    this.out = this.ctx.createGain(); this.out.connect(this.ctx.destination);
+    // While the microphone runs with echo cancellation, iOS turns all playback down (replies sounded feeble on an iPad):
+    // make up for it with gain, and a limiter so loud syllables don't clip.
+    const lim = this.ctx.createDynamicsCompressor();
+    lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.1;
+    this.out = this.ctx.createGain(); this.out.gain.value = this.boost(); this.out.connect(lim); lim.connect(this.ctx.destination);
     const track = this.stream.getAudioTracks()[0];
     track?.addEventListener('ended', () => onLost('The microphone was taken by another app'));
     track?.addEventListener('mute', () => Log.w('duplex', 'Microphone muted by the system'));
@@ -62,7 +66,9 @@ const AudioEngine = {
   },
   stopPlayback() { const c = this.cur; this.cur = null; try { c?.s.stop(); } catch {} },
   /** Turn the reply down while it might be you talking (soft), back up if it wasn't. */
-  duck(on) { if (this.out && this.ctx) this.out.gain.setTargetAtTime(on ? 0.25 : 1, this.ctx.currentTime, 0.02); this.ducked = on; },
+  duck(on) { if (this.out && this.ctx) this.out.gain.setTargetAtTime((on ? 0.25 : 1) * this.boost(), this.ctx.currentTime, 0.02); this.ducked = on; },
+  /** Reply loudness: Settings › Logs › Conversation volume, else 2.5× on iPhone/iPad (whose echo cancellation turns playback down), 1.4× elsewhere. */
+  boost() { const d = +Diag.get().convoBoost; return d > 0 ? d : isIOS ? 2.5 : 1.4; },
   playing() { return !!this.cur && this.ctx && this.ctx.currentTime < this.cur.t0 + this.cur.f32.length / this.cur.rate; },
   /** Loudness of what's going to the speaker about `delay` seconds ago (the echo arriving now). */
   ref(delay = 0.08) {
@@ -82,7 +88,13 @@ const Convo = {
   active: false, stt: null, sttLoading: null, q: Promise.resolve(),
   stats: null,
   /** Which on-device recognizer: Moonshine for English (and auto), Whisper for any other language or "several languages". */
-  model() { return ['auto', 'en'].includes(settings.voiceLang || 'auto') ? 'moonshine' : 'whisper'; },
+  // English: Settings › Voice › Listening in conversations; "Automatic" is Moonshine on a phone (memory), Whisper on tablets and
+  // computers (Moonshine tiny misheard an Indian-English speaker often on an iPad; Whisper base on the GPU takes about 0.4 s there).
+  model() {
+    if (!['auto', 'en'].includes(settings.voiceLang || 'auto')) return 'whisper';
+    const c = settings.convoStt || 'auto';
+    return c === 'auto' ? (Budget.cls() === 'phone' ? 'moonshine' : 'whisper') : c;
+  },
   toggle() { return this.active ? this.end('tapped') : this.start(); },
   async start() {
     if (this.active || this.starting) return;
@@ -92,6 +104,7 @@ const Convo = {
     Log.i('duplex', 'Conversation starting', { model: this.model(), lang: settings.voiceLang });
     try {
       await this.loadSTT();
+      this.warm();
       await AudioEngine.start(f => this.frame(f), why => this.lost(why));
     } catch (e) {
       this.starting = false; AudioEngine.stop(); Voice.session('auto');
@@ -102,7 +115,7 @@ const Convo = {
     }
     this.starting = false; this.active = true;
     this.stats = { turns: 0, bargeIns: 0, falseDucks: 0, echoDrops: 0, sttMs: [], started: Date.now() };
-    Object.assign(this, { noise: 0.006, utt: null, pre: [], voiced: 0, quiet: 0, lastSpeech: Date.now(), echoGain: 0.15, replyText: '', replyAt: 0, phoneTalking: false });
+    Object.assign(this, { noise: 0.006, utt: null, pre: [], voiced: 0, quiet: 0, lastSpeech: Date.now(), echoGain: 0.15, replyText: '', replyAt: 0, replyEnd: 0, phoneTalking: false, leaving: false });
     $('#vOrb').classList.add('live', 'convo');
     this.listenUI();
     Bus.emit('voice.listen');
@@ -142,12 +155,18 @@ const Convo = {
       throw last;
     })).then(s => (this.stt = s), e => { throw e; }).finally(() => { this.sttLoading = null; });
   },
+  /** The first recognition is slow (1.1 s against 0.2 s after): run one on silence while the engine starts. */
+  warm() {
+    if (this.stt?.warmed) return; const s = this.stt; if (s) s.warmed = true;
+    const t = performance.now();
+    this.recognise(new Float32Array(16000)).then(() => Log.d('duplex', `Listening model warmed up in ${Math.round(performance.now() - t)} ms`), () => {});
+  },
   whisperOpts() { const l = LANGS[settings.voiceLang] || LANGS.auto; return { language: l[1], task: l[1] && l[1] !== 'en' ? 'translate' : 'transcribe' }; },
   recognise(audio) {
     const run = async () => {
       const t = performance.now();
       const out = await Promise.race([this.stt(audio), new Promise((_, rej) => setTimeout(() => rej(new Error('Recognition took over 6 s')), 6000))]);
-      const ms = Math.round(performance.now() - t); this.stats?.sttMs.push(ms);
+      const ms = Math.round(performance.now() - t); if (this.active) this.stats?.sttMs.push(ms);
       return { text: (out?.text || '').trim().replace(/^[\s"“]+|[\s"”]+$/g, ''), ms };
     };
     return (this.q = this.q.catch(() => {}).then(run));
@@ -169,7 +188,7 @@ const Convo = {
       if (!talking && !loud) this.noise = this.noise * 0.95 + rms * 0.05;
       this.voiced = loud ? this.voiced + 1 : Math.max(0, this.voiced - 1);
       if (this.voiced >= (talking ? 12 : 8)) { // 240 ms during a reply, 160 ms otherwise
-        this.utt = { frames: [...this.pre], duringReply: talking, at: performance.now() }; this.pre = []; this.quiet = 0; this.voiced = 0;
+        this.utt = { frames: [...this.pre], duringReply: talking, at: performance.now(), t: Date.now() }; this.pre = []; this.quiet = 0; this.voiced = 0;
         this.lastSpeech = Date.now();
         if (talking) { AudioEngine.duck(true); Log.i('duplex', 'You may be talking over the reply: turned down', { rms: +rms.toFixed(3), ref: +ref.toFixed(3), echoGain: +this.echoGain.toFixed(2) }); }
         else Log.d('duplex', 'Speech started', { rms: +rms.toFixed(3), noise: +this.noise.toFixed(4) });
@@ -200,10 +219,11 @@ const Convo = {
       return;
     }
     // Its own voice coming back from the speakers: mostly the reply's own words (layer 3).
-    if (u.duringReply || Date.now() - this.replyEnd < 1500) {
+    if (u.duringReply || u.t - this.replyEnd < 1500) { // counted from when it started: the echo of the reply's last words
       const reply = new Set(convoWords(this.replyText)), mine = w.filter(x => reply.has(x)).length;
       if (w.length && mine / w.length >= 0.6 && !BARGE.test(text)) { this.stats.echoDrops++; Log.i('duplex', 'Dropped: its own voice (echo)', { text, reply: this.replyText }); AudioEngine.duck(false); return; }
     }
+    if (this.leaving && !BARGE.test(text) && !BYE.test(text)) { Log.i('duplex', 'Ignored while handing off to another app', { text }); AudioEngine.duck(false); return; }
     if (u.duringReply) {
       this.stats.bargeIns++; Log.i('duplex', 'Interrupted the reply', { text, ms: Math.round(performance.now() - u.at) });
       Voice.hush(); Bus.emit('voice.interrupt', { value: text });
@@ -218,7 +238,8 @@ const Convo = {
   replying(msg, said, o) {
     this.replyText = msg; this.replyAt = Date.now();
     Promise.resolve(said).then(() => { this.replyEnd = Date.now(); if (this.active && !this.utt) { AudioEngine.duck(false); this.listenUI(); } });
-    if (o?.leaves) Promise.resolve(said).then(() => this.end('handed off to another app'));
+    // A reply that opens another app: only "stop" can cancel it. The conversation pauses if the app really comes to the front.
+    this.leaving = !!o?.leaves; if (o?.leaves) Promise.resolve(said).then(() => setTimeout(() => (this.leaving = false), 1500));
   },
   /** A reply sentence from the on-device voice, played through the engine (with lip-sync). */
   async play({ n, f32, rate }) {
@@ -229,6 +250,13 @@ const Convo = {
     await done; Bus.emit('voice.audio.end');
   },
 };
+// Another app came to the front (a hand-off, or you switched): the microphone is gone, so pause; tap the mic to carry on.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && Convo.active) { Convo.end('the app went to the background'); Convo.paused = Date.now(); }
+  else if (!document.hidden && Convo.paused && Date.now() - Convo.paused < 10 * 60000) {
+    Convo.paused = 0; Voice.open(); $('#vChips').hidden = true; Voice.show('Conversation paused', 'Tap the mic to carry on talking');
+  }
+});
 Bus.define('voice.interrupt', 'You interrupt a reply', 'what you said');
 // The phone's own voice can't go through the engine: track when it talks so the mic is stricter meanwhile.
 Bus.on('voice.talk', d => { Convo.phoneTalking = !!d.on; if (!d.on) Convo.replyEnd = Date.now(); });

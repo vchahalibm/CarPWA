@@ -202,7 +202,7 @@ const Script = {
   },
 };
 Bus.on('dash.rendered', () => Script.paint());
-Bus.on('*', (d, name) => { const b = Script.running && Script.beat; if (b?.next.event && b.next.event === name && !name.startsWith('script.')) Script.next(); });
+Bus.on('*', (d, name) => { const b = Script.running ? Script.beat : null; if (b?.next?.event && b.next.event === name && !name.startsWith('script.')) Script.next(); });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-script],[data-scriptjump]'); if (!b) return;
   e.stopPropagation();

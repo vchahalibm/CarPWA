@@ -89,7 +89,11 @@ const Media = {
       if (k === 'doc') return await this.doc(id, el, body, src, c);
       if (k === 'video') return await this.video(id, body, src, c);
       if (k === 'web') return this.frame(body, src, 'web');
-      if (k === 'model') return await ((builtin ? builtin.vrm : ext(c.file?.name || c.url) === 'vrm') ? VrmAvatar.mount(id, body, src) : this.model(body, src, builtin));
+      if (k === 'model') {
+        const vrm = builtin ? builtin.vrm : ext(c.file?.name || c.url) === 'vrm';
+        if (vrm && typeof VrmAvatar === 'undefined') return; // drawn before avatar.js has loaded (at start-up): the next redraw mounts it
+        return await (vrm ? VrmAvatar.mount(id, body, src) : this.model(body, src, builtin));
+      }
     } catch (e) { Log.e('media', `${k} failed`, e); this.problem(body, k === 'doc' ? 'This document couldn’t be opened here. The site may not allow it: try Open.' : 'This couldn’t be shown here.', id); }
   },
   problem(body, msg, id) { body.innerHTML = `<div class="mw-empty">${svg('alert')}<span>${esc(msg)}</span><button class="w-cta" data-media-cfg="${esc(id)}">Change</button></div>`; },

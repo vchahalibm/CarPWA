@@ -19,8 +19,15 @@ const VrmAvatar = {
   lib: null, all: new Map(), // widget id → instance
   load() { return (this.lib ||= import(new URL(AVATAR_LIB, document.baseURI).href).catch(e => { this.lib = null; throw e; })); },
 
-  /** Show a VRM in a widget body. An instance survives dashboard redraws: its canvas is moved into the new widget. */
-  async mount(id, body, src) {
+  /** Show a VRM in a widget body. An instance survives dashboard redraws: its canvas is moved into the new widget.
+      One mount per widget at a time: two at once (redraws at start-up) would each load a copy and leave one behind. */
+  mount(id, body, src) {
+    const run = (this.mounting.get(id) || Promise.resolve()).then(() => this.mountNow(id, body, src));
+    this.mounting.set(id, run.catch(() => {}));
+    return run;
+  },
+  mounting: new Map(),
+  async mountNow(id, body, src) {
     const old = this.all.get(id);
     if (old && old.src === src && !old.disposed) { body.replaceChildren(old.canvas); old.resize(); this.run(); return; }
     old?.dispose();

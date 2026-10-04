@@ -310,7 +310,7 @@ const DEFAULT_COMMANDS = [
   { id: 'info.weather', name: 'Weather', match: 'keywords', say: ['weather', 'temperature', 'rain|raining|umbrella', 'forecast', 'how hot|how cold'], do: { type: 'builtin', fn: 'weather' } },
   { id: 'info.time', name: 'What time is it?', match: 'keywords', say: ['time is it', 'what’s the time|whats the time|what is the time|current time|the time now|tell me the time'], do: { type: 'builtin', fn: 'time' } },
   { id: 'info.date', name: 'What’s the date?', match: 'keywords', say: ['what’s the date|whats the date|what is the date|the date today|today’s date|todays date|what date', 'what day is|which day is'], do: { type: 'builtin', fn: 'date' } },
-  { id: 'info.help', name: 'What can I say?', say: ['what can (i|you) (say|do|ask)', 'help [me]', '[show] [the] [voice] commands', 'what are [the|my] commands'], do: { type: 'builtin', fn: 'help' } },
+  { id: 'info.help', name: 'What can I say?', say: ['what can (i|you) (say|do|ask)', 'what all can (i|you) (say|do|ask)', 'help [me]', '[show] [the] [voice] commands', 'what are [the|my] commands'], do: { type: 'builtin', fn: 'help' } },
   // Dashboard & display
   { id: 'dash.layout', name: 'Cluster, map or widget layout', say: ['[show|open|switch to|go to] [the] {layout} (layout|dashboard|screen|page)', 'show [me] [the] {layout}'], do: { type: 'builtin', fn: 'layout' } },
   { id: 'dash.style', name: 'Change the cluster style', say: ['[switch to|use|show] [the] {style} (style|cluster|dials|gauges)', '(change|switch|next) [the] (cluster|dials|gauges|cluster style|style)'], do: { type: 'builtin', fn: 'style' } },
@@ -338,7 +338,7 @@ const reAlts = s => s.split('|').map(a => a.trim().split(/\s+/).filter(Boolean).
 /** Normalise what was heard: punctuation off (but keep 2.5 and 1,200), spaces tidied, filler like “hey, could you please” dropped. */
 function tidy(s) {
   return (s || '').normalize('NFKC').replace(/[“”"«»¿¡]/g, ' ').replace(/[.,](?!\d)/g, ' ').replace(/(^|\D)[.,]/g, '$1 ').replace(/[!?;:]/g, ' ').replace(/\s+/g, ' ').trim()
-    .replace(/^(?:(?:hey|hi|ok|okay|so|um|uh|er)\s+)*(?:drive\s?deck\s+)?(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|i’d like to|i wanna|let's|let’s|lets|just)\s+)*/i, '')
+    .replace(/^(?:(?:(?:hey|hi|hello)(?:\s+there)?|ok|okay|so|um|uh|er)\s+)*(?:drive\s?deck\s+)?(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|i’d like to|i wanna|let's|let’s|lets|just)\s+)*/i, '')
     .replace(/\s+(please|now|thanks|thank you)$/i, '').trim();
 }
 const lev = (a, b) => {

@@ -313,12 +313,18 @@ function widgetIds() {
   const ids = new Set(Dash.pages().flat());
   for (const w of ['left', 'right']) Dash.list(w).forEach(i => ids.add(i));
   for (const l of Object.values(store.get('paneCols', {}))) l.forEach(i => i !== '@' && ids.add(i));
+  if (Dash.layout === 'stage') for (const w of STAGE_ZONES) Dash.list(w).forEach(i => ids.add(i));
   return [...ids].filter(i => W[wtype(i)]);
 }
 const DEFAULT_WIDGETS = ['chat', 'trip', 'weather', 'calendar', 'clock', 'nowPlaying', 'roll', 'pitch', 'elevation'];
 
 /* ---------- Layouts & rendering ---------- */
-const LAYOUTS = [['cluster', 'Cluster', 'gauge'], ['map', 'Map', 'maps'], ['widgets', 'Widgets', 'grid']];
+const LAYOUTS = [['cluster', 'Cluster', 'gauge'], ['map', 'Map', 'maps'], ['widgets', 'Widgets', 'grid'], ['stage', 'Stage', 'stage']];
+/** Layouts offered: Stage only in Stage mode (Settings › Mode). */
+const layouts = () => LAYOUTS.filter(l => l[0] !== 'stage' || settings.appMode === 'stage');
+/* Stage layout (big screens): the main content, the presenter column (the avatar first), captions along the bottom. */
+const STAGE_ZONES = ['stage.main', 'stage.side'];
+const STAGE_DEFAULTS = { 'stage.main': ['doc~stage'], 'stage.side': ['model~stage', 'clock'] };
 const ACCENTS = { cyan: '#35c8ff', magenta: '#d63cff', red: '#ff3b30', orange: '#ff7a1a', khaki: '#a89f86', yellow: '#e8e03a', wine: '#b0306a', green: '#30d158' };
 
 const Dash = {
@@ -329,7 +335,8 @@ const Dash = {
   /* Every place a widget can live is a list, keyed by `where`:
      'left' / 'right'    columns beside the cluster
      '<style>.p<n>'      the cluster's own panes (dials, map); '@' marks the pane itself
-     'pg<n>'             widget pages                                                    */
+     'pg<n>'             widget pages
+     'stage.main' / 'stage.side'  the Stage layout's content and presenter column             */
   pages() {
     const p = store.get('widgetPages');
     return (Array.isArray(p) && p.length ? p : [store.get('widgets', DEFAULT_WIDGETS)]).map(pg => pg.filter(id => W[wtype(id)]));
@@ -337,12 +344,14 @@ const Dash = {
   list(where) {
     if (where === 'left' || where === 'right') return (store.get('clusterSides', {})[where] || []).filter(id => W[wtype(id)]);
     if (where.startsWith('pg')) return this.pages()[+where.slice(2)] || [];
+    if (where.startsWith('stage.')) return (store.get('stageLists', {})[where] || STAGE_DEFAULTS[where] || []).filter(id => W[wtype(id)]);
     const l = (store.get('paneCols', {})[where] || ['@']).filter(id => id === '@' || W[wtype(id)]);
     return l.includes('@') ? l : ['@', ...l];
   },
   setList(where, l) {
     if (where === 'left' || where === 'right') { const s = store.get('clusterSides', {}); s[where] = l; store.set('clusterSides', s); }
     else if (where.startsWith('pg')) { const p = this.pages(); p[+where.slice(2)] = l; store.set('widgetPages', p); }
+    else if (where.startsWith('stage.')) { const z = store.get('stageLists', {}); z[where] = l; store.set('stageLists', z); }
     else { const c = store.get('paneCols', {}); c[where] = l; store.set('paneCols', c); }
   },
   size(where, id) {
@@ -373,7 +382,7 @@ const Dash = {
   /** Coming back to the dashboard: draw it again only if something about it changed, so playing videos, open
       documents and web pages in widgets carry on where they were. */
   key() { return JSON.stringify([this.layout, this.style, this.editing, settings.units, settings.accent, store.get('widgetPages'), store.get('widgets'),
-    store.get('clusterSides'), store.get('paneCols'), store.get('wsizes'), store.get('wcfg')]); },
+    store.get('clusterSides'), store.get('paneCols'), store.get('wsizes'), store.get('wcfg'), store.get('stageLists'), settings.captions]); },
   show() {
     if (this.lastKey && this.lastKey === this.key() && $('#dashRoot')?.childElementCount) {
       this.placeMap(!!(this.layout === 'cluster' && CLUSTERS[this.style].map3d)); this.update(true); this.fitGrid(); Bar.show();
@@ -401,6 +410,12 @@ const Dash = {
         <div class="ms-side"><div class="wg">${W.turn.html()}<div class="ms-favs" data-show="noNav">
             <button class="big-btn" data-go="home">${svg('house')}Home</button><button class="big-btn" data-go="work">${svg('briefcase')}Work</button></div></div>
           <div class="wg">${W.nowPlaying.html()}</div></div></div>`;
+    else if (this.layout === 'stage') {
+      const zone = (z, cls) => { const l = this.list(z); return `<div class="${cls}" data-side="${z}">${l.map((id, i, a) => this.card(id, i, a, z)).join('')}${this.editing ? this.addTile(z) : ''}</div>`; };
+      html = `<div class="stage">${zone('stage.main', 'st-main')}${zone('stage.side', 'st-side')}
+        <div class="st-cap" ${settings.captions ? '' : 'hidden'} aria-live="polite"><div class="cap-you" hidden></div><div class="cap-ai" hidden></div></div>
+        <div class="st-beats" hidden></div></div>`;
+    }
     else {
       const pages = this.pages();
       html = `<div class="wpages" id="wpages">${pages.map((pg, p) => `<div class="wpage">
@@ -492,7 +507,7 @@ const Dash = {
     if (maps.dash.map) { requestAnimationFrame(() => { maps.dash.map.resize(); apply3D(maps.dash); updateMaps({ force: true, instant: true }); }); }
   },
   renderBar() {
-    $('#dashBar').innerHTML = `<div class="seg-pill">${LAYOUTS.map(([id, name, ic]) =>
+    $('#dashBar').innerHTML = `<div class="seg-pill">${layouts().map(([id, name, ic]) =>
       `<button class="${id === this.layout ? 'on' : ''}" data-dash="layout:${id}" aria-label="${name} layout">${svg(ic)}<span>${name}</span></button>`).join('')}</div>
       ${this.layout !== 'map' ? `<button class="bar-btn ${this.editing ? 'on' : ''}" data-dash="edit">${this.editing ? 'Done' : 'Edit'}</button>` : ''}
       <button class="bar-btn icon" data-action="assistant" aria-label="Voice commands">${svg('mic')}</button>
@@ -579,9 +594,9 @@ document.addEventListener('click', e => {
   root.addEventListener('touchend', e => {
     if (x0 == null) return;
     const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
-    if (Math.abs(dx) < 70 || Math.abs(dy) > 60 || e.target.closest('.wpages,.wgrid,.cl-side,.pcol,.wg-rs')) return;
-    const i = LAYOUTS.findIndex(l => l[0] === Dash.layout), n = LAYOUTS.length;
-    Dash.cmd('layout:' + LAYOUTS[(i + (dx < 0 ? 1 : -1) + n) % n][0]);
+    if (Math.abs(dx) < 70 || Math.abs(dy) > 60 || e.target.closest('.wpages,.wgrid,.cl-side,.pcol,.wg-rs,.stage')) return;
+    const L = layouts(), i = L.findIndex(l => l[0] === Dash.layout), n = L.length;
+    Dash.cmd('layout:' + L[(i + (dx < 0 ? 1 : -1) + n) % n][0]);
   }, { passive: true });
 })();
 /* The layout bar slides away after a few seconds so the cluster gets the whole screen; any tap brings it back. */

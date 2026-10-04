@@ -39,6 +39,7 @@ js/radio.js               Internet radio: player, station directory, widget
 js/media.js               Document, video, web page and 3D model widgets
 js/avatar.js              VRM avatars in the 3D widget: lip-sync, blinking, gestures
 js/vision.js              Camera widget and offline object recognition (YOLOv10 / D-FINE)
+js/stage.js               Stage mode: Drive/Stage switch, captions, cameras per mode, clicker keys
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
@@ -46,6 +47,8 @@ icons/                    App icons; icon.svg is the source artwork
 vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally so maps work offline
 vendor/hls/               hls.js light (Apache-2.0), for HLS radio and video streams outside Safari
 vendor/pdfjs/             pdf.js (Apache-2.0, legacy build + standard fonts), for PDF documents
+vendor/pptx/              PptxViewJS + JSZip + Chart.js (MIT), for PowerPoint files
+samples/                  A demo deck (.pptx with speaker notes) used by the Stage layout
 vendor/model-viewer/      model-viewer (Apache-2.0), for 3D models
 vendor/three-vrm/         three.js + three-vrm bundle (MIT), for VRM avatars
 vendor/models/            Built-in 3D models (CC0): Vita and Ren (VRM) and the robot
@@ -132,7 +135,8 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 Four widget types you can add as many times as you like, each showing its own thing. Add one in Edit, choose a link or a file from this device, and give it a title if you like; tap its ⚙ in Edit to change it. Files are kept in the app's own storage on this device. They don't hide or pause while driving.
 - **Document**:
   - **PDF**: a file or a link, drawn page by page with [pdf.js](https://mozilla.github.io/pdf.js/) (Apache-2.0, `vendor/pdfjs/`), with ‹ › buttons. Voice: “next slide”, “previous page”, “go to slide 5”.
-  - **PowerPoint, Word or Excel**: by **link**. SharePoint and OneDrive links open in their embed view; other links go through Microsoft's online viewer, which needs a link anyone can open. Office files on this device can't be shown in a web app: save them as PDF first.
+  - **PowerPoint (.pptx)**: a file or a link, drawn here with [PptxViewJS](https://github.com/gptsci/pptxviewjs) (MIT, `vendor/pptx/`, loaded on first use), turned like a PDF (‹ ›, voice, links, a clicker on Stage). The slide's **speaker notes** are read too: the action **Present the slide's speaker notes** has the assistant say them. No animations, transitions, SmartArt or video, and fonts not on the device are substituted: save as PDF for an exact copy. A link the site won't let the app read falls back to Microsoft's viewer.
+  - **Word or Excel, or PowerPoint links on SharePoint/OneDrive**: by **link**. SharePoint and OneDrive links open in their embed view; other links go through Microsoft's online viewer, which needs a link anyone can open. Word and Excel files on this device can't be shown in a web app: save them as PDF first.
   - **SharePoint links that need your work sign-in**: Safari and Chrome block signing in inside another app's frame, so in the web app these may ask you to open them instead. The **Mac app** lets them show in the widget.
 - **Video**: a YouTube link (video, short, live, playlist; a `t=` start time is kept) in YouTube's privacy-enhanced player, or a video file or link (`.mp4`, `.webm`, `.m3u8`). Voice: “play the video”, “pause the video”.
 - **Web page**: any `https://` address. Many big sites (Google, banks, most news) refuse to be shown inside another app; the ⤢ button opens them outside. The Mac app shows them anyway.
@@ -141,6 +145,16 @@ Four widget types you can add as many times as you like, each showing its own th
   - **Built-in: Assistant robot** (CC0, by Quaternius with expressions by Don McCurdy; `vendor/models/`), the other built-in choice. It faces you and idles, and reacts: it **waves** when you start talking (or tap it), **nods** when it has heard you, gives a **thumbs up** for a done command or a new route, **shakes its head and looks sad** when it couldn't help, **jumps, surprised** at a camera alert, and **dances** when a radio station starts. Links can make it gesture (Wave, Yes, No, ThumbsUp, Dance, Jump) or pull a face (Surprised, Sad, Angry).
 - Coming back to the dashboard from another screen keeps them exactly where they were (a video keeps playing, a document stays on its page).
 - Links and voice commands can drive them: “Next page or slide”, “Go to a page”, “Show a document”, “Play/Pause the video”, “Show a video”, “Show a web page”, “Show a 3D model”. They also announce **A document changes page** and **A video ends**.
+
+### Stage mode (presenting on a big screen)
+**Settings › Mode: Drive / Stage** (or say “stage mode”, “presentation mode”, “drive mode”).
+- **Drive** (the default): the car rules. The assistant avatar only changes its **expression**; no arm or body movement to catch the driver's eye. Cameras default to the **back** camera.
+- **Stage**: for an iPad or computer mirrored to a TV, or a browser on the TV's PC. The avatar uses **full gestures**, the camera defaults to the **front** camera (or a webcam), and the dashboard gets the **Stage** layout:
+  - the **content** (left, large: the sample demo deck at first; add any widget), the **presenter column** (right: the avatar, then any widgets, e.g. the Camera widget so the audience sees what it sees), and **captions** along the bottom: what you said and the reply, large enough to read across a room (Settings › Mode › Captions).
+  - It adapts to 16:9 TVs, 4:3 (an iPad mirrored to a TV) and portrait.
+  - A presentation **clicker** or the keyboard (→ ← Page Up/Down, space) turns the slides.
+- **Safety**: on Stage, if the GPS says the car is moving, Drive rules apply until it stops.
+- **Settings › Cameras**: the camera for each mode: front, back, or any attached camera by name. Front cameras and webcams are shown as a mirror (the boxes follow, labels stay readable). AR always uses the back camera.
 
 ### Camera and object recognition (offline)
 - **Camera widget** (add it in Edit): the rear camera with boxes around what it recognises and a line saying what it sees, e.g. “a person and 2 cars”. Tap **Start camera** once; it starts again by itself next time. **AR mode** draws the same boxes over its camera view (the two share one camera).

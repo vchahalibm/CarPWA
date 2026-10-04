@@ -107,6 +107,10 @@ const I = {
   partly: '<path d="M8 2.5v1.5M3.2 4.7l1.1 1.1M1.5 9.5H3M12.8 4.7l-1.1 1.1"/><path d="M11.8 9.2A4 4 0 1 0 5.4 12.6"/><path d="M17.5 21H9a4 4 0 1 1 .9-7.9A5.5 5.5 0 0 1 20.4 15 3 3 0 0 1 17.5 21z"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+  stage: '<rect x="2.5" y="3.5" width="19" height="12.5" rx="1.5"/><path d="M12 16v4.5M8 20.5h8M7 12l3.5-3.5 2.5 2.5L17 7"/>',
+  upload: '<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>',
+  restart: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 3.5V9h5.5"/>',
+  person: '<circle cx="12" cy="7" r="3.8"/><path d="M4.5 21c.8-4.2 3.8-6.5 7.5-6.5s6.7 2.3 7.5 6.5"/>',
 };
 const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name] || ''}</svg>`;
 function hydrateIcons(root = document) { $$('[data-icon]', root).forEach(el => { el.outerHTML = svg(el.dataset.icon); }); }
@@ -119,7 +123,7 @@ const settings = Object.assign({
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
   arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
-  convo: false, convoGap: '1', convoStt: 'auto', detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
+  convo: false, convoGap: '1', convoStt: 'auto', appMode: 'drive', driveCam: 'back', stageCam: 'front', captions: true, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
@@ -145,6 +149,7 @@ function applySettings() {
   syncWakeLock(); restyleMaps(); applyDock();
   $('#app').classList.toggle('seamless', !!settings.seamless);
   store.set('settings', settings);
+  if (typeof Stage !== 'undefined') Stage.apply();
 }
 darkMQ.addEventListener?.('change', () => settings.theme === 'auto' && applySettings());
 /** The side dock can slide away so the current screen gets the full width (or height in portrait). */
@@ -1176,6 +1181,7 @@ function renderSettings() {
     ? (settings.tomtomKey ? 'Live-traffic travel times from TomTom' : 'Add your free TomTom key below')
     : 'OpenStreetMap routing · typical travel times, no live traffic';
   $('#settingsBody').innerHTML = `${debug ? DebugUI.tabs() : ''}
+    ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Display</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Appearance</div></div>${seg('theme', [['auto', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}</div>

@@ -85,21 +85,45 @@ const HUD = {
 };
 listeners.push(() => HUD.render());
 
-/* ---------- The rear camera, shared by AR mode and the Camera widget (phones allow one stream at a time) ---------- */
+/* ---------- The camera, shared by AR mode, the Camera widget and Stage's people tracking (phones allow one stream at a time).
+   Which one: Settings › Cameras, per mode: the back camera while driving, the front one (or an attached webcam) on Stage. ---------- */
 const Camera = {
-  stream: null, users: new Set(),
+  stream: null, users: new Set(), cur: null,
+  /** 'back', 'front' or a device id. AR always looks at the road. */
+  want(user) {
+    if (user === 'ar') return 'back';
+    const stage = typeof Stage !== 'undefined' && Stage.on;
+    return (stage ? settings.stageCam : settings.driveCam) || (stage ? 'front' : 'back');
+  },
+  constraints(v) {
+    const size = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    return { audio: false, video: v === 'front' ? { facingMode: { ideal: 'user' }, ...size } : v === 'back' ? { facingMode: { ideal: 'environment' }, ...size } : { deviceId: { exact: v }, ...size } };
+  },
+  /** Shows you as in a mirror (front camera or a webcam). */
+  get mirrored() { return !!this.cur && this.cur !== 'back'; },
   async get(user) {
     this.users.add(user);
-    if (this.stream?.active) return this.stream;
-    this.opening ||= navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+    const want = this.want(user);
+    if (this.stream?.active && (this.cur === want || this.users.size > 1)) return this.stream; // shared: whoever opened it first decides
+    if (this.stream?.active) this.stop();
+    this.opening ||= navigator.mediaDevices.getUserMedia(this.constraints(want))
+      .catch(e => { if (want === 'back' || want === 'front') throw e; Log.w('camera', 'Chosen camera unavailable: the default one instead', e); return navigator.mediaDevices.getUserMedia({ video: true }); })
       .finally(() => { this.opening = null; });
-    try { this.stream = await this.opening; Log.i('camera', 'Camera on', { for: [...this.users], settings: this.stream.getVideoTracks()[0]?.getSettings?.() }); return this.stream; }
+    try { this.stream = await this.opening; this.cur = want; Log.i('camera', 'Camera on', { which: want, for: [...this.users], settings: this.stream.getVideoTracks()[0]?.getSettings?.() }); return this.stream; }
     catch (e) { this.users.delete(user); throw e; }
   },
+  stop() { this.stream?.getTracks().forEach(t => t.stop()); this.stream = null; this.cur = null; },
   release(user) {
     this.users.delete(user);
-    if (!this.users.size && this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; Log.i('camera', 'Camera off'); }
+    if (!this.users.size && this.stream) { this.stop(); Log.i('camera', 'Camera off'); }
   },
+  /** The mode or the choice changed: reopen with the right camera; users pick the new stream up on 'camera.switch'. */
+  switch() {
+    if (!this.stream || this.cur === this.want([...this.users][0])) return;
+    Log.i('camera', 'Switching camera', { to: this.want([...this.users][0]) }); this.stop(); Bus.emit('camera.switch');
+  },
+  /** Cameras on this device (names appear once camera permission has been given). */
+  async list() { try { return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'); } catch { return []; } },
 };
 
 /* ============================================================

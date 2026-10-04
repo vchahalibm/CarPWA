@@ -41,6 +41,7 @@ js/avatar.js              VRM avatars in the 3D widget: lip-sync, blinking, gest
 js/vision.js              Camera widget and offline object recognition (YOLOv10 / D-FINE)
 js/stage.js               Stage mode: Drive/Stage switch, captions, cameras per mode, clicker keys
 js/script.js              Scripts: avatar-led presentations (runner, go back / start over, editor, help)
+js/people.js              People on Stage: MediaPipe worker, the presenter (claim gesture), gestures, gaze, overlay
 css/styles.css            Design tokens, layout and components
 sw.js                     Hand-written service worker (offline shell, tile + weather caching)
 manifest.webmanifest      PWA manifest (name, icons, fullscreen display)
@@ -49,6 +50,7 @@ vendor/maplibre/          MapLibre GL JS 5.24 (map library, BSD-3), kept locally
 vendor/hls/               hls.js light (Apache-2.0), for HLS radio and video streams outside Safari
 vendor/pdfjs/             pdf.js (Apache-2.0, legacy build + standard fonts), for PDF documents
 vendor/pptx/              PptxViewJS + JSZip + Chart.js (MIT), for PowerPoint files
+vendor/mediapipe/         MediaPipe Tasks Vision + hand-gesture, pose and face models (Apache-2.0), for people on Stage
 samples/                  A demo deck (.pptx with speaker notes) and a live demo page, used by the sample script
 vendor/model-viewer/      model-viewer (Apache-2.0), for 3D models
 vendor/three-vrm/         three.js + three-vrm bundle (MIT), for VRM avatars
@@ -156,6 +158,7 @@ Four widget types you can add as many times as you like, each showing its own th
   - A presentation **clicker** or the keyboard (→ ← Page Up/Down, space) turns the slides.
 - **Safety**: on Stage, if the GPS says the car is moving, Drive rules apply until it stops.
 - **Scripts** (Settings › Mode › Scripts): the assistant leads a presentation or demo. Each step can turn your slides, open web pages and run any widget action, has a line the assistant says (with `{notes}`, the slide's speaker notes) with an expression and a gesture, and moves on when you say a phrase (“next”), show a hand gesture, press the clicker or after a pause; branches jump elsewhere (“show me the live data”). Presenting goes wrong sometimes: “go back”, “back two steps”, “start over” and the step dots (tap for a list of every step) always work, and going back puts the deck and pages where they were at that step. Make scripts in the editor (with a help page), or download the sample as a template, edit it and upload it. The sample presents the demo deck beside a live web page. Format: [docs/scripts.md](docs/scripts.md).
+- **Follow the presenter** (Settings › Mode, on Stage): the Stage camera watches the room with [MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache-2.0, vendored in `vendor/mediapipe/`, in its own worker, about 80 MB of memory): hands and their gestures, body pose and faces. **Whoever shows the claim gesture** (default: an open palm, then a fist; Settings › Mode › Claim gesture) **becomes the presenter**: the assistant greets them, **looks at them** (head and eyes follow them around the room), and acts on **their** hand gestures only (a script can move on with a thumb up, a swipe…). Someone else takes over by showing the same sequence. The presenter is kept through a moment out of view (found again by place and clothing colour). **Only listen to the presenter**: in a conversation, speech counts only while the presenter's mouth is moving, so the audience isn't taken as commands. **Blur other faces** blurs everyone else in the Camera widget. Nothing is stored; it all stays on the device. Put the **Camera widget** in the presenter column to show the audience what the models see, live: skeletons, hands with their gesture, face boxes, the presenter's tag, claim progress, and how long each model takes. Settings › Logs › People tracking computes on can force the CPU.
 - **Settings › Cameras**: the camera for each mode: front, back, or any attached camera by name. Front cameras and webcams are shown as a mirror (the boxes follow, labels stay readable). AR always uses the back camera.
 
 ### Camera and object recognition (offline)

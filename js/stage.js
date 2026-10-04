@@ -24,6 +24,7 @@ const Stage = {
   apply() {
     const was = document.documentElement.dataset.mode, now = this.on ? 'stage' : 'drive';
     document.documentElement.dataset.mode = now;
+    if (typeof People !== 'undefined') setTimeout(() => People.sync(), 0); // "Follow the presenter" may have changed
     if (!was || was === now) return; // at start-up keep the layout you left
     if (now === 'stage' && this.chosen) { if (Dash.layout !== 'stage') { settings.driveLayout = Dash.layout; settings.dashLayout = 'stage'; } }
     else if (!this.chosen && Dash.layout === 'stage') settings.dashLayout = settings.driveLayout || 'cluster';
@@ -57,6 +58,10 @@ const Stage = {
         ? `Stage: presenting on a big screen. The assistant gestures and moves; the Stage layout shows your content, the presenter and captions${this.moving ? '. Moving now, so Drive rules apply until you stop' : ''}`
         : 'Driving: the assistant only changes its expression, nothing moving to catch your eye'}</div></div>${seg('appMode', [['drive', 'Drive'], ['stage', 'Stage']])}</div>
       ${this.chosen ? tog('captions', 'Captions', 'Shows what you said and the reply along the bottom of the Stage layout') : ''}
+      ${this.chosen && typeof People !== 'undefined' ? `${tog('peopleOn', 'Follow the presenter', 'The Stage camera watches who is in front of the screen: whoever shows the claim gesture becomes the presenter. The assistant looks at them and acts on their hand gestures. On this device only; nothing is kept')}
+        ${settings.peopleOn ? `${btn('claimSeq', 'Claim gesture', esc(CLAIM_SEQS[settings.claimSeq]?.[1] || ''))}
+        ${tog('ownerOnly', 'Only listen to the presenter', 'In a conversation, speech counts only while the presenter’s mouth is moving (others in the room are ignored)')}
+        ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}` : ''}` : ''}
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations the assistant leads`) : ''}
     </div>
     <div class="group-title">Cameras</div>
@@ -75,6 +80,8 @@ const Stage = {
   },
 };
 ACTIONS.camDrive = () => Stage.pickCam('driveCam');
+ACTIONS.claimSeq = () => sheet('Claim gesture', `<p class="hint">Show these one after the other (each for a moment) to become the presenter.</p><div class="pick-list">${Object.entries(typeof CLAIM_SEQS !== 'undefined' ? CLAIM_SEQS : {}).map(([v, [, l]]) =>
+  `<button class="big-btn ${settings.claimSeq === v ? 'accent' : ''}" data-campick="claimSeq|${esc(v)}">${esc(l)}</button>`).join('')}</div>`, [['Cancel']]);
 ACTIONS.camStage = () => Stage.pickCam('stageCam');
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-campick]'); if (!b) return;

@@ -43,12 +43,13 @@ const ttsDownloaded = () => store.get('kokoroDl') || (store.get('kokoroOK') ? ['
 const Diag = {
   // GPU by default where it works, unless this device already has only the CPU voice (no surprise 310 MB download): then it's opt-in.
   // Whisper: the GPU (0.4 s vs 2.2 s on an iPad) on tablets and computers, unless only the CPU build is downloaded here.
-  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker', sr: 'reset', convoBoost: '',
+  get: () => ({ stt: gpuOK() && Budget.cls() !== 'phone' && (!store.get('whisperOK') || store.get('whisperGpuOK')) ? 'webgpu' : 'wasm', out: 'data', session: 'playback', engine: 'worker', sr: 'reset', convoBoost: '', people: 'auto',
     device: gpuOK() && (!ttsDownloaded().length || ttsDownloaded().some(d => d.startsWith('fp'))) ? 'webgpu' : 'wasm', ...store.get('diag', {}) }),
   set(k, v) {
     store.set('diag', { ...store.get('diag', {}), [k]: v }); Log.i('diag', `Reply ${k} → ${v}`);
     if ((k === 'engine' || k === 'device') && typeof Voice !== 'undefined') Voice.resetTTS();
     if ((k === 'stt' || k === 'engine') && typeof Voice !== 'undefined') Voice.resetSTT();
+    if (k === 'people' && typeof People !== 'undefined' && People.worker) { People.stop(true); People.sync(); }
   },
 };
 

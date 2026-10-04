@@ -104,7 +104,8 @@ const Vision = {
   },
   /** The video to read frames from: the widget's own, else AR's. */
   video() { const v = $('#dashRoot .camw video'); return v?.readyState >= 2 ? v : $('#arVideo')?.readyState >= 2 && AR.running ? $('#arVideo') : null; },
-  attach() { $$('#dashRoot .camw').forEach(w => w.classList.toggle('mirror', Camera.mirrored)); $$('#dashRoot .camw video').forEach(v => { if (v.srcObject !== this.stream) { v.srcObject = this.stream; this.stream && v.play().catch(() => {}); } }); this.paintWidget(); },
+  attach() { $$('#dashRoot .camw').forEach(w => w.classList.toggle('mirror', Camera.mirrored)); const s = this.stream || (typeof People !== 'undefined' && People.running ? People.video?.srcObject : null) || null; // people tracking shares the camera
+    $$('#dashRoot .camw video').forEach(v => { if (v.srcObject !== s) { v.srcObject = s; s && v.play().catch(() => {}); } }); this.paintWidget(); },
   stopLoop() { clearTimeout(this.timer); this.timer = 0; },
   loop() {
     this.stopLoop();
@@ -210,16 +211,16 @@ const Vision = {
     }
   },
   paintWidget() {
-    const on = this.users.has('widget');
+    const on = this.users.has('widget') || (typeof People !== 'undefined' && People.running); // people tracking on Stage shows the camera too
     $$('#dashRoot .camw').forEach(el => { el.classList.toggle('on', on); $('.cam-go', el).hidden = on; $('[data-cam="stop"]', el).hidden = !on; });
-    this.status(on ? (settings.detOn ? (this.worker ? `Watching · ${this.model().name}` : `Loading ${this.model().name}…`) : 'Camera on · object detection is off') : '');
+    this.status(this.users.has('widget') ? (settings.detOn ? (this.worker ? `Watching · ${this.model().name}` : `Loading ${this.model().name}…`) : 'Camera on · object detection is off') : on ? 'Following the presenter' : '');
   },
 };
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const plural = l => ({ person: 'people', bus: 'buses', 'traffic light': 'traffic lights', 'stop sign': 'stop signs' }[l] || l + 's');
 
 /* ---------- The Camera widget ---------- */
-W.camera = { name: 'Camera', html: () => `<div class="camw"><video muted playsinline autoplay></video><canvas></canvas>
+W.camera = { name: 'Camera', html: () => `<div class="camw"><video muted playsinline autoplay></video><canvas></canvas><div class="ppl-blur"></div><canvas class="ppl"></canvas>
     <div class="cam-go"><span>${svg('camera')}</span><b>Camera &amp; objects</b><small>${esc(Vision.model().name)} · works offline</small><button class="w-cta" data-cam="start">Start camera</button></div>
     <div class="cam-bar"><span class="cam-status"></span><button class="cam-stop" data-cam="stop" aria-label="Stop the camera" hidden>${svg('close')}</button></div></div>`,
   config: () => openView('settings') };

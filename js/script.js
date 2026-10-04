@@ -80,6 +80,7 @@ const Script = {
     const chk = scriptCheck(raw); if (chk.errors.length) { Log.w('script', 'Script has errors', chk.errors); toast(chk.errors[0]); return false; }
     this.stop(true);
     this.cur = chk.script; this.running = true; this.history = [];
+    if (current !== 'dashboard') openView('dashboard'); // a script presents on the dashboard
     Log.i('script', `Script: ${this.cur.name}`, { beats: this.cur.beats.length, from });
     const tok = ++this.token;
     await this.steps(this.cur.setup, { quiet: false, tok });
@@ -120,7 +121,7 @@ const Script = {
       if (tok !== this.token) return;
       if (x.wait != null) { if (!quiet) await new Promise(r => setTimeout(r, +x.wait || 0)); continue; }
       if (x.do) {
-        const r = Actions.run(x.do, this.fill(x.value), quiet ? quietSay : (m, then) => { if (m) Voice.respond(m); then?.(); });
+        const r = Actions.run(x.do, this.fill(x.value), quiet ? quietSay : (m, then) => { if (m) Voice.respond(m); then?.(); }, { quiet }); // quiet: going back (web steps skip the pointer)
         if (r && typeof r.then === 'function') await r.catch(() => {});
         await new Promise(r2 => setTimeout(r2, quiet ? 30 : 120)); // let widgets redraw between steps
       }
@@ -297,7 +298,12 @@ const ScriptUI = {
           <div class="sui-btns"><button class="big-btn accent" data-sui="run:${esc(s.id)}">${svg('play')}Run</button>
           <button class="big-btn" data-sui="edit:${esc(s.id)}">${s.sample ? 'Copy' : 'Edit'}</button>
           <button class="big-btn" data-sui="dl:${esc(s.id)}" aria-label="Download ${esc(s.name)}">${svg('download')}</button>
-          ${s.sample ? '' : `<button class="big-btn" data-sui="del:${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${svg('del')}</button>`}</div></div></div>`).join('')}</div>`;
+          ${s.sample ? '' : `<button class="big-btn" data-sui="del:${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${svg('del')}</button>`}</div></div></div>`).join('')}</div>
+      ${typeof WebDrive !== 'undefined' ? `<div class="group-title">Recorded web sequences</div>
+      <p class="cmd-help">Clicks on your own web pages, replayed by a script step (“Play a recorded sequence”). Record them inside a script step (Record web steps), or here.</p>
+      <div class="group">${WebDrive.recs().map(r => `<div class="row-wrap"><div class="row"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
+          <div class="sui-btns"><button class="big-btn" data-sui="recplay:${esc(r.name)}">${svg('play')}Play</button><button class="big-btn" data-sui="recdel:${esc(r.name)}" aria-label="Delete ${esc(r.name)}">${svg('del')}</button></div></div></div>`).join('')}
+        <button class="row btn" data-sui="recalone"><div class="main"><div class="t">● Record a sequence</div><div class="s">On the page in the web widget, as it is now</div></div></button></div>` : ''}`;
     $('#suiFile').addEventListener('change', e => this.upload(e.target.files[0]));
   },
   async upload(f) {
@@ -323,6 +329,10 @@ const ScriptUI = {
     if (a === 'run') { const s = Scripts.get(id); if (s) { this.close(); openView('dashboard'); Script.start(s.json); } return; }
     if (a === 'edit') { const s = Scripts.get(id); return this.edit(s.sample ? null : id, JSON.parse(JSON.stringify(s.sample ? { ...s.json, name: s.json.name + ' (copy)' } : s.json))); }
     if (a === 'dl') return Scripts.download(Scripts.get(id).json);
+    if (a === 'recalone') { this.shown = false; return WebDrive.recordAlone(); }
+    if (a === 'recplay') { const r = WebDrive.recs().find(x => x.name === id); if (r) { this.shown = false; openView('dashboard'); setTimeout(() => WebDrive.playAll(r.steps), 400); } return; }
+    if (a === 'recdel') return sheet('Delete this recording?', `<p>${esc(id)}</p>`, [['Delete', () => { WebDrive.delRec(id); this.render(); }], ['Cancel']]);
+    if (a === 'rec' && this.draft) { this.shown = false; return WebDrive.recordInto(this, +id.split('.')[1]); }
     if (a === 'del') return sheet('Delete this script?', `<p>${esc(Scripts.get(id)?.name)}</p>`, [['Delete', () => { Scripts.del(id); this.render(); }], ['Cancel']]);
     // Editor
     const d = this.draft; if (!d) return;
@@ -367,8 +377,9 @@ const ScriptUI = {
       ${v && !Actions.list[v] ? `<option value="${esc(v)}" selected>${esc(v)} (not available here)</option>` : ''}</select>`;
     const sel = (path, v, opts, none = '—') => `<select data-sf="${path}"><option value="">${none}</option>${opts.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     const inp = (path, v, ph = '') => `<input data-sf="${path}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off">`;
+    const desc = x => x.do === 'web.step' && typeof WebDrive !== 'undefined' ? `<div class="sui-desc">${esc(WebDrive.describe(stepOf(x.value)))}</div>` : '';
     const steps = (list, base, kind, n) => (list || []).map((x, k) => `<div class="sui-do">${actSel(`${base}.${k}.do`, x.do)}${inp(`${base}.${k}.value`, x.value, Actions.list[x.do]?.arg || 'value')}
-        <button class="big-btn" data-sui="rmdo:${kind}.${n}.${k}" aria-label="Remove">${svg('close')}</button></div>`).join('');
+        <button class="big-btn" data-sui="rmdo:${kind}.${n}.${k}" aria-label="Remove">${svg('close')}</button></div>${desc(x)}`).join('');
     $('#settingsBody').innerHTML = `
       <button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Scripts</div></div></button>
       <div class="sui-bar"><button class="big-btn accent" data-sui="save">Save</button><button class="big-btn" data-sui="try:0">${svg('play')}Run</button>
@@ -381,7 +392,7 @@ const ScriptUI = {
         <div class="sui-row"><label class="fld"><span>Id</span>${inp(`beats.${n}.id`, b.id)}</label><label class="fld grow"><span>Title</span>${inp(`beats.${n}.title`, b.title)}</label>
           <div class="sui-btns"><button class="big-btn" data-sui="try:${n}" aria-label="Run from here">${svg('play')}</button><button class="big-btn" data-sui="up:b.${n}" aria-label="Move up" ${n ? '' : 'disabled'}>↑</button>
           <button class="big-btn" data-sui="down:b.${n}" aria-label="Move down" ${n < d.beats.length - 1 ? '' : 'disabled'}>↓</button><button class="big-btn" data-sui="rmbeat:b.${n}" aria-label="Delete step">${svg('del')}</button></div></div>
-        <div class="sui-sub">Do</div>${steps(b.do, `beats.${n}.do`, 'b', n)}<button class="link-btn" data-sui="adddo:b.${n}">＋ Add an action</button>
+        <div class="sui-sub">Do</div>${steps(b.do, `beats.${n}.do`, 'b', n)}<button class="link-btn" data-sui="adddo:b.${n}">＋ Add an action</button>${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}
         <label class="fld"><span>The assistant says <small>{notes} = the slide’s speaker notes</small></span><textarea data-sf="beats.${n}.say" rows="3">${esc(b.say || '')}</textarea></label>
         <div class="sui-row"><label class="fld"><span>Expression</span>${sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS)}</label><label class="fld"><span>Gesture</span>${sel(`beats.${n}.gesture`, b.gesture, SCRIPT_GESTURES)}</label></div>
         <div class="sui-sub">Next step when</div>

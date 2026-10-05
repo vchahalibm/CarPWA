@@ -33,7 +33,7 @@ const VrmAvatar = {
     old?.dispose();
     body.innerHTML = `<div class="mw-empty"><span>Loading the assistant…</span></div>`;
     const L = await this.load();
-    Budget.room('avatar', Budget.COST.avatar, true);
+    if (!Budget.room('avatar', Budget.COST.avatar, true)) { body.innerHTML = `<div class="mw-empty"><span>Not enough memory on this device for the assistant next to the voice right now</span><button class="w-cta" data-media-remount="${esc(id)}">Try again</button></div>`; return; }
     const inst = await Budget.guard(`Avatar ${src.split('/').pop()}`, () => this.create(L, src));
     if (!body.isConnected) { inst.dispose(); return; }
     body.replaceChildren(inst.canvas); inst.id = id; this.all.set(id, inst); inst.resize();

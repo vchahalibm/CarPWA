@@ -88,12 +88,12 @@ const People = {
   /** Stage + "Follow the presenter" + the dashboard on screen: run; otherwise stop (camera off, worker ended). */
   sync() {
     const want = typeof Stage !== 'undefined' && Stage.on && settings.peopleOn && current === 'dashboard' && document.visibilityState === 'visible';
-    if (want && !this.running) this.start(); else if (!want && this.running) this.stop();
+    if (want && !this.running && Date.now() > (this.noRoomUntil || 0)) this.start(); else if (!want && this.running) this.stop();
   },
   load() {
     if (this.worker) return Promise.resolve(this.worker);
     if (this.loading) return this.loading;
-    Budget.room('people', Budget.COST.people, true);
+    if (!Budget.room('people', Budget.COST.people, true)) return Promise.reject(new Error('Not enough memory for people tracking next to the voice and the assistant on this device (Settings › Mode › Keep when memory is short)'));
     const gpu = Diag.get().people !== 'cpu' && (!!navigator.gpu || !!self.WebGL2RenderingContext); // Settings › Logs can force the CPU
     this.loading = Heavy.run('people tracking (MediaPipe)', () => Budget.guard(`People tracking`, () => new Promise((res, rej) => {
       const w = new Worker(URL.createObjectURL(new Blob([PEOPLE_WORKER], { type: 'text/javascript' })), { type: 'module' }), s = performance.now(), pending = new Map(); let seq = 0;
@@ -116,7 +116,10 @@ const People = {
       if (v.srcObject !== stream) { v.srcObject = stream; await v.play().catch(() => {}); }
       Log.i('people', 'Following the room', { camera: Camera.cur });
       this.loop();
-    } catch (e) { Log.w('people', 'People tracking not started', e); this.running = false; Camera.release('people'); }
+    } catch (e) {
+      Log.w('people', 'People tracking not started', e); this.running = false; Camera.release('people');
+      if (/memory/i.test(e.message)) { this.noRoomUntil = Date.now() + 60000; toast('People tracking is off: not enough memory next to the natural voice'); } // not again on every redraw
+    }
   },
   stop(unload) {
     this.running = false; clearTimeout(this.timer); Camera.release('people');

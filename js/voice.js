@@ -157,13 +157,24 @@ const Budget = {
   add(name, label, unload, mb) { this.loaded.set(name, { label, mb: mb || 100, used: Date.now(), unload }); },
   drop(name) { this.loaded.delete(name); },
   use(name) { const m = this.loaded.get(name); if (m) m.used = Date.now(); },
-  /** Room for `name` (needing `mb`)? If `need`, unload the least recently used models until it fits; a preload never unloads anything. */
+  /** What stays when memory runs short: replying and listening first, the avatar next, people tracking and the object
+      detector last (Settings › Mode › Keep when memory is short can put people tracking first, on Stage). */
+  prio(name) {
+    if (name === 'people') return settings.stageKeep === 'people' ? 4 : 1;
+    return { kokoro: 3, 'convo-stt': 3, whisper: 3, avatar: 2, detector: 1 }[name] ?? 2;
+  },
+  /** Room for `name` (needing `mb`)? `need`: true unloads models that matter less (lower priority, least recently used
+      first); 'any' also ones that matter as much (Whisper taking turns with the reply voice on a phone); false (a preload)
+      unloads nothing. False when it can't fit: the caller doesn't load it. */
   room(name, mb, need) {
-    const others = () => [...this.loaded].filter(([k]) => k !== name).sort((a, b) => a[1].used - b[1].used);
+    const mine = this.prio(name);
+    const others = () => [...this.loaded].filter(([k]) => k !== name).sort((a, b) => this.prio(a[0]) - this.prio(b[0]) || a[1].used - b[1].used);
     const free = () => this.total() - others().reduce((n, [, m]) => n + m.mb, 0);
-    while (others().length && free() < mb) {
-      if (!need) { Log.d('mem', `No room to preload ${name} (${mb} MB)`, { free: free(), total: this.total(), loaded: [...this.loaded.keys()] }); return false; }
-      const [k, m] = others()[0];
+    const can = need ? others().filter(([k]) => this.prio(k) < mine || (need === 'any' && this.prio(k) === mine)) : [];
+    // Only unload anything when that actually makes enough room.
+    if (free() + can.reduce((n, [, m]) => n + m.mb, 0) < mb) { Log[need ? 'w' : 'd']('mem', `No room for ${name} (${mb} MB)`, { free: free(), total: this.total(), loaded: [...this.loaded.keys()] }); return false; }
+    for (const [k, m] of can) {
+      if (free() >= mb) break;
       Log.i('mem', `Unloading ${k} (${m.label}, ${m.mb} MB) to make room for ${name} (${mb} MB)`, { class: this.cls(), total: this.total() });
       try { m.unload(); } catch {} this.loaded.delete(k);
     }
@@ -362,7 +373,7 @@ const Voice = {
     else if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
       Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
     if (settings.tts === 'neural') Log.i('tts', store.get('kokoroOK') ? 'On-device voice still loading: phone voice this time' : 'On-device voice not downloaded: phone voice', { text });
-    if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS().catch(() => {}); // from cache, ready for the next reply
+    if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS(false, true).catch(() => {}); // from cache, ready for the next reply (makes room)
     return this.speakPhone(text, id);
   },
   speakPhone(text, id) {
@@ -499,9 +510,10 @@ const Voice = {
     return Budget.COST[device === 'webgpu' ? `kokoro webgpu ${dtype}` : 'kokoro wasm'] || 220;
   },
   /** Load the reply voice. `show` (asked for by you: progress shown) makes room for it; otherwise it's a preload that only uses a free slot. */
-  loadTTS(show) {
+  /** `show`: you asked (progress shown; may unload anything). `need`: a reply wants it (may unload what matters less). */
+  loadTTS(show, need) {
     if (this.tts) { Budget.use('kokoro'); return Promise.resolve(this.tts); }
-    if (!this.ttsLoading && !Budget.room('kokoro', this.ttsCost(), !!show)) return Promise.reject(new Error('No memory to spare for the reply voice on this device right now'));
+    if (!this.ttsLoading && !Budget.room('kokoro', this.ttsCost(), show ? 'any' : !!need)) return Promise.reject(new Error('No memory to spare for the reply voice on this device right now'));
     this.ttsLoading ||= Heavy.run('reply voice', () => this.loadTTSNow(show));
     return this.ttsLoading.then(t => (this.tts = t), e => { this.ttsLoading = null; Log.e('tts', 'On-device voice failed to load', e); throw e; });
   },
@@ -617,7 +629,7 @@ const Voice = {
   /* Whisper via transformers.js (ONNX runtime in WebAssembly); model files are cached for offline use. */
   loadModel() {
     if (this.pipe) return Promise.resolve(this.pipe);
-    if (!this.loading) Budget.room('whisper', Budget.COST[`whisper ${Diag.get().stt}`] || 300, true);
+    if (!this.loading) Budget.room('whisper', Budget.COST[`whisper ${Diag.get().stt}`] || 300, 'any'); // takes turns with the reply voice on a phone
     this.loading ||= Heavy.run('Whisper', async () => {
       const want = Diag.get().stt, s = performance.now(), files = {};
       if (want === 'webgpu') await gpuFeatures();

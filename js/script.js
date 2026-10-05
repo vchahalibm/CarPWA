@@ -81,6 +81,8 @@ const Script = {
     this.stop(true);
     this.cur = chk.script; this.running = true; this.history = [];
     if (current !== 'dashboard') openView('dashboard'); // a script presents on the dashboard
+    // The natural voice before the first line (making room for it), so the presenter doesn't start in the device's voice.
+    if (settings.tts === 'neural' && store.get('kokoroOK') && !Voice.tts) await Promise.race([Voice.loadTTS(false, true).catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
     Log.i('script', `Script: ${this.cur.name}`, { beats: this.cur.beats.length, from });
     const tok = ++this.token;
     await this.steps(this.cur.setup, { quiet: false, tok });

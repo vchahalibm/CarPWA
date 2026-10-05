@@ -105,6 +105,7 @@ const Convo = {
     Voice.hush(); Voice.respId++; Voice.unlock(); Voice.open(); $('#vChips').hidden = true;
     Voice.show('Starting the conversation…', 'Conversation mode (beta) · on-device');
     this.nativeFailed = false;
+    if (settings.tts === 'neural' && store.get('kokoroOK')) Voice.loadTTS(false, true).catch(() => {}); // the natural voice for the replies, making room for it
     Log.i('duplex', 'Conversation starting', { model: this.model(), lang: settings.voiceLang });
     try {
       await this.loadSTT();
@@ -146,7 +147,7 @@ const Convo = {
     if (want === 'whisper') return Voice.loadModel().then(p => (this.stt = Object.assign(t => p(t, this.whisperOpts()), { which: 'whisper', dispose() {} })));
     const dev = gpuOK() && Budget.cls() !== 'phone' ? 'webgpu' : 'wasm', files = {};
     const builds = [...(dev === 'webgpu' ? [{ device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, label: 'GPU fp32/q4' }] : []), { device: 'wasm', dtype: { encoder_model: 'q8', decoder_model_merged: 'q8' }, label: 'CPU q8' }];
-    Budget.room('convo-stt', Budget.COST[`moonshine ${dev}`], true);
+    if (!Budget.room('convo-stt', Budget.COST[`moonshine ${dev}`], true)) return Promise.reject(new Error('No memory for the listening model'));
     return (this.sttLoading ||= Heavy.run('Moonshine', async () => {
       let last;
       for (const b of builds) {

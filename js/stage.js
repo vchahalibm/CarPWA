@@ -61,7 +61,8 @@ const Stage = {
       ${this.chosen && typeof People !== 'undefined' ? `${tog('peopleOn', 'Follow the presenter', 'The Stage camera watches who is in front of the screen: whoever shows the claim gesture becomes the presenter. The assistant looks at them and acts on their hand gestures. On this device only; nothing is kept')}
         ${settings.peopleOn ? `${btn('claimSeq', 'Claim gesture', esc(CLAIM_SEQS[settings.claimSeq]?.[1] || ''))}
         ${tog('ownerOnly', 'Only listen to the presenter', 'In a conversation, speech counts only while the presenter’s mouth is moving (others in the room are ignored)')}
-        ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}` : ''}` : ''}
+        ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}
+        <div class="row"><div class="main"><div class="t">Keep when memory is short</div><div class="s">${settings.stageKeep === 'people' ? 'People tracking stays; the natural voice gives way to the device’s voice if they don’t both fit' : 'The natural voice stays; people tracking pauses if they don’t both fit (on an iPad they often don’t, with the avatar)'}</div></div>${seg('stageKeep', [['voice', 'Natural voice'], ['people', 'People tracking']])}</div>` : ''}` : ''}
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations the assistant leads`) : ''}
     </div>
     <div class="group-title">Cameras</div>

@@ -1,7 +1,7 @@
 {
   "name": "drivedeck-desktop",
   "productName": "DriveDeck",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "DriveDeck, the car dashboard web app, as a desktop app",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -24,6 +24,9 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "trayTemplate.png",
+      "trayTemplate@2x.png",
       "package.json"
     ],
     "extraResources": [
@@ -37,7 +40,10 @@
           "css/**",
           "js/**",
           "vendor/**",
-          "icons/**"
+          "icons/**",
+          "presenter.html",
+          "samples/**",
+          "bridge/**"
         ]
       }
     ],

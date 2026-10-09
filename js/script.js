@@ -443,3 +443,61 @@ document.addEventListener('change', e => {
   if (/\.do$/.test(f.dataset.sf)) ScriptUI.renderEditor(); // the value's hint depends on the action
 });
 ACTIONS.scripts = () => ScriptUI.open();
+
+/* ---------- The presenter view (presenter.html, its own window) ----------
+   On your laptop screen while DriveDeck shows full screen on the wall: the step you're on and what the assistant says,
+   the slide's speaker notes, what comes next, a timer, the controls and a live preview. It talks to this window over a
+   BroadcastChannel (same site, same browser or desktop app): it sends commands, this page sends its state. */
+const Presenter = {
+  ch: null, seen: 0, heard: '', reply: '', since: 0, t: 0,
+  init() {
+    if (typeof BroadcastChannel === 'undefined') return;
+    this.ch = new BroadcastChannel('dd-present');
+    this.ch.onmessage = e => this.msg(e.data || {});
+    Bus.on('*', (d, name) => {
+      if (name === 'voice.heard') this.heard = d.value || ''; else if (name === 'voice.reply') this.reply = d.value || '';
+      else if (name === 'script.beat' && Script.i === 0) this.since = Date.now();
+      if (/^(script\.|doc\.page|voice\.(heard|reply)|mode\.change|web\.step)/.test(name)) this.push();
+    });
+  },
+  get open() { return Date.now() - this.seen < 6000; },
+  /** Open the presenter view: on another screen in the desktop app, else a new window. */
+  show() {
+    if (window.DriveDeckDesktop?.presenter) return window.DriveDeckDesktop.presenter();
+    const w = window.open('presenter.html', 'dd-presenter', 'popup,width=1100,height=740');
+    if (!w) toast('Allow pop-ups for DriveDeck to open the presenter view');
+  },
+  msg(m) {
+    // Its ping every 2 s also catches what no event announces (a deck finishing loading): send if anything changed.
+    if (m.t === 'hello' || m.t === 'ping') { this.seen = Date.now(); this.push(m.t === 'hello'); return; }
+    if (m.t !== 'cmd') return;
+    Log.i('stage', `Presenter view: ${m.op}`, { arg: m.arg });
+    const doc = Media.first('doc');
+    if (m.op === 'start') { const s = Scripts.get(m.arg); if (s) Script.start(s.json); }
+    else if (m.op === 'jump') Script.jump(+m.arg);
+    else if (m.op === 'slide') { if (doc) Media.go(doc, (Media.pdf[doc]?.page || 1) + (+m.arg || 1)); }
+    else if (['next', 'back', 'restart', 'repeat'].includes(m.op)) { if (!Script[m.op]() && doc && (m.op === 'next' || m.op === 'back')) Media.go(doc, (Media.pdf[doc]?.page || 1) + (m.op === 'next' ? 1 : -1)); }
+    else if (m.op === 'stop') Script.stop();
+    else if (m.op === 'mic') Voice.start();
+    setTimeout(() => this.push(), 50);
+  },
+  /** What the presenter view shows. */
+  state() {
+    const doc = Media.first('doc'), P = doc && Media.pdf[doc], s = Script.cur, beat = b => b && { title: b.title, say: Script.fill(b.say) };
+    return { t: 'state', running: Script.running, name: s?.name || '', i: Script.i, since: this.since,
+      beats: s ? s.beats.map(b => ({ title: b.title })) : [], now: Script.running ? beat(Script.beat) : null,
+      next: Script.running ? beat(s.beats[Script.beat?.next.goto ? Script.index(Script.beat.next.goto) : Script.i + 1]) : null,
+      slide: P ? { page: P.page || 1, pages: P.pages || 0, notes: Media.notes(doc) } : null,
+      heard: this.heard, reply: this.reply, scripts: Scripts.all().map(x => ({ id: x.id, name: x.name })),
+      mode: Stage.on ? 'stage' : 'drive', theme: document.documentElement.dataset.theme };
+  },
+  push(now) {
+    if (!this.ch || (!now && !this.open)) return;
+    clearTimeout(this.t); this.t = setTimeout(() => {
+      try { const st = this.state(), k = JSON.stringify(st); if (now || k !== this.last) { this.last = k; this.ch.postMessage(st); } }
+      catch (e) { Log.w('stage', 'Presenter view update failed', e); }
+    }, now ? 0 : 80);
+  },
+};
+Presenter.init();
+Actions.define('stage.presenter', { group: 'Dashboard', name: 'Open the presenter view', arg: '', run: () => Presenter.show() });

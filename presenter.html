@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/presenter.css">
+<title>DriveDeck · Presenter</title>
+</head>
+<body>
+<header class="pv-top">
+  <b class="pv-name" id="pvName">Presenter view</b>
+  <span class="pv-step" id="pvStep"></span>
+  <span class="pv-spacer"></span>
+  <span class="pv-timer" id="pvTimer" title="Since the script started">0:00</span>
+  <span class="pv-clock" id="pvClock"></span>
+  <button class="pv-btn" id="pvPreview">Live preview</button>
+</header>
+<main class="pv-main">
+  <section class="pv-now">
+    <div class="pv-card" id="pvWait"><h2>Waiting for DriveDeck</h2><p>Keep DriveDeck open in its own window (on the wall, full screen). This view follows it and controls it.</p></div>
+    <div class="pv-card" id="pvNow" hidden><div class="pv-label">Now</div><h2 id="pvNowTitle"></h2><p class="pv-say" id="pvNowSay"></p></div>
+    <div class="pv-card" id="pvNotes" hidden><div class="pv-label" id="pvSlide">Slide</div><p class="pv-notes" id="pvNotesText"></p></div>
+    <div class="pv-card pv-next" id="pvNext" hidden><div class="pv-label">Next</div><h3 id="pvNextTitle"></h3><p id="pvNextSay"></p></div>
+    <div class="pv-card" id="pvScripts" hidden><div class="pv-label">Start a script</div><div class="pv-list" id="pvScriptList"></div></div>
+  </section>
+  <aside class="pv-side">
+    <div class="pv-preview" id="pvPrevBox" hidden><video id="pvVideo" autoplay muted playsinline></video></div>
+    <div class="pv-card pv-caps"><div class="pv-label">Heard</div><p id="pvHeard" class="pv-dim">—</p><div class="pv-label">Assistant</div><p id="pvReply" class="pv-dim">—</p></div>
+    <div class="pv-card" id="pvStepsBox" hidden><div class="pv-label">Steps</div><ol class="pv-steps" id="pvSteps"></ol></div>
+  </aside>
+</main>
+<footer class="pv-ctl">
+  <button class="pv-big" data-op="restart" title="Start over (Home)">⟲ Start over</button>
+  <button class="pv-big" data-op="back" title="Back (←)">◀ Back</button>
+  <button class="pv-big pv-go" data-op="next" title="Next (→ or space)">Next ▶</button>
+  <button class="pv-big" data-op="mic" title="Talk to the assistant (M)">Talk</button>
+  <button class="pv-big" data-op="stop" title="Stop the script (Esc)">■ Stop</button>
+</footer>
+<script src="js/presenter.js"></script>
+</body>
+</html>

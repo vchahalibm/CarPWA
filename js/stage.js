@@ -64,6 +64,8 @@ const Stage = {
         ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}
         <div class="row"><div class="main"><div class="t">Keep when memory is short</div><div class="s">${settings.stageKeep === 'people' ? 'People tracking stays; the natural voice gives way to the device’s voice if they don’t both fit' : 'The natural voice stays; people tracking pauses if they don’t both fit (on an iPad they often don’t, with the avatar)'}</div></div>${seg('stageKeep', [['voice', 'Natural voice'], ['people', 'People tracking']])}</div>` : ''}` : ''}
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations the assistant leads`) : ''}
+      ${this.chosen ? btn('presenter', 'Presenter view', 'Your notes, what’s next, a timer and the controls in a second window, while this one is on the big screen') : ''}
+      ${this.chosen && window.DriveDeckDesktop?.present ? btn('presentOn', 'Present on another screen', 'Full screen on the wall, the presenter view on this screen') : ''}
     </div>
     <div class="group-title">Cameras</div>
     <div class="group">
@@ -84,6 +86,15 @@ ACTIONS.camDrive = () => Stage.pickCam('driveCam');
 ACTIONS.claimSeq = () => sheet('Claim gesture', `<p class="hint">Show these one after the other (each for a moment) to become the presenter.</p><div class="pick-list">${Object.entries(typeof CLAIM_SEQS !== 'undefined' ? CLAIM_SEQS : {}).map(([v, [, l]]) =>
   `<button class="big-btn ${settings.claimSeq === v ? 'accent' : ''}" data-campick="claimSeq|${esc(v)}">${esc(l)}</button>`).join('')}</div>`, [['Cancel']]);
 ACTIONS.camStage = () => Stage.pickCam('stageCam');
+ACTIONS.presenter = () => Presenter.show();
+// Desktop app: which screen is the wall.
+ACTIONS.presentOn = async () => {
+  const ds = await window.DriveDeckDesktop.displays();
+  sheet('Present on', `<div class="pick-list">${ds.map(d => `<button class="big-btn ${d.here ? '' : 'accent'}" data-present="${d.id}">${esc(d.label)} · ${d.w}×${d.h}${d.here ? ' (this screen)' : ''}</button>`).join('')}</div>
+    <p class="hint">${ds.length > 1 ? 'DriveDeck goes full screen there and the presenter view opens on another screen.' : 'Only one screen is attached: connect the TV or projector (or AirPlay to it as a separate display), then choose it here.'} Stop with Esc, or the menu bar icon › Stop presenting.</p>`, [['Cancel']]);
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-present]'); if (!b) return; closeSheet(); window.DriveDeckDesktop.present(+b.dataset.present); });
+window.DriveDeckDesktop?.onMenu?.(what => { if (what === 'settings') openView('settings'); });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-campick]'); if (!b) return;
   const [k, v] = b.dataset.campick.split('|'); settings[k] = v; closeSheet(); store.set('settings', settings);
@@ -103,8 +114,10 @@ Bus.on('drive.stopped', () => Stage.setMoving(false));
 Bus.on('voice.heard', d => Stage.caption('you', d.value ? `“${d.value}”` : ''));
 Bus.on('voice.reply', d => Stage.caption('ai', d.value || ''));
 // The Stage layout's default content: the sample deck and Vita, until you choose your own.
-if (!Wcfg.all()['doc~stage']) Wcfg.set('doc~stage', { url: 'samples/drivedeck-demo.pptx', title: 'Demo deck' });
-if (!Wcfg.all()['model~stage']) Wcfg.set('model~stage', { builtin: 'vita' });
+{ const fresh = !Wcfg.all()['doc~stage'] || !Wcfg.all()['model~stage'];
+  if (!Wcfg.all()['doc~stage']) Wcfg.set('doc~stage', { url: 'samples/drivedeck-demo.pptx', title: 'Demo deck' });
+  if (!Wcfg.all()['model~stage']) Wcfg.set('model~stage', { builtin: 'vita' });
+  if (fresh && Dash.layout === 'stage' && current === 'dashboard') Dash.render(); } // already drawn without them
 
 Actions.define('mode.set', { group: 'Dashboard', name: 'Switch Drive / Stage mode', arg: 'drive or stage', run(v, say) {
   const m = /stage|present/i.test(v) ? 'stage' : 'drive'; Stage.set(m); say?.(m === 'stage' ? 'Stage mode.' : 'Drive mode.'); } });

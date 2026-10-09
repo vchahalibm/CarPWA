@@ -359,6 +359,8 @@ const Voice = {
     const convo = () => typeof Convo !== 'undefined' && Convo.active;
     if (o.leaves) return Promise.race([said, wait(4000)]).then(() => wait(Math.max(0, 700 - (Date.now() - t0)))).then(() => {
       if (convo()) { if (id === this.respId) then?.(); } else if (done()) { this.close(); then?.(); } });
+    // A question (“Did you mean …?”): listen for the answer once it's asked (a conversation listens anyway).
+    if (o.ask && !convo()) return Promise.race([said, wait(8000)]).then(() => wait(250)).then(() => { if (id === this.respId && !$('#assistant').hidden) this.start(); });
     setTimeout(() => { if (id === this.respId) then?.(); }, 600); // in-app actions happen while the reply is spoken
     Promise.race([said, wait(12000)]).then(() => wait(Math.max(400, 1800 - (Date.now() - t0)))).then(() => { if (done()) { $('#assistant').hidden = true; Bus.emit('voice.idle'); } });
     return said; // resolves when it has been said (scripts wait for it)
@@ -774,8 +776,8 @@ const Voice = {
       this.session('play-and-record');
     }
     try {
-      const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true;
-      let text = '', done = false, lastChange = performance.now(), audio = false, guard = 0;
+      const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true; r.maxAlternatives = 3;
+      let text = '', alts = [], done = false, lastChange = performance.now(), audio = false, guard = 0;
       const latency = () => Log.i('stt', `Recognised ${Math.round(performance.now() - lastChange)} ms after your last word (phone recognizer)`, { text });
       const finish = () => { clearTimeout(guard); if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); if (cfg.sr !== 'plain') this.session('auto'); };
       Log.i('stt', 'Phone recognizer starting', { lang: r.lang, retry, primed: cfg.sr !== 'plain' && (this.played || !!retry), session: navigator.audioSession?.type });
@@ -790,11 +792,12 @@ const Voice = {
       r.onresult = e => {
         audio = true;
         const t = [...e.results].map(x => x[0].transcript).join(' ').trim();
+        alts = [1, 2].map(k => [...e.results].map(x => (x[k] || x[0]).transcript).join(' ').trim()).filter(a => a && a !== t);
         if (t !== text) lastChange = performance.now();
         text = t;
         Log.d('stt', `Phone recognizer ${e.results[e.results.length - 1].isFinal ? 'final' : 'interim'}`, { text });
         this.show(`“${text}”`, 'Listening…');
-        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.srFails = 0; this.heard(text, { engine: 'Phone' }); }
+        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.srFails = 0; this.heard(text, { engine: 'Phone', alts }); }
       };
       r.onerror = e => {
         Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message, audio }); finish(); if (done) return; done = true;
@@ -805,7 +808,7 @@ const Voice = {
       };
       // Some phones end without a “final” result: use what was heard so far, and never leave the mic stuck.
       r.onend = () => { Log.d('stt', 'Phone recognizer ended', { text, done, audio }); finish(); if (done) return; done = true;
-        if (text) { latency(); this.srFails = 0; return this.heard(text, { engine: 'Phone' }); }
+        if (text) { latency(); this.srFails = 0; return this.heard(text, { engine: 'Phone', alts }); }
         if (!audio && cfg.sr !== 'plain') return this.recover(r, retry);
         this.show('I didn’t hear anything', 'Tap the mic and try again'); };
       r.start(); $('#vOrb').classList.add('live');
@@ -837,10 +840,11 @@ const Voice = {
   },
   /** A phrase was recognised: show it, log it, act on it. */
   heard(text, meta) {
-    Log.i('stt', `Heard: “${text}”`, meta);
+    const { alts, ...m } = meta || {};
+    Log.i('stt', `Heard: “${text}”`, alts?.length ? { ...m, alts } : m);
     this.show(`“${text}”`, 'Heard'); $('#vChips').hidden = true;
-    VoiceLog.you(text, meta); Bus.emit('voice.heard', { value: text, engine: meta?.engine });
-    setTimeout(() => handleCommand(text, true), 350);
+    VoiceLog.you(text, m); Bus.emit('voice.heard', { value: text, engine: meta?.engine });
+    setTimeout(() => handleCommand(text, true, alts), 350);
   },
 };
 /** 16-bit mono WAV, for the reply player. */

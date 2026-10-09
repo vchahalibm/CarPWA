@@ -347,10 +347,28 @@ const lev = (a, b) => {
     for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, p + (a[i - 1] === b[j - 1] ? 0 : 1)); p = t; } }
   return d[b.length];
 };
+/* Loose matching: a missed or misheard word or two still finds the command. */
+const STOP = new Set('a an the to my me i you your is it of on in at for with and that this some be am are do please now there here okay ok just um uh like so thanks towards toward into'.split(' '));
+const LOOSE_RUN = 0.8, LOOSE_ASK = 0.55; // run it at 80 % of the phrase heard; ask “Did you mean…?” from 55 %
+const looseWord = w => w.toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}-]/gu, '');
+/** “calling” → “call”, “stopped” → “stop”, “texts” → “text”: the word without its ending, and with a doubled last letter undoubled. */
+const stems = w => { if (w.length < 5) return [w]; const s = w.replace(/(ing|ed|es|s)$/, ''); return [s, s.replace(/([^aeiou])\1$/, '$1'), s.replace(/e$/, '')]; };
+/** 1 the same word, 0.8 the same stem (“navigation”, “navigate”), 0.7 a near miss (one letter off, two in long words;
+    or one is the other plus “s”), else 0. */
+const wordSim = (a, b) => {
+  if (a === b) return 1;
+  let k = 0; while (k < a.length && a[k] === b[k]) k++;
+  if (k >= 5 && k >= Math.min(a.length, b.length) - 2) return 0.8;
+  if (stems(a).some(x => stems(b).includes(x))) return 0.8;
+  if (a.length < 4 || b.length < 4) return a + 's' === b || b + 's' === a ? 0.7 : 0;
+  return Math.abs(a.length - b.length) <= 2 && lev(a, b) <= (Math.min(a.length, b.length) >= 7 ? 2 : 1) ? 0.7 : 0;
+};
+const YES = /^(yes|yeah|yep|yup|sure|correct|right|exactly|do it|go ahead|please do|ok|okay|that’s right|that's right|thats right|that one)\b/i;
+const NO = /^(no|nope|nah|wrong|not that|cancel|never mind|nevermind|don’t|dont)\b/i;
 const Commands = {
-  cache: new Map(),
+  cache: new Map(), vcache: new Map(), simMemo: new Map(), pending: null,
   saved() { const s = store.get('commands', {}); return { custom: s.custom || [], edits: s.edits || {} }; },
-  save(s) { store.set('commands', s); this.cache.clear(); this.vocab = null; },
+  save(s) { store.set('commands', s); this.cache.clear(); this.vcache.clear(); this.vocab = null; this.df = null; },
   /** Your commands first (they win ties), then the defaults with your edits applied. */
   all() {
     const s = this.saved();
@@ -421,14 +439,98 @@ const Commands = {
       return best ? best[0] : w;
     }).join(' ');
   },
-  /** Find the command for a phrase. Tries exact phrases/regex/keywords, then again with near-miss words corrected. */
-  match(text) {
+  /** Every way one phrase line can be said, as tokens: { w } a word (opt: in [brackets]), { slot } a {capture}. */
+  variants(line) {
+    let out = [[]]; const tok = /\{(\w*)\}|\[([^\]]*)\]|\(([^)]*)\)|([^\s{}[\]()]+)/g;
+    const words = (a, opt) => a.trim().split(/\s+/).filter(Boolean).map(w => ({ w: looseWord(w), opt }));
+    for (let m; (m = tok.exec(line));) {
+      const add = m[1] != null ? [[{ slot: m[1] }]] : m[2] != null ? [[], ...m[2].split('|').map(a => words(a, true))]
+        : m[3] != null ? m[3].split('|').map(a => words(a, false)) : [words(m[4], false)];
+      out = out.flatMap(v => add.map(a => [...v, ...a])).slice(0, 600);
+    }
+    // Its real words: a way of saying it is only tried when one of them was heard.
+    for (const v of out) v.anchors = [...new Set(v.filter(t => !t.slot && !t.opt && !STOP.has(t.w)).map(t => t.w))];
+    return out.filter(v => v.anchors.length);
+  },
+  /** How much each word says: fillers little, words most commands use less than the rare ones. */
+  weight(w) {
+    if (!this.df) {
+      this.df = new Map(); const all = this.all();
+      for (const c of all) if ((c.match || 'phrase') === 'phrase') new Set([].concat(c.say || []).join(' ').toLowerCase().match(/[a-z0-9’']+/g)?.map(looseWord) || [])
+        .forEach(x => this.df.set(x, (this.df.get(x) || 0) + 1));
+    }
+    return STOP.has(w) ? 0.25 : (this.df.get(w) || 0) >= 8 ? 0.6 : 1;
+  },
+  /** Line up what was heard with one way of saying a phrase, allowing missed, extra and misheard words.
+      Returns its confidence (0–1), the captured words and how it reads back, or null. */
+  align(v, h) {
+    const n = v.length, m = h.length, INF = 1e9, ins = j => STOP.has(h[j]) ? 0.15 : 0.5;
+    const R = v.reduce((a, t) => a + (t.slot || t.opt ? 0 : this.weight(t.w)), 0);
+    if (!R) return null;
+    const d = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(INF)), back = Array.from({ length: n + 1 }, () => new Array(m + 1));
+    d[0][0] = 0;
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+      const c = d[i][j]; if (c >= INF) continue;
+      const to = (a, b, x, how) => { if (x < d[a][b] - 1e-9) { d[a][b] = x; back[a][b] = [i, j, how]; } };
+      if (j < m && (i === 0 || i === n || !v[i - 1]?.slot)) to(i, j + 1, c + ins(j), 'extra'); // an extra word (a capture takes its own)
+      if (i === n) continue;
+      const t = v[i];
+      if (t.slot) { for (let k = j + 1; k <= m; k++) to(i + 1, k, c, 'slot'); continue; }
+      const wt = this.weight(t.w);
+      to(i + 1, j, c + (t.opt ? 0 : wt), 'miss');
+      if (j < m) { const sim = this.sim(h[j], t.w); if (sim) to(i + 1, j + 1, c + (t.opt ? 0 : wt * (1 - sim)), sim === 1 ? 'hit' : sim >= 0.8 ? 'stem' : 'near'); }
+    }
+    if (d[n][m] >= INF) return null;
+    // Walk back: what was captured, which words were really heard, and how it reads back.
+    // It must have heard at least one of the phrase's real words; with a capture, exactly (“next” misheard as “text”
+    // mustn't turn “next slight” into a text message).
+    const vars = {}, echo = [], slots = v.some(t => t.slot); let i = n, j = m, anchor = false;
+    while (i > 0 || j > 0) {
+      const [pi, pj, how] = back[i][j], t = v[pi];
+      if (how === 'slot') { // without the filler a missed word left behind (“navigate me to…”)
+        const w = h.slice(pj, j); while (w.length > 1 && STOP.has(w[0])) w.shift();
+        vars[t.slot] = w.join(' '); echo.unshift(vars[t.slot]);
+      } else if (how !== 'miss' && how !== 'extra') { echo.unshift(t.w); if (!t.opt && !STOP.has(t.w) && (how !== 'near' || !slots)) anchor = true; }
+      else if (how === 'miss' && !t.opt) echo.unshift(t.w);
+      i = pi; j = pj;
+    }
+    if (!anchor) return null;
+    return { conf: Math.max(0, 1 - d[n][m] / R), vars, echo: echo.join(' '), R };
+  },
+  sim(a, b) { const k = a + ' ' + b; let x = this.simMemo.get(k); if (x == null) this.simMemo.set(k, x = wordSim(a, b)); return x; },
+  /** When nothing matches exactly: the command whose phrase covers most of what was heard (best of the recognizer's guesses). */
+  loose(texts) {
+    let best = null; this.simMemo = new Map();
+    for (const c of this.all()) {
+      if (c.on === false || (c.match || 'phrase') !== 'phrase') continue;
+      const lines = (Array.isArray(c.say) ? c.say : String(c.say || '').split('\n')).map(l => l.trim()).filter(Boolean);
+      if (!this.vcache.has(c.id) || this.vcache.get(c.id).key !== lines.join('\n')) this.vcache.set(c.id, { key: lines.join('\n'), v: lines.flatMap(l => this.variants(l)) });
+      for (const t of texts) {
+        const h = t.toLowerCase().split(' ').map(looseWord).filter(Boolean); if (!h.length || h.length > 24) continue;
+        for (const v of this.vcache.get(c.id).v) {
+          if (!v.anchors.some(w => h.some(x => this.sim(x, w)))) continue;
+          const a = this.align(v, h); if (!a) continue;
+          const b = c.do?.type === 'builtin' && BUILTINS[c.do.fn];
+          if (b?.ok && !b.ok(this.vars({ vars: a.vars, cmd: c }, t))) continue;
+          const score = a.conf + (c.custom ? 0.001 : 0) + a.R * 1e-4; // ties: your commands, then the more specific phrase
+          if (!best || score > best.score) best = { cmd: c, vars: a.vars, how: 'loose', conf: a.conf, echo: a.echo, heard: t, score };
+        }
+      }
+    }
+    return best && best.conf >= LOOSE_ASK ? best : null;
+  },
+  /** Find the command for a phrase. Tries exact phrases/regex/keywords (also on the recognizer's other guesses), then with
+      near-miss words corrected, then loosely: a phrase that covers most of what was heard (`conf`; below LOOSE_RUN it asks first). */
+  match(text, alts = []) {
     const t = tidy(text), pick = list => list.find(r => {
       const b = r.cmd.do?.type === 'builtin' && BUILTINS[r.cmd.do.fn];
       return !b?.ok || b.ok(this.vars(r, t));
     });
+    const others = [...new Set(alts.map(tidy).filter(a => a && a !== t))];
     let r = pick(this.candidates(t));
+    for (const a of others) if (!r) { r = pick(this.candidates(a)); if (r) r = { ...r, how: r.how, fixed: a }; }
     if (!r) { const f = this.correct(t); if (f !== t) { r = pick(this.candidates(f)); if (r) r = { ...r, how: 'fuzzy', fixed: f }; } }
+    if (!r && t) { const l = this.loose([t, ...others]); if (l) { Log.d('cmd', `Loosely matched “${l.cmd.name}” (${Math.round(l.conf * 100)}%)`, { heard: l.heard, echo: l.echo }); r = { ...l, fixed: l.heard !== t ? l.heard : undefined }; } }
     return r ? { ...r, text: t, vars: this.vars(r, r.fixed || t) } : { text: t };
   },
   /** Captured words + text (everything) + q (what gets passed along: the action's input template, or the first captured value). */
@@ -441,14 +543,30 @@ const Commands = {
   },
 
   /** Hear/typed text → action, with a spoken reply. */
-  run(raw, spoken) {
+  run(raw, spoken, alts = []) {
     Voice.open();
     if (!spoken) { VoiceLog.you(raw, { engine: 'Typed' }); Voice.show(`“${raw}”`, ''); }
     const say = (msg, then, o = {}) => Voice.respond(msg, then, o);
+    // The answer to “Did you mean …?”
+    const p = this.pending; this.pending = null;
+    if (p && Date.now() - p.at < 20000) {
+      const t = tidy(raw);
+      if (YES.test(t) && t.split(' ').length <= 4) { Log.i('cmd', `Confirmed: ${p.r.cmd.name}`); return this.exec(p.r, p.raw, say); }
+      if (NO.test(t) && t.split(' ').length <= 3) return say('Okay, never mind.');
+    }
     if (typeof Script !== 'undefined' && Script.hear(raw)) return; // a running script's own words ("next", "go back"…) come first
-    const r = this.match(raw);
+    const r = this.match(raw, alts);
     if (!r.cmd) return say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
+    if (r.how === 'loose' && r.conf < LOOSE_RUN) {
+      this.pending = { r, raw, at: Date.now() };
+      return say(`Did you mean “${r.echo}”?`, null, { ask: true });
+    }
+    this.exec(r, raw, say);
+  },
+  /** Do what a matched command says. */
+  exec(r, raw, say) {
     const c = r.cmd, v = r.vars, d = c.do || {}, custom = c.reply ? fillIn(c.reply, v) : '';
+    if (settings.cmdTone) chime();
     Bus.emit('cmd.run', { value: Object.entries(v).find(([k, x]) => x && k !== 'text' && k !== 'rest')?.[1] || '', command: c.name, id: c.id, text: raw });
     const reply = (auto, then, o) => say(custom || auto, then, o);
     try {
@@ -483,8 +601,22 @@ const Commands = {
     } catch (e) { console.warn('Command failed', e); say('Something went wrong running that.'); }
   },
 };
+/** A soft two-note tone (Settings › Voice › Sound when a command runs). Not in a conversation: there the
+    conversation's own audio engine owns the speaker. */
+function chime() {
+  if (typeof Convo !== 'undefined' && Convo.active) return;
+  try {
+    const a = chime.ctx ||= new (window.AudioContext || window.webkitAudioContext)(), t = a.currentTime + 0.02;
+    a.resume?.();
+    [[660, 0], [880, 0.09]].forEach(([f, dt]) => {
+      const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t + dt); g.gain.linearRampToValueAtTime(0.12, t + dt + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.22);
+      o.connect(g).connect(a.destination); o.start(t + dt); o.stop(t + dt + 0.25);
+    });
+  } catch (e) { Log.d('audio', 'Command tone failed', e); }
+}
 // Kept for app.js callers (typed chips, quick replies) and voice.js.
-function handleCommand(raw, spoken) { Commands.run(raw, spoken); }
+function handleCommand(raw, spoken, alts) { Commands.run(raw, spoken, alts); }
 
 /* ============================================================
    Settings › Voice commands: list, test, edit, add
@@ -526,7 +658,7 @@ const CmdUI = {
       <div class="group-title">Voice commands</div>
       <div class="group"><div class="cmd-try"><input id="cmdTry" placeholder="Type what you’d say, e.g. play music from Maroon 5" autocomplete="off" enterkeyhint="go">
         <button class="big-btn accent" data-cmdui="run">Run</button></div><div class="cmd-test" id="cmdTest">Type a phrase to see which command it triggers and what it passes along.</div></div>
-      <p class="cmd-help">Speak or type; DriveDeck matches your words against every command below: exact phrases first, then regular expressions and keywords, then again with near-miss words corrected. Words in <b>{braces}</b> are captured and passed to the action: a phone app’s search, a shortcut’s input, a place, a contact.</p>
+      <p class="cmd-help">Speak or type; DriveDeck matches your words against every command below: exact phrases first, then regular expressions and keywords, then again with near-miss words corrected, and finally loosely: if most of a phrase was heard (a word or two missed or misheard), it runs it, or asks “Did you mean …?” when it’s less sure. Words in <b>{braces}</b> are captured and passed to the action: a phone app’s search, a shortcut’s input, a place, a contact.</p>
       <div class="group"><button class="row btn" data-cmdui="add"><div class="main"><div class="t">＋ Add a command</div></div></button></div>
       ${order.filter(g => groups[g]).map(g => `<div class="group-title">${esc(g)}</div><div class="group">${groups[g].map(row).join('')}</div>`).join('')}
       <div class="group-title"></div><div class="group"><button class="row btn" data-cmdui="reset"><div class="main"><div class="t">Reset all commands to defaults</div></div></button></div>`;
@@ -540,7 +672,7 @@ const CmdUI = {
     const r = Commands.match(text);
     if (!r.cmd) return out.innerHTML = `<b>No command matches.</b> Add one below, or check the spelling.`;
     const v = Object.entries(r.vars).filter(([k, x]) => x && k !== 'text' && k !== 'rest').map(([k, x]) => `<code>{${esc(k)}}</code> ${esc(x)}`).join(' · ');
-    out.innerHTML = `→ <b>${esc(r.cmd.name)}</b> · ${esc(actionLabel(r.cmd.do))}<br><span>${{ phrase: 'Phrase', regex: 'Regular expression', keywords: 'Keywords', fuzzy: `Near-miss corrected (“${esc(r.fixed)}”)` }[r.how]}${v ? ' · ' + v : ''}</span>`;
+    out.innerHTML = `→ <b>${esc(r.cmd.name)}</b> · ${esc(actionLabel(r.cmd.do))}<br><span>${{ phrase: 'Phrase', regex: 'Regular expression', keywords: 'Keywords', fuzzy: `Near-miss corrected (“${esc(r.fixed)}”)`, loose: `Partly heard (${Math.round(r.conf * 100)}%): “${esc(r.echo)}”${r.conf < LOOSE_RUN ? ', asks first' : ''}` }[r.how]}${v ? ' · ' + v : ''}</span>`;
   },
   toggle(id) {
     const s = Commands.saved(), c = Commands.byId(id); if (!c) return;

@@ -24,11 +24,11 @@ Where the app goes next, in order. Each phase ships on its own, through a PR, an
 
 A PWA can't be a background service: a service worker only wakes briefly for events, has no GPU and can't keep a model loaded; iOS freezes a web app as soon as it isn't on screen; a browser page can't listen on a socket; and each home-screen web app on iOS has its own isolated storage, so two can't talk on the device. An iPad can show two web apps side by side (each its own process), but a hidden one freezes and they'd still need a relay to talk. So the iPad stays the screen, with on-device models as the fallback, and the Mac's desktop app (Electron, which may listen on sockets, start at login and live in the menu bar) hosts the models, running the same web code.
 
-## Phase A: Car voice
+## Phase A: Car voice ✅
 
-1. **Fuzzy command matching.** Score every command by how much of what was said it covers: content words weigh more than fillers, order counts a little, a missing word or two is fine, and the place / contact / song is taken from what's left. High confidence runs it; medium asks back (“Navigate to Costco?” yes / no); low says what it didn't get. All the recognizer's alternatives are scored, not just its first guess. Phrase tests gain missing-word cases, and a phrase still mustn't steal another command's words.
-2. **The phone's own recognizer is the default in the car**; on-device listening is the offline fallback. That leaves memory for the natural voice and the detector.
-3. **Clear spoken results**: short fixed wording for each action, an optional soft tone when a command runs.
+1. ✅ **Fuzzy command matching.** Score every command by how much of what was said it covers: content words weigh more than fillers, order counts a little, a missing word or two is fine, and the place / contact / song is taken from what's left. High confidence runs it; medium asks back (“Navigate to Costco?” yes / no); low says what it didn't get. All the recognizer's alternatives are scored, not just its first guess. Phrase tests gain missing-word cases, and a phrase still mustn't steal another command's words.
+2. ✅ **The phone's own recognizer is the default in the car** (also in conversations: Automatic uses it in Drive mode, the on-device models on Stage); on-device listening is the offline fallback. That leaves memory for the natural voice and the detector.
+3. ✅ **Clear spoken results**: short fixed wording for each action, an optional soft tone when a command runs.
 
 ## Phase B: Stage desktop shell (Electron)
 

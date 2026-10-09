@@ -94,6 +94,9 @@ const Convo = {
     // The phone's own recognizer (experimental), unless it failed in this conversation: then the on-device one below.
     if (settings.convoStt === 'native' && SR && !this.nativeFailed) return 'native';
     if (!['auto', 'en'].includes(settings.voiceLang || 'auto')) return 'whisper';
+    // In the car, Automatic uses the phone's recognizer too: it's the most accurate, and commands are matched loosely
+    // anyway, so no listening model takes memory from the reply voice. Stage uses the on-device models below.
+    if ((settings.convoStt || 'auto') === 'auto' && SR && !this.nativeFailed && !(typeof Stage !== 'undefined' && Stage.on)) return 'native';
     const c = settings.convoStt === 'native' ? 'auto' : settings.convoStt || 'auto';
     // iPhone and iPad too: with the reply voice and an avatar, Whisper on the GPU got an iPad's app killed for memory.
     return c === 'auto' ? (Budget.cls() === 'phone' || (isIOS && !IS_DESKTOP_APP) ? 'moonshine' : 'whisper') : c;

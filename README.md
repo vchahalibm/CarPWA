@@ -129,7 +129,9 @@ All paths are relative, so the app runs from the site root or a sub-path such as
   - **When I say**: one phrase per line. `{name}` captures words (`play {q} on spotify`), `[word]` is optional, `(this|that)` means either. Or match with **keywords** (every comma group must be heard) or **regular expressions** (named groups are captured).
   - **Then**: a DriveDeck action, **a phone app** (Spotify, YouTube Music, YouTube, Google Maps, Waze, WhatsApp, dialer, SMS, email, web search, or any app's link with `{q}` where the words go, e.g. `myapp://search?q={q}`), **a phone shortcut** (run by name with the words as its input), a widget, a screen, or just a reply.
   - **Pass along** chooses what goes to the action (default: the first captured words); **Say back** sets the reply, e.g. `Playing {q}`.
-  - Matching tries exact phrases first (longer wording wins, your own commands win ties), then keywords, then again with near-miss words corrected (“navigte” → “navigate”).
+  - Matching tries exact phrases first (longer wording wins, your own commands win ties), then keywords, then again with near-miss words corrected (“navigte” → “navigate”), also on the phone recognizer's other guesses of what you said.
+  - Then **loosely**, so a missed or misheard word doesn't lose the command: the phrase covering most of what was heard wins, important words counting more than little ones (“navigate costco”, “navigation to the airport”, “calling Mom” all work). When it's sure it just does it; when it's less sure it asks **“Did you mean …?”** and listens for **yes** or **no**. The test box shows how much was heard.
+  - **Settings › Voice › Sound when a command runs** plays a soft tone as soon as it knows what you asked for.
 - **Assistant widget**: the conversation by day. It shows your words with the time and engine, DriveDeck's reply with a chip for the app it opened (tap to jump there), and one-tap chips for the phrases you use most. Add it to a widget page or a cluster column.
 
 ### Radio

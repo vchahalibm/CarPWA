@@ -75,9 +75,9 @@
   // Commands: what was matched, how, and with which words
   if (typeof Commands !== 'undefined') {
     const match = Commands.match.bind(Commands);
-    Commands.match = text => {
-      const r = match(text);
-      if (Log.on) r.cmd ? Log.i('cmd', `“${text}” → ${r.cmd.id}`, { how: r.how, score: r.score, action: r.cmd.do, vars: r.vars, fixed: r.fixed })
+    Commands.match = (text, alts) => {
+      const r = match(text, alts);
+      if (Log.on) r.cmd ? Log.i('cmd', `“${text}” → ${r.cmd.id}`, { how: r.how, score: r.score, conf: r.conf, echo: r.echo, action: r.cmd.do, vars: r.vars, fixed: r.fixed })
         : Log.w('cmd', `“${text}” matched no command`, { normalised: r.text });
       return r;
     };

@@ -52,6 +52,9 @@
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, vw: win.innerWidth, vh: win.innerHeight }; };
     const here = () => win.location.pathname.split('/').pop() + win.location.search + win.location.hash;
 
+    // Passwords, payment details and one-time codes: never recorded, never typed by a replay (it waits for you).
+    const secret = el => el.type === 'password' || /^(cc-|current-password|new-password|one-time-code)/.test(el.autocomplete || '')
+      || /pass|pin|otp|card|cvv|cvc|secret|token|iban|ssn|security.?code/i.test(el.name + ' ' + el.id + ' ' + (el.autocomplete || '') + ' ' + (el.getAttribute('aria-label') || ''));
     let rec = false, pending = null;
     const step = (s, el) => {
       const from = here(); s.at = from;
@@ -68,10 +71,11 @@
     const onChange = e => {
       if (!rec || !e.isTrusted) return;
       const el = e.target; if (!/^(input|textarea|select)$/i.test(el.tagName) || /^(checkbox|radio|button|submit|reset)$/i.test(el.type || '')) return;
-      const secret = el.type === 'password' || /pass|pin|otp|card|cvv|secret|token/i.test(el.name + el.id + (el.autocomplete || ''));
-      step({ t: 'type', loc: locate(el), value: secret ? '' : el.value, secret }, el); // passwords are never recorded
+      step({ t: 'type', loc: locate(el), value: secret(el) ? '' : el.value, secret: secret(el) }, el); // passwords, card numbers and codes are never recorded
     };
+    let clickedAt = 0; const onAny = e => { if (e.isTrusted) clickedAt = Date.now(); }; // did a real click arrive (desktop replays check)
     doc.addEventListener('click', onClick, true);
+    doc.addEventListener('click', onAny, true);
     doc.addEventListener('change', onChange, true);
 
     const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -80,21 +84,34 @@
       ping: () => ({ ok: true, url: here(), title: doc.title }),
       record(on) { rec = !!on; return { ok: true, url: here() }; },
       find(L) { const f = find(L); return f ? { ok: true, how: f.how, rect: rect(f.el) } : { ok: false, error: 'not found' }; },
-      /** Replay one step: find it, bring it into view, act like a person would, then check what should change. */
-      async play(s, opts = {}) {
+      /** Find a step's element and bring it into view (a field: focused, its text selected, ready to be typed over). */
+      async prepare(s, opts = {}) {
         let f = null;
         for (let i = 0; i < 20 && !f; i++) { f = find(s.loc); if (!f) await wait(150); } // the page may still be drawing
         if (!f) return { ok: false, error: `Couldn’t find ${s.loc.text ? '“' + s.loc.text + '”' : 'the ' + (s.loc.tag || 'element')} on the page` };
         const el = f.el;
         el.scrollIntoView({ block: 'center', inline: 'center', behavior: opts.quiet ? 'auto' : 'smooth' });
         await wait(opts.quiet ? 0 : 350);
-        const r = rect(el);
+        if (s.t === 'type' && !s.secret && !secret(el) && el.tagName !== 'SELECT') { el.focus(); el.select?.(); }
+        return { ok: true, how: f.how, rect: rect(el), tag: el.tagName.toLowerCase(), secret: s.t === 'type' && (s.secret || secret(el)) };
+      },
+      /** Whether a real click reached the page since `t` (Date.now() of the sender's clock, same machine). */
+      clicked(t) { return { ok: clickedAt >= t }; },
+      /** After a step: wait for what should change (a new address or #tab). */
+      async verify(s) {
+        if (s.expect) for (let i = 0; i < 20 && here() !== s.expect; i++) await wait(150);
+        return { ok: !s.expect || here() === s.expect, url: here(), error: s.expect && here() !== s.expect ? `Expected the page to show ${s.expect}` : '' };
+      },
+      /** Replay one step: find it, bring it into view, act like a person would, then check what should change. */
+      async play(s, opts = {}) {
+        const p = await this.prepare(s, opts); if (!p.ok) return p;
+        const el = find(s.loc).el, f = { how: p.how }, r = p.rect;
         if (s.t === 'click') {
           const pt = { bubbles: true, cancelable: true, view: win, clientX: r.x + r.w / 2, clientY: r.y + r.h / 2 };
           for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) el.dispatchEvent(new (t.startsWith('pointer') && win.PointerEvent ? win.PointerEvent : win.MouseEvent)(t, pt));
           el.click();
         } else if (s.t === 'type') {
-          if (s.secret) return { ok: false, error: 'This step is a password field: type it yourself', rect: r, secret: true };
+          if (p.secret) return { ok: false, error: 'This step is a password, payment or code field: type it yourself', rect: r, secret: true };
           el.focus();
           const proto = el.tagName === 'TEXTAREA' ? win.HTMLTextAreaElement.prototype : el.tagName === 'SELECT' ? win.HTMLSelectElement.prototype : win.HTMLInputElement.prototype;
           Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(el, s.value); // works with frameworks that track the value
@@ -103,7 +120,7 @@
         if (s.expect) for (let i = 0; i < 20 && here() !== s.expect; i++) await wait(150);
         return { ok: !s.expect || here() === s.expect, how: f.how, rect: r, url: here(), error: s.expect && here() !== s.expect ? `Expected the page to show ${s.expect}` : '' };
       },
-      stop() { rec = false; doc.removeEventListener('click', onClick, true); doc.removeEventListener('change', onChange, true); },
+      stop() { rec = false; doc.removeEventListener('click', onClick, true); doc.removeEventListener('click', onAny, true); doc.removeEventListener('change', onChange, true); },
     };
   }
 

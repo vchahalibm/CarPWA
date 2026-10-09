@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: 22
       - name: Syntax-check scripts
-        run: for f in js/*.js sw.js desktop/main.js desktop/preload.js bridge/*.js tools/trainer/ui/*.js; do node --check "$f"; done
+        run: for f in js/*.js sw.js desktop/*.js bridge/*.js tools/trainer/ui/*.js; do node --check "$f"; done
       - name: Phrase tests (voice commands)
         run: node tests/phrases.cjs
       - name: Syntax-check the trainer (Python)

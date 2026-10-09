@@ -25,6 +25,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "webview-preload.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"

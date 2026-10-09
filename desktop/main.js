@@ -27,7 +27,28 @@ function openOutside(url) {
 }
 
 let mainWin = null, presWin = null, tray = null, presenting = false;
-const webPrefs = { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js') };
+const webPrefs = { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js'), webviewTag: true };
+const fs = require('fs');
+
+/* ---------- Browser widgets: <webview> in the page, a real browser per web widget ----------
+   Any site, logins kept (the 'persist:browse' session, apart from the app's own). Each page gets webview-preload.js in an
+   isolated world (the page can't see or reach it): the recorder/player from bridge/drivedeck-bridge.js, so clicks can be
+   recorded and replayed on any site. The page itself never gets Node or the app's powers. */
+const BROWSE = 'persist:browse';
+function guestRules(contents) {
+  contents.on('will-attach-webview', (e, wp, params) => {
+    if (!/^https?:\/\//.test(params.src || '') && !String(params.src || '').startsWith(ORIGIN) && params.src !== 'about:blank') { e.preventDefault(); return; }
+    delete wp.preloadURL; Object.assign(wp, { preload: path.join(__dirname, 'webview-preload.js'), nodeIntegration: false, nodeIntegrationInSubFrames: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false });
+    params.partition = BROWSE; // its own session (logins kept), apart from the app's; it serves the app's pages too (samples)
+  });
+  contents.on('did-attach-webview', (e, guest) => {
+    // Pop-ups and new tabs open in the same widget; other apps' links open outside.
+    guest.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) guest.loadURL(url); else openOutside(url); return { action: 'deny' }; });
+    guest.on('will-navigate', (ev, url) => { if (!/^(https?:|about:)/.test(url) && !url.startsWith(ORIGIN)) { ev.preventDefault(); openOutside(url); } });
+  });
+}
+let bridgeSrc = null;
+const readBridge = () => (bridgeSrc ??= fs.readFileSync(path.join(WEB, 'bridge', 'drivedeck-bridge.js'), 'utf8'));
 
 /** Pages of the app open inside it; links to other apps and web pages open outside. */
 function guard(win) {
@@ -45,7 +66,7 @@ function createWindow({ show = true } = {}) {
     width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: 'DriveDeck', show,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: webPrefs,
   });
-  guard(win);
+  guard(win); guestRules(win.webContents);
   win.on('closed', () => { if (mainWin === win) mainWin = null; presenting = false; presWin?.close(); menu(); });
   win.on('leave-full-screen', () => { if (presenting) { presenting = false; menu(); } });
   // Esc on the wall stops presenting (the presenter view stays open).
@@ -117,12 +138,14 @@ function makeTray() {
 
 app.whenReady().then(() => {
   // Serve the web files; anything outside the web folder is refused.
-  protocol.handle(SCHEME, req => {
+  const serve = req => {
     const { pathname } = new URL(req.url);
     const file = path.normalize(path.join(WEB, decodeURIComponent(pathname === '/' ? '/index.html' : pathname)));
     if (!file.startsWith(WEB + path.sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
-  });
+  };
+  protocol.handle(SCHEME, serve);
+  session.fromPartition(BROWSE).protocol.handle(SCHEME, serve); // the app's own pages (samples/demo-page.html) in browser widgets
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, perm, cb) => cb(ALLOWED.has(perm) && wc.getURL().startsWith(ORIGIN)));
   ses.setPermissionCheckHandler((wc, perm, origin) => ALLOWED.has(perm) && String(origin || wc?.getURL() || '').startsWith(ORIGIN));
@@ -153,6 +176,11 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:stop-presenting', own(stopPresenting));
   ipcMain.handle('dd:presenter', own(() => { openPresenter(); return true; }));
   ipcMain.handle('dd:login-item', own(loginItem));
+  ipcMain.handle('dd:bridge-src', () => readBridge()); // for webview-preload.js; a public file of the app
+  // The browsing session: no camera, microphone, location or notifications for web pages in widgets.
+  const browse = session.fromPartition(BROWSE);
+  browse.setPermissionRequestHandler((wc, perm, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(perm)));
+  browse.setPermissionCheckHandler((wc, perm) => ['fullscreen', 'clipboard-sanitized-write'].includes(perm));
   if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' }, { role: 'editMenu' },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },

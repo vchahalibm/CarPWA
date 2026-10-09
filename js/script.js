@@ -302,10 +302,11 @@ const ScriptUI = {
           <button class="big-btn" data-sui="dl:${esc(s.id)}" aria-label="Download ${esc(s.name)}">${svg('download')}</button>
           ${s.sample ? '' : `<button class="big-btn" data-sui="del:${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${svg('del')}</button>`}</div></div></div>`).join('')}</div>
       ${typeof WebDrive !== 'undefined' ? `<div class="group-title">Recorded web sequences</div>
-      <p class="cmd-help">Clicks on your own web pages, replayed by a script step (“Play a recorded sequence”). Record them inside a script step (Record web steps), or here.</p>
+      <p class="cmd-help">${window.DriveDeckDesktop?.browser ? 'Clicks and typing on any web page in a web widget' : 'Clicks on your own web pages'}, replayed by a script step (“Play a recorded sequence”). Record them inside a script step (Record web steps), or here.</p>
       <div class="group">${WebDrive.recs().map(r => `<div class="row-wrap"><div class="row"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
           <div class="sui-btns"><button class="big-btn" data-sui="recplay:${esc(r.name)}">${svg('play')}Play</button><button class="big-btn" data-sui="recdel:${esc(r.name)}" aria-label="Delete ${esc(r.name)}">${svg('del')}</button></div></div></div>`).join('')}
-        <button class="row btn" data-sui="recalone"><div class="main"><div class="t">● Record a sequence</div><div class="s">On the page in the web widget, as it is now</div></div></button></div>` : ''}`;
+        <button class="row btn" data-sui="recalone"><div class="main"><div class="t">● Record a sequence</div><div class="s">On the page in the web widget, as it is now</div></div></button></div>
+      ${window.DriveDeckDesktop?.browser ? WebDrive.helpersHtml() : ''}` : ''}`;
     $('#suiFile').addEventListener('change', e => this.upload(e.target.files[0]));
   },
   async upload(f) {

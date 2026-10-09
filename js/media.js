@@ -98,10 +98,27 @@ const Media = {
   },
   problem(body, msg, id) { body.innerHTML = `<div class="mw-empty">${svg('alert')}<span>${esc(msg)}</span><button class="w-cta" data-media-cfg="${esc(id)}">Change</button></div>`; },
   frame(body, src, kind) {
+    if (kind === 'web' && window.DriveDeckDesktop?.browser) return this.browser(body, src);
     body.innerHTML = `<iframe class="mw-frame" src="${esc(src)}" title="${kind}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
       allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen
       ${kind === 'web' ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-downloads"' : ''}></iframe>`;
     return $('iframe', body);
+  },
+
+  /** Desktop app: a real browser in the widget (any site, logins kept), with back, forward, reload and an address field.
+      Recording and replaying clicks work on every site here (js/webdrive.js, desktop/webview-preload.js). */
+  browser(body, src) {
+    body.innerHTML = `<div class="mw-browser"><div class="mw-nav"><button class="ctl" data-wv="back" aria-label="Back">${svg('back')}</button>
+      <button class="ctl" data-wv="fwd" aria-label="Forward">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button>
+      <button class="ctl" data-wv="reload" aria-label="Reload">${svg('restart')}</button><input class="mw-addr" value="${esc(src)}" spellcheck="false" autocomplete="off" enterkeyhint="go" aria-label="Address"></div>
+      <webview class="mw-frame" src="${esc(new URL(src, location.href).href)}" partition="persist:browse" allowpopups></webview></div>`;
+    const wv = $('webview', body), addr = $('.mw-addr', body);
+    const show = () => { try { if (document.activeElement !== addr) addr.value = wv.getURL(); } catch {} };
+    wv.addEventListener('did-navigate', show); wv.addEventListener('did-navigate-in-page', show);
+    wv.addEventListener('dom-ready', () => typeof WebDrive !== 'undefined' && WebDrive.helpers(wv));
+    wv.addEventListener('did-fail-load', e => { if (e.isMainFrame && e.errorCode !== -3) Log.w('media', 'Page failed to load', { url: e.validatedURL, error: e.errorDescription }); });
+    addr.addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const v = addr.value.trim(); if (v) { wv.loadURL(/^[a-z][\w+.-]*:/i.test(v) ? v : 'https://' + v); addr.blur(); } });
+    return wv;
   },
 
   /* ---------- Documents ---------- */
@@ -167,10 +184,10 @@ const Media = {
   },
   /** Show a page in a web widget. Same page: nothing. Already showing a page: navigate its frame (no dashboard redraw, the rest keeps playing). */
   webOpen(id, url) {
-    const c = Wcfg.get(id), f = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"] iframe`);
+    const c = Wcfg.get(id), f = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"] :is(iframe, webview)`);
     if (c.url === url && !c.file) return;
     Wcfg.set(id, { url, file: null });
-    if (f && !c.file) { f.src = url; Dash.lastKey = Dash.key(); Log.i('media', 'Web page', { id, url }); }
+    if (f && !c.file) { if (f.tagName === 'WEBVIEW') f.loadURL(new URL(url, location.href).href).catch(() => {}); else f.src = url; Dash.lastKey = Dash.key(); Log.i('media', 'Web page', { id, url }); }
     else Dash.render();
   },
   /** The current slide's speaker notes (PowerPoint), for the assistant to present. */
@@ -296,7 +313,10 @@ const Media = {
   },
   clearCfg(id) { const c = Wcfg.get(id); if (c.file) Files.del(c.file.key).catch(() => {}); delete this.pdf[id]; Wcfg.set(id, { url: '', file: null, title: '' }); this.resetPage(id); Dash.render(); },
   resetPage(id) { const p = store.get('docPages', {}); delete p[id]; store.set('docPages', p); },
-  openOutside(id) { const c = Wcfg.get(id); if (c.url) openExternal(null, wtype(id) === 'doc' ? this.docUrl(c.url) : c.url); },
+  openOutside(id) {
+    const c = Wcfg.get(id), wv = $(`#dashRoot .mw[data-media="${CSS.escape(id)}"] webview`); let now = ''; try { now = wv?.getURL() || ''; } catch {}
+    if (now || c.url) openExternal(null, now || (wtype(id) === 'doc' ? this.docUrl(c.url) : c.url));
+  },
 };
 
 for (const [k, K] of Object.entries(MEDIA_KINDS)) W[k] = { name: K.name, multi: true, html: id => Media.html(id), config: (id, isNew) => Media.config(id, isNew) };
@@ -309,6 +329,8 @@ addEventListener('message', e => {
   if (d?.event === 'onStateChange' && d.info === 0) Bus.emit('video.ended', { value: Wcfg.get(d.id)?.url || '', id: d.id });
 });
 document.addEventListener('click', e => {
+  const w = e.target.closest('[data-wv]');
+  if (w) { const wv = $('webview', w.closest('.mw-browser')); try { ({ back: () => wv.goBack(), fwd: () => wv.goForward(), reload: () => wv.reload() })[w.dataset.wv](); } catch {} return; }
   const b = e.target.closest('[data-mact],[data-media-cfg]'); if (!b) return;
   e.stopPropagation();
   if (b.dataset.mediaCfg) return Media.config(b.dataset.mediaCfg);
@@ -318,6 +340,15 @@ document.addEventListener('click', e => {
 }, true);
 
 /* ---------- Actions (voice commands and links) ---------- */
+/** The page in the first web widget: back / forward / reload (a real browser in the desktop app; same-site pages on the web). */
+const webNav = (op, say) => {
+  const id = needs('web', say), f = id && $(`#dashRoot .mw[data-media="${CSS.escape(id)}"] :is(iframe, webview)`); if (!f) return;
+  try { if (f.tagName === 'WEBVIEW') ({ back: () => f.goBack(), forward: () => f.goForward(), reload: () => f.reload() })[op]();
+    else { const h = f.contentWindow; op === 'reload' ? h.location.reload() : h.history[op](); } } catch { say?.('This page can’t be moved back or forward from here.'); }
+};
+Actions.define('web.back', { group: 'Web pages', name: 'Page back', arg: '', run: (v, say) => webNav('back', say) });
+Actions.define('web.forward', { group: 'Web pages', name: 'Page forward', arg: '', run: (v, say) => webNav('forward', say) });
+Actions.define('web.reload', { group: 'Web pages', name: 'Reload the page', arg: '', run: (v, say) => webNav('reload', say) });
 const needs = (kind, say) => { const id = Media.first(kind); if (!id) say(`Add a ${MEDIA_KINDS[kind].name.toLowerCase()} widget first.`); return id; };
 Actions.define('doc.next', { group: 'Documents & media', name: 'Next page or slide', arg: '', async run(v, say) { const id = needs('doc', say); if (id && !(await Media.ready(id) && Media.go(id, (Media.pdf[id]?.page || 1) + 1))) say('Page turning works for PDF and PowerPoint documents.'); } });
 Actions.define('doc.prev', { group: 'Documents & media', name: 'Previous page or slide', arg: '', async run(v, say) { const id = needs('doc', say); if (id && !(await Media.ready(id) && Media.go(id, (Media.pdf[id]?.page || 1) - 1))) say('Page turning works for PDF and PowerPoint documents.'); } });

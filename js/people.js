@@ -197,6 +197,7 @@ const People = {
     for (const t of here) this.claimStep(t, now);
     const o = this.tracks.find(t => t.id === this.owner && t.seen === now);
     if (o) { this.gestures(o, now); this.mouth.push([now, o.face?.jaw ?? -1]); }
+    if (typeof Pointer !== 'undefined') Pointer.hand(o?.hands || [], now); // Point to click (Settings › Mode)
     this.mouth = this.mouth.filter(m => now - m[0] < 20000);
     // The avatar looks at the presenter, or the nearest face, or ahead.
     const look = o || here.filter(t => t.face).sort((a, b) => (b.face.box[2] - b.face.box[0]) - (a.face.box[2] - a.face.box[0]))[0];

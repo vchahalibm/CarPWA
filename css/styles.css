@@ -1122,6 +1122,15 @@ table.bench small{color:var(--text-2)}
 .mw-body{position:relative}
 .mw-frame{position:absolute;inset:0;width:1px;min-width:100%;height:1px;min-height:100%;border:0;background:#fff}
 .w-video .mw-frame{background:#000}
+/* Desktop app: a real browser in the web widget, with its own navigation bar */
+.mw-browser{position:absolute;inset:0;display:flex;flex-direction:column}
+.mw-nav{display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--panel, #1c1c1e);border-bottom:1px solid var(--line, rgba(255,255,255,.12))}
+.mw-nav .ctl{width:40px;height:40px;flex:none}
+.mw-addr{flex:1;min-width:0;height:36px;border-radius:10px;border:1px solid var(--line, rgba(255,255,255,.15));background:var(--bg, #000);color:var(--text, #fff);padding:0 12px;font:inherit;font-size:14px}
+.mw-browser webview.mw-frame{position:relative;inset:auto;flex:1;width:100%;height:auto;min-height:0}
+.editing .mw-browser webview{pointer-events:none}
+#handPtr{position:fixed;left:-18px;top:-18px;width:36px;height:36px;border-radius:50%;border:3px solid #35c8ff;background:rgba(53,200,255,.25);box-shadow:0 0 0 2px rgba(0,0,0,.35);z-index:9999;pointer-events:none;transition:transform .05s linear}
+#handPtr.click{background:#35c8ff;transform-origin:center}
 .mw-video{width:100%;height:100%;object-fit:contain;background:#000}
 .mw-pdf{display:block;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.35)}
 .w-doc .mw-body{background:var(--surface-2)}

@@ -306,7 +306,7 @@ const ScriptUI = {
       <div class="group">${WebDrive.recs().map(r => `<div class="row-wrap"><div class="row"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
           <div class="sui-btns"><button class="big-btn" data-sui="recplay:${esc(r.name)}">${svg('play')}Play</button><button class="big-btn" data-sui="recdel:${esc(r.name)}" aria-label="Delete ${esc(r.name)}">${svg('del')}</button></div></div></div>`).join('')}
         <button class="row btn" data-sui="recalone"><div class="main"><div class="t">● Record a sequence</div><div class="s">On the page in the web widget, as it is now</div></div></button></div>
-      ${window.DriveDeckDesktop?.browser ? WebDrive.helpersHtml() : ''}` : ''}`;
+      ${window.DriveDeckDesktop?.browser ? WebDrive.helpersHtml() + UiDetect.html() : ''}` : ''}`;
     $('#suiFile').addEventListener('change', e => this.upload(e.target.files[0]));
   },
   async upload(f) {

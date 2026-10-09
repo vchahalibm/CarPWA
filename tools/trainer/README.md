@@ -40,6 +40,12 @@ The server only listens on 127.0.0.1 and refuses changes asked for by other site
 resizes inside), and returns `boxes` (x0, y0, x1, y1 in the picture's pixels), `scores` and `labels` (1 = the first class
 in `model.json`), already filtered (non-maximum suppression inside). onnxruntime-web runs it in a browser worker.
 
+**In DriveDeck** (the Mac app): Settings › Scripts › Screen-element model › choose `model.onnx` (or `model.int8.onnx`)
+and `model.json`. When a recorded web step's element can't be found any more (renamed or moved), DriveDeck screenshots
+the web widget, finds a control of the same kind (button, link, input…) near where it was and about the same size, and
+clicks it. Keep the class names (`button`, `link`, `input`, `checkbox`, `select`, `tab`, `icon`, `image`) so it can tell
+what kind of control a step needs.
+
 ## Tips
 
 - 300–1000 labeled screenshots with a few thousand boxes give a useful screen-element detector; capture your pages at

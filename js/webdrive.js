@@ -84,7 +84,7 @@ const WebDrive = {
   },
   post(f, op, args) {
     return new Promise((res, rej) => {
-      const id = ++this.seq, t = setTimeout(() => { this.pending.delete(id); rej(new Error('This page didn’t answer. To record or replay clicks on a page from another site, add the DriveDeck bridge to it (see bridge/README.md).')); }, op === 'play' ? 12000 : 2500);
+      const id = ++this.seq, t = setTimeout(() => { this.pending.delete(id); rej(new Error('This page didn’t answer. To record or replay clicks on a page from another site, add the DriveDeck bridge to it (see bridge/README.md).')); }, ['play', 'prepare', 'verify'].includes(op) ? 12000 : 2500);
       this.pending.set(id, m => { clearTimeout(t); res(m); });
       if (this.guest(f)) return f.send('dd-drive', { id, op, args }).catch(e => { this.pending.delete(id); clearTimeout(t); rej(e); });
       let to = '*'; try { to = new URL(f.src, location.href).origin; } catch {}
@@ -125,7 +125,9 @@ const WebDrive = {
   /** A browser widget: find it, then click or type with real input events, as a person would (pages that ignore scripted
       clicks work too). Dropdowns are set directly; password, payment and code fields wait for you. */
   async real(f, c, step, quiet) {
-    const p = await c.call('prepare', step, { quiet }); if (!p.ok) return p;
+    const p = await c.call('prepare', step, { quiet });
+    if (!p.ok && step.t === 'click' && UiDetect.cfg()) return (await this.visual(f, c, step, quiet)) || p; // moved or renamed: look for it
+    if (!p.ok) return p;
     if (p.secret) return { ok: false, secret: true, rect: p.rect, error: 'This step is a password, payment or code field: type it yourself' };
     if (!quiet) await this.point(f, p.rect);
     const x = p.rect.x + p.rect.w / 2, y = p.rect.y + p.rect.h / 2;
@@ -144,11 +146,43 @@ const WebDrive = {
     f.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 }); await pause(50);
     f.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
   },
-  /** A real click that is checked: right after a page loads the first one can be lost, so it's sent again once. */
+  /** Visual fallback: the recorded element isn't there by its id, text or path any more. Look at the page with your
+      screen-element model (tools/trainer) for a control of the same kind (button, link, field…) near where it was, about
+      the same size, and click that. */
+  async visual(f, c, step, quiet) {
+    const t0 = performance.now(), L = step.loc, want = uiKind(L);
+    try {
+      const img = await f.capturePage(), bmp = await createImageBitmap(await (await fetch(img.toDataURL())).blob());
+      const { dets, ms } = await UiDetect.detect(bmp), names = UiDetect.cfg().classes || [];
+      const all = dets.filter(d => d.score >= 0.3).map(d => ({ ...d, name: names[d.c] || '?' })), same = all.filter(d => d.name === want);
+      const pick = (same.length ? same : all).map(d => {
+        const cx = (d.box[0] + d.box[2]) / 2, cy = (d.box[1] + d.box[3]) / 2, w = d.box[2] - d.box[0], h = d.box[3] - d.box[1];
+        return { ...d, cx, cy, cost: Math.hypot(cx - L.x, cy - L.y) + (L.w ? 0.5 * (Math.abs(w - L.w) + Math.abs(h - L.h)) : 0) };
+      }).filter(d => Math.hypot(d.cx - L.x, d.cy - L.y) < 0.35).sort((a, b) => a.cost - b.cost)[0];
+      Log[pick ? 'i' : 'w']('web', pick ? `Found by the screen-element model: a ${pick.name} (${Math.round(pick.score * 100)}%)` : 'The screen-element model found nothing like it nearby',
+        { want, found: all.length, ms, total: Math.round(performance.now() - t0) });
+      if (!pick) return null;
+      const R = f.getBoundingClientRect(), r = { x: pick.box[0] * R.width, y: pick.box[1] * R.height, w: (pick.box[2] - pick.box[0]) * R.width, h: (pick.box[3] - pick.box[1]) * R.height, vw: R.width, vh: R.height };
+      if (!quiet) await this.point(f, r);
+      if (!(await this.tap(f, c, r.x + r.w / 2, r.y + r.h / 2))) return null;
+      const v = await c.call('verify', step);
+      return { ...v, how: `screen model (${pick.name})`, rect: r };
+    } catch (e) { Log.w('web', 'Screen-element model failed', e); return null; }
+  },
+  /** A real click that is checked. Right after a page loads it can take the page a second to take input, and a click sent
+      before then is lost: so first move the mouse there until the page feels it (harmless), then click once. */
   async tap(f, c, x, y) {
+    const pause = ms => new Promise(r => setTimeout(r, ms)), seen = t => c.call('clicked', t).catch(() => ({}));
+    for (let i = 0; i < 25; i++) {
+      const t = Date.now(); if (document.activeElement !== f) f.focus();
+      f.sendInputEvent({ type: 'mouseMove', x: Math.round(x) + (i % 2), y: Math.round(y) }); await pause(40);
+      if ((await seen(t)).moved) break;
+      if (i === 24) Log.d('web', 'The page didn’t feel the mouse in 2 s: clicking anyway');
+      await pause(40);
+    }
     for (let i = 0; i < 2; i++) {
       const t = Date.now(); await this.input(f, x, y);
-      for (let k = 0; k < 4; k++) { await new Promise(r => setTimeout(r, 60)); if ((await c.call('clicked', t).catch(() => ({})))?.ok) return true; }
+      for (let k = 0; k < 6; k++) { await pause(60); if ((await seen(t)).ok) return true; }
       Log.d('web', 'A real click didn’t arrive', { try: i + 1 });
     }
     return false;
@@ -302,6 +336,84 @@ Actions.define('web.play', { group: 'Web pages', name: 'Play a recorded sequence
   await WebDrive.playAll(r.steps, { quiet: !!ev?.quiet }); } });
 Actions.define('web.click', { group: 'Web pages', name: 'Click something on the page', arg: 'Its text or data-testid', async run(v, say, ev) {
   await WebDrive.play({ t: 'click', loc: { testid: /^[\w-]+$/.test(v) ? v : '', text: v } }, { quiet: !!ev?.quiet }); } });
+/* ---------- The screen-element model: your detector from tools/trainer (ONNX: 'images' [3,H,W] 0..1 → boxes in pixels,
+   scores, labels with 1 = classes[0]), in its own worker, used when a recorded element can't be found (WebDrive.visual). */
+/** What kind of control a recorded element is, in the trainer's class names. */
+function uiKind(L = {}) {
+  const t = L.tag, r = L.role, ty = (L.type || '').toLowerCase();
+  if (t === 'a' || r === 'link') return 'link';
+  if (r === 'tab') return 'tab';
+  if (t === 'select' || r === 'option' || r === 'listbox') return 'select';
+  if (r === 'checkbox' || r === 'switch' || ['checkbox', 'radio'].includes(ty)) return 'checkbox';
+  if (t === 'textarea' || (t === 'input' && !['button', 'submit', 'reset', 'image'].includes(ty))) return 'input';
+  if (t === 'img') return 'image';
+  if (t === 'svg') return 'icon';
+  return 'button';
+}
+const UI_WORKER = `let ort, sess;
+self.onmessage = async ({ data: m }) => {
+  const send = x => self.postMessage({ ...x, id: m.id });
+  try {
+    if (m.type === 'load') {
+      ort = await import(m.ort); ort.env.wasm.numThreads = 1;
+      sess = await ort.InferenceSession.create(new Uint8Array(m.model), { executionProviders: ['wasm'] });
+      send({ type: 'loaded', inputs: sess.inputNames, outputs: sess.outputNames });
+    } else if (m.type === 'detect') {
+      const b = m.frame, k = Math.min(1, 1024 / Math.max(b.width, b.height)), W = Math.round(b.width * k), H = Math.round(b.height * k);
+      const c = new OffscreenCanvas(W, H), x = c.getContext('2d'); x.drawImage(b, 0, 0, W, H); b.close();
+      const px = x.getImageData(0, 0, W, H).data, n = W * H, d = new Float32Array(3 * n);
+      for (let i = 0; i < n; i++) { d[i] = px[i * 4] / 255; d[n + i] = px[i * 4 + 1] / 255; d[2 * n + i] = px[i * 4 + 2] / 255; }
+      const t = performance.now(), o = await sess.run({ [sess.inputNames[0]]: new ort.Tensor('float32', d, [3, H, W]) });
+      const bx = o.boxes.data, sc = o.scores.data, lb = o.labels.data, dets = [];
+      for (let i = 0; i < sc.length; i++) dets.push({ c: Number(lb[i]) - 1, score: sc[i], box: [bx[i * 4] / W, bx[i * 4 + 1] / H, bx[i * 4 + 2] / W, bx[i * 4 + 3] / H] });
+      send({ type: 'dets', dets, ms: Math.round(performance.now() - t) });
+    }
+  } catch (e) { send({ type: 'error', message: String((e && e.message) || e) }); }
+};`;
+const UiDetect = {
+  worker: null, loading: null, seq: 0,
+  cfg: () => store.get('uiModel', null),
+  async load() {
+    if (this.worker) return this.worker;
+    return this.loading ||= (async () => {
+      const C = this.cfg(); if (!C) throw new Error('No screen-element model chosen');
+      if (!Budget.room('uidet', 80, true)) throw new Error('Not enough memory for the screen-element model');
+      const blob = C.file ? await Files.get(C.file.key) : await (await fetch(C.url)).blob(); if (!blob) throw new Error('The model file is gone: choose it again');
+      const w = new Worker(URL.createObjectURL(new Blob([UI_WORKER], { type: 'text/javascript' })), { type: 'module' }), pending = new Map();
+      w.onmessage = ({ data: m }) => { const h = pending.get(m.id); pending.delete(m.id); h?.(m); };
+      w.call = (msg, transfer = []) => new Promise((ok, no) => { const id = ++this.seq; pending.set(id, m => m.type === 'error' ? no(new Error(m.message)) : ok(m)); w.postMessage({ ...msg, id }, transfer); });
+      const t = performance.now(), buf = await blob.arrayBuffer();
+      const r = await Budget.guard(`Screen-element model ${C.name}`, () => w.call({ type: 'load', ort: ORT_URL, model: buf }, [buf]));
+      Budget.add('uidet', `Screen-element model ${C.name}`, () => this.unload(), 80);
+      Log.i('web', `Screen-element model ready ${Math.round(performance.now() - t)} ms`, { name: C.name, classes: C.classes, inputs: r.inputs, outputs: r.outputs });
+      return (this.worker = w);
+    })().catch(e => { this.loading = null; throw e; });
+  },
+  async detect(bmp) { const w = await this.load(); const r = await w.call({ type: 'detect', frame: bmp }, [bmp]); return r; },
+  unload() { this.worker?.terminate(); this.worker = null; this.loading = null; Budget.loaded.delete('uidet'); },
+  html() {
+    const C = this.cfg();
+    return `<div class="group-title">Screen-element model</div>
+      <p class="cmd-help">When a recorded step's element can't be found any more (renamed, moved), a detector you trained with the DriveDeck Trainer (tools/trainer › Models › Export) looks at the page for a control of the same kind near where it was, and clicks it. Choose its <b>model.onnx</b> (or model.int8.onnx) and <b>model.json</b>.</p>
+      <div class="group"><div class="row"><div class="main"><div class="t">${C ? esc(C.name) : 'None'}</div><div class="s">${C ? esc((C.classes || []).join(', ')) : 'Without one, a step whose element is gone stops with a message'}</div></div></div>
+        <label class="row btn"><div class="main"><div class="t">Choose the model files…</div></div><input type="file" id="uiModelFiles" multiple accept=".onnx,.json,application/json" hidden></label>
+        ${C ? '<button class="row btn" data-uimodel="rm"><div class="main"><div class="t">Remove</div></div></button>' : ''}</div>`;
+  },
+  async choose(files) {
+    const onnx = [...files].find(f => /\.onnx$/i.test(f.name)), json = [...files].find(f => /\.json$/i.test(f.name));
+    if (!onnx) return toast('Choose the model’s .onnx file (and its model.json)');
+    let meta = {}; try { meta = json ? JSON.parse(await json.text()) : {}; } catch { return toast('model.json isn’t valid'); }
+    const classes = meta.classes || ['button', 'link', 'input', 'checkbox', 'select', 'tab', 'icon', 'image'];
+    const old = this.cfg(); if (old?.file) Files.del(old.file.key).catch(() => {});
+    const key = 'uimodel-' + Date.now().toString(36); await Files.put(key, onnx);
+    store.set('uiModel', { name: meta.name || onnx.name, classes, file: { key, name: onnx.name } }); this.unload();
+    Log.i('web', 'Screen-element model chosen', { name: meta.name || onnx.name, classes, mb: +(onnx.size / 1e6).toFixed(1) });
+    toast('Screen-element model ready'); ScriptUI.render();
+  },
+};
+document.addEventListener('change', e => { if (e.target.id === 'uiModelFiles') UiDetect.choose(e.target.files); });
+document.addEventListener('click', e => { if (e.target.closest('[data-uimodel="rm"]')) { const C = UiDetect.cfg(); if (C?.file) Files.del(C.file.key).catch(() => {}); store.set('uiModel', null); UiDetect.unload(); ScriptUI.render(); } });
+
 Actions.define('web.helper', { group: 'Web pages', name: 'Run a site helper', arg: 'Site helper name', run(v, say) {
   const h = WebDrive.helperList().find(x => plain(x.name) === plain(v)); if (!h) return say(`I don’t have a site helper called ${v}.`);
   const f = WebDrive.frame(); if (!WebDrive.guest(f)) return say('Site helpers run in the desktop app’s web widgets.');

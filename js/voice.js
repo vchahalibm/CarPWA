@@ -13,6 +13,8 @@ const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 // Replies: Kokoro (82M, q8) through kokoro-js, which bundles its own transformers.js. Same CDN + service-worker caching as Whisper.
 const KOKORO_URL = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
 const KOKORO_MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
+// ONNX Runtime Web, pinned, for your own models (the screen-element detector from tools/trainer, js/webdrive.js). Same CDN + caching.
+const ORT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.mjs';
 const TTS_VOICES = { af_heart: ['Heart · US, warm'], af_bella: ['Bella · US, bright'], am_michael: ['Michael · US, calm'], am_fenrir: ['Fenrir · US, deep'],
   bf_emma: ['Emma · British'], bm_george: ['George · British'] };
 // Records the microphone off the main thread, so nothing is lost while Whisper is busy.
@@ -161,7 +163,7 @@ const Budget = {
       detector last (Settings › Mode › Keep when memory is short can put people tracking first, on Stage). */
   prio(name) {
     if (name === 'people') return settings.stageKeep === 'people' ? 4 : 1;
-    return { kokoro: 3, 'convo-stt': 3, whisper: 3, avatar: 2, detector: 1 }[name] ?? 2;
+    return { kokoro: 3, 'convo-stt': 3, whisper: 3, avatar: 2, detector: 1, uidet: 1 }[name] ?? 2;
   },
   /** Room for `name` (needing `mb`)? `need`: true unloads models that matter less (lower priority, least recently used
       first); 'any' also ones that matter as much (Whisper taking turns with the reply voice on a phone); false (a preload)

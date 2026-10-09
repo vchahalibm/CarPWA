@@ -31,7 +31,8 @@
       const r = el.getBoundingClientRect();
       return { testid: el.getAttribute('data-testid') || '', id: el.id || '', css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '',
         text: clean(/^(input|textarea|select)$/i.test(el.tagName) ? label(el) : el.innerText || el.getAttribute('aria-label') || el.title || el.value || ''), name: el.getAttribute('name') || '',
-        x: +((r.left + r.width / 2) / win.innerWidth).toFixed(3), y: +((r.top + r.height / 2) / win.innerHeight).toFixed(3) };
+        x: +((r.left + r.width / 2) / win.innerWidth).toFixed(3), y: +((r.top + r.height / 2) / win.innerHeight).toFixed(3),
+        w: +(r.width / win.innerWidth).toFixed(3), h: +(r.height / win.innerHeight).toFixed(3), type: el.type || '' };
     };
     // A field is known by its label, not by what's typed in it.
     const label = el => el.getAttribute('aria-label') || el.placeholder || (el.id && doc.querySelector(`label[for="${win.CSS.escape(el.id)}"]`)?.innerText) || el.closest('label')?.innerText || el.title || '';
@@ -46,7 +47,8 @@
         if (e) return { el: e, how: 'text' };
       }
       if (L.name) { const e = q(`[name="${win.CSS.escape(L.name)}"]`); if (e) return { el: e, how: 'name' }; }
-      if (L.x != null) { const e = doc.elementFromPoint(L.x * win.innerWidth, L.y * win.innerHeight); if (e) return { el: e.closest(INTERACTIVE) || e, how: 'position' }; }
+      // Last: the same kind of control at the same place (never the page itself: better to stop than click the wrong thing).
+      if (L.x != null) { const e = doc.elementFromPoint(L.x * win.innerWidth, L.y * win.innerHeight)?.closest(INTERACTIVE); if (e && (!L.tag || e.tagName.toLowerCase() === L.tag)) return { el: e, how: 'position' }; }
       return null;
     };
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, vw: win.innerWidth, vh: win.innerHeight }; };
@@ -73,9 +75,11 @@
       const el = e.target; if (!/^(input|textarea|select)$/i.test(el.tagName) || /^(checkbox|radio|button|submit|reset)$/i.test(el.type || '')) return;
       step({ t: 'type', loc: locate(el), value: secret(el) ? '' : el.value, secret: secret(el) }, el); // passwords, card numbers and codes are never recorded
     };
-    let clickedAt = 0; const onAny = e => { if (e.isTrusted) clickedAt = Date.now(); }; // did a real click arrive (desktop replays check)
+    // Did real input arrive (desktop replays check before and after clicking)
+    let clickedAt = 0, movedAt = 0; const onAny = e => { if (e.isTrusted) clickedAt = Date.now(); }, onMove = e => { if (e.isTrusted) movedAt = Date.now(); };
     doc.addEventListener('click', onClick, true);
     doc.addEventListener('click', onAny, true);
+    doc.addEventListener('mousemove', onMove, true);
     doc.addEventListener('change', onChange, true);
 
     const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -96,7 +100,7 @@
         return { ok: true, how: f.how, rect: rect(el), tag: el.tagName.toLowerCase(), secret: s.t === 'type' && (s.secret || secret(el)) };
       },
       /** Whether a real click reached the page since `t` (Date.now() of the sender's clock, same machine). */
-      clicked(t) { return { ok: clickedAt >= t }; },
+      clicked(t) { return { ok: clickedAt >= t, moved: movedAt >= t }; },
       /** After a step: wait for what should change (a new address or #tab). */
       async verify(s) {
         if (s.expect) for (let i = 0; i < 20 && here() !== s.expect; i++) await wait(150);
@@ -120,7 +124,7 @@
         if (s.expect) for (let i = 0; i < 20 && here() !== s.expect; i++) await wait(150);
         return { ok: !s.expect || here() === s.expect, how: f.how, rect: r, url: here(), error: s.expect && here() !== s.expect ? `Expected the page to show ${s.expect}` : '' };
       },
-      stop() { rec = false; doc.removeEventListener('click', onClick, true); doc.removeEventListener('click', onAny, true); doc.removeEventListener('change', onChange, true); },
+      stop() { rec = false; doc.removeEventListener('click', onClick, true); doc.removeEventListener('click', onAny, true); doc.removeEventListener('mousemove', onMove, true); doc.removeEventListener('change', onChange, true); },
     };
   }
 

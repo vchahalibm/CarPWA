@@ -30,7 +30,7 @@ A PWA can't be a background service: a service worker only wakes briefly for eve
 2. ✅ **The phone's own recognizer is the default in the car** (also in conversations: Automatic uses it in Drive mode, the on-device models on Stage); on-device listening is the offline fallback. That leaves memory for the natural voice and the detector.
 3. ✅ **Clear spoken results**: short fixed wording for each action, an optional soft tone when a command runs.
 
-## Phase B: Stage desktop shell (Electron)
+## Phase B: Stage desktop shell (Electron) ✅
 
 1. ✅ **Menu-bar app**: starts at login, lives in the menu bar, opens the Stage window; **Present on** a screen puts DriveDeck full screen on the wall with the **presenter view** (`presenter.html`: the step, the line, speaker notes, what's next, timer, controls, live preview) on this screen. The presenter view also works in a browser.
 2. ✅ **Full browser widgets** (desktop app only): a web widget is a real embedded Chromium view, not an iframe. Any site, persistent logins, back / forward / address bar. The PWA keeps the iframe widget.
@@ -38,7 +38,7 @@ A PWA can't be a background service: a service worker only wakes briefly for eve
 4. ✅ **Record and replay any site in a browser widget.** The user records clicks, typing, scrolling and navigation, and they become steps in a Stage script. A helper script is injected into browser widgets (in an isolated world, so the page can't see or touch it) to record precise targets and replay them, with real input events at the element's position as the fallback. Users can add **site helpers**: a script for chosen sites or URL patterns (for example dismiss a cookie banner, or expose a page's state) that runs when those pages load.
    - Guardrails: only in the desktop app's browser widgets; a visible “Recording” badge; password, payment and one-time-code fields are never recorded (their steps say “type your password here” and wait); recordings and site helpers stay on the device; no proxy.
    - The PWA keeps today's rule for iframes: same-origin pages directly, other pages only through `bridge/drivedeck-bridge.js`.
-5. **Visual click fallback**: when a recorded target has moved, screenshot the widget, find the control with a detector trained in `tools/trainer`, click it.
+5. ✅ **Visual click fallback**: when a recorded target has moved, screenshot the widget, find the control with a detector trained in `tools/trainer`, click it.
 
 ## Phase C: Models on the Mac
 

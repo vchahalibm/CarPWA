@@ -60,6 +60,7 @@ vendor/models/            Built-in 3D models (CC0): Vita and Ren (VRM) and the r
 vendor/fonts/             Inter variable font (OFL), used where the system font isn't SF
 docs/prototype.html       Original single-file prototype
 docs/memory-strategy.md   How on-device models share a phone's memory
+docs/roadmap.md           What comes next, in order
 tools/trainer/            DriveDeck Trainer: a local HTML + Python tool to label, capture and train your own detector (ONNX)
 desktop/                  Electron wrapper: the same web files as a Mac app (DMG)
 .github/workflows/ci.yml  Checks on every push/PR (syntax, manifest, precache list)

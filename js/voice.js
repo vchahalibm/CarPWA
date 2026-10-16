@@ -857,8 +857,9 @@ function wavBlob(f32, rate) {
   for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
   return new Blob([b], { type: 'audio/wav' });
 }
+const NativeFileReader = window.FileReader; // kept from before any vendor library can replace the global (PptxViewJS does)
 function wavDataUrl(f32, rate) {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(wavBlob(f32, rate)); });
+  return new Promise((res, rej) => { const r = new NativeFileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(wavBlob(f32, rate)); });
 }
 let silenceUrl;
 const SILENCE = () => (silenceUrl ||= URL.createObjectURL(wavBlob(new Float32Array(1200), 24000)));

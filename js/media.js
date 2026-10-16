@@ -138,7 +138,17 @@ const Media = {
     return (this.pptxLoad ||= (async () => {
       if (!window.JSZip) await add('jszip.min.js');
       if (!window.Chart) await add('chart.umd.min.js');
-      if (!window.PptxViewJS) await add('PptxViewJS.min.js');
+      if (!window.PptxViewJS) {
+        // PptxViewJS replaces window.FileReader with its own helper class, which breaks every `new FileReader()` after it
+        // (the reply voice's audio among them, and the library's own reads): put the browser's back, keeping its helpers.
+        const Native = window.FileReader;
+        await add('PptxViewJS.min.js');
+        const Lib = window.FileReader;
+        if (Lib !== Native) {
+          for (const k of Object.getOwnPropertyNames(Lib)) if (!(k in Native)) try { Native[k] = Lib[k]; } catch {}
+          window.FileReader = Native; Log.d('media', 'PptxViewJS replaced FileReader: the browser’s restored');
+        }
+      }
       return window.PptxViewJS;
     })().catch(e => { this.pptxLoad = null; throw e; }));
   },

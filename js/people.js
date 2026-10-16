@@ -76,7 +76,8 @@ self.onmessage = async ({ data: m }) => {
       out.faces = (fc.faceLandmarks || []).map((lm, i) => {
         let x0 = 1, y0 = 1, x1 = 0, y1 = 0; for (const q of lm) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
         const bs = Object.fromEntries((fc.faceBlendshapes?.[i]?.categories || []).map(c => [c.categoryName, c.score]));
-        return { box: [x0, y0, x1, y1], lm: lm.map(q => [q.x, q.y]), jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
+        const all = {}; for (const [k, v] of Object.entries(bs)) if (v > 0.03 && k !== '_neutral') all[k] = Math.round(v * 100) / 100;
+        return { box: [x0, y0, x1, y1], lm: lm.map(q => [q.x, q.y]), bs: all, jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
       });
       out.ms = Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, Math.round(v)]));
       send({ type: 'result', id: m.id, out });
@@ -254,7 +255,7 @@ const People = {
 
   /* ---------- The Camera widget on Stage: what the models see, live ---------- */
   paint() {
-    $$('#dashRoot .camw').forEach(el => {
+    $$('#dashRoot .camw, .mo-camw').forEach(el => {
       const cv = $('canvas.ppl', el), blur = $('.ppl-blur', el), v = $('video', el); if (!cv) return;
       if (this.running && this.video?.srcObject && v && !v.srcObject) Vision.attach();
       const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
@@ -262,7 +263,7 @@ const People = {
       const x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); if (blur) blur.innerHTML = '';
       el.classList.toggle('people', this.running);
       const L = this.last; if (!this.running || !L) return;
-      const s = Math.max(cv.width / L.w, cv.height / L.h), ox = (cv.width - L.w * s) / 2, oy = (cv.height - L.h * s) / 2, flip = Camera.mirrored;
+      const s = (el.dataset.fit === 'contain' ? Math.min : Math.max)(cv.width / L.w, cv.height / L.h), ox = (cv.width - L.w * s) / 2, oy = (cv.height - L.h * s) / 2, flip = Camera.mirrored;
       const X = v => ox + (flip ? 1 - v : v) * L.w * s, Y = v => oy + v * L.h * s;
       const now = performance.now(), seq = (CLAIM_SEQS[settings.claimSeq] || CLAIM_SEQS['Open_Palm>Closed_Fist'])[0];
       x.lineCap = 'round'; x.font = `700 ${15 * dpr}px system-ui,sans-serif`; x.textBaseline = 'bottom';

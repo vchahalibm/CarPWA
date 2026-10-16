@@ -498,12 +498,13 @@ const ScriptUI = {
     const scripts = `<div class="chip-row">
         <button class="chip accent" data-sui="new">${svg('plus')}New script</button>
         ${typeof AppSteps !== 'undefined' ? `<button class="chip" data-sui="recscript"><i class="rec-dot"></i>Record a new script</button>` : ''}
-        <button class="chip" data-sui="upload">${svg('upload')}Upload</button><button class="chip" data-sui="template">${svg('download')}Template</button>
+        <button class="chip" data-sui="upload">${svg('upload')}Import</button><button class="chip" data-sui="library">📦 Library</button>
+        <button class="chip" data-sui="exportall">${svg('download')}Export all</button>
         <button class="chip" data-sui="help">How to write one</button><input type="file" id="suiFile" accept=".json,application/json" hidden></div>
       <div class="sui-list">${Scripts.all().map(s => `<div class="sui-item"><div class="main"><div class="t">${esc(s.name)}${s.sample ? ' <span class="tag">sample</span>' : ''}</div>
           <div class="s">${(s.json.beats || []).length} step${(s.json.beats || []).length === 1 ? '' : 's'}${s.json.about ? ' · ' + esc(s.json.about) : ''}</div></div>
           <div class="sui-actions"><button class="mini-btn accent" data-sui="run:${esc(s.id)}">${svg('play')}Run</button><button class="mini-btn" data-sui="edit:${esc(s.id)}">${s.sample ? 'Copy' : 'Edit'}</button>
-          ${ic('download', `Download ${s.name}`, `data-sui="dl:${esc(s.id)}"`)}${s.sample ? '' : ic('del', `Delete ${s.name}`, `data-sui="del:${esc(s.id)}"`)}</div></div>`).join('')}</div>`;
+          ${ic('download', `Export ${s.name} (with what it uses)`, `data-sui="dl:${esc(s.id)}"`)}${s.sample ? '' : ic('del', `Delete ${s.name}`, `data-sui="del:${esc(s.id)}"`)}</div></div>`).join('')}</div>`;
     const motions = typeof Mocap !== 'undefined' ? MotionUI.html() : '';
     const recs = typeof WebDrive !== 'undefined' ? `<p class="sui-note">Older, page-only recordings: clicks and typing on the page in a web widget, played by “Play a recorded sequence”. <b>Record a new script</b> above records the same and everything else in ${APP_NAME}, and its steps can also find things by text, a screen area or a description.</p>
       <div class="sui-list">${WebDrive.recs().map(r => `<div class="sui-item"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
@@ -524,6 +525,7 @@ const ScriptUI = {
   async upload(f) {
     if (!f) return;
     let json; try { json = JSON.parse(await f.text()); } catch (e) { return sheet('Not a script', `<p>${esc(f.name)} isn’t valid JSON: ${esc(e.message)}</p>`, [['OK']]); }
+    if (json?.format === BUNDLE_FORMAT) return Bundles.offer(json, f.name); // a bundle: scripts with their motions, helpers, recordings
     const chk = scriptCheck(json);
     if (chk.errors.length) return sheet('This script has problems', this.problemsHtml(chk), [['OK']]);
     const s = Scripts.add(json); Log.i('script', 'Script uploaded', { name: s.name, beats: chk.script.beats.length, warnings: chk.warnings.length });
@@ -543,7 +545,9 @@ const ScriptUI = {
     if (a === 'new') return this.edit(null, JSON.parse(JSON.stringify({ ...SAMPLE_SCRIPT, name: 'My script' })));
     if (a === 'run') { const s = Scripts.get(id); if (s) { this.close(); openView('dashboard'); Script.start(s.json); } return; }
     if (a === 'edit') { const s = Scripts.get(id); return this.edit(s.sample ? null : id, JSON.parse(JSON.stringify(s.sample ? { ...s.json, name: s.json.name + ' (copy)' } : s.json))); }
-    if (a === 'dl') return Scripts.download(Scripts.get(id).json);
+    if (a === 'dl') return Bundles.export([Scripts.get(id)]);
+    if (a === 'exportall') return Bundles.export(Scripts.mine(), { all: true });
+    if (a === 'library') return Bundles.library();
     if (a === 'recalone') { this.shown = false; return WebDrive.recordAlone(); }
     if (a === 'recplay') { const r = WebDrive.recs().find(x => x.name === id); if (r) { this.shown = false; openView('dashboard'); setTimeout(() => WebDrive.playAll(r.steps), 400); } return; }
     if (a === 'recdel') return sheet('Delete this recording?', `<p>${esc(id)}</p>`, [['Delete', () => { WebDrive.delRec(id); this.render(); }], ['Cancel']]);
@@ -619,79 +623,8 @@ const ScriptUI = {
     const last = keys.at(-1);
     o[last] = /\.(on)$/.test(path) || last === 'on' ? asList(val) : last === 'after' ? (+val || 0) : last === 'key' ? !!val : val;
   },
-  renderEditor() {
-    const d = this.draft, acts = Object.entries(Actions.list), ids = d.beats.map(b => b.id);
-    const groups = {}; acts.forEach(([id, a]) => (groups[a.group || 'Other'] ||= []).push([id, a]));
-    const actSel = (path, v) => `<select data-sf="${path}">${Object.entries(groups).map(([g, l]) => `<optgroup label="${esc(g)}">${l.map(([id, a]) => `<option value="${esc(id)}" ${id === v ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</optgroup>`).join('')}
-      ${v && !Actions.list[v] ? `<option value="${esc(v)}" selected>${esc(v)} (not available here)</option>` : ''}</select>`;
-    const sel = (path, v, opts, none = '—') => `<select data-sf="${path}"><option value="">${none}</option>${opts.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-    const inp = (path, v, ph = '') => `<input data-sf="${path}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off">`;
-    const desc = x => x.do === 'web.step' && typeof WebDrive !== 'undefined' ? `<div class="sui-desc">${esc(WebDrive.describe(stepOf(x.value)))}</div>` : '';
-    const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
-    const motionSel = (path, v, none) => { const g = {}; for (const [k, m] of Object.entries(MOTIONS)) if (!k.startsWith('__')) (g[m.group || 'Other'] ||= []).push([k, m.name]);
-      return `<select data-sf="${path}">${none ? '<option value="">—</option>' : ''}${Object.entries(g).map(([n, l]) => `<optgroup label="${esc(n)}">${l.map(([k, nm]) => opt(k, motionName(v) || v, nm)).join('')}</optgroup>`).join('')}</select>`; };
-    const pointSel = (path, v) => `<select data-sf="${path}">${[...widgetIds().map(i => [i, `${Wcfg.get(i).title || W[wtype(i)].name} (${i})`]), ['doc', 'The document'], ['web', 'The web page'], ['left', 'Left of the screen'], ['right', 'Right of the screen'], ['up', 'Up'], ['down', 'Down']].map(([k, l]) => opt(k, v, l)).join('')}</select>`;
-    /** A recorded or made app step (click, type, key, scroll…), its target found by the recorded element, text on screen or a captured area. */
-    const appRow = (x, path) => {
-      const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, mode = L.match?.img ? 'area' : L.match?.ai != null ? 'ai' : L.match?.det ? 'det' : L.match ? 'text' : 'el', f = `data-asf="${path}"`;
-      if (st.t === 'wait' || st.t === 'web') return `<span class="sui-tag">${st.t === 'web' ? 'Web page' : 'Wait'}</span><div class="sui-desc grow">${esc(AppSteps.describe(st))}</div>`;
-      const recorded = !!(L.tag || L.path || Object.keys(L.data || {}).length);
-      return `<span class="sui-tag">App</span>
-        <select ${f} data-k="t">${[['click', 'Click'], ['type', 'Type'], ['select', 'Choose'], ['key', 'Press a key'], ['scroll', 'Scroll'], ...(st.t === 'drag' ? [['drag', 'Drag']] : [])].map(([k, l]) => opt(k, st.t, l)).join('')}</select>
-        <select ${f} data-k="find">${[...(recorded ? [['el', `The recorded element (${AppSteps.describe({ t: st.t, loc: { ...L, match: null } }).replace(/^\S+ /, '')})`]] : []), ['text', 'Text on screen'], ['area', 'An area of the screen'], ['ai', 'Described (screen model)'], ...(UiDetect.cfg() ? [['det', 'An element of a kind (your detector)']] : [])].map(([k, l]) => opt(k, mode, l)).join('')}</select>
-        ${mode === 'det' ? `<select ${f} data-k="det">${(UiDetect.cfg()?.classes || []).map(c => opt(c, L.match.det)).join('')}</select><button class="link-btn" data-sui="picktext:${path}">Pick where</button>` : ''}
-        ${mode === 'ai' ? `<input ${f} data-k="ai" value="${esc(L.match.ai || '')}" placeholder="What it is, e.g. the Search Flight button">` : ''}
-        ${mode === 'text' ? `<input ${f} data-k="text" value="${esc(L.match.text || '')}" placeholder="The text to find"><button class="link-btn" data-sui="picktext:${path}">Pick on screen</button>` : ''}
-        ${mode === 'area' ? `<img class="sui-thumb" src="${esc(L.match.img)}" alt="The captured area"><button class="link-btn" data-sui="pickarea:${path}">Capture again</button>` : ''}
-        ${st.t === 'type' || st.t === 'select' ? `<input ${f} data-k="value" value="${esc(st.value ?? '')}" placeholder="${st.t === 'type' ? 'Text to type' : 'Option'}">` : ''}
-        ${st.t === 'key' ? `<select ${f} data-k="key">${['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Backspace'].map(k => opt(k, st.key, k === ' ' ? 'Space' : k)).join('')}</select>` : ''}
-        ${st.t === 'scroll' && (st.amount || st.top == null) ? `<select ${f} data-k="amount">${[['down', 'Down a screenful'], ['up', 'Up a screenful'], ['top', 'To the top'], ['bottom', 'To the bottom']].map(([k, l]) => opt(k, st.amount, l)).join('')}</select>` : ''}`;
-    };
-    const steps = (list, base, kind, n) => (list || []).map((x, k, all) => {
-      const path = `${base}.${k}`, ctl = `<div class="sui-btns"><button class="big-btn" data-sui="try1:${path}" aria-label="Try it">${svg('play')}</button>
-        <button class="big-btn" data-sui="mvup:${path}" aria-label="Move up" ${k ? '' : 'disabled'}>↑</button><button class="big-btn" data-sui="mvdn:${path}" aria-label="Move down" ${k < all.length - 1 ? '' : 'disabled'}>↓</button>
-        <button class="big-btn" data-sui="rmdo:${kind}.${n}.${k}" aria-label="Remove">${svg('close')}</button></div>`;
-      if (x.say != null && !x.do) return `<div class="sui-do sui-say"><span class="sui-tag">Say</span><textarea data-sf="${path}.say" rows="2" placeholder="What the assistant says ({notes} = the slide’s notes)">${esc(x.say)}</textarea>${ctl}</div>`;
-      if (x.do === 'avatar.gesture') return `<div class="sui-do"><span class="sui-tag">Assistant</span>${motionSel(`${path}.value`, x.value)}${ctl}</div>`;
-      if (x.do === 'avatar.pointAt') return `<div class="sui-do"><span class="sui-tag">Point at</span>${pointSel(`${path}.value`, x.value)}${ctl}</div>`;
-      if (x.do === 'wait') return `<div class="sui-do"><span class="sui-tag">Wait</span>${inp(`${path}.value`, x.value, 'Seconds')}${ctl}</div>`;
-      if (x.do === 'app.step' && typeof AppSteps !== 'undefined') return `<div class="sui-do sui-app">${appRow(x, path)}${ctl}</div>`;
-      return `<div class="sui-do">${actSel(`${path}.do`, x.do)}${inp(`${path}.value`, x.value, Actions.list[x.do]?.arg || 'value')}${ctl}</div>${desc(x)}`;
-    }).join('');
-    const adds = where => `<div class="sui-adds"><button class="link-btn" data-sui="add:say@${where}">＋ Say</button><button class="link-btn" data-sui="add:motion@${where}">＋ Assistant motion</button>
-      <button class="link-btn" data-sui="add:point@${where}">＋ Point at</button>${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="add:clicktext@${where}">＋ Click text on screen</button>
-      <button class="link-btn" data-sui="add:clickarea@${where}">＋ Click a screen area</button><button class="link-btn" data-sui="add:type@${where}">＋ Type</button><button class="link-btn" data-sui="add:scroll@${where}">＋ Scroll</button>` : ''}
-      <button class="link-btn" data-sui="add:wait@${where}">＋ Wait</button><button class="link-btn" data-sui="add:action@${where}">＋ Any action</button></div>`;
-    $('#settingsBody').innerHTML = `
-      <button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Scripts</div></div></button>
-      <div class="sui-bar"><button class="big-btn accent" data-sui="save">Save</button><button class="big-btn" data-sui="try:0">${svg('play')}Run</button>
-        <button class="big-btn" data-sui="check">Check</button><button class="big-btn" data-sui="json">JSON</button><button class="big-btn" data-sui="help">Help</button></div>
-      <div class="group sui-head"><label class="fld"><span>Name</span>${inp('name', d.name)}</label><label class="fld"><span>About</span>${inp('about', d.about, 'What it presents')}</label></div>
-      <div class="group-title">Before the first step</div>
-      <div class="group sui-card">${steps(d.setup, 'setup', 'setup', 0)}${adds('setup')}</div>
-      ${d.beats.map((b, n) => `<div class="group-title">Step ${n + 1}</div>
-      <div class="group sui-card" data-beat="${n}">
-        <div class="sui-row"><label class="fld"><span>Id</span>${inp(`beats.${n}.id`, b.id)}</label><label class="fld grow"><span>Title</span>${inp(`beats.${n}.title`, b.title)}</label>
-          <div class="sui-btns"><button class="big-btn" data-sui="try:${n}" aria-label="Run from here">${svg('play')}</button><button class="big-btn" data-sui="up:b.${n}" aria-label="Move up" ${n ? '' : 'disabled'}>↑</button>
-          <button class="big-btn" data-sui="down:b.${n}" aria-label="Move down" ${n < d.beats.length - 1 ? '' : 'disabled'}>↓</button><button class="big-btn" data-sui="rmbeat:b.${n}" aria-label="Delete step">${svg('del')}</button></div></div>
-        <div class="sui-sub">Do, in order</div>${steps(b.do, `beats.${n}.do`, 'b', n)}${adds(n)}${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="recapp:b.${n}">● Record app steps</button>` : ''}
-        <label class="fld"><span>The assistant says <small>{notes} = the slide’s speaker notes</small></span><textarea data-sf="beats.${n}.say" rows="3">${esc(b.say || '')}</textarea></label>
-        <div class="sui-row"><label class="fld"><span>Expression</span>${sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS)}</label><label class="fld"><span>Motion as it speaks</span>${motionSel(`beats.${n}.gesture`, b.gesture, true)}</label></div>
-        <div class="sui-sub">Next step when</div>
-        <div class="sui-row"><label class="fld grow"><span>You say (comma-separated)</span>${inp(`beats.${n}.next.on`, asList(b.next?.on).join(', '), 'next, continue')}</label>
-          <label class="fld"><span>Hand gesture</span>${sel(`beats.${n}.next.gesture`, b.next?.gesture, SCRIPT_HAND)}</label></div>
-        <div class="sui-row"><label class="fld"><span>After (seconds, 0 = wait)</span>${inp(`beats.${n}.next.after`, b.next?.after || 0)}</label>
-          <label class="fld"><span>Or this happens</span>${sel(`beats.${n}.next.event`, b.next?.event, Object.keys(Bus.EVENTS).filter(e => !e.startsWith('script.')))}</label>
-          <label class="fld"><span>Then go to</span>${sel(`beats.${n}.next.goto`, b.next?.goto, ids, 'the next step')}</label>
-          <label class="fld chk"><input type="checkbox" data-sf="beats.${n}.next.key" ${b.next?.key === false ? '' : 'checked'}><span>Clicker / → also moves on</span></label></div>
-        <div class="sui-sub">Branches</div>
-        ${(b.branches || []).map((r, k) => `<div class="sui-row"><label class="fld grow"><span>If you say</span>${inp(`beats.${n}.branches.${k}.on`, asList(r.on).join(', '), 'show me the live data')}</label>
-          <label class="fld"><span>or gesture</span>${sel(`beats.${n}.branches.${k}.gesture`, r.gesture, SCRIPT_HAND)}</label><label class="fld"><span>go to</span>${sel(`beats.${n}.branches.${k}.goto`, r.goto, ids)}</label>
-          <button class="big-btn" data-sui="rmbr:b.${n}.${k}" aria-label="Remove branch">${svg('close')}</button></div>`).join('')}
-        <button class="link-btn" data-sui="addbr:b.${n}">＋ Add a branch</button>
-      </div>`).join('')}
-      <div class="group"><button class="row btn" data-sui="addbeat"><div class="main"><div class="t">＋ Add a step</div></div></button></div>`;
-  },
+  /** The editor: storyboard cards on a timeline, with a picker and a wizard (js/scriptedit.js). */
+  renderEditor() { return StepEditor.render(this); },
   helpHtml() {
     return `<button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Scripts</div></div></button>
       <div class="group-title">Writing a script</div>

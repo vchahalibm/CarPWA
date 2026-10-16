@@ -1,0 +1,8 @@
+{
+  "name": "DriveGen / StudioGen library",
+  "about": "Scripts to import (Settings › Scripts › Library). To add yours: export a bundle and add it here, listed below.",
+  "bundles": [
+    { "name": "IndiGo live booking demo", "about": "A live site driven end to end: site helper, recorded clicks, text, a screen picture, the screen model (desktop app)", "url": "indigo-live-booking-demo.studiogen.json", "author": "StudioGen" },
+    { "name": "Tech demo with slides", "about": "The avatar presents a deck beside a live web page, and answers “next”, “go back” and “show me the live data”", "url": "tech-demo.studiogen.json", "author": "StudioGen" }
+  ]
+}

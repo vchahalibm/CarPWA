@@ -1,0 +1,221 @@
+{
+ "format": "drivegen-bundle",
+ "version": 1,
+ "app": "StudioGen",
+ "created": "2026-10-16T15:58:02.367Z",
+ "name": "IndiGo live booking demo",
+ "scripts": [
+  {
+   "name": "IndiGo live booking demo",
+   "json": {
+    "name": "IndiGo live booking demo",
+    "about": "A complex sample on a live site (goindigo.in, desktop app): a site helper, recorded steps, text, a screen picture and the screen model, with the assistant speaking and moving.",
+    "setup": [
+     {
+      "do": "mode.set",
+      "value": "stage"
+     },
+     {
+      "do": "stage.widgets",
+      "value": "main=web~stage; side=model~stage"
+     },
+     {
+      "do": "web.open",
+      "value": "https://www.goindigo.in/"
+     },
+     {
+      "do": "wait",
+      "value": "6"
+     }
+    ],
+    "beats": [
+     {
+      "id": "welcome",
+      "title": "Welcome",
+      "say": "Hello everyone! Today I will book a flight on a live website, IndiGo, all by myself.",
+      "mood": "Happy",
+      "gesture": "Welcome",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 1
+      }
+     },
+     {
+      "id": "helper",
+      "title": "Tidy the page (site helper)",
+      "do": [
+       {
+        "do": "web.helper",
+        "value": "IndiGo: ready for the demo"
+       },
+       {
+        "do": "wait",
+        "value": "3"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"optional\":true,\"loc\":{\"match\":{\"text\":\"Accept Essential Only\"},\"wx\":0.35,\"wy\":0.9}}"
+       }
+      ],
+      "say": "First, a site helper tidies the page for us: essential cookies only, pop-ups closed, and the booking box in view.",
+      "gesture": "PresentLeft",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 1
+      }
+     },
+     {
+      "id": "recorded",
+      "title": "Recorded clicks",
+      "do": [
+       {
+        "say": "These two clicks were recorded: round trip, and back to one way."
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"web\",\"wid\":\"web~stage\",\"step\":{\"t\":\"click\",\"loc\":{\"testid\":\"\",\"id\":\"\",\"css\":\"div:nth-of-type(1) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > label:nth-of-type(2)\",\"tag\":\"label\",\"role\":\"\",\"text\":\"Round Trip\",\"name\":\"\",\"x\":0.279,\"y\":0.653,\"w\":0.11,\"h\":0.057,\"type\":\"\"},\"at\":\"\"}}"
+       },
+       {
+        "do": "wait",
+        "value": "1.7"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"web\",\"wid\":\"web~stage\",\"step\":{\"t\":\"click\",\"loc\":{\"testid\":\"\",\"id\":\"\",\"css\":\"div:nth-of-type(1) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > label:nth-of-type(1)\",\"tag\":\"label\",\"role\":\"\",\"text\":\"One Way\",\"name\":\"\",\"x\":0.133,\"y\":0.653,\"w\":0.099,\"h\":0.057,\"type\":\"\"},\"at\":\"\"}}"
+       }
+      ],
+      "gesture": "PointLeft",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 1
+      }
+     },
+     {
+      "id": "where",
+      "title": "Destination (text on screen)",
+      "do": [
+       {
+        "say": "Now I find the To field by its text, type Bengaluru, and pick the airport from the list."
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"text\":\"Going to?\"},\"wx\":0.4,\"wy\":0.6}}"
+       },
+       {
+        "do": "wait",
+        "value": "1.2"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"type\",\"value\":\"Bengaluru\",\"loc\":{\"match\":{\"text\":\"Start typing\"},\"wx\":0.4,\"wy\":0.3}}"
+       },
+       {
+        "do": "wait",
+        "value": "2"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"text\":\"Kempegowda\"},\"wx\":0.4,\"wy\":0.45}}"
+       },
+       {
+        "do": "wait",
+        "value": "1"
+       }
+      ],
+      "gesture": "Explain",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 1
+      }
+     },
+     {
+      "id": "swap",
+      "title": "Swap (a picture of the screen)",
+      "do": [
+       {
+        "say": "This little swap icon has no text, so I find it by its picture. Delhi and Bengaluru trade places,"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"img\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABICAYAAABhlHJbAAAEDklEQVR4AezcyyttcRQH8O8hIY+RicfASBiQiUcxUUSKIzIxkAklIqKQMPFmLDMxRCnEAH+ByCNl4DnyZuD9uNf61Rnczc3dZ92zf3tnqXW0z7bOPr/PWXv/1m+f4vdLflgCfpAfloAAsvgAARRApgAzXSpQAJkCzHSpQAFkCjDTpQIFkCnATJcKFEDTAv81QSqQySmAAsgUYKZLBQogU4CZLhUogEwBZrpUoAAyBZjptqnAj6/G8PT0hOvra+aQrE23BSDhXV5eYmpqChMTE7i9vbVWgXE07YCEd35+ruBaWlowPj4ugP/6gXrwJicnMTQ0hMDAQJSVlSEyMtLwEvbd1FaBHjw6ZT14VVVVqK2tRUBAgH3FDO9MCyDhnZ2dqdN2cHAQj4+PyM/Ph9vtxtXVFU5OTkzH6ekp3t/fDcPz/aYWwPv7eywtLWFgYAAESRX3/PyM0dFRDA8Pm46RkRGMjY1he3vb92KGI2gBpIrb3d3FxcUFqBpp1l1cXMTMzIxXMT09jdnZWezs7BiG5/tNLYChoaHIy8tDRkYG/P39ERISgpycHDQ2NnoVTU1NqKurQ1ZWlu/FDEfQAkizbVpaGjo7O5Geno6Xlxd1HczOzkZDQ4PpqK+vR0VFBWJiYgzD8/2mFkAaVlBQkKoYQkxKSsLc3Bz6+vqwublJux0T2gBJ6CtEmhBubm5otyNCKyAJeRC7urrU6UztCE0qtO+reHt7AwHT76/2W/2cdkAasAeRekJqpKOioujpT0FoBwcHqmVZXl4GtT6f/sjiJ2wBSGOmiSU5ORkFBQV/XYkQ4P7+Pvr7+9HW1qZ6Sd2ItgEkxO+CGu6EhAQUFRWBKrG7u1s7ou8Av9PwYr/L5UJ0dDTa29tRWFhoC0QtgLT6eHh4wNHREQ4PD03F8fGxoi8vL0dKSopavumsRC2AhLe6uqrWvDRxmA1qdejma3BwMF5fX1Xv2NPTg42NDYVr5YMWQFoLr62tYX5+HgsLC14F3YxYX19XVrSSocrc29tT21Y+aAEMCwtDSUkJ6A50c3MzvAlqd1JTU9VaOjw8HLm5ucjMzLTSTh1LCyDNpomJiaiurkZNTY3pqKysRHx8vLoVRj1kcXExWltbERsbqwZl5YMWQM4A6fq5srKC3t5ebG1tgfCoJ4yLi+O8rNe5jgKkRpquc3bBI3XHAdLXn3d3dygtLVWrEV2VR3gUjgKkayfd+qJbYB0dHdCN5zhAl8uFiIgIuD++fNIxYRCYMRxVgcY3b4dtAWR+Cn8AMl/rR6YLIPNjF0ABZAow06UCBZApwEyXChRApgAzXSpQAJkCzHSpQAFkCjDTf3wFMv3kn48JIFeAmS+nsAAyBZjpUoECyBRgpksFCiBTgJn+GwAA//+wZg3SAAAABklEQVQDAOGJi35Zj3CHAAAAAElFTkSuQmCC\",\"w\":40,\"h\":36,\"at\":[0.343,0.2512]},\"wx\":0.343,\"wy\":0.2512}}"
+       },
+       {
+        "do": "wait",
+        "value": "1.5"
+       },
+       {
+        "say": "and back again.",
+        "gesture": "Laugh"
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"img\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABICAYAAABhlHJbAAAEDklEQVR4AezcyyttcRQH8O8hIY+RicfASBiQiUcxUUSKIzIxkAklIqKQMPFmLDMxRCnEAH+ByCNl4DnyZuD9uNf61Rnczc3dZ92zf3tnqXW0z7bOPr/PWXv/1m+f4vdLflgCfpAfloAAsvgAARRApgAzXSpQAJkCzHSpQAFkCjDTpQIFkCnATJcKFEDTAv81QSqQySmAAsgUYKZLBQogU4CZLhUogEwBZrpUoAAyBZjptqnAj6/G8PT0hOvra+aQrE23BSDhXV5eYmpqChMTE7i9vbVWgXE07YCEd35+ruBaWlowPj4ugP/6gXrwJicnMTQ0hMDAQJSVlSEyMtLwEvbd1FaBHjw6ZT14VVVVqK2tRUBAgH3FDO9MCyDhnZ2dqdN2cHAQj4+PyM/Ph9vtxtXVFU5OTkzH6ekp3t/fDcPz/aYWwPv7eywtLWFgYAAESRX3/PyM0dFRDA8Pm46RkRGMjY1he3vb92KGI2gBpIrb3d3FxcUFqBpp1l1cXMTMzIxXMT09jdnZWezs7BiG5/tNLYChoaHIy8tDRkYG/P39ERISgpycHDQ2NnoVTU1NqKurQ1ZWlu/FDEfQAkizbVpaGjo7O5Geno6Xlxd1HczOzkZDQ4PpqK+vR0VFBWJiYgzD8/2mFkAaVlBQkKoYQkxKSsLc3Bz6+vqwublJux0T2gBJ6CtEmhBubm5otyNCKyAJeRC7urrU6UztCE0qtO+reHt7AwHT76/2W/2cdkAasAeRekJqpKOioujpT0FoBwcHqmVZXl4GtT6f/sjiJ2wBSGOmiSU5ORkFBQV/XYkQ4P7+Pvr7+9HW1qZ6Sd2ItgEkxO+CGu6EhAQUFRWBKrG7u1s7ou8Av9PwYr/L5UJ0dDTa29tRWFhoC0QtgLT6eHh4wNHREQ4PD03F8fGxoi8vL0dKSopavumsRC2AhLe6uqrWvDRxmA1qdejma3BwMF5fX1Xv2NPTg42NDYVr5YMWQFoLr62tYX5+HgsLC14F3YxYX19XVrSSocrc29tT21Y+aAEMCwtDSUkJ6A50c3MzvAlqd1JTU9VaOjw8HLm5ucjMzLTSTh1LCyDNpomJiaiurkZNTY3pqKysRHx8vLoVRj1kcXExWltbERsbqwZl5YMWQM4A6fq5srKC3t5ebG1tgfCoJ4yLi+O8rNe5jgKkRpquc3bBI3XHAdLXn3d3dygtLVWrEV2VR3gUjgKkayfd+qJbYB0dHdCN5zhAl8uFiIgIuD++fNIxYRCYMRxVgcY3b4dtAWR+Cn8AMl/rR6YLIPNjF0ABZAow06UCBZApwEyXChRApgAzXSpQAJkCzHSpQAFkCjDTf3wFMv3kn48JIFeAmS+nsAAyBZjpUoECyBRgpksFCiBTgJn+GwAA//+wZg3SAAAABklEQVQDAOGJi35Zj3CHAAAAAElFTkSuQmCC\",\"w\":40,\"h\":36,\"at\":[0.343,0.2512]},\"wx\":0.343,\"wy\":0.2512}}"
+       },
+       {
+        "do": "wait",
+        "value": "1"
+       }
+      ],
+      "gesture": "PointLeft",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 1
+      }
+     },
+     {
+      "id": "search",
+      "title": "Search (the screen model)",
+      "do": [
+       {
+        "say": "Last, the screen model finds the Search button from those words alone, and presses it."
+       },
+       {
+        "do": "app.step",
+        "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"ai\":\"the Search button\",\"in\":\"web\"},\"wx\":0.3,\"wy\":0.6}}"
+       },
+       {
+        "do": "wait",
+        "value": "6"
+       }
+      ],
+      "say": "And here are the flights from Delhi to Bengaluru.",
+      "gesture": "PresentBoth",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "after": 2
+      }
+     },
+     {
+      "id": "thanks",
+      "title": "Thank you",
+      "say": "That was StudioGen working a live website: a site helper, recorded clicks, text on screen, a picture of the screen, and the screen model. Thank you!",
+      "mood": "Happy",
+      "gesture": "Bow",
+      "next": {
+       "on": [
+        "thank you",
+        "done"
+       ]
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "motions": {},
+ "helpers": [],
+ "webRecs": [],
+ "appRecs": []
+}

@@ -70,3 +70,10 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
 - In browser widgets (desktop app) clicks, typing and keys go to the page itself; text is found inside it; pictures match
   against the page's own capture.
 - The sample **IndiGo live booking demo** (`INDIGO_DEMO` in js/script.js) uses all of these on goindigo.in.
+
+## Bundles (sharing)
+
+`{ "format": "drivegen-bundle", "version": 1, "name", "app", "created", "scripts": [{ "name", "json" }], "motions": { name: motion },
+"helpers": [{ name, match, css, js, on }], "webRecs": [...], "appRecs": [...] }` (js/bundles.js). Export includes what the
+scripts use (`Bundles.uses`); import renames clashes and rewrites the references. The library is an index:
+`{ "bundles": [{ "name", "about", "url" (relative to the index), "author" }] }`, by default `library/index.json` on GitHub Pages.

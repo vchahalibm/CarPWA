@@ -15,6 +15,9 @@ const PDFJS = 'vendor/pdfjs/', PPTX = 'vendor/pptx/', MODEL_VIEWER = 'vendor/mod
 const BUILTIN_MODELS = {
   vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/vita.vrm', vrm: true },
   ren: { name: 'Ren', note: 'anime-style male assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/ren.vrm', vrm: true },
+  maya: { name: 'Maya', note: 'realistic woman (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', src: 'vendor/models/maya.vrm', vrm: true },
+  leo: { name: 'Leo', note: 'realistic man (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', src: 'vendor/models/leo.vrm', vrm: true },
+  seed: { name: 'Seed-san', note: 'anime-style, VRM 1.0 (VirtualCast): eyes, brows and surprise as well as the usual expressions', src: 'vendor/models/seed-san.vrm', vrm: true },
   robot: { name: 'Assistant robot', note: 'waves, nods and reacts to what happens', src: 'vendor/models/robot-expressive.glb', avatar: true },
 };
 Bus.define('doc.page', 'A document changes page', 'the page number');

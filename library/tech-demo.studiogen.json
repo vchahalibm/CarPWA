@@ -1,0 +1,153 @@
+{
+ "format": "drivegen-bundle",
+ "version": 1,
+ "app": "StudioGen",
+ "created": "2026-10-16T15:58:02.490Z",
+ "name": "Tech demo with slides",
+ "scripts": [
+  {
+   "name": "Tech demo with slides",
+   "json": {
+    "name": "Tech demo with slides",
+    "about": "A sample: the avatar presents the demo deck, shows a live web page beside the charts, and answers to “next”, “go back” and “show me the live data”.",
+    "setup": [
+     {
+      "do": "mode.set",
+      "value": "stage"
+     },
+     {
+      "do": "stage.widgets",
+      "value": "main=doc~stage,web~stage; side=model~stage"
+     },
+     {
+      "do": "doc.open",
+      "value": "samples/drivedeck-demo.pptx"
+     },
+     {
+      "do": "web.open",
+      "value": "samples/demo-page.html#usage"
+     }
+    ],
+    "beats": [
+     {
+      "id": "intro",
+      "title": "Welcome",
+      "do": [
+       {
+        "do": "doc.page",
+        "value": "1"
+       }
+      ],
+      "say": "{notes}",
+      "mood": "Happy",
+      "gesture": "Wave",
+      "next": {
+       "on": [
+        "next",
+        "lets begin",
+        "begin"
+       ],
+       "gesture": "Swipe_Left"
+      }
+     },
+     {
+      "id": "usage",
+      "title": "Usage this quarter",
+      "do": [
+       {
+        "do": "doc.page",
+        "value": "2"
+       },
+       {
+        "do": "web.open",
+        "value": "samples/demo-page.html#usage"
+       }
+      ],
+      "say": "{notes} The page beside the chart shows the same numbers, live.",
+      "gesture": "ThumbsUp",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "gesture": "Swipe_Left"
+      },
+      "branches": [
+       {
+        "on": [
+         "show me the live data",
+         "live data",
+         "show live"
+        ],
+        "goto": "live"
+       }
+      ]
+     },
+     {
+      "id": "speed",
+      "title": "Response time",
+      "do": [
+       {
+        "do": "doc.page",
+        "value": "3"
+       },
+       {
+        "do": "web.open",
+        "value": "samples/demo-page.html#speed"
+       }
+      ],
+      "say": "{notes}",
+      "mood": "Relaxed",
+      "next": {
+       "on": [
+        "next"
+       ],
+       "gesture": "Swipe_Left"
+      }
+     },
+     {
+      "id": "live",
+      "title": "Live page",
+      "do": [
+       {
+        "do": "web.open",
+        "value": "samples/demo-page.html#live"
+       }
+      ],
+      "say": "This is the live page. The numbers update as drivers use ${APP_NAME}, so you can see it working, not just on a slide.",
+      "gesture": "Yes",
+      "next": {
+       "on": [
+        "next",
+        "back to the slides"
+       ],
+       "gesture": "Swipe_Left"
+      }
+     },
+     {
+      "id": "thanks",
+      "title": "Thank you",
+      "do": [
+       {
+        "do": "doc.page",
+        "value": "4"
+       }
+      ],
+      "say": "{notes}",
+      "mood": "Happy",
+      "gesture": "Wave",
+      "next": {
+       "on": [
+        "thank you",
+        "done"
+       ]
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "motions": {},
+ "helpers": [],
+ "webRecs": [],
+ "appRecs": []
+}

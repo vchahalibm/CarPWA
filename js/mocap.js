@@ -42,7 +42,7 @@ const Mocap = {
     if (!this.on || !this.inst || !track?.pose?.wl?.length) return;
     let pose = null; try { pose = this.solve(track); } catch (e) { Log.w('mocap', 'Pose not solved', e); }
     if (!pose) return;
-    VrmAvatar.live = this.live = pose;
+    VrmAvatar.live = this.live = pose; MotionUI.seen?.(this.seen);
     const R = this.rec; if (!R) return;
     const t = (now - R.t0) / 1000;
     if (t <= R.len) R.frames.push([t, pose]);
@@ -63,7 +63,7 @@ const Mocap = {
       const up = mid.sub(hip).normalize(), lean = -Math.atan2(up.z, up.y); // forward is x - here
       out.spine = [lean * 0.35, yaw * 0.5, roll * 0.5]; out.chest = [lean * 0.35, yaw * 0.5, roll * 0.5];
     }
-    for (const n of ['spine', 'chest']) { const b = I.bone(n); if (b && out[n]) { b.rotation.set(...out[n]); b.updateMatrixWorld(true); } }
+    for (const n of ['spine', 'chest']) { const b = I.bone(n); if (b && out[n]) { b.rotation.set(...I.nat(out[n])); b.updateMatrixWorld(true); } }
     // Limbs: point each bone along your segment.
     const aim = (bone, child, dir) => {
       const b = I.bone(bone), c = I.bone(child); if (!b || !c || !b.parent) return;
@@ -71,7 +71,7 @@ const Mocap = {
       const pq = new Q(); b.parent.getWorldQuaternion(pq);
       const rest = c.position.clone().normalize(), want = dir.clone().normalize().applyQuaternion(pq.invert());
       b.quaternion.setFromUnitVectors(rest, want); b.updateMatrixWorld(true);
-      out[bone] = [b.rotation.x, b.rotation.y, b.rotation.z];
+      out[bone] = I.nat([b.rotation.x, b.rotation.y, b.rotation.z]); // back to the motions' convention (nat() is its own inverse)
     };
     for (const [side, a, b2, c] of [['right', 'rSh', 'rEl', 'rWr'], ['left', 'lSh', 'lEl', 'lWr']]) {
       if (!seen(a, b2)) continue;
@@ -102,6 +102,12 @@ const Mocap = {
       });
       Object.assign(out, handCurls(curls, side));
     }
+    // Face: MediaPipe's 52 face shapes (ARKit names), as $a: channels; the avatar plays them on its own face (js/avatar.js).
+    const bs = track.face?.bs;
+    if (bs) for (const [k, v] of Object.entries(bs)) if (v >= 0.05) out[`$a:${m ? k.replace(/Left$/, '#').replace(/Right$/, 'Left').replace(/#$/, 'Right') : k}`] = [v];
+    // What it can see, for the panel: body, arms, legs, hands, face.
+    this.seen = { body: seen('lSh', 'rSh'), arms: seen('lEl', 'rEl') || seen('lSh', 'lEl') || seen('rSh', 'rEl'), legs: seen('lKn', 'rKn') || seen('lHip', 'lKn'),
+      hands: (track.hands || []).filter(h => h.wl?.length).length, face: !!bs };
     return Object.keys(out).length ? out : null;
   },
   /** Recorded frames → a motion: keys every 0.2 s (the spline smooths between them), easing in and out like the built-in ones. */
@@ -121,30 +127,46 @@ const MotionUI = {
   html() {
     const groups = {}; for (const [k, m] of Object.entries(MOTIONS)) if (!k.startsWith('__')) (groups[m.group || 'Other'] ||= []).push([k, m]);
     const order = ['Captured', 'Greet', 'Present', 'React', 'Body', 'Other'].filter(g => groups[g]);
-    return `<div class="mo-stage"><div class="mo-avatar" id="moAvatar"><div class="mw-empty"><span>Loading the assistant…</span></div></div><div class="mo-side" id="moSide">${this.side()}</div></div>
+    return `<div class="mo-stage"><div class="mo-avatar" id="moAvatar"><div class="mw-empty"><span>Loading the assistant…</span></div></div>
+      <div class="mo-camw camw on ${Camera.mirrored ? "mirror" : ""}" data-fit="contain" id="moCamWrap" hidden><video id="moCam" muted autoplay playsinline></video><canvas class="ppl"></canvas><div class="mo-parts" id="moParts"></div></div>
+      <div class="mo-side" id="moSide">${this.side()}</div></div>
       ${order.map(g => `<details class="mo-group" ${g === 'Captured' || g === 'Greet' ? 'open' : ''}><summary>${esc(g)} <span class="tag">${groups[g].length}</span></summary>
         <div class="mo-list">${groups[g].map(([k, m]) => `<div class="mo-item"><button class="mo-play" data-mo="play:${esc(k)}" aria-label="Preview ${esc(m.name || k)}">${svg('play')}</button>
           <div class="main"><div class="t">${esc(m.name || k)}</div><div class="s">${esc(k)} · ${m.len}s</div></div>
           ${g === 'Captured' ? `<button class="icon-btn" data-mo="ren:${esc(k)}" aria-label="Rename" title="Rename">${svg('sliders')}</button><button class="icon-btn" data-mo="del:${esc(k)}" aria-label="Delete" title="Delete">${svg('del')}</button>` : ''}</div>`).join('')}</div></details>`).join('')}`;
   },
   side() {
-    if (this.state === 'live' || this.state === 'count' || this.state === 'rec') return `<video id="moCam" class="mo-cam" muted autoplay playsinline></video>
-      <div class="mo-status">${this.state === 'live' ? 'Move: the assistant copies you. Ready?' : this.state === 'count' ? `<b class="mo-count">${this.count}</b>` : `<span class="rec-dot"></span> Recording… ${this.left || this.len}s`}</div>
+    if (this.state === 'live' || this.state === 'count' || this.state === 'rec') return `<div class="mo-status">${this.state === 'live' ? 'Move: the assistant copies you. Ready?' : this.state === 'count' ? `<b class="mo-count">${this.count}</b>` : `<span class="rec-dot"></span> Recording… ${this.left || this.len}s`}</div>
       <div class="chip-row">${this.state === 'live' ? `<button class="chip accent" data-mo="rec"><i class="rec-dot"></i>Record ${this.len}s</button>` : ''}<button class="chip" data-mo="stop">Stop</button></div>`;
     if (this.state === 'done') return `<div class="mo-status">Captured ${this.pending.keys.length} keyframes, ${this.pending.len}s.</div>
       <label class="fld"><span>Name</span><input id="moName" value="My motion ${Object.keys(Mocap.saved()).length + 1}" autocomplete="off"></label>
       <div class="chip-row"><button class="chip" data-mo="replay">${svg('play')}Play</button><button class="chip accent" data-mo="save">Save to the library</button><button class="chip" data-mo="discard">Discard</button></div>`;
     return `<p class="sui-note">Press ▶ on any motion to see it here. Or capture your own: stand in front of the camera (head to waist at least), and the assistant copies you; record a few seconds and save it.</p>
+      <p class="sui-note">It captures your body, arms, hands and fingers, legs (when they're in the picture) and your face (brows, eyes, mouth).</p>
       <div class="sui-row"><label class="fld chk"><input type="checkbox" id="moMirror" ${Mocap.mirror ? 'checked' : ''}><span>Like a mirror (your right hand moves its left)</span></label>
         <label class="fld"><span>Length</span><select id="moLen">${[3, 4, 6, 8].map(n => `<option ${n === this.len ? 'selected' : ''} value="${n}">${n} seconds</option>`).join('')}</select></label></div>
+      <label class="fld"><span>The assistant</span><select id="moModel">${Object.entries(BUILTIN_MODELS).filter(([, m]) => m.vrm).map(([k, m]) => `<option value="${k}" ${(Wcfg.get('model~stage').builtin || 'vita') === k ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note.split(':')[0])}</option>`).join('')}</select></label>
       <div class="chip-row"><button class="chip accent" data-mo="live"><i class="rec-dot"></i>Capture a motion</button></div>`;
   },
-  paint() { const el = $('#moSide'); if (el) el.innerHTML = this.side(); if (this.state !== 'idle' && this.state !== 'done') this.cam(); },
+  paint() {
+    const el = $('#moSide'); if (el) el.innerHTML = this.side();
+    const on = this.state !== 'idle' && this.state !== 'done', w = $('#moCamWrap'); if (w) { w.hidden = !on; w.classList.toggle('mirror', !!Camera.mirrored); }
+    if (on) this.cam();
+  },
+  /** What the camera can follow right now: chips over the picture (body, arms, legs, hands, face). */
+  seen(s) {
+    const el = $('#moParts'); if (!el || !s) return;
+    $('#moCamWrap')?.classList.toggle('mirror', !!Camera.mirrored); // known once the camera runs
+    const chip = (ok, label) => `<span class="${ok ? 'ok' : ''}">${ok ? '✓' : '·'} ${label}</span>`;
+    el.innerHTML = chip(s.body, 'Body') + chip(s.arms, 'Arms') + chip(s.legs, 'Legs') + chip(s.hands, `Hands${s.hands ? ` ${s.hands}` : ''}`) + chip(s.face, 'Face')
+      + (s.body && !s.legs ? '<em>Step back to show your legs</em>' : '');
+  },
   /** The section opened: show the assistant there. */
   async toggled(open) {
     if (!open) return this.state !== 'idle' ? this.stop() : null;
     const box = $('#moAvatar'); if (!box || typeof VrmAvatar === 'undefined') return;
     const c = Wcfg.get('model~stage'), b = BUILTIN_MODELS[c.builtin]?.vrm ? BUILTIN_MODELS[c.builtin] : Object.values(BUILTIN_MODELS).find(m => m.vrm);
+    box.innerHTML = '<div class="mw-empty"><span>Loading the assistant…</span></div>';
     try { await VrmAvatar.mount('preview', box, b.src); this.inst = VrmAvatar.all.get('preview'); if (this.inst) this.inst.preview = true; }
     catch (e) { box.innerHTML = `<div class="mw-empty"><span>The assistant couldn’t load: ${esc(e.message)}</span></div>`; }
   },
@@ -183,3 +205,9 @@ const MotionUI = {
   stop() { Mocap.stop(); this.state = this.pending ? 'done' : 'idle'; this.paint(); },
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-mo]'); if (!b) return; e.stopPropagation(); MotionUI.cmd(b.dataset.mo); }, true);
+// Choosing the assistant here changes the Stage's 3D model widget and this preview.
+document.addEventListener('change', e => {
+  if (e.target.id !== 'moModel') return;
+  Wcfg.set('model~stage', { builtin: e.target.value, url: '', file: null }); Log.i('mocap', `Assistant: ${e.target.value}`);
+  VrmAvatar.all.get('preview')?.dispose(); VrmAvatar.all.delete('preview'); MotionUI.inst = null; MotionUI.toggled(true);
+});

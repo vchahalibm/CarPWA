@@ -18,3 +18,17 @@ expressions a/i/u/e/o (mouth shapes for lip-sync), blink, joy, angry, sorrow and
 "HairSample_Male", a VRoid Studio β sample model by pixiv Inc., shown in DriveDeck as "Ren". Released under
 CC0 1.0 (recorded in the file's VRM metadata: licence CC0, allowed user Everyone, commercial use allowed; see
 https://vroid.pixiv.help/hc/en-us/articles/4402614652569). VRM 0.x with the same expressions and skeleton as Vita.
+
+## maya.vrm and leo.vrm
+"Female_Adult_01" and "Male_Adult_01" from the **Microsoft Rocketbox Avatar Library**
+(https://github.com/microsoft/Microsoft-Rocketbox), MIT licence, Copyright (c) Microsoft Corporation; their facial
+blendshapes (52 ARKit shapes and 15 visemes) are from the library's HeadBox release. Converted to VRM 1.0 for
+DriveGen/StudioGen with Blender and the VRM Add-on for Blender (MIT): biped bones mapped to the VRM humanoid (thighs
+re-parented to the pelvis and collarbones to the upper chest), textures reduced to 1024 px, the unused facial action-unit
+shapes removed, VRM expressions made from the ARKit shapes, and each ARKit shape added as its own expression ("perfect
+sync"). Shown in the app as "Maya" and "Leo".
+
+## seed-san.vrm
+"Seed-san" by VirtualCast, Inc. (https://github.com/vrm-c/vrm-specification/tree/master/samples/Seed-san), VRM 1.0,
+under the VRM Public License 1.0 (https://vrm.dev/licenses/1.0/): avatar use by everyone, commercial use allowed,
+redistribution allowed, **credit required**: Seed-san model by VirtualCast, Inc.

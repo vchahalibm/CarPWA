@@ -62,6 +62,13 @@ const VrmAvatar = {
     scene.add(vrm.scene);
     const inst = new AvatarInstance({ L, src, canvas, renderer, scene, camera, vrm });
     inst.eye = new L.Object3D(); scene.add(inst.eye); vrm.lookAt && (vrm.lookAt.target = inst.eye); // its eyes follow inst.eye (the viewer, or the presenter)
+    // "Perfect sync": the avatar has the 52 ARKit face shapes as its own expressions (any capitalisation).
+    const names = Object.keys(vrm.expressionManager?.expressionMap || {}), low = Object.fromEntries(names.map(n => [n.toLowerCase(), n]));
+    const sync = Object.fromEntries(ARKIT_SHAPES.filter(k => low[k.toLowerCase()]).map(k => [k, low[k.toLowerCase()]]));
+    inst.sync = Object.keys(sync).length >= 30 ? sync : null;
+    // Motions are written in one convention (VRM 0's normalized rig, js/motions.js); a VRM 1 rig faces the other way, so its
+    // x and z turns are the opposite sign. nat() converts when writing bones; captured poses are converted back (js/mocap.js).
+    inst.v1 = String(vrm.meta?.metaVersion) === '1';
     inst.rest(); vrm.update(0); inst.calibrate(); inst.frame();
     Log.i('avatar', `Avatar ready ${Math.round(performance.now() - t0)} ms`, { name: vrm.meta?.name || vrm.meta?.title, expressions: Object.keys(vrm.expressionManager?.expressionMap || {}) });
     return inst;
@@ -137,6 +144,21 @@ Bus.on('voice.audio', d => Lips.load(d));
 Bus.on('voice.audio.end', () => { Lips.clip = null; });
 Bus.on('voice.talk', d => { Lips.phone = !!d.on; });
 
+/* The 52 ARKit face shapes (what MediaPipe measures, and what "perfect sync" avatars have, e.g. the realistic ones). */
+const ARKIT_SHAPES = ['browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight', 'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight',
+  'eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookInLeft', 'eyeLookInRight', 'eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookUpLeft',
+  'eyeLookUpRight', 'eyeSquintLeft', 'eyeSquintRight', 'eyeWideLeft', 'eyeWideRight', 'jawForward', 'jawLeft', 'jawOpen', 'jawRight', 'mouthClose', 'mouthDimpleLeft',
+  'mouthDimpleRight', 'mouthFrownLeft', 'mouthFrownRight', 'mouthFunnel', 'mouthLeft', 'mouthLowerDownLeft', 'mouthLowerDownRight', 'mouthPressLeft', 'mouthPressRight',
+  'mouthPucker', 'mouthRight', 'mouthRollLower', 'mouthRollUpper', 'mouthShrugLower', 'mouthShrugUpper', 'mouthSmileLeft', 'mouthSmileRight', 'mouthStretchLeft',
+  'mouthStretchRight', 'mouthUpperUpLeft', 'mouthUpperUpRight', 'noseSneerLeft', 'noseSneerRight', 'tongueOut'];
+/** ARKit face shapes → a standard VRM face (for avatars without the 52 shapes): mouth shapes, each eye, the moods. */
+function arkitToVrm(a) {
+  const g = k => a[k] || 0, avg = (x, y) => (g(x) + g(y)) / 2, cap = v => Math.min(1, v);
+  return { aa: g('jawOpen'), oh: g('mouthFunnel'), ou: g('mouthPucker'), ih: avg('mouthStretchLeft', 'mouthStretchRight') * 0.8, ee: avg('mouthSmileLeft', 'mouthSmileRight') * 0.4,
+    blinkLeft: g('eyeBlinkLeft'), blinkRight: g('eyeBlinkRight'), happy: cap(avg('mouthSmileLeft', 'mouthSmileRight') * 1.3), angry: cap(avg('browDownLeft', 'browDownRight') * 1.2),
+    sad: cap(avg('mouthFrownLeft', 'mouthFrownRight') * 1.2 + g('browInnerUp') * 0.2), surprised: cap(avg('eyeWideLeft', 'eyeWideRight') * 0.6 + avg('browOuterUpLeft', 'browOuterUpRight') * 0.6),
+    lookUp: avg('eyeLookUpLeft', 'eyeLookUpRight'), lookDown: avg('eyeLookDownLeft', 'eyeLookDownRight') };
+}
 /* The idle body: arms down and relaxed (VRMs are made in a T-pose), hands softly curled. */
 const AVATAR_REST = { leftUpperArm: [0, 0, 1.3], rightUpperArm: [0, 0, -1.3], leftLowerArm: [0, 0.25, 0], rightLowerArm: [0, -0.25, 0], ...handPose('relaxed'), ...handPose('relaxed', 'left') };
 /* While the assistant talks: forearms a little forward, the hands moving with the voice. */
@@ -147,9 +169,11 @@ const springOf = n => /Proximal|Intermediate|Distal/.test(n) ? 18 : /Hand$/.test
 class AvatarInstance {
   constructor(o) { Object.assign(this, o); this.exp = {}; this.target = {}; this.gest = null; this.blinkAt = 2; this.blinkT = -1; this.listening = 0; this.size = ''; this.sp = {}; this.zoom = 1; this.talkW = 0; }
   bone(n) { return this.vrm.humanoid?.getNormalizedBoneNode(n); }
+  /** A rotation in the motions' convention → this rig's (the same one for VRM 0, x and z flipped for VRM 1). */
+  nat(v) { return this.v1 ? [-v[0], v[1], -v[2]] : v; }
   /** Arms down and relaxed, set at once (no spring): before the first frame. */
   rest() {
-    for (const [n, v] of Object.entries(AVATAR_REST)) this.bone(n)?.rotation.set(v[0], v[1], v[2]);
+    for (const [n, v] of Object.entries(AVATAR_REST)) this.bone(n)?.rotation.set(...this.nat(v));
     const hips = this.bone('hips'); if (hips) { this.hipsY ??= hips.position.y; this.hipsX ??= hips.position.x; }
   }
   /** Which way a head turn goes on screen differs between VRM 0 and 1 models: find out once, from the eyes. */
@@ -158,7 +182,7 @@ class AvatarInstance {
     this.yaw = 1; if (!head || !le || !re || !rh) return;
     const V = this.L.Vector3, eyesX = () => { this.vrm.update(0); this.scene.updateMatrixWorld(true); const a = new V(), b = new V(), h = new V();
       le.getWorldPosition(a); re.getWorldPosition(b); rh.getWorldPosition(h); return (a.x + b.x) / 2 - h.x; };
-    head.rotation.y = 0.4; const x1 = eyesX(); head.rotation.y = 0; const x0 = eyesX();
+    head.rotation.y = 0.4; const x1 = eyesX(); head.rotation.y = 0; const x0 = eyesX(); // y turns are the same in VRM 0 and 1
     this.yaw = x1 > x0 ? 1 : -1;
   }
   /** Frame the head and shoulders, whatever the widget's shape. */
@@ -220,6 +244,7 @@ class AvatarInstance {
       const mp0 = motionAt(g.m, t), osc = motionOsc(g.m, t), rise = smoothstep(Math.min(t / 0.35, (g.m.len - t) / 0.45));
       for (let [n, { v: val, w }] of Object.entries(mp0)) {
         if (n === '$look') { look = mirror ? [-val[0], val[1]] : val; lookW = w; continue; }
+        if (n.startsWith('$a:')) { this.faceM = this.faceM || {}; this.faceM[n.slice(3)] = val[0] * w; continue; }
         if (n === '$hips') { hips = [hips[0] + val[0] * w, hips[1] + val[1] * w]; continue; }
         if (!g.body && !/^(head|neck)$/.test(n)) continue;
         if (mirror) { const mp = mirrorPose({ [n]: val }); [n] = Object.keys(mp); val = mp[n]; }
@@ -227,6 +252,7 @@ class AvatarInstance {
       }
       for (let [n, d] of Object.entries(osc)) {
         if (n === '$hips') { hips[1] += d[1]; continue; }
+        if (n.startsWith('$')) continue;
         if (!g.body && !/^(head|neck)$/.test(n)) continue;
         if (mirror) { const mp = mirrorPose({ [n]: d }); [n] = Object.keys(mp); d = mp[n]; }
         add(n, d);
@@ -236,7 +262,8 @@ class AvatarInstance {
       if (g.t >= g.len) this.gest = null;
     }
     // The live pose while capturing a motion (js/mocap.js): it copies you.
-    const live = VrmAvatar.live; if (live) for (const [n, v] of Object.entries(live)) T[n] = [...v];
+    const live = VrmAvatar.live, face = {}; // face: ARKit shapes from the capture or a captured motion
+    if (live) for (const [n, v] of Object.entries(live)) { if (n.startsWith('$a:')) face[n.slice(3)] = v[0]; else if (!n.startsWith('$')) T[n] = [...v]; }
     // 4. Where it looks: a motion's target, else the presenter (Stage, people tracking), else ahead. The head turns part of
     //    the way, the eyes the rest.
     const G = VrmAvatar.gaze, gz = this.gz ||= { x: 0, y: 0 }, want = { x: G ? G.x : 0, y: G ? G.y : 0 };
@@ -246,11 +273,11 @@ class AvatarInstance {
     // 5. Every bone follows its target on a critically damped spring: smooth, with the hands trailing the arms.
     for (const [n, tv] of Object.entries(T)) {
       const b = this.bone(n); if (!b) continue;
-      const s = this.sp[n] ||= { p: [b.rotation.x, b.rotation.y, b.rotation.z], v: [0, 0, 0] }, w = springOf(n), e = Math.exp(-w * dt);
+      const s = this.sp[n] ||= { p: this.nat([b.rotation.x, b.rotation.y, b.rotation.z]), v: [0, 0, 0] }, w = springOf(n), e = Math.exp(-w * dt);
       for (let i = 0; i < 3; i++) { const y = s.p[i] - tv[i], ny = (y + (s.v[i] + w * y) * dt) * e; s.v[i] = (s.v[i] - w * (s.v[i] + w * y) * dt) * e; s.p[i] = tv[i] + ny; }
-      b.rotation.set(s.p[0], s.p[1], s.p[2]);
+      b.rotation.set(...this.nat(s.p));
     }
-    for (const n of Object.keys(this.sp)) if (!T[n]) { const s = this.sp[n]; for (let i = 0; i < 3; i++) { s.p[i] *= Math.exp(-6 * dt); s.v[i] = 0; } this.bone(n)?.rotation.set(s.p[0], s.p[1], s.p[2]); }
+    for (const n of Object.keys(this.sp)) if (!T[n]) { const s = this.sp[n]; for (let i = 0; i < 3; i++) { s.p[i] *= Math.exp(-6 * dt); s.v[i] = 0; } this.bone(n)?.rotation.set(...this.nat(s.p)); }
     const hb = this.bone('hips'); if (hb) { const hs = this.hsp ||= [0, 0]; hs[0] += (hips[0] - hs[0]) * Math.min(1, dt * 6); hs[1] += (hips[1] - hs[1]) * Math.min(1, dt * 7); hb.position.x = this.hipsX + hs[0]; hb.position.y = this.hipsY + hs[1]; }
     this.zoom += (zoom - this.zoom) * Math.min(1, dt * 3); this.placeCamera();
     const cp = this.camera.position; this.eye?.position.set(cp.x + gz.x * 1.6, cp.y + gz.y * 0.6, cp.z);
@@ -258,6 +285,13 @@ class AvatarInstance {
     const wantE = {};
     if (g?.m.face) for (const [k, w] of Object.entries(g.m.face)) wantE[k] = Math.max(wantE[k] || 0, w * fW);
     if (g?.m.mouth) for (const [k, w] of Object.entries(g.m.mouth)) wantE[k] = Math.max(wantE[k] || 0, w * fW);
+    // Face shapes (capture, captured motions): straight onto a perfect-sync face, else as a standard face.
+    if (g && this.faceM) Object.assign(face, this.faceM); this.faceM = null;
+    if (Object.keys(face).length) {
+      const map = this.sync ? Object.fromEntries(Object.entries(face).filter(([k]) => this.sync[k]).map(([k, v]) => [this.sync[k], v])) : arkitToVrm(face);
+      if (!this.sync && !this.has('surprised') && this.has('Surprised')) map.Surprised = map.surprised;
+      for (const [k, v] of Object.entries(map)) if (v > 0.01) wantE[k] = Math.max(wantE[k] || 0, v);
+    }
     const m = this.mood, now = performance.now();
     if (m && now < m.until) { const k = (now - m.start) / m.ms, w = k < 0.15 ? k / 0.15 : k > 0.8 ? (1 - k) / 0.2 : 1; m.keys.forEach(x => wantE[x] = Math.max(wantE[x] || 0, w * (x === 'oh' ? 0.5 : 0.9))); }
     else if (this.listening > 0) wantE.relaxed = Math.max(wantE.relaxed || 0, 0.4);

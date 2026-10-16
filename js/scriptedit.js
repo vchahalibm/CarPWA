@@ -1,0 +1,278 @@
+'use strict';
+/* ============================================================
+   The script editor (Settings › Scripts › Edit): a vertical timeline of
+   storyboard cards, one per step, each in three lanes:
+   - Say:  what the assistant says, with a face and a motion;
+   - Show: what happens on screen, in order, as chips (a slide, a web page,
+           a click on some text, a captured area, a wait…); tap a chip to
+           change it; “+ Add” opens a picker that explains each kind;
+   - Next: every way the step can move on (the clicker, a phrase, a hand
+           gesture, after a pause, when something happens, a jump);
+   and a three-question wizard for new steps (what's shown, what's said,
+   how it moves on). Before the first step, the setup card.
+   The script format is unchanged (docs/scripts.md); ScriptUI (js/script.js)
+   keeps saving, running and the commands it already had.
+   Loaded after js/screenmodel.js.
+   ============================================================ */
+const StepEditor = {
+  open: null,     // the chip being changed: 'beats.2.do.1', 'setup.0', or 'next:2:say'
+  /* ---------- Small builders (inputs edit the draft by path; see ScriptUI.setPath) ---------- */
+  opt: (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`,
+  inp(path, v, ph = '', cls = '') { return `<input class="${cls}" data-sf="${path}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off">`; },
+  sel(path, v, opts, none = '—') { return `<select data-sf="${path}"><option value="">${none}</option>${opts.map(o => Array.isArray(o) ? this.opt(o[0], v, o[1]) : this.opt(o, v)).join('')}</select>`; },
+  motionSel(path, v, none) {
+    const g = {}; for (const [k, m] of Object.entries(MOTIONS)) if (!k.startsWith('__')) (g[m.group || 'Other'] ||= []).push([k, m.name]);
+    return `<select data-sf="${path}">${none ? '<option value="">No motion</option>' : ''}${Object.entries(g).map(([n, l]) => `<optgroup label="${esc(n)}">${l.map(([k, nm]) => this.opt(k, motionName(v) || v, nm)).join('')}</optgroup>`).join('')}</select>`;
+  },
+  pointSel(path, v) {
+    return `<select data-sf="${path}">${[...widgetIds().map(i => [i, `${Wcfg.get(i).title || W[wtype(i)].name}`]), ['doc', 'The document'], ['web', 'The web page'], ['left', 'Left of the screen'], ['right', 'Right of the screen'], ['up', 'Up'], ['down', 'Down']].map(([k, l]) => this.opt(k, v, l)).join('')}</select>`;
+  },
+  actSel(path, v) {
+    const groups = {}; for (const [id, a] of Object.entries(Actions.list)) (groups[a.group || 'Other'] ||= []).push([id, a]);
+    return `<select data-sf="${path}">${Object.entries(groups).map(([g, l]) => `<optgroup label="${esc(g)}">${l.map(([id, a]) => this.opt(id, v, a.name)).join('')}</optgroup>`).join('')}${v && !Actions.list[v] ? this.opt(v, v, `${v} (not available here)`) : ''}</select>`;
+  },
+
+  /* ---------- What a chip says ---------- */
+  ICON: { say: '💬', motion: '🧍', point: '👉', wait: '⏱', click: '👆', type: '⌨️', key: '⌨️', scroll: '↕️', drag: '✋', select: '☑️', web: '🌐', slide: '📄', helper: '🧩', video: '🎬', model: '🧊', script: '📜', other: '⚙️' },
+  chip(x) {
+    const I = this.ICON, short = (s, n = 46) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    if (x.say != null && !x.do) return [I.say, x.say ? `“${short(x.say)}”` : 'Say something…'];
+    if (x.do === 'avatar.gesture') return [I.motion, MOTIONS[motionName(x.value)]?.name || x.value || 'A motion'];
+    if (x.do === 'avatar.pointAt') return [I.point, `Point at ${x.value || 'the document'}`];
+    if (x.do === 'wait') return [I.wait, `Wait ${x.value || 1} s`];
+    if (x.do === 'app.step') { const s = appStepOf(x.value) || {}; return [s.t === 'web' ? I.web : I[s.t] || I.click, short(typeof AppSteps !== 'undefined' ? AppSteps.describe(s) : s.t, 58)]; }
+    if (x.do === 'web.open') { let h = x.value; try { h = new URL(x.value, location.href).host || x.value; } catch {} return [I.web, `Open ${short(h || 'a web page', 40)}`]; }
+    if (x.do === 'web.step' || x.do === 'web.play') return [I.web, short(x.do === 'web.play' ? `Play “${x.value}”` : WebDrive.describe(stepOf(x.value)), 58)];
+    if (x.do === 'web.helper') return [I.helper, `Site helper: ${short(x.value, 36)}`];
+    if (x.do === 'doc.page') return [I.slide, `Slide ${x.value || 1}`];
+    if (x.do === 'doc.next' || x.do === 'doc.prev') return [I.slide, x.do === 'doc.next' ? 'Next slide' : 'Previous slide'];
+    if (x.do === 'doc.open') return [I.slide, `Show ${short(x.value, 40)}`];
+    if (/^video\./.test(x.do)) return [I.video, Actions.list[x.do]?.name || x.do];
+    if (x.do === 'screen.click') return [I.click, `Click ${short(x.value, 44)} (screen model)`];
+    const a = Actions.list[x.do]; return [I.other, `${a?.name || x.do}${x.value ? `: ${short(x.value, 30)}` : ''}`];
+  },
+
+  /* ---------- The page ---------- */
+  render(ui) {
+    const d = ui.draft;
+    const card = (b, n) => this.card(b, n, d);
+    $('#settingsBody').innerHTML = `<div class="se">
+      <div class="se-top"><button class="se-back" data-sui="back">‹ Scripts</button>
+        <div class="se-acts"><button class="mini-btn accent" data-sui="try:0">${svg('play')}Run</button><button class="mini-btn" data-sui="save">Save</button>
+          <button class="mini-btn" data-se="more">More…</button></div></div>
+      <div class="se-head">${this.inp('name', d.name, 'Script name', 'se-name')}${this.inp('about', d.about, 'What it presents (optional)', 'se-about')}</div>
+      <details class="se-how"><summary>How a script runs</summary><p>The assistant goes through the steps from top to bottom. In each step it first does what's under <b>Show</b> (in order), then says its line under <b>Say</b> with the face and motion you chose, then <b>waits</b> until one of the ways under <b>Next</b> happens: you press the clicker or →, say a phrase, show a hand gesture, a few seconds pass, or something happens in the app. “Go back”, “start over” and the step dots at the bottom of the Stage always work.</p></details>
+      <div class="se-tl">
+        ${this.setupCard(d)}
+        ${d.beats.map((b, n) => `${this.insert(n)}${card(b, n)}`).join('')}
+        <div class="se-end"><button class="se-addstep" data-se="wizard:${d.beats.length}">${svg('plus')}Add a step</button>
+          ${!d.beats.length ? '<p class="se-note">A step is one moment of the presentation: something on screen, a line from the assistant, and a cue to move on.</p>' : ''}</div>
+      </div></div>`;
+  },
+  insert(n) { return `<button class="se-insert" data-se="wizard:${n}" aria-label="Add a step here" title="Add a step here">${svg('plus')}</button>`; },
+  setupCard(d) {
+    const L = d.setup || [];
+    return `<section class="se-card se-setup"><div class="se-node">●</div>
+      <header><div class="se-title-fixed">Before it starts</div><span class="se-sub">Sets the stage: mode, widgets, the deck, the web page</span></header>
+      <div class="se-lane"><div class="se-lab"><i>🖥</i>Show</div><div class="se-body">${this.chips(L, 'setup')}<button class="se-add" data-se="pick:setup">${svg('plus')}Add</button></div></div></section>`;
+  },
+  card(b, n, d) {
+    const N = b.next || {};
+    return `<section class="se-card" data-beat="${n}"><div class="se-node">${n + 1}</div>
+      <header>${this.inp(`beats.${n}.title`, b.title, 'Name this step', 'se-title')}
+        <div class="se-hacts"><button class="icon-btn" data-sui="try:${n}" title="Run from this step" aria-label="Run from this step">${svg('play')}</button>
+          <button class="icon-btn" data-sui="up:b.${n}" title="Move up" aria-label="Move up" ${n ? '' : 'disabled'}>↑</button><button class="icon-btn" data-sui="down:b.${n}" title="Move down" aria-label="Move down" ${n < d.beats.length - 1 ? '' : 'disabled'}>↓</button>
+          <button class="icon-btn" data-se="stepmenu:${n}" title="More" aria-label="More">⋯</button></div></header>
+      <div class="se-lane"><div class="se-lab"><i>🖥</i>Show</div><div class="se-body">${this.chips(b.do || [], `beats.${n}.do`)}
+        <button class="se-add" data-se="pick:${n}">${svg('plus')}Add something to show or do</button></div></div>
+      <div class="se-lane"><div class="se-lab"><i>💬</i>Say</div><div class="se-body">
+        <textarea data-sf="beats.${n}.say" rows="2" placeholder="What the assistant says in this step… ({notes} reads the slide's speaker notes)">${esc(b.say || '')}</textarea>
+        <div class="se-row"><label>Face ${this.sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS, 'As it is')}</label><label>Motion ${this.motionSel(`beats.${n}.gesture`, b.gesture, true)}</label></div></div></div>
+      <div class="se-lane"><div class="se-lab"><i>⏭</i>Next</div><div class="se-body">${this.triggers(b, n, d)}
+        <button class="se-add" data-se="trig:${n}">${svg('plus')}Add a way to move on</button></div></div></section>`;
+  },
+  /** A Show lane: chips in order; the open one shows its editor under the chips. */
+  chips(L, base) {
+    if (!L.length) return '<div class="se-empty">Nothing yet</div>';
+    const open = this.open?.startsWith(base + '.') ? +this.open.split('.').at(-1) : -1;
+    return `<div class="se-chips">${L.map((x, k) => { const [ic, t] = this.chip(x);
+      return `<button class="se-chip ${k === open ? 'on' : ''}" data-se="chip:${base}.${k}" title="Change"><i>${ic}</i><span>${esc(t)}</span></button>`; }).join('<span class="se-then">›</span>')}</div>
+      ${open >= 0 ? this.chipEditor(L[open], `${base}.${open}`, base, open, L.length) : ''}`;
+  },
+  /** The editor for one action (opened from its chip). */
+  chipEditor(x, path, base, k, len) {
+    const kind = base === 'setup' ? 'setup' : 'b', n = base === 'setup' ? 0 : +base.split('.')[1];
+    let body;
+    if (x.say != null && !x.do) body = `<textarea data-sf="${path}.say" rows="2" placeholder="What the assistant says">${esc(x.say)}</textarea><div class="se-row"><label>Face ${this.sel(`${path}.mood`, x.mood, SCRIPT_MOODS, 'As it is')}</label><label>Motion ${this.motionSel(`${path}.gesture`, x.gesture, true)}</label></div>`;
+    else if (x.do === 'avatar.gesture') body = `<label>Motion ${this.motionSel(`${path}.value`, x.value)}</label>`;
+    else if (x.do === 'avatar.pointAt') body = `<label>Point at ${this.pointSel(`${path}.value`, x.value)}</label>`;
+    else if (x.do === 'wait') body = `<label>Seconds ${this.inp(`${path}.value`, x.value, '1')}</label>`;
+    else if (x.do === 'app.step') body = `<div class="se-app">${this.appFields(x, path)}</div>`;
+    else body = `<div class="se-row"><label>Action ${this.actSel(`${path}.do`, x.do)}</label><label>${esc(Actions.list[x.do]?.arg || 'Value')} ${this.inp(`${path}.value`, x.value, Actions.list[x.do]?.arg || '')}</label></div>`;
+    return `<div class="se-edit"><div class="se-edit-body">${body}</div>
+      <div class="se-edit-acts"><button class="mini-btn" data-sui="try1:${path}">${svg('play')}Try it</button>
+        <button class="mini-btn" data-sui="mvup:${path}" ${k ? '' : 'disabled'}>‹ Earlier</button><button class="mini-btn" data-sui="mvdn:${path}" ${k < len - 1 ? '' : 'disabled'}>Later ›</button>
+        <button class="mini-btn danger" data-se="rm:${kind}.${n}.${k}">Remove</button><button class="mini-btn" data-se="chip:${path}">Done</button></div></div>`;
+  },
+  /** An app step's fields: what to do, how to find its target (the recorded element, text, a captured area, a description, your detector). */
+  appFields(x, path) {
+    const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, f = `data-asf="${path}"`, o = this.opt.bind(this);
+    if (st.t === 'wait' || st.t === 'web') return `<div class="se-note">${esc(AppSteps.describe(st))}</div>`;
+    const mode = L.match?.img ? 'area' : L.match?.ai != null ? 'ai' : L.match?.det ? 'det' : L.match ? 'text' : 'el', recorded = !!(L.tag || L.path || Object.keys(L.data || {}).length);
+    return `<div class="se-row"><label>Do <select ${f} data-k="t">${[['click', 'Click'], ['type', 'Type'], ['select', 'Choose'], ['key', 'Press a key'], ['scroll', 'Scroll'], ...(st.t === 'drag' ? [['drag', 'Drag']] : [])].map(([k, l]) => o(k, st.t, l)).join('')}</select></label>
+        <label>Find it by <select ${f} data-k="find">${[...(recorded ? [['el', 'Where it was recorded']] : []), ['text', 'Its text on screen'], ['area', 'A picture of it (screen area)'], ['ai', 'A description (screen model)'], ...(UiDetect.cfg() ? [['det', 'Its kind (your detector)']] : [])].map(([k, l]) => o(k, mode, l)).join('')}</select></label></div>
+      ${mode === 'text' ? `<div class="se-row"><label>Text ${`<input ${f} data-k="text" value="${esc(L.match.text || '')}" placeholder="The words on screen">`}</label><button class="mini-btn" data-sui="picktext:${path}">Pick on screen</button></div>` : ''}
+      ${mode === 'area' ? `<div class="se-row"><img class="sui-thumb" src="${esc(L.match.img || '')}" alt="The captured area"><button class="mini-btn" data-sui="pickarea:${path}">Capture again</button></div>` : ''}
+      ${mode === 'ai' ? `<div class="se-row"><label>Description <input ${f} data-k="ai" value="${esc(L.match.ai || '')}" placeholder="e.g. the Search Flight button"></label></div>` : ''}
+      ${mode === 'det' ? `<div class="se-row"><label>Kind <select ${f} data-k="det">${(UiDetect.cfg()?.classes || []).map(c => o(c, L.match.det)).join('')}</select></label><button class="mini-btn" data-sui="picktext:${path}">Pick where</button></div>` : ''}
+      ${mode === 'el' ? `<div class="se-note">${esc(AppSteps.describe(st))}</div>` : ''}
+      ${st.t === 'type' || st.t === 'select' ? `<div class="se-row"><label>${st.t === 'type' ? 'Text to type' : 'Option'} <input ${f} data-k="value" value="${esc(st.value ?? '')}"></label></div>` : ''}
+      ${st.t === 'key' ? `<div class="se-row"><label>Key <select ${f} data-k="key">${['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Backspace'].map(k => o(k, st.key, k === ' ' ? 'Space' : k)).join('')}</select></label></div>` : ''}
+      ${st.t === 'scroll' && (st.amount || st.top == null) ? `<div class="se-row"><label>How far <select ${f} data-k="amount">${[['down', 'Down a screenful'], ['up', 'Up a screenful'], ['top', 'To the top'], ['bottom', 'To the bottom']].map(([k, l]) => o(k, st.amount, l)).join('')}</select></label></div>` : ''}`;
+  },
+  /** The Next lane: one chip per way to move on; tapping one opens its setting. */
+  triggers(b, n, d) {
+    const N = b.next || {}, ids = d.beats.map(x => [x.id, x.title]), chips = [], open = this.open?.startsWith(`next:${n}:`) ? this.open.split(':')[2] : '';
+    if (N.key !== false) chips.push(['key', '⌨️', 'Clicker or → key']);
+    if (asList(N.on).length) chips.push(['say', '🎤', `I say “${asList(N.on).join('”, “')}”`]);
+    if (N.gesture) chips.push(['gesture', '✋', `Hand: ${GESTURE_WORDS?.[N.gesture] || N.gesture}`]);
+    if (N.after > 0) chips.push(['after', '⏱', `Automatically, ${N.after} s after it's done`]);
+    if (N.event) chips.push(['event', '⚡', `When: ${Bus.EVENTS[N.event] || N.event}`]);
+    if (N.goto) chips.push(['goto', '↪️', `Then go to: ${d.beats.find(x => x.id === N.goto)?.title || N.goto}`]);
+    (b.branches || []).forEach((r, k) => chips.push([`br${k}`, '🔀', `If ${asList(r.on).length ? `I say “${asList(r.on).join('”, “')}”` : ''}${r.gesture ? `${asList(r.on).length ? ' or ' : ''}hand ${r.gesture}` : ''} → ${d.beats.find(x => x.id === r.goto)?.title || r.goto}`]));
+    const ed = {
+      key: `<div class="se-note">Moves on when you press the clicker, → or Page Down.</div><button class="mini-btn danger" data-se="nextoff:${n}:key">Don't use the clicker for this step</button>`,
+      say: `<label>Phrases (comma-separated) ${this.inp(`beats.${n}.next.on`, asList(N.on).join(', '), 'next, continue')}</label>`,
+      gesture: `<label>Hand gesture ${this.sel(`beats.${n}.next.gesture`, N.gesture, SCRIPT_HAND.map(g => [g, GESTURE_WORDS?.[g] || g]), 'None')}</label><div class="se-note">Needs Follow the presenter (Settings › Mode).</div>`,
+      after: `<label>Seconds after its actions and line are done ${this.inp(`beats.${n}.next.after`, N.after || 0, '0')}</label>`,
+      event: `<label>When this happens ${this.sel(`beats.${n}.next.event`, N.event, Object.entries(Bus.EVENTS).filter(([e]) => !e.startsWith('script.')).map(([e, t]) => [e, t]), 'Nothing')}</label>`,
+      goto: `<label>Then go to ${this.sel(`beats.${n}.next.goto`, N.goto, ids, 'The next step')}</label>`,
+    };
+    const brEd = k => { const r = b.branches[k]; return `<div class="se-row"><label>If I say ${this.inp(`beats.${n}.branches.${k}.on`, asList(r.on).join(', '), 'show me the live data')}</label>
+      <label>or hand ${this.sel(`beats.${n}.branches.${k}.gesture`, r.gesture, SCRIPT_HAND)}</label><label>go to ${this.sel(`beats.${n}.branches.${k}.goto`, r.goto, ids)}</label></div><button class="mini-btn danger" data-sui="rmbr:b.${n}.${k}">Remove this branch</button>`; };
+    const body = open ? (open.startsWith('br') ? brEd(+open.slice(2)) : ed[open]) : '';
+    return `${chips.length ? `<div class="se-note">Moves on at the first of these:</div><div class="se-chips">${chips.map(([k, ic, t]) => `<button class="se-chip trig ${k === open ? 'on' : ''}" data-se="chip:next:${n}:${k}"><i>${ic}</i><span>${esc(t)}</span></button>`).join('')}</div>`
+      : '<div class="se-empty warn">No way to move on yet: it would wait here until you say “next” or press →</div>'}
+      ${body ? `<div class="se-edit"><div class="se-edit-body">${body}</div><div class="se-edit-acts">${open !== 'key' && !open.startsWith('br') ? `<button class="mini-btn danger" data-se="nextoff:${n}:${open}">Remove</button>` : ''}<button class="mini-btn" data-se="chip:next:${n}:${open}">Done</button></div></div>` : ''}`;
+  },
+
+  /* ---------- Pickers ---------- */
+  pickShow(where) {
+    const desk = !!window.DriveDeckDesktop?.browser, T = (id, ic, t, s) => `<button class="se-tile" data-se="addx:${id}@${where}"><i>${ic}</i><b>${t}</b><span>${s}</span></button>`;
+    const groups = [
+      ['The assistant', [T('say', '💬', 'Say something', 'A line spoken with lip-sync and a caption'), T('motion', '🧍', 'A motion', 'Wave, point, present, bow… or one you captured'), T('point', '👉', 'Point at a widget', 'It works out which way to point')]],
+      ['Slides and media', [T('slide', '📄', 'Go to a slide', 'A page of the deck or PDF'), T('nextslide', '📄', 'Next slide', 'One page on'), T('doc', '📑', 'Show a document', 'A deck, PDF or file by its link')]],
+      ['Web pages', [T('web', '🌐', 'Open a web page', 'In the web page widget'), ...(desk ? [T('helper', '🧩', 'Run a site helper', 'Your CSS/JavaScript for the page')] : []), T('recweb', '⏺', 'Record clicks on the page', 'Do it once, it plays it back')]],
+      ['Do on screen', [T('clicktext', '👆', 'Click some text', 'Pick the words on screen'), T('clickarea', '🖼', 'Click a screen area', 'Drag a box: found again by its picture'), T('clickai', '🔎', 'Click something described', '“the Search button” (screen model)'),
+        T('type', '⌨️', 'Type text', 'Into a field found by its text'), T('key', '⌨️', 'Press a key', 'Enter, Escape, arrows…'), T('scroll', '↕️', 'Scroll', 'A screenful, or to the top or bottom'), T('recapp', '⏺', 'Record what I do', 'Clicks, typing and scrolling anywhere')]],
+      ['Timing and more', [T('wait', '⏱', 'Wait', 'A pause, in seconds'), T('action', '⚙️', 'Any widget action', 'Radio, video, maps, voice commands…')]],
+    ];
+    sheet('Add to this step', `<div class="se-pick">${groups.map(([g, tiles]) => `<div class="se-pick-g">${g}</div><div class="se-tiles">${tiles.join('')}</div>`).join('')}</div>`, [['Cancel']]);
+  },
+  pickTrigger(n) {
+    const T = (id, ic, t, s) => `<button class="se-tile" data-se="addt:${id}@${n}"><i>${ic}</i><b>${t}</b><span>${s}</span></button>`;
+    sheet('How does this step move on?', `<div class="se-pick"><div class="se-tiles">
+      ${T('key', '⌨️', 'Clicker or → key', 'A presentation clicker, →, Page Down or space')}${T('say', '🎤', 'When I say…', 'A phrase like “next” or “show me”')}
+      ${T('gesture', '✋', 'A hand gesture', 'Swipe left, thumbs up… (Follow the presenter)')}${T('after', '⏱', 'Automatically', 'Some seconds after its line and actions')}
+      ${T('event', '⚡', 'When something happens', 'A web step played, a radio starts, you arrive…')}${T('goto', '↪️', 'Jump somewhere else', 'Go to another step instead of the next')}
+      ${T('branch', '🔀', 'A choice', '“If I say … go to that step”')}</div><p class="se-note">A step can have several: it moves on at whichever happens first.</p></div>`, [['Cancel']]);
+  },
+
+  /* ---------- The wizard for a new step: what's shown, what's said, how it moves on ---------- */
+  wizard(at) { this.wz = { at, page: 0, show: 'none', slide: '', url: '', say: '', notes: false, mood: '', motion: '', key: true, phrase: 'next', gesture: '', after: '' }; this.wzPage(); },
+  wzPage() {
+    const w = this.wz, steps = ['On screen', 'The assistant says', 'Moving on'], head = `<div class="se-wz-steps">${steps.map((s, i) => `<span class="${i === w.page ? 'on' : i < w.page ? 'done' : ''}">${i + 1}. ${s}</span>`).join('')}</div>`;
+    const R = (k, v, label, sub) => `<label class="se-radio"><input type="radio" name="wzShow" value="${v}" ${w.show === v ? 'checked' : ''}><b>${label}</b><span>${sub}</span></label>`;
+    let body;
+    if (w.page === 0) body = `<p class="se-note">What should be on screen in this step?</p>
+      ${R('show', 'slide', '📄 A slide', 'A page of the deck')}${w.show === 'slide' ? `<input id="wzSlide" class="se-wz-in" value="${esc(w.slide)}" placeholder="Slide number, e.g. 3">` : ''}
+      ${R('show', 'web', '🌐 A web page', 'Opens in the web page widget')}${w.show === 'web' ? `<input id="wzUrl" class="se-wz-in" value="${esc(w.url)}" placeholder="https://…">` : ''}
+      ${R('show', 'do', '👆 Something done on screen', 'Clicks, typing… (you add them on the card next)')}
+      ${R('show', 'none', '— Nothing new', 'Stay on what’s showing')}`;
+    else if (w.page === 1) body = `<p class="se-note">What does the assistant say? (You can leave it empty.)</p>
+      <textarea id="wzSay" class="se-wz-in" rows="3" placeholder="e.g. Here's how many drivers used it this quarter.">${esc(w.say)}</textarea>
+      <label class="se-check"><input type="checkbox" id="wzNotes" ${w.notes ? 'checked' : ''}> Read the slide's speaker notes instead</label>
+      <div class="se-row"><label>Face <select id="wzMood"><option value="">As it is</option>${SCRIPT_MOODS.map(m => this.opt(m, w.mood)).join('')}</select></label>
+        <label>Motion <select id="wzMotion"><option value="">No motion</option>${Object.entries(MOTIONS).filter(([k]) => !k.startsWith('__')).map(([k, m]) => this.opt(k, w.motion, m.name)).join('')}</select></label></div>`;
+    else body = `<p class="se-note">When should it move on to the next step? (Whichever happens first.)</p>
+      <label class="se-check"><input type="checkbox" id="wzKey" ${w.key ? 'checked' : ''}> ⌨️ When I press the clicker or →</label>
+      <label class="se-check"><input type="checkbox" id="wzSayOn" ${w.phrase ? 'checked' : ''}> 🎤 When I say <input id="wzPhrase" class="se-wz-inline" value="${esc(w.phrase || 'next')}"></label>
+      <label class="se-check"><input type="checkbox" id="wzGest" ${w.gesture ? 'checked' : ''}> ✋ With a hand gesture <select id="wzGesture">${SCRIPT_HAND.map(g => this.opt(g, w.gesture || 'Swipe_Left', GESTURE_WORDS?.[g] || g)).join('')}</select></label>
+      <label class="se-check"><input type="checkbox" id="wzAuto" ${w.after ? 'checked' : ''}> ⏱ Automatically, <input id="wzAfter" class="se-wz-inline num" value="${esc(w.after || '2')}"> seconds after it's done</label>`;
+    sheet('New step', `<div class="se-wz">${head}${body}</div>`, w.page < 2 ? [['Next ›', () => this.wzNext(1)], ...(w.page ? [['‹ Back', () => this.wzNext(-1)]] : []), ['Cancel']] : [['Add the step', () => this.wzDone()], ['‹ Back', () => this.wzNext(-1)], ['Cancel']]);
+  },
+  wzRead() {
+    const w = this.wz, v = id => $(`#${id}`);
+    if (w.page === 0) { w.show = $('input[name=wzShow]:checked')?.value || w.show; if (v('wzSlide')) w.slide = v('wzSlide').value; if (v('wzUrl')) w.url = v('wzUrl').value; }
+    if (w.page === 1) { w.say = v('wzSay').value; w.notes = v('wzNotes').checked; w.mood = v('wzMood').value; w.motion = v('wzMotion').value; }
+    if (w.page === 2) { w.key = v('wzKey').checked; w.phrase = v('wzSayOn').checked ? v('wzPhrase').value : ''; w.gesture = v('wzGest').checked ? v('wzGesture').value : ''; w.after = v('wzAuto').checked ? v('wzAfter').value : ''; }
+  },
+  wzNext(d) { this.wzRead(); this.wz.page += d; this.wzPage(); },
+  wzDone() {
+    this.wzRead(); const w = this.wz, D = ScriptUI.draft, n = w.at, doList = [];
+    if (w.show === 'slide') doList.push({ do: 'doc.page', value: String(parseInt(w.slide, 10) || 1) });
+    if (w.show === 'web' && w.url.trim()) doList.push({ do: 'web.open', value: w.url.trim() });
+    const title = w.show === 'slide' ? `Slide ${parseInt(w.slide, 10) || 1}` : w.show === 'web' ? (() => { try { return new URL(w.url).host.replace(/^www\./, ''); } catch { return 'Web page'; } })() : (w.say || '').split(/[.!?]/)[0].slice(0, 40) || `Step ${n + 1}`;
+    const ids = new Set(D.beats.map(b => b.id)); let id = `step${n + 1}`; for (let i = 2; ids.has(id); i++) id = `step${n + 1}-${i}`;
+    D.beats.splice(n, 0, { id, title, say: w.notes ? '{notes}' : w.say, mood: w.mood, gesture: w.motion, do: doList,
+      next: { key: w.key, on: w.phrase ? asList(w.phrase) : [], gesture: w.gesture, after: +w.after || 0 } });
+    this.open = null; ScriptUI.renderEditor(); toast('Step added');
+    if (w.show === 'do') setTimeout(() => this.pickShow(n), 300);
+    setTimeout(() => $(`.se-card[data-beat="${n}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100);
+  },
+
+  /* ---------- Commands (data-se) ---------- */
+  cmd(v) {
+    const ui = ScriptUI, d = ui.draft; if (!d) return;
+    const [a, ...rest] = v.split(':'), arg = rest.join(':');
+    if (a === 'chip') { this.open = this.open === arg ? null : arg; return ui.renderEditor(); }
+    if (a === 'pick') return this.pickShow(arg);
+    if (a === 'trig') return this.pickTrigger(+arg);
+    if (a === 'wizard') return this.wizard(+arg);
+    if (a === 'rm') { this.open = null; return ui.cmd(`rmdo:${arg}`); }
+    if (a === 'addx') {
+      closeSheet(); const [kind, where] = arg.split('@'), base = where === 'setup' ? 'setup' : `beats.${where}.do`, L = where === 'setup' ? (d.setup ||= []) : (d.beats[+where].do ||= []);
+      const push = x => { L.push(x); this.open = `${base}.${L.length - 1}`; ui.renderEditor(); };
+      const app = st => ({ do: 'app.step', value: JSON.stringify(st) });
+      const viaUi = { say: 'say', motion: 'motion', point: 'point', wait: 'wait', clicktext: 'clicktext', clickarea: 'clickarea', type: 'type', scroll: 'scroll', action: 'action' }[kind];
+      if (viaUi) { const before = L.length; ui.cmd(`add:${viaUi}@${where}`); if (L.length > before) { this.open = `${base}.${L.length - 1}`; ui.renderEditor(); } return; }
+      if (kind === 'slide') return push({ do: 'doc.page', value: '1' });
+      if (kind === 'nextslide') return push({ do: 'doc.next', value: '' });
+      if (kind === 'doc') return push({ do: 'doc.open', value: '' });
+      if (kind === 'web') return push({ do: 'web.open', value: 'https://' });
+      if (kind === 'helper') return push({ do: 'web.helper', value: WebDrive.helperList()[0]?.name || SITE_HELPER_EXAMPLES[0].name });
+      if (kind === 'clickai') return push(app({ t: 'click', loc: { match: { ai: '', in: 'web' } } }));
+      if (kind === 'key') return push(app({ t: 'key', key: 'Enter', loc: null }));
+      if (kind === 'recweb') return ui.cmd(`rec:b.${where === 'setup' ? 0 : where}`);
+      if (kind === 'recapp') return ui.cmd(`recapp:b.${where === 'setup' ? 0 : where}`);
+      return;
+    }
+    if (a === 'addt') {
+      closeSheet(); const [kind, ns] = arg.split('@'), n = +ns, N = (d.beats[n].next ||= {});
+      if (kind === 'key') N.key = true;
+      if (kind === 'say' && !asList(N.on).length) N.on = ['next'];
+      if (kind === 'gesture') N.gesture ||= 'Swipe_Left';
+      if (kind === 'after') N.after ||= 2;
+      if (kind === 'event') N.event ||= 'web.step';
+      if (kind === 'goto') N.goto ||= d.beats[(n + 1) % d.beats.length]?.id || '';
+      if (kind === 'branch') { (d.beats[n].branches ||= []).push({ on: [''], gesture: '', goto: d.beats[0]?.id || '' }); this.open = `next:${n}:br${d.beats[n].branches.length - 1}`; return ui.renderEditor(); }
+      this.open = `next:${n}:${kind}`; return ui.renderEditor();
+    }
+    if (a === 'nextoff') {
+      const [ns, k] = arg.split(':'), N = d.beats[+ns].next ||= {};
+      ({ key: () => N.key = false, say: () => N.on = [], gesture: () => N.gesture = '', after: () => N.after = 0, event: () => N.event = '', goto: () => N.goto = '' })[k]?.();
+      this.open = null; return ui.renderEditor();
+    }
+    if (a === 'stepmenu') {
+      const n = +arg, b = d.beats[n];
+      return sheet(b.title || `Step ${n + 1}`, `<label class="fld"><span>Step id (for jumps and “go to”)</span><input id="seId" value="${esc(b.id)}"></label>`,
+        [['Save the id', () => { b.id = $('#seId').value.trim() || b.id; ui.renderEditor(); }], ['Duplicate this step', () => { const c = JSON.parse(JSON.stringify(b)); c.id = `${b.id}-copy`; d.beats.splice(n + 1, 0, c); ui.renderEditor(); }],
+          ['Delete this step', () => { d.beats.splice(n, 1); this.open = null; ui.renderEditor(); }], ['Cancel']]);
+    }
+    if (a === 'more') return sheet(d.name || 'Script', '<p class="se-note">Check it for problems, edit it as JSON, export it with what it uses, or read how scripts work.</p>',
+      [['Check', () => ui.cmd('check')], ['Export as a bundle', () => typeof Bundles !== 'undefined' && Bundles.export([ui.editId ? Scripts.get(ui.editId) : { name: d.name, json: d }])], ['Edit as JSON', () => ui.cmd('json')], ['Help', () => ui.cmd('help')], ['Cancel']]);
+  },
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-se]'); if (!b || !ScriptUI.draft) return; e.stopPropagation(); StepEditor.cmd(b.dataset.se); }, true);
+// Typing in the wizard's radio choices shows their input at once.
+document.addEventListener('change', e => { if (e.target.name === 'wzShow' && StepEditor.wz) { StepEditor.wzRead(); StepEditor.wzPage(); } });

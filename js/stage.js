@@ -54,7 +54,7 @@ const Stage = {
     const cam = k => { const v = settings[k]; return v === 'front' ? 'Front' : v === 'back' ? 'Back' : esc(this.camNames?.[v] || 'Other camera'); };
     return `<div class="group-title">Mode</div>
     <div class="group">
-      <div class="row"><div class="main"><div class="t">DriveDeck is used for</div><div class="s">${this.chosen
+      <div class="row"><div class="main"><div class="t">${APP_NAME} is used for</div><div class="s">${this.chosen
         ? `Stage: presenting on a big screen. The assistant gestures and moves; the Stage layout shows your content, the presenter and captions${this.moving ? '. Moving now, so Drive rules apply until you stop' : ''}`
         : 'Driving: the assistant only changes its expression, nothing moving to catch your eye'}</div></div>${seg('appMode', [['drive', 'Drive'], ['stage', 'Stage']])}</div>
       ${this.chosen ? tog('captions', 'Captions', 'Shows what you said and the reply along the bottom of the Stage layout') : ''}
@@ -92,7 +92,7 @@ ACTIONS.presenter = () => Presenter.show();
 ACTIONS.presentOn = async () => {
   const ds = await window.DriveDeckDesktop.displays();
   sheet('Present on', `<div class="pick-list">${ds.map(d => `<button class="big-btn ${d.here ? '' : 'accent'}" data-present="${d.id}">${esc(d.label)} · ${d.w}×${d.h}${d.here ? ' (this screen)' : ''}</button>`).join('')}</div>
-    <p class="hint">${ds.length > 1 ? 'DriveDeck goes full screen there and the presenter view opens on another screen.' : 'Only one screen is attached: connect the TV or projector (or AirPlay to it as a separate display), then choose it here.'} Stop with Esc, or the menu bar icon › Stop presenting.</p>`, [['Cancel']]);
+    <p class="hint">${ds.length > 1 ? `${APP_NAME} goes full screen there and the presenter view opens on another screen.` : 'Only one screen is attached: connect the TV or projector (or AirPlay to it as a separate display), then choose it here.'} Stop with Esc, or the menu bar icon › Stop presenting.</p>`, [['Cancel']]);
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-present]'); if (!b) return; closeSheet(); window.DriveDeckDesktop.present(+b.dataset.present); });
 window.DriveDeckDesktop?.onMenu?.(what => { if (what === 'settings') openView('settings'); });

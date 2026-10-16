@@ -1286,3 +1286,16 @@ table.bench small{color:var(--text-2)}
 @keyframes cdotPulse{from{transform:scale(1);opacity:.95}to{transform:scale(3.6);opacity:0}}
 @keyframes cdotIn{0%{transform:scale(.3)}12%{transform:scale(1.2)}24%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.8)}}
 @media (prefers-reduced-motion:reduce){.cdot::before,.cdot::after{animation:none}}
+
+/* ---------- Picking on screen for a script step: an area (drag a box) or some text (click it) ---------- */
+#asPick{position:fixed;inset:0;z-index:10002;cursor:crosshair;background:color-mix(in srgb,#000 22%,transparent);touch-action:none}
+#asPick .as-msg{position:absolute;top:14px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:999px;background:var(--glass-strong);color:var(--text);font-weight:700;box-shadow:var(--shadow);pointer-events:none}
+#asPick .as-box{position:absolute;border:3px solid #ff375f;background:rgba(255,55,95,.12);border-radius:8px;pointer-events:none}
+/* Script editor: steps shown for what they are */
+.sui-do .sui-tag{flex:none;min-width:72px;padding:0 10px;height:40px;display:grid;place-items:center;border-radius:12px;background:var(--surface-3);font-weight:700;font-size:13px;color:var(--text-2)}
+.sui-do.sui-say .sui-tag{background:color-mix(in srgb,var(--acc) 22%,var(--surface-3));color:var(--text)}
+.sui-do textarea{flex:1;min-width:0}
+.sui-do .sui-btns{flex:none;display:flex;gap:6px}
+.sui-thumb{height:48px;max-width:120px;object-fit:contain;border-radius:8px;border:2px solid #ff375f;background:#fff}
+.sui-adds{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px}
+.sui-do.sui-app{flex-wrap:wrap}.sui-do.sui-app select,.sui-do.sui-app input{flex:1 1 180px}

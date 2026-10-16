@@ -621,8 +621,8 @@ function handleCommand(raw, spoken, alts) { Commands.run(raw, spoken, alts); }
 /* ============================================================
    Settings › Voice commands: list, test, edit, add
    ============================================================ */
-const ACTION_TYPES = [['builtin', 'Do a DriveDeck action'], ['action', 'Do a widget action (radio, documents…)'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
-  ['widget', 'Show a widget'], ['screen', 'Open a DriveDeck screen'], ['say', 'Just reply']];
+const ACTION_TYPES = [['builtin', `Do a ${APP_NAME} action`], ['action', 'Do a widget action (radio, documents…)'], ['app', 'Open a phone app'], ['shortcut', 'Run a phone shortcut'],
+  ['widget', 'Show a widget'], ['screen', `Open a ${APP_NAME} screen`], ['say', 'Just reply']];
 const GROUPS = ['Navigation', 'Music', 'Radio', 'Media', 'Camera', 'Phone', 'Info', 'Dashboard', 'Assistant'];
 function actionLabel(d = {}) {
   if (d.type === 'builtin') return BUILTINS[d.fn]?.name || 'Missing action';
@@ -658,7 +658,7 @@ const CmdUI = {
       <div class="group-title">Voice commands</div>
       <div class="group"><div class="cmd-try"><input id="cmdTry" placeholder="Type what you’d say, e.g. play music from Maroon 5" autocomplete="off" enterkeyhint="go">
         <button class="big-btn accent" data-cmdui="run">Run</button></div><div class="cmd-test" id="cmdTest">Type a phrase to see which command it triggers and what it passes along.</div></div>
-      <p class="cmd-help">Speak or type; DriveDeck matches your words against every command below: exact phrases first, then regular expressions and keywords, then again with near-miss words corrected, and finally loosely: if most of a phrase was heard (a word or two missed or misheard), it runs it, or asks “Did you mean …?” when it’s less sure. Words in <b>{braces}</b> are captured and passed to the action: a phone app’s search, a shortcut’s input, a place, a contact.</p>
+      <p class="cmd-help">Speak or type; ${APP_NAME} matches your words against every command below: exact phrases first, then regular expressions and keywords, then again with near-miss words corrected, and finally loosely: if most of a phrase was heard (a word or two missed or misheard), it runs it, or asks “Did you mean …?” when it’s less sure. Words in <b>{braces}</b> are captured and passed to the action: a phone app’s search, a shortcut’s input, a place, a contact.</p>
       <div class="group"><button class="row btn" data-cmdui="add"><div class="main"><div class="t">＋ Add a command</div></div></button></div>
       ${order.filter(g => groups[g]).map(g => `<div class="group-title">${esc(g)}</div><div class="group">${groups[g].map(row).join('')}</div>`).join('')}
       <div class="group-title"></div><div class="group"><button class="row btn" data-cmdui="reset"><div class="main"><div class="t">Reset all commands to defaults</div></div></button></div>`;
@@ -695,7 +695,7 @@ const CmdUI = {
       <p class="hint">{q} or any {name} captures words · [word] is optional · (this|that) means either. Keywords: every comma-separated group must be heard. Regular expressions: named groups like (?&lt;q&gt;.+) are captured.</p>
       <label class="fld"><span>Match using</span><select id="ceMatch">${opt([['phrase', 'Phrases'], ['keywords', 'Keywords'], ['regex', 'Regular expressions']], c.match || 'phrase')}</select></label>
       <label class="fld"><span>Then</span><select id="ceType">${opt(ACTION_TYPES, d.type || 'builtin')}</select></label>
-      <label class="fld" data-for="builtin"><span>DriveDeck action</span><select id="ceFn">${builtins}</select></label>
+      <label class="fld" data-for="builtin"><span>${APP_NAME} action</span><select id="ceFn">${builtins}</select></label>
       <label class="fld" data-for="action"><span>Widget action</span><select id="ceAction">${widgetActions}</select></label>
       <label class="fld" data-for="app"><span>App</span><select id="ceApp">${opt(Object.entries(APP_LINKS).map(([k, a]) => [k, a[0]]), d.app || 'spotify')}</select></label>
       <label class="fld" data-for="app-custom"><span>Link, with {q} where the words go</span><input id="ceUrl" value="${esc(d.url || '')}" placeholder="myapp://search?q={q}" autocapitalize="off"></label>

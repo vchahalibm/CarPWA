@@ -140,7 +140,7 @@ const Radio = {
   },
   media() {
     if (!navigator.mediaSession || !this.cur || typeof MediaMetadata === 'undefined') return;
-    navigator.mediaSession.metadata = new MediaMetadata({ title: this.cur.name, artist: [this.cur.country, this.cur.tags].filter(Boolean).join(' · '), album: 'DriveDeck Radio',
+    navigator.mediaSession.metadata = new MediaMetadata({ title: this.cur.name, artist: [this.cur.country, this.cur.tags].filter(Boolean).join(' · '), album: `${APP_NAME} Radio`,
       artwork: this.cur.favicon ? [{ src: this.cur.favicon }] : [] });
     for (const [a, f] of [['play', () => this.play()], ['pause', () => this.pause()], ['stop', () => this.stop()], ['nexttrack', () => this.step(1)], ['previoustrack', () => this.step(-1)]])
       try { navigator.mediaSession.setActionHandler(a, f); } catch {}

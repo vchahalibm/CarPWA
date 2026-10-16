@@ -16,7 +16,8 @@
 Bus.define('script.beat', 'A script step starts', 'the step’s title');
 Bus.define('script.end', 'A script ends', 'the script’s name');
 
-const SCRIPT_GESTURES = ['Wave', 'Yes', 'No', 'ThumbsUp', 'Dance', 'Jump'];
+// The avatar's motions (js/motions.js); older names (Yes, No…) still work through motionName().
+const SCRIPT_GESTURES = Object.keys(MOTIONS);
 const SCRIPT_MOODS = ['Happy', 'Sad', 'Angry', 'Surprised', 'Relaxed'];
 // Hand gestures the people tracker reports (js/people.js); scripts can wait for them.
 const SCRIPT_HAND = ['Open_Palm', 'Closed_Fist', 'Thumb_Up', 'Thumb_Down', 'Pointing_Up', 'Victory', 'ILoveYou', 'Swipe_Left', 'Swipe_Right'];
@@ -54,7 +55,7 @@ function scriptCheck(raw) {
   const stepCheck = (x, where) => {
     if (x.do && !Actions.list[x.do]) warnings.push(`${where}: no action “${x.do}” here (it may come with a later version)`);
     if (!x.do && !x.say && x.wait == null) errors.push(`${where}: a step needs "do" (an action), "say" or "wait"`);
-    if (x.gesture && !SCRIPT_GESTURES.includes(x.gesture)) warnings.push(`${where}: gesture “${x.gesture}” isn’t one of ${SCRIPT_GESTURES.join(', ')}`);
+    if (x.gesture && !motionName(x.gesture)) warnings.push(`${where}: “${x.gesture}” isn’t one of the assistant’s motions`);
   };
   s.setup.forEach((x, i) => stepCheck(x, `setup[${i + 1}]`));
   s.beats.forEach((b, i) => {
@@ -62,7 +63,7 @@ function scriptCheck(raw) {
     if (ids.has(b.id)) errors.push(`${w}: the id “${b.id}” is used twice`); ids.add(b.id);
     b.do.forEach((x, k) => stepCheck(x, `${w} › do[${k + 1}]`));
     if (b.mood && !SCRIPT_MOODS.includes(b.mood)) warnings.push(`${w}: mood “${b.mood}” isn’t one of ${SCRIPT_MOODS.join(', ')}`);
-    if (b.gesture && !SCRIPT_GESTURES.includes(b.gesture)) warnings.push(`${w}: gesture “${b.gesture}” isn’t one of ${SCRIPT_GESTURES.join(', ')}`);
+    if (b.gesture && !motionName(b.gesture)) warnings.push(`${w}: “${b.gesture}” isn’t one of the assistant’s motions`);
     for (const g of [b.next.gesture, ...b.branches.map(r => r.gesture)]) if (g && !SCRIPT_HAND.includes(g)) warnings.push(`${w}: hand gesture “${g}” isn’t one of ${SCRIPT_HAND.join(', ')}`);
   });
   s.beats.forEach((b, i) => {
@@ -240,7 +241,7 @@ Actions.define('wait', { group: 'Scripts', name: 'Wait', arg: 'Seconds', run: v 
 
 /* ---------- Saved scripts (localStorage: they're small; decks and files are referred to by link) ---------- */
 const SAMPLE_SCRIPT = {
-  name: 'DriveDeck tech demo',
+  name: `${APP_NAME} tech demo`,
   about: 'A sample: the avatar presents the demo deck, shows a live web page beside the charts, and answers to “next”, “go back” and “show me the live data”.',
   setup: [
     { do: 'mode.set', value: 'stage' },
@@ -255,7 +256,7 @@ const SAMPLE_SCRIPT = {
       next: { on: ['next'], gesture: 'Swipe_Left' }, branches: [{ on: ['show me the live data', 'live data', 'show live'], goto: 'live' }] },
     { id: 'speed', title: 'Response time', do: [{ do: 'doc.page', value: '3' }, { do: 'web.open', value: 'samples/demo-page.html#speed' }], say: '{notes}', mood: 'Relaxed',
       next: { on: ['next'], gesture: 'Swipe_Left' } },
-    { id: 'live', title: 'Live page', do: [{ do: 'web.open', value: 'samples/demo-page.html#live' }], say: 'This is the live page. The numbers update as drivers use DriveDeck, so you can see it working, not just on a slide.', gesture: 'Yes',
+    { id: 'live', title: 'Live page', do: [{ do: 'web.open', value: 'samples/demo-page.html#live' }], say: 'This is the live page. The numbers update as drivers use ${APP_NAME}, so you can see it working, not just on a slide.', gesture: 'Yes',
       next: { on: ['next', 'back to the slides'], gesture: 'Swipe_Left' } },
     { id: 'thanks', title: 'Thank you', do: [{ do: 'doc.page', value: '4' }], say: '{notes}', mood: 'Happy', gesture: 'Wave', next: { on: ['thank you', 'done'] } },
   ],
@@ -290,7 +291,7 @@ const ScriptUI = {
       <p class="cmd-help">A script has the assistant lead a presentation or demo on Stage: it says each step (with an expression and a gesture), turns your slides, opens web pages and runs any widget action, and moves on when you say “next”, show a hand gesture, press the clicker, or after a pause. “Go back”, “back two steps” and “start over” always work. <button class="link-btn" data-sui="help">How to write one</button></p>
       <div class="group">
         <button class="row btn" data-sui="new"><div class="main"><div class="t">＋ New script</div><div class="s">Starts from the sample, ready to change</div></div></button>
-        ${typeof AppSteps !== 'undefined' ? `<button class="row btn" data-sui="recscript"><div class="main"><div class="t">● Record a new script</div><div class="s">Use DriveDeck as in the demo (click, type, scroll, drag on widgets, web pages, anywhere); the script plays it back</div></div></button>` : ''}
+        ${typeof AppSteps !== 'undefined' ? `<button class="row btn" data-sui="recscript"><div class="main"><div class="t">● Record a new script</div><div class="s">Use ${APP_NAME} as in the demo (click, type, scroll, drag on widgets, web pages, anywhere); the script plays it back</div></div></button>` : ''}
         <button class="row btn" data-sui="upload"><div class="main"><div class="t">${svg('upload')} Upload a script (.json)</div></div></button>
         <button class="row btn" data-sui="template"><div class="main"><div class="t">${svg('download')} Download the sample as a template</div><div class="s">Edit it in any text editor, then upload it</div></div></button>
         <input type="file" id="suiFile" accept=".json,application/json" hidden>
@@ -342,6 +343,38 @@ const ScriptUI = {
     if (a === 'del') return sheet('Delete this script?', `<p>${esc(Scripts.get(id)?.name)}</p>`, [['Delete', () => { Scripts.del(id); this.render(); }], ['Cancel']]);
     // Editor
     const d = this.draft; if (!d) return;
+    // A step's actions: add one of a kind, move, try, pick its target on screen.
+    const listAt = path => path.startsWith('setup') ? (d.setup ||= []) : (d.beats[+path.split('.')[1]].do ||= []);
+    const idxAt = path => +path.split('.').at(-1);
+    if (a === 'add') {
+      const [what, where] = id.split('@'), L = listAt(where === 'setup' ? 'setup' : `beats.${where}.do`), app = st => ({ do: 'app.step', value: JSON.stringify(st) });
+      const pickThen = async (fn, make) => { this.shown = false; openView('dashboard'); await new Promise(r => setTimeout(r, 450)); const m = await fn(); this.shown = true; this.page = 'edit'; openView('settings'); if (m) { L.push(make(m)); this.renderEditor(); } };
+      if (what === 'say') L.push({ say: '' });
+      else if (what === 'motion') L.push({ do: 'avatar.gesture', value: 'Wave' });
+      else if (what === 'point') L.push({ do: 'avatar.pointAt', value: 'doc' });
+      else if (what === 'wait') L.push({ do: 'wait', value: '1' });
+      else if (what === 'action') L.push({ do: 'doc.next', value: '' });
+      else if (what === 'clicktext') return pickThen(() => AppSteps.pickText(), m => app({ t: 'click', loc: { match: { text: m.text }, wx: m.at[0], wy: m.at[1] } }));
+      else if (what === 'clickarea') return pickThen(() => AppSteps.pickArea(), m => app({ t: 'click', loc: { match: m.img ? m : { text: '' }, wx: m.at[0], wy: m.at[1] } }));
+      else if (what === 'type') L.push(app({ t: 'type', value: '', loc: { match: { text: '' } } }));
+      else if (what === 'scroll') L.push(app({ t: 'scroll', amount: 'down', loc: { match: { text: '' } } }));
+      return this.renderEditor();
+    }
+    if (a === 'mvup' || a === 'mvdn') { const L = listAt(id), i = idxAt(id), j = i + (a === 'mvup' ? -1 : 1); if (j >= 0 && j < L.length) [L[i], L[j]] = [L[j], L[i]]; return this.renderEditor(); }
+    if (a === 'picktext' || a === 'pickarea') {
+      const L = listAt(id), i = idxAt(id), st = appStepOf(L[i].value) || { t: 'click', loc: {} };
+      this.shown = false; openView('dashboard');
+      return setTimeout(async () => { const m = a === 'picktext' ? await AppSteps.pickText() : await AppSteps.pickArea(); this.shown = true; this.page = 'edit'; openView('settings');
+        if (m) { st.loc = { ...st.loc, match: a === 'picktext' ? { text: m.text } : m, wx: m.at[0], wy: m.at[1] }; L[i].value = JSON.stringify(st); } this.renderEditor(); }, 450);
+    }
+    if (a === 'try1') { // play this one action on the dashboard, then come back
+      const x = listAt(id)[idxAt(id)]; this.shown = false; openView('dashboard');
+      return setTimeout(async () => {
+        try { if (x.do) { const r = Actions.run(x.do, Script.fill(x.value), (m, then) => { if (m) Voice.respond(m); then?.(); }); if (r?.then) await r; } if (x.say) await Script.say(x, Script.token); }
+        catch (e) { toast(e.message || 'That didn’t work'); }
+        setTimeout(() => { this.shown = true; this.page = 'edit'; openView('settings'); }, 1500);
+      }, 400);
+    }
     if (a === 'save') return this.save();
     if (a === 'try') { const chk = scriptCheck(d); if (chk.errors.length) return sheet('Fix these first', this.problemsHtml(chk), [['OK']]); this.save(true); this.close(); openView('dashboard'); return Script.start(d, +id || 0); }
     if (a === 'check') { const chk = scriptCheck(d); return sheet(chk.errors.length + chk.warnings.length ? 'Check' : 'Looks good', chk.errors.length + chk.warnings.length ? this.problemsHtml(chk) : '<p>No problems found.</p>', [['OK']]); }
@@ -384,23 +417,54 @@ const ScriptUI = {
     const sel = (path, v, opts, none = '—') => `<select data-sf="${path}"><option value="">${none}</option>${opts.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     const inp = (path, v, ph = '') => `<input data-sf="${path}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off">`;
     const desc = x => x.do === 'web.step' && typeof WebDrive !== 'undefined' ? `<div class="sui-desc">${esc(WebDrive.describe(stepOf(x.value)))}</div>` : '';
-    const steps = (list, base, kind, n) => (list || []).map((x, k) => `<div class="sui-do">${actSel(`${base}.${k}.do`, x.do)}${inp(`${base}.${k}.value`, x.value, Actions.list[x.do]?.arg || 'value')}
-        <button class="big-btn" data-sui="rmdo:${kind}.${n}.${k}" aria-label="Remove">${svg('close')}</button></div>${desc(x)}`).join('');
+    const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
+    const motionSel = (path, v, none) => { const g = {}; for (const [k, m] of Object.entries(MOTIONS)) (g[m.group || 'Other'] ||= []).push([k, m.name]);
+      return `<select data-sf="${path}">${none ? '<option value="">—</option>' : ''}${Object.entries(g).map(([n, l]) => `<optgroup label="${esc(n)}">${l.map(([k, nm]) => opt(k, motionName(v) || v, nm)).join('')}</optgroup>`).join('')}</select>`; };
+    const pointSel = (path, v) => `<select data-sf="${path}">${[...widgetIds().map(i => [i, `${Wcfg.get(i).title || W[wtype(i)].name} (${i})`]), ['doc', 'The document'], ['web', 'The web page'], ['left', 'Left of the screen'], ['right', 'Right of the screen'], ['up', 'Up'], ['down', 'Down']].map(([k, l]) => opt(k, v, l)).join('')}</select>`;
+    /** A recorded or made app step (click, type, key, scroll…), its target found by the recorded element, text on screen or a captured area. */
+    const appRow = (x, path) => {
+      const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, mode = L.match?.img ? 'area' : L.match ? 'text' : 'el', f = `data-asf="${path}"`;
+      if (st.t === 'wait' || st.t === 'web') return `<span class="sui-tag">${st.t === 'web' ? 'Web page' : 'Wait'}</span><div class="sui-desc grow">${esc(AppSteps.describe(st))}</div>`;
+      const recorded = !!(L.tag || L.path || Object.keys(L.data || {}).length);
+      return `<span class="sui-tag">App</span>
+        <select ${f} data-k="t">${[['click', 'Click'], ['type', 'Type'], ['select', 'Choose'], ['key', 'Press a key'], ['scroll', 'Scroll'], ...(st.t === 'drag' ? [['drag', 'Drag']] : [])].map(([k, l]) => opt(k, st.t, l)).join('')}</select>
+        <select ${f} data-k="find">${[...(recorded ? [['el', `The recorded element (${AppSteps.describe({ t: st.t, loc: { ...L, match: null } }).replace(/^\S+ /, '')})`]] : []), ['text', 'Text on screen'], ['area', 'An area of the screen']].map(([k, l]) => opt(k, mode, l)).join('')}</select>
+        ${mode === 'text' ? `<input ${f} data-k="text" value="${esc(L.match.text || '')}" placeholder="The text to find"><button class="link-btn" data-sui="picktext:${path}">Pick on screen</button>` : ''}
+        ${mode === 'area' ? `<img class="sui-thumb" src="${esc(L.match.img)}" alt="The captured area"><button class="link-btn" data-sui="pickarea:${path}">Capture again</button>` : ''}
+        ${st.t === 'type' || st.t === 'select' ? `<input ${f} data-k="value" value="${esc(st.value ?? '')}" placeholder="${st.t === 'type' ? 'Text to type' : 'Option'}">` : ''}
+        ${st.t === 'key' ? `<select ${f} data-k="key">${['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Backspace'].map(k => opt(k, st.key, k === ' ' ? 'Space' : k)).join('')}</select>` : ''}
+        ${st.t === 'scroll' && (st.amount || st.top == null) ? `<select ${f} data-k="amount">${[['down', 'Down a screenful'], ['up', 'Up a screenful'], ['top', 'To the top'], ['bottom', 'To the bottom']].map(([k, l]) => opt(k, st.amount, l)).join('')}</select>` : ''}`;
+    };
+    const steps = (list, base, kind, n) => (list || []).map((x, k, all) => {
+      const path = `${base}.${k}`, ctl = `<div class="sui-btns"><button class="big-btn" data-sui="try1:${path}" aria-label="Try it">${svg('play')}</button>
+        <button class="big-btn" data-sui="mvup:${path}" aria-label="Move up" ${k ? '' : 'disabled'}>↑</button><button class="big-btn" data-sui="mvdn:${path}" aria-label="Move down" ${k < all.length - 1 ? '' : 'disabled'}>↓</button>
+        <button class="big-btn" data-sui="rmdo:${kind}.${n}.${k}" aria-label="Remove">${svg('close')}</button></div>`;
+      if (x.say != null && !x.do) return `<div class="sui-do sui-say"><span class="sui-tag">Say</span><textarea data-sf="${path}.say" rows="2" placeholder="What the assistant says ({notes} = the slide’s notes)">${esc(x.say)}</textarea>${ctl}</div>`;
+      if (x.do === 'avatar.gesture') return `<div class="sui-do"><span class="sui-tag">Assistant</span>${motionSel(`${path}.value`, x.value)}${ctl}</div>`;
+      if (x.do === 'avatar.pointAt') return `<div class="sui-do"><span class="sui-tag">Point at</span>${pointSel(`${path}.value`, x.value)}${ctl}</div>`;
+      if (x.do === 'wait') return `<div class="sui-do"><span class="sui-tag">Wait</span>${inp(`${path}.value`, x.value, 'Seconds')}${ctl}</div>`;
+      if (x.do === 'app.step' && typeof AppSteps !== 'undefined') return `<div class="sui-do sui-app">${appRow(x, path)}${ctl}</div>`;
+      return `<div class="sui-do">${actSel(`${path}.do`, x.do)}${inp(`${path}.value`, x.value, Actions.list[x.do]?.arg || 'value')}${ctl}</div>${desc(x)}`;
+    }).join('');
+    const adds = where => `<div class="sui-adds"><button class="link-btn" data-sui="add:say@${where}">＋ Say</button><button class="link-btn" data-sui="add:motion@${where}">＋ Assistant motion</button>
+      <button class="link-btn" data-sui="add:point@${where}">＋ Point at</button>${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="add:clicktext@${where}">＋ Click text on screen</button>
+      <button class="link-btn" data-sui="add:clickarea@${where}">＋ Click a screen area</button><button class="link-btn" data-sui="add:type@${where}">＋ Type</button><button class="link-btn" data-sui="add:scroll@${where}">＋ Scroll</button>` : ''}
+      <button class="link-btn" data-sui="add:wait@${where}">＋ Wait</button><button class="link-btn" data-sui="add:action@${where}">＋ Any action</button></div>`;
     $('#settingsBody').innerHTML = `
       <button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Scripts</div></div></button>
       <div class="sui-bar"><button class="big-btn accent" data-sui="save">Save</button><button class="big-btn" data-sui="try:0">${svg('play')}Run</button>
         <button class="big-btn" data-sui="check">Check</button><button class="big-btn" data-sui="json">JSON</button><button class="big-btn" data-sui="help">Help</button></div>
       <div class="group sui-head"><label class="fld"><span>Name</span>${inp('name', d.name)}</label><label class="fld"><span>About</span>${inp('about', d.about, 'What it presents')}</label></div>
       <div class="group-title">Before the first step</div>
-      <div class="group sui-card">${steps(d.setup, 'setup', 'setup', 0)}<button class="link-btn" data-sui="addsetup">＋ Add a setup action</button></div>
+      <div class="group sui-card">${steps(d.setup, 'setup', 'setup', 0)}${adds('setup')}</div>
       ${d.beats.map((b, n) => `<div class="group-title">Step ${n + 1}</div>
       <div class="group sui-card" data-beat="${n}">
         <div class="sui-row"><label class="fld"><span>Id</span>${inp(`beats.${n}.id`, b.id)}</label><label class="fld grow"><span>Title</span>${inp(`beats.${n}.title`, b.title)}</label>
           <div class="sui-btns"><button class="big-btn" data-sui="try:${n}" aria-label="Run from here">${svg('play')}</button><button class="big-btn" data-sui="up:b.${n}" aria-label="Move up" ${n ? '' : 'disabled'}>↑</button>
           <button class="big-btn" data-sui="down:b.${n}" aria-label="Move down" ${n < d.beats.length - 1 ? '' : 'disabled'}>↓</button><button class="big-btn" data-sui="rmbeat:b.${n}" aria-label="Delete step">${svg('del')}</button></div></div>
-        <div class="sui-sub">Do</div>${steps(b.do, `beats.${n}.do`, 'b', n)}<button class="link-btn" data-sui="adddo:b.${n}">＋ Add an action</button>${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="recapp:b.${n}">● Record app steps</button>` : ''}
+        <div class="sui-sub">Do, in order</div>${steps(b.do, `beats.${n}.do`, 'b', n)}${adds(n)}${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="recapp:b.${n}">● Record app steps</button>` : ''}
         <label class="fld"><span>The assistant says <small>{notes} = the slide’s speaker notes</small></span><textarea data-sf="beats.${n}.say" rows="3">${esc(b.say || '')}</textarea></label>
-        <div class="sui-row"><label class="fld"><span>Expression</span>${sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS)}</label><label class="fld"><span>Gesture</span>${sel(`beats.${n}.gesture`, b.gesture, SCRIPT_GESTURES)}</label></div>
+        <div class="sui-row"><label class="fld"><span>Expression</span>${sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS)}</label><label class="fld"><span>Motion as it speaks</span>${motionSel(`beats.${n}.gesture`, b.gesture, true)}</label></div>
         <div class="sui-sub">Next step when</div>
         <div class="sui-row"><label class="fld grow"><span>You say (comma-separated)</span>${inp(`beats.${n}.next.on`, asList(b.next?.on).join(', '), 'next, continue')}</label>
           <label class="fld"><span>Hand gesture</span>${sel(`beats.${n}.next.gesture`, b.next?.gesture, SCRIPT_HAND)}</label></div>
@@ -446,6 +510,17 @@ document.addEventListener('change', e => {
   ScriptUI.setPath(f.dataset.sf, f.type === 'checkbox' ? f.checked : f.value);
   if (/\.do$/.test(f.dataset.sf)) ScriptUI.renderEditor(); // the value's hint depends on the action
 });
+// An app step's fields (what to do, how to find its target, the text, value, key, amount): edit its JSON in place.
+document.addEventListener('change', e => {
+  const f = e.target.closest?.('[data-asf]'); if (!f || !ScriptUI.draft) return;
+  const path = f.dataset.asf, keys = path.split('.'), list = keys[0] === 'setup' ? ScriptUI.draft.setup : ScriptUI.draft.beats[+keys[1]].do, x = list[+keys.at(-1)];
+  const st = appStepOf(x.value) || { t: 'click', loc: {} }, v = f.value, k = f.dataset.k; st.loc ||= {};
+  if (k === 't') { st.t = v; if (v === 'scroll' && st.top == null) st.amount ||= 'down'; if ((v === 'type' || v === 'select') && st.value == null) st.value = ''; if (v === 'key') st.key ||= 'Enter'; }
+  else if (k === 'find') { if (v === 'el') delete st.loc.match; else if (v === 'text') st.loc.match = { text: st.loc.match?.text || st.loc.text || st.loc.label || '' }; else if (!st.loc.match?.img) { x.value = JSON.stringify(st); return ScriptUI.cmd(`pickarea:${path}`); } }
+  else if (k === 'text') st.loc.match = { ...(st.loc.match || {}), text: v };
+  else st[k] = v;
+  x.value = JSON.stringify(st); ScriptUI.renderEditor();
+});
 ACTIONS.scripts = () => ScriptUI.open();
 
 /* ---------- The presenter view (presenter.html, its own window) ----------
@@ -469,7 +544,7 @@ const Presenter = {
   show() {
     if (window.DriveDeckDesktop?.presenter) return window.DriveDeckDesktop.presenter();
     const w = window.open('presenter.html', 'dd-presenter', 'popup,width=1100,height=740');
-    if (!w) toast('Allow pop-ups for DriveDeck to open the presenter view');
+    if (!w) toast(`Allow pop-ups for ${APP_NAME} to open the presenter view`);
   },
   msg(m) {
     // Its ping every 2 s also catches what no event announces (a deck finishing loading): send if anything changed.

@@ -1,5 +1,5 @@
 'use strict';
-/* What the desktop app adds for the web page, as window.DriveDeckDesktop. The web files only use it behind a
+/* What the desktop app (StudioGen) adds for the web page, as window.DriveDeckDesktop. The web files only use it behind a
    feature check (`window.DriveDeckDesktop?.…`), so they stay the same as on the web. Sandboxed: only these calls. */
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -19,8 +19,18 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   loginItem: on => ipcRenderer.invoke('dd:login-item', on),
   /** Real input in this window (script steps): mouse and key events as Electron's sendInputEvent takes them. */
   input: evs => ipcRenderer.invoke('dd:input', evs),
+  /** A picture of this window (PNG data URL), for finding a captured area of the screen again. */
+  capture: () => ipcRenderer.invoke('dd:capture'),
   /** Type text into whatever has the focus, as the keyboard would. */
   insertText: text => ipcRenderer.invoke('dd:insert-text', text),
+  /** Updates: { shell, serving, latest, webReady, shellReady, canSwap, phase, error } (see desktop/updater.js). */
+  updates: {
+    status: () => ipcRenderer.invoke('dd:update-status'),
+    check: () => ipcRenderer.invoke('dd:update-check'),
+    /** 'web': reload on the downloaded files; 'shell': install the new app and restart. */
+    apply: kind => ipcRenderer.invoke('dd:update-apply', kind),
+    on: f => ipcRenderer.on('dd:update', (e, s) => f(s)),
+  },
   /** The menu bar asks the page for something (e.g. 'settings'). */
   onMenu: f => ipcRenderer.on('dd:menu', (e, what) => f(what)),
 });

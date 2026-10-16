@@ -72,7 +72,7 @@ const Media = {
         <span>${c.url || c.file || k === 'model' ? 'Loading…' : 'Nothing chosen yet'}</span>${c.url || c.file || k === 'model' ? '' : `<button class="w-cta" data-media-cfg="${esc(id)}">Choose</button>`}</div></div>
       ${k === 'doc' ? `<div class="mw-bar" data-pdfbar hidden><button class="ctl" data-mact="prev:${esc(id)}" aria-label="Previous page">${svg('back')}</button>
         <span class="mw-page" data-pdfpage></span><button class="ctl" data-mact="next:${esc(id)}" aria-label="Next page">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button></div>` : ''}
-      ${c.url && k !== 'model' ? `<button class="mw-open" data-mact="open:${esc(id)}" aria-label="Open outside DriveDeck">${svg('expand')}</button>` : ''}</div>`;
+      ${c.url && k !== 'model' ? `<button class="mw-open" data-mact="open:${esc(id)}" aria-label="Open outside ${APP_NAME}">${svg('expand')}</button>` : ''}</div>`;
   },
   /** Fill every media widget on the dashboard with its content. */
   mountAll() { $$('#dashRoot .mw[data-media]').forEach(el => this.mount(el.dataset.media, el)); },
@@ -419,6 +419,8 @@ Bus.on('radio.play', () => Avatar.gesture('Dance', 2));
 Bus.on('nav.start', () => Avatar.gesture('ThumbsUp'));
 Bus.on('nav.arrive', () => { Avatar.gesture('Wave'); Avatar.face('Surprised', 1200); });
 document.addEventListener('click', e => { if (e.target.closest?.('model-viewer[data-avatar]') && !Dash.editing) { Avatar.gesture('Wave'); Avatar.face('Surprised', 900); } });
-Actions.define('avatar.gesture', { group: 'Documents & media', name: '3D assistant: gesture', arg: 'Wave, Yes, No, ThumbsUp, Dance or Jump', run: v => Avatar.gesture(cap(v.trim()).replace(/^Thumbsup$/i, 'ThumbsUp') || 'Wave') });
+Actions.define('avatar.gesture', { group: 'Documents & media', name: '3D assistant: motion', arg: 'A motion: Wave, PointLeft, PresentLeft, Explain, ThumbsUp, Bow… (see the list)', run: v => Avatar.gesture(v.trim() || 'Wave') });
+Actions.define('avatar.pointAt', { group: 'Documents & media', name: '3D assistant: point at a widget', arg: 'Widget (doc, web, doc~stage…) or left / right / up / down', run(v, say) {
+  if (typeof VrmAvatar === 'undefined' || !VrmAvatar.pointAt(v || 'doc')) say?.('I can’t see that to point at.'); } });
 Actions.define('avatar.face', { group: 'Documents & media', name: '3D assistant: expression', arg: 'Surprised, Sad or Angry', run: v => Avatar.face(cap(v.trim()) || 'Surprised') });
 if (current === 'dashboard') Dash.render(); // the widget types now exist

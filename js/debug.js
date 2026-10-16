@@ -211,10 +211,10 @@ const DebugUI = {
     }, 3000);
   },
   async share() {
-    const text = `DriveDeck debug log\n${JSON.stringify(Log.env())}\n\n${Log.text()}`, name = `drivedeck-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
+    const text = `${APP_NAME} debug log\n${JSON.stringify(Log.env())}\n\n${Log.text()}`, name = `drivedeck-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
     try {
       const file = new File([text], name, { type: 'text/plain' });
-      if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title: 'DriveDeck log' });
+      if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title: `${APP_NAME} log` });
     } catch (e) { if (e?.name === 'AbortError') return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);

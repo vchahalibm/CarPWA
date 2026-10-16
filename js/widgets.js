@@ -109,7 +109,7 @@ const LinkUI = {
     $('#settingsBody').innerHTML = `
       <button class="row btn back-row" data-linkui="back"><div class="main"><div class="t">‹ Settings</div></div></button>
       <div class="group-title">Widget links</div>
-      <p class="cmd-help">Make one thing drive another: <b>when</b> something happens in DriveDeck (a route starts, you arrive, a station starts playing, a voice command runs, the car starts moving…), <b>do</b> an action (play a station, say something, open a screen…). Use <b>{value}</b> for what the event carries, like the place or the station. Voice commands can run the same actions: <b>Settings › Voice commands › Then › Do a widget action</b>.</p>
+      <p class="cmd-help">Make one thing drive another: <b>when</b> something happens in ${APP_NAME} (a route starts, you arrive, a station starts playing, a voice command runs, the car starts moving…), <b>do</b> an action (play a station, say something, open a screen…). Use <b>{value}</b> for what the event carries, like the place or the station. Voice commands can run the same actions: <b>Settings › Voice commands › Then › Do a widget action</b>.</p>
       <div class="group"><button class="row btn" data-linkui="add"><div class="main"><div class="t">＋ Add a link</div></div></button></div>
       ${l.length ? `<div class="group">${l.map(row).join('')}</div>` : ''}`;
   },

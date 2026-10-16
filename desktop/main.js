@@ -1,5 +1,5 @@
 'use strict';
-/* DriveDeck desktop: the same web app in an Electron window.
+/* StudioGen (the desktop app of DriveGen/DriveDeck): the same web app in an Electron window.
    The web files (index.html, js/, css/, vendor/, icons/…) are served from a private, secure origin
    (app://drivedeck/), so everything that needs one works as on the web: the microphone, WebGPU, workers, the
    service worker and model caching. Nothing in the web app changes for the desktop; it notices Electron from
@@ -10,9 +10,15 @@ const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeIma
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`;
-// Packaged: the web files are copied into Resources/web. From source: the repo root, one level up.
-const WEB = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.join(__dirname, '..');
+const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the internal origin keeps its name: your data lives there
+const fs = require('fs');
+// Renamed from DriveDeck: carry its folder over (settings, scripts, downloaded models), once, before anything opens it.
+try { const ud = app.getPath('userData'), old = path.join(path.dirname(ud), 'DriveDeck'); if (!fs.existsSync(ud) && fs.existsSync(old)) fs.renameSync(old, ud); } catch (e) { console.warn('Could not move the DriveDeck folder', e.message); }
+// Packaged: the web files are copied into Resources/web, and updates (desktop/updater.js) may serve newer ones. From source: the repo root.
+const BUNDLED = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.join(__dirname, '..');
+const Updates = require('./updater')({ app, net, bundled: BUNDLED });
+let WEB = BUNDLED, VENDOR = path.join(BUNDLED, 'vendor');
+function useWeb() { const a = app.isPackaged ? Updates.active() : { app: BUNDLED, vendor: path.join(BUNDLED, 'vendor'), version: 0 }; WEB = a.app; VENDOR = a.vendor; Updates.served(a.version); bridgeSrc = null; return a; }
 
 protocol.registerSchemesAsPrivileged([{ scheme: SCHEME,
   privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, stream: true, codeCache: true } }]);
@@ -28,7 +34,6 @@ function openOutside(url) {
 
 let mainWin = null, presWin = null, tray = null, presenting = false;
 const webPrefs = { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js'), webviewTag: true };
-const fs = require('fs');
 
 /* ---------- Browser widgets: <webview> in the page, a real browser per web widget ----------
    Any site, logins kept (the 'persist:browse' session, apart from the app's own). Each page gets webview-preload.js in an
@@ -63,7 +68,7 @@ function guard(win) {
 
 function createWindow({ show = true } = {}) {
   const win = mainWin = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: 'DriveDeck', show,
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: 'StudioGen', show,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: webPrefs,
   });
   guard(win); guestRules(win.webContents);
@@ -71,6 +76,7 @@ function createWindow({ show = true } = {}) {
   win.on('leave-full-screen', () => { if (presenting) { presenting = false; menu(); } });
   // Esc on the wall stops presenting (the presenter view stays open).
   win.webContents.on('before-input-event', (e, i) => { if (presenting && i.type === 'keyDown' && i.key === 'Escape') { presenting = false; win.setFullScreen(false); menu(); } });
+  win.webContents.once('did-finish-load', () => Updates.start()); // it runs: tidy up after an update, then check now and then
   win.loadURL(`${ORIGIN}/index.html`);
   return win;
 }
@@ -87,13 +93,13 @@ function openPresenter(onDisplay) {
   const main = mainWin ? screen.getDisplayMatching(mainWin.getBounds()) : screen.getPrimaryDisplay();
   const d = onDisplay || (presenting && otherDisplay(main)) || main, w = Math.min(1180, d.workArea.width - 40), h = Math.min(780, d.workArea.height - 40);
   presWin = new BrowserWindow({ width: w, height: h, x: d.workArea.x + Math.round((d.workArea.width - w) / 2), y: d.workArea.y + Math.round((d.workArea.height - h) / 2),
-    minWidth: 640, minHeight: 420, backgroundColor: '#000000', title: 'DriveDeck · Presenter', webPreferences: webPrefs });
+    minWidth: 640, minHeight: 420, backgroundColor: '#000000', title: 'StudioGen · Presenter', webPreferences: webPrefs });
   guard(presWin);
   presWin.on('closed', () => { presWin = null; menu(); });
   presWin.loadURL(`${ORIGIN}/presenter.html`);
   menu(); return presWin;
 }
-/** DriveDeck full screen on display `id` (the wall); the presenter view on another screen when there is one. */
+/** StudioGen full screen on display `id` (the wall); the presenter view on another screen when there is one. */
 function present(id) {
   const win = showMain(), d = screen.getAllDisplays().find(x => x.id === +id) || otherDisplay(screen.getDisplayMatching(win.getBounds())) || screen.getPrimaryDisplay();
   const go = () => {
@@ -116,7 +122,7 @@ function menu() {
   if (!tray) return;
   const ds = displays();
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open DriveDeck', click: showMain },
+    { label: 'Open StudioGen', click: showMain },
     { type: 'separator' },
     { label: 'Present on', submenu: ds.map(d => ({ label: `${d.label} (${d.w}×${d.h})${d.primary ? ' · main screen' : ''}`, click: () => present(d.id) })) },
     { label: 'Presenter view', click: () => { showMain(); openPresenter(); } },
@@ -125,23 +131,27 @@ function menu() {
     { label: 'Settings…', click: () => showMain().webContents.send('dd:menu', 'settings') },
     { label: 'Start at login', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: i => loginItem(i.checked) },
     { type: 'separator' },
-    { label: 'Quit DriveDeck', role: 'quit' },
+    { label: 'Check for updates…', click: () => { showMain(); Updates.check(true); } },
+    { label: 'Quit StudioGen', role: 'quit' },
   ]));
 }
 function makeTray() {
   const img = nativeImage.createFromPath(path.join(__dirname, 'trayTemplate.png'));
   img.setTemplateImage(true);
-  tray = new Tray(img); tray.setToolTip('DriveDeck');
+  tray = new Tray(img); tray.setToolTip('StudioGen');
   menu();
   screen.on('display-added', menu); screen.on('display-removed', menu);
 }
 
 app.whenReady().then(() => {
   // Serve the web files; anything outside the web folder is refused.
+  useWeb();
+  // vendor/ may come from its own folder (libraries update separately from the app's files).
   const serve = req => {
-    const { pathname } = new URL(req.url);
-    const file = path.normalize(path.join(WEB, decodeURIComponent(pathname === '/' ? '/index.html' : pathname)));
-    if (!file.startsWith(WEB + path.sep)) return new Response('Not found', { status: 404 });
+    const { pathname } = new URL(req.url), rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+    const base = rel.startsWith('/vendor/') ? path.dirname(VENDOR) : WEB;
+    const file = path.normalize(path.join(base, rel));
+    if (!file.startsWith(base + path.sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
   };
   protocol.handle(SCHEME, serve);
@@ -184,8 +194,18 @@ app.whenReady().then(() => {
     for (const ev of [].concat(evs || [])) if (ev && INPUT.has(ev.type)) e.sender.sendInputEvent(ev);
     return true;
   });
+  // A picture of the window that asks (script steps that find an area of the screen by its picture).
+  ipcMain.handle('dd:capture', async e => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? (await e.sender.capturePage()).toDataURL() : null);
   ipcMain.handle('dd:insert-text', (e, text) => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? e.sender.insertText(String(text || '')).then(() => true) : false);
-  ipcMain.handle('dd:bridge-src', () => readBridge()); // for webview-preload.js; a public file of the app
+  ipcMain.handle('dd:bridge-src', () => readBridge());
+  // Updates (desktop/updater.js): state, check now, and apply (web: reload on the new files; shell: install and restart).
+  ipcMain.handle('dd:update-status', own(() => Updates.status()));
+  ipcMain.handle('dd:update-check', own(() => Updates.check(true)));
+  ipcMain.handle('dd:update-apply', own(kind => {
+    if (kind === 'shell') { if (!Updates.installShell(true)) return false; app.quit(); return true; }
+    useWeb(); for (const w of [mainWin, presWin]) w?.webContents.reloadIgnoringCache(); return true;
+  }));
+  Updates.on(s => { for (const w of [mainWin, presWin]) w?.webContents.send('dd:update', s); }); // for webview-preload.js; a public file of the app
   // The browsing session: no camera, microphone, location or notifications for web pages in widgets.
   const browse = session.fromPartition(BROWSE);
   browse.setPermissionRequestHandler((wc, perm, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(perm)));
@@ -201,3 +221,5 @@ app.whenReady().then(() => {
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+// A downloaded new version of the app installs when you quit (and opens next time you start it).
+app.on('will-quit', () => { Updates.installShell(false); });

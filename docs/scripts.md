@@ -53,3 +53,14 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
   Record app steps. Replays glide a pointer, show a pulsating dot at each click, and use real input in the desktop app
   (`DriveDeckDesktop.input` / `insertText`); a covered spot is clicked on another visible part of the element, or directly.
 - Floating widgets: `widget.float` (`camera` or `model~id`, then optional `x,y,w,h` fractions) and `widget.dock`.
+
+## Steps made in the editor
+
+- `{ "say": "…" }`: the assistant says it (with `{notes}`), lip-synced, captioned.
+- `{ "do": "avatar.gesture", "value": "PointLeft" }`: a motion from `MOTIONS` (js/motions.js); a beat's `gesture` takes the same names
+  (older ones like `Yes`/`No` still work). `{ "do": "avatar.pointAt", "value": "doc" }` points at a widget (id or type) or
+  left/right/up/down, choosing the arm and direction from where it is.
+- App steps found by **text on screen**: `"loc": { "match": { "text": "Next page" }, "wx": 0.5, "wy": 0.5 }` (visible text,
+  labels and titles, same-site frames and web widgets; nearest to wx/wy wins ties), or by **a picture of an area**:
+  `"match": { "img": "<data URL>", "w": 68, "h": 68, "at": [x, y] }` (template matching on a picture of the window; the
+  desktop app takes it itself, the PWA shares its tab once). Editor-made scrolls use `"amount": "down" | "up" | "top" | "bottom"`.

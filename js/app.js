@@ -123,7 +123,7 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveDeck Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
   convo: false, convoGap: '1', convoStt: 'auto', appMode: 'drive', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
@@ -252,15 +252,15 @@ document.documentElement.classList.toggle('standalone', isStandalone());
 function showInstallHelp() {
   if (deferredInstall) return ACTIONS.install();
   const share = '<svg viewBox="0 0 24 24" class="inline-ic" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
-  sheet('Install DriveDeck', isStandalone()
-    ? '<p>DriveDeck is already running as an installed app, full screen with no browser bars.</p>'
+  sheet(`Install ${APP_NAME}`, isStandalone()
+    ? `<p>${APP_NAME} is already running as an installed app, full screen with no browser bars.</p>`
     : isIOS
       ? `<ol><li>Open this page in <b>Safari</b>. In another app’s built-in browser, tap its menu and choose <b>Open in Safari</b> first.</li>
          <li>Tap <b>Share</b> ${share}: at the bottom in portrait on iPhone, or at the top on iPad and in landscape.</li>
          <li>Scroll down and tap <b>Add to Home Screen</b>. Not there? Tap <b>Edit Actions…</b> and add it.</li>
          <li>Leave <b>Open as Web App</b> on and tap <b>Add</b>.</li>
-         <li>Open <b>DriveDeck</b> from the Home Screen. It runs full screen, without Safari’s bars.</li></ol>`
-      : `<ol><li>Open the browser menu (⋮).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Open DriveDeck from the Home screen.</li></ol>`,
+         <li>Open <b>${APP_NAME}</b> from the Home Screen. It runs full screen, without Safari’s bars.</li></ol>`
+      : `<ol><li>Open the browser menu (⋮).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Open ${APP_NAME} from the Home screen.</li></ol>`,
     [['Got it']]);
 }
 
@@ -302,7 +302,7 @@ function showLocationHelp() {
   sheet('Location is blocked', isIOS
     ? `<p>Your iPhone won’t ask again until location is allowed for this site:</p>
        <ol><li>Open <b>Settings › Privacy &amp; Security › Location Services</b> and make sure it’s on.</li>
-       <li>Choose <b>Safari Websites</b> (or <b>DriveDeck</b> if you added it to the Home Screen) and pick <b>While Using the App</b> or <b>Ask Next Time</b>.</li>
+       <li>Choose <b>Safari Websites</b> (or <b>${APP_NAME}</b> if you added it to the Home Screen) and pick <b>While Using the App</b> or <b>Ask Next Time</b>.</li>
        <li>Come back and tap <b>Use GPS</b> again.</li></ol>`
     : '<p>Allow location for this site in your browser’s site settings (the icon beside the address), then tap <b>Use GPS</b> again.</p>',
     [['Try demo drive', () => ACTIONS.demo()], ['OK']]);
@@ -895,12 +895,12 @@ function mapsHandoffSheet() {
     [...Object.entries(MAP_APPS).map(([id, [name]]) => [name, () => openInMaps(id)]), ['Cancel']]);
 }
 const MUSIC_APPS = {
-  demo: ['DriveDeck demo player'],
+  demo: [`${APP_NAME} demo player`],
   spotify: ['Spotify', q => `spotify:search:${encodeURIComponent(q)}`, q => `https://open.spotify.com/search/${encodeURIComponent(q)}`],
   ytmusic: ['YouTube Music', null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
   phone: ['Phone’s music app', () => isIOS ? 'music://' : null, q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`],
   // A shortcut you make once (input: text → your music app's “play” action) starts playback directly, not just a search.
-  shortcut: ['A phone shortcut (plays straight away)', q => `shortcuts://run-shortcut?name=${encodeURIComponent(settings.musicShortcut || 'DriveDeck Play')}&input=text&text=${encodeURIComponent(q)}`, null],
+  shortcut: ['A phone shortcut (plays straight away)', q => `shortcuts://run-shortcut?name=${encodeURIComponent(settings.musicShortcut || 'DriveGen Play')}&input=text&text=${encodeURIComponent(q)}`, null],
 };
 /** Play through the chosen music app; returns false when the demo player should handle it. */
 function playInMusicApp(q = '', app = settings.musicApp) {
@@ -1258,7 +1258,8 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
-      <button class="row" data-action="versionTap"><div class="main"><div class="t">DriveDeck</div></div><span class="val">v0.4${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
+      ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() : ''}
+      <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">v0.4${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
 }
 
@@ -1357,9 +1358,9 @@ const ACTIONS = {
   voiceLogClear: () => { VoiceLog.clear(); toast('Conversation history cleared'); },
   mapsHandoff: () => mapsHandoffSheet(),
   openMusicApp: () => { if (!playInMusicApp(curTrack().t)) sheet('Music app', '<p>Choose where music plays: the demo player, or hand off to a music app on your phone.</p>', [['Choose app', () => ACTIONS.musicAppPick()], ['Cancel']]); },
-  musicAppPick: () => sheet('Music plays in', `<p>“Play music from Maroon 5” opens this app with Maroon 5. Music apps’ links open the artist’s search results; to start playing straight away, choose <b>a phone shortcut</b> and make one once in your phone’s shortcuts app: name it “${esc(settings.musicShortcut || 'DriveDeck Play')}”, let it take text input, and add your music app’s “play” action with the shortcut input as what to play.</p>`,
+  musicAppPick: () => sheet('Music plays in', `<p>“Play music from Maroon 5” opens this app with Maroon 5. Music apps’ links open the artist’s search results; to start playing straight away, choose <b>a phone shortcut</b> and make one once in your phone’s shortcuts app: name it “${esc(settings.musicShortcut || 'DriveGen Play')}”, let it take text input, and add your music app’s “play” action with the shortcut input as what to play.</p>`,
     [...Object.entries(MUSIC_APPS).map(([id, [name]]) => [name + (settings.musicApp === id ? ' ✓' : ''), () => {
-      if (id === 'shortcut') { const n = prompt('Name of the shortcut that plays music:', settings.musicShortcut || 'DriveDeck Play'); if (!n) return; settings.musicShortcut = n.trim(); }
+      if (id === 'shortcut') { const n = prompt('Name of the shortcut that plays music:', settings.musicShortcut || 'DriveGen Play'); if (!n) return; settings.musicShortcut = n.trim(); }
       settings.musicApp = id; applySettings(); if (current === 'settings') renderSettings(); }]), ['Cancel']]),
   commands: () => CmdUI.open(),
   links: () => LinkUI.open(),
@@ -1458,7 +1459,7 @@ $('#installTip').hidden = isStandalone() || store.get('installTipOff') || !(isIO
 if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has('view')) {
   const tip = isIOS && !isStandalone() ? '<p class="hint">Tip: install it for full screen with no browser bars: in Safari tap <b>Share › Add to Home Screen</b>.</p>' : '';
   const done = fn => () => { store.set('onboarded', true); fn?.(); };
-  sheet('Welcome to DriveDeck', `<p>Turn on location for live position, speed and turn-by-turn directions. Your location stays on this device.</p>${tip}`,
+  sheet(`Welcome to ${APP_NAME}`, `<p>Turn on location for live position, speed and turn-by-turn directions. Your location stays on this device.</p>${tip}`,
     [['Use my location', done(startGPS)], ['Try demo drive', done(() => ACTIONS.demo())], ['Not now', done()]]);
 }
 
@@ -1468,7 +1469,8 @@ if ('serviceWorker' in navigator) addEventListener('load', async () => {
   try { reg = await navigator.serviceWorker.register('sw.js'); } catch { return; }
   if (!reg) return;
   // A waiting worker means new code is downloaded; only offer it when an older version is running.
-  const offer = w => { if (w && navigator.serviceWorker.controller) showUpdate(w); };
+  // The desktop app serves its files itself and updates through DesktopUpdates (below), not the service worker.
+  const offer = w => { if (w && navigator.serviceWorker.controller && !window.DriveDeckDesktop?.updates) showUpdate(w); };
   offer(reg.waiting);
   reg.addEventListener('updatefound', () => {
     const w = reg.installing;
@@ -1481,9 +1483,42 @@ if ('serviceWorker' in navigator) addEventListener('load', async () => {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
 });
 let updating = false;
+/* StudioGen (desktop) updates: the app downloads and verifies them (desktop/updater.js); this offers a restart when one is
+   ready: the app's web files (a reload) or a new version of the app itself (installed on restart or when you quit). */
+var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may draw before this line runs
+  s: {},
+  init() { const U = DriveDeckDesktop.updates; U.status().then(s => this.seen(s)).catch(() => {}); U.on(s => this.seen(s)); },
+  seen(s) {
+    const was = this.s; this.s = s || {};
+    if (current === 'settings' && $('#updRow')) $('#updRow').outerHTML = this.row();
+    if (this.s.shellReady && this.s.shellReady !== was.shellReady) this.bar('shell');
+    else if (this.s.webReady && !was.webReady) this.bar('web');
+    if (this.s.manual && was.phase === 'checking' && this.s.phase === 'idle')
+      toast(this.s.error ? `Couldn’t check for updates: ${this.s.error}` : this.s.shellReady || this.s.webReady ? 'An update is ready' : `${APP_NAME} is up to date`);
+  },
+  bar(kind) {
+    const s = this.s, bar = $('#updateBar'), shell = kind === 'shell';
+    $('b', bar).textContent = shell ? `${APP_NAME} ${s.shellReady} is ready` : 'Update ready';
+    $('.lp-t span', bar).textContent = shell ? (s.canSwap ? 'Restart to install it, or it installs when you quit' : 'Download it from the releases page (this copy can’t replace itself here)') : 'Restart to use the new version';
+    $('#updateNow').textContent = shell && !s.canSwap ? 'Download' : 'Restart now';
+    $('#updateNow').onclick = () => { bar.hidden = true;
+      if (shell && !s.canSwap) return openExternal('https://github.com/vchahalibm/CarPWA/releases');
+      DriveDeckDesktop.updates.apply(shell ? 'shell' : 'web'); };
+    $('#updateLater').onclick = () => { bar.hidden = true; toast(shell ? 'It installs when you quit' : 'The update is used next time you start'); };
+    bar.hidden = false; Log.i('app', `Update offered: ${kind}`, s);
+  },
+  row() {
+    const s = this.s, when = s.checkedAt ? new Date(s.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const state = s.phase === 'checking' ? 'Checking…' : s.phase === 'downloading' ? `Downloading ${s.what || ''}…` : s.shellReady ? `Version ${s.shellReady} ready: restart to install` : s.webReady ? 'Update ready: restart to use it'
+      : s.error ? `Couldn’t check (${s.error})` : when ? `Up to date · checked ${when}` : 'Checks automatically every few hours';
+    return `<button class="row" id="updRow" data-action="checkUpdates"><div class="main"><div class="t">Updates</div><div class="s">${esc(state)}</div></div><span class="val">app ${esc(s.shell || '')} · files ${s.serving || 'built-in'}</span></button>`;
+  },
+} : null;
+DesktopUpdates?.init();
+ACTIONS.checkUpdates = () => { const s = DesktopUpdates?.s; if (s?.shellReady) return DesktopUpdates.bar('shell'); if (s?.webReady) return DesktopUpdates.bar('web'); DriveDeckDesktop.updates.check(); };
 function showUpdate(worker) {
   const bar = $('#updateBar');
   bar.hidden = false;
   $('#updateNow').onclick = () => { updating = true; bar.hidden = true; worker.postMessage('skipWaiting'); };
-  $('#updateLater').onclick = () => { bar.hidden = true; toast('The update installs next time you close and reopen DriveDeck'); };
+  $('#updateLater').onclick = () => { bar.hidden = true; toast(`The update installs next time you close and reopen ${APP_NAME}`); };
 }

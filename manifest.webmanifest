@@ -1,6 +1,6 @@
 {
-  "name": "DriveDeck",
-  "short_name": "DriveDeck",
+  "name": "DriveGen",
+  "short_name": "DriveGen",
   "description": "A car-friendly dashboard for maps, drive stats, media, messages and a voice assistant.",
   "start_url": "./",
   "scope": "./",

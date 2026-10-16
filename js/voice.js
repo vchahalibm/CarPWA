@@ -312,7 +312,7 @@ const VoiceLog = {
   app(text) { const app = (APP_OF.find(([re]) => re.test(text)) || [0, 'assistant'])[1]; this.add({ who: 'app', text, app }); return app; },
   clear() { this.items = []; store.set('voiceLog', []); Dash.update(true); },
   html() {
-    if (!this.items.length) return `<div class="chat-empty">${svg('mic')}<b>Say “Hey” with the mic button</b><span>Try “take me home”, “what’s my ETA” or “call Mom”. Everything you say and what DriveDeck did shows up here.</span></div>`;
+    if (!this.items.length) return `<div class="chat-empty">${svg('mic')}<b>Say “Hey” with the mic button</b><span>Try “take me home”, “what’s my ETA” or “call Mom”. Everything you say and what ${APP_NAME} did shows up here.</span></div>`;
     let day = '';
     return this.items.slice(-30).map(e => {
       const d = new Date(e.at), dk = d.toDateString(), time = fmtClock(d);
@@ -599,7 +599,7 @@ const Voice = {
     if (settings.tts === 'neural' && !store.get('kokoroOK') && !store.get('ttsAsked') && !whisperFirst) {
       store.set('ttsAsked', true); this.close();
       const go = () => { this.open(); this.start(); };
-      return sheet('A natural reply voice', `<p>DriveDeck can answer in a natural voice made on this device (<b>Kokoro</b>) instead of the built-in, mechanical-sounding one. Works offline once downloaded.</p>
+      return sheet('A natural reply voice', `<p>${APP_NAME} can answer in a natural voice made on this device (<b>Kokoro</b>) instead of the built-in, mechanical-sounding one. Works offline once downloaded.</p>
         <p class="hint">One-time download of about ${ttsSize()} (use Wi-Fi).</p>`,
         [['Download now', () => { this.loadTTS(true).then(() => this.speak('Hi, this is my new voice.')).catch(e => console.warn(e)); go(); }],
           ['Keep the phone’s voice', () => { settings.tts = 'phone'; applySettings(); go(); }], ['Later', go]]);
@@ -608,7 +608,7 @@ const Voice = {
     if (this.engine() === 'browser') return this.listenBrowser();
     if (!this.pipe && !store.get('whisperOK')) {
       this.close();
-      return sheet('On-device voice', `<p>DriveDeck can understand you on the phone itself with <b>Whisper base</b>, OpenAI’s multilingual speech model. It works offline and understands English, Hindi, Kannada, Tamil and more. Other languages are translated to English commands.</p>
+      return sheet('On-device voice', `<p>${APP_NAME} can understand you on the phone itself with <b>Whisper base</b>, OpenAI’s multilingual speech model. It works offline and understands English, Hindi, Kannada, Tamil and more. Other languages are translated to English commands.</p>
         <p>It can answer in a natural voice made on the phone too (<b>Kokoro</b>), instead of the phone’s robotic one.</p>
         <p class="hint">One-time download: about ${Diag.get().stt === 'webgpu' ? 140 : 80} MB for listening, ${ttsSize()} more for the reply voice (use Wi-Fi). Both are kept on this device.</p>`,
         [['Download both', () => { store.set('ttsAsked', true); settings.tts = 'neural'; store.set('settings', settings);
@@ -713,7 +713,7 @@ const Voice = {
     Log.e('mic', 'Microphone unavailable', { name: e?.name, message: e?.message });
     $('#vOrb').classList.remove('live');
     if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError')
-      return this.show('Microphone permission is off', 'Allow the microphone for this site in the phone’s settings, then reopen DriveDeck');
+      return this.show('Microphone permission is off', `Allow the microphone for this site in the phone’s settings, then reopen ${APP_NAME}`);
     this.show('The microphone is busy', `Another app may be using it${e?.name ? ` (${e.name})` : ''}. Tap the mic to try again`);
   },
   /** Transcribe what's been said so far, during a pause. */

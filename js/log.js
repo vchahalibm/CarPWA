@@ -8,6 +8,9 @@
    tab away from ordinary users; it isn't security (the logs never leave
    the device unless you share them).
    ============================================================ */
+// The app's name: StudioGen in the desktop app, DriveGen on the web (the code and stored data keep the old internal names).
+const APP_NAME = /Electron\//.test(navigator.userAgent) ? 'StudioGen' : 'DriveGen';
+if (APP_NAME !== 'DriveGen') document.title = document.title.replace(/DriveGen/g, APP_NAME);
 const DEBUG_KEY_SHA256 = '248e61e1904edf1421dfa3905d12511a46dd3b0878f5be978b01bbb4c3e839eb';
 const Log = (() => {
   const FLAG = 'dd.debug', BUF = 'dd.logbuf', MAX = 2500, t0 = performance.now();
@@ -143,7 +146,7 @@ const Log = (() => {
     if (typeof current !== 'undefined' && current === 'settings' && typeof renderSettings === 'function') renderSettings();
   });
   if (on) {
-    add('info', 'app', '── DriveDeck started ──', env());
+    add('info', 'app', `── ${APP_NAME} started ──`, env());
     try {
       const prev = JSON.parse(localStorage.getItem(SESSION));
       if (prev && !prev.clean) {

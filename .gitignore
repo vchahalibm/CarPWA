@@ -1,3 +1,5 @@
 .DS_Store
 *.log
 .env*
+web-version.json
+update-out/

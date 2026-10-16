@@ -84,7 +84,7 @@ const WebDrive = {
   },
   post(f, op, args) {
     return new Promise((res, rej) => {
-      const id = ++this.seq, t = setTimeout(() => { this.pending.delete(id); rej(new Error('This page didn’t answer. To record or replay clicks on a page from another site, add the DriveDeck bridge to it (see bridge/README.md).')); }, ['play', 'prepare', 'verify'].includes(op) ? 12000 : 2500);
+      const id = ++this.seq, t = setTimeout(() => { this.pending.delete(id); rej(new Error('This page didn’t answer. To record or replay clicks on a page from another site, add the bridge (bridge/drivedeck-bridge.js) to it (see bridge/README.md).')); }, ['play', 'prepare', 'verify'].includes(op) ? 12000 : 2500);
       this.pending.set(id, m => { clearTimeout(t); res(m); });
       if (this.guest(f)) return f.send('dd-drive', { id, op, args }).catch(e => { this.pending.delete(id); clearTimeout(t); rej(e); });
       let to = '*'; try { to = new URL(f.src, location.href).origin; } catch {}
@@ -397,7 +397,7 @@ const UiDetect = {
   html() {
     const C = this.cfg();
     return `<div class="group-title">Screen-element model</div>
-      <p class="cmd-help">When a recorded step's element can't be found any more (renamed, moved), a detector you trained with the DriveDeck Trainer (tools/trainer › Models › Export) looks at the page for a control of the same kind near where it was, and clicks it. Choose its <b>model.onnx</b> (or model.int8.onnx) and <b>model.json</b>.</p>
+      <p class="cmd-help">When a recorded step's element can't be found any more (renamed, moved), a detector you trained with the Trainer (tools/trainer › Models › Export) looks at the page for a control of the same kind near where it was, and clicks it. Choose its <b>model.onnx</b> (or model.int8.onnx) and <b>model.json</b>.</p>
       <div class="group"><div class="row"><div class="main"><div class="t">${C ? esc(C.name) : 'None'}</div><div class="s">${C ? esc((C.classes || []).join(', ')) : 'Without one, a step whose element is gone stops with a message'}</div></div></div>
         <label class="row btn"><div class="main"><div class="t">Choose the model files…</div></div><input type="file" id="uiModelFiles" multiple accept=".onnx,.json,application/json" hidden></label>
         ${C ? '<button class="row btn" data-uimodel="rm"><div class="main"><div class="t">Remove</div></div></button>' : ''}</div>`;

@@ -1,15 +1,15 @@
 {
-  "name": "drivedeck-desktop",
-  "productName": "DriveDeck",
-  "version": "0.5.0",
-  "description": "DriveDeck, the car dashboard web app, as a desktop app",
+  "name": "studiogen",
+  "productName": "StudioGen",
+  "version": "0.6.0",
+  "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dmg --arm64 --x64",
+    "dist": "electron-builder --mac dmg zip --arm64 --x64",
     "dist:dir": "electron-builder --dir"
   },
   "devDependencies": {
@@ -17,8 +17,8 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "io.github.vchahalibm.drivedeck",
-    "productName": "DriveDeck",
+    "appId": "io.github.vchahalibm.studiogen",
+    "productName": "StudioGen",
     "directories": {
       "output": "dist"
     },
@@ -26,6 +26,7 @@
       "main.js",
       "preload.js",
       "webview-preload.js",
+      "updater.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"
@@ -44,32 +45,37 @@
           "icons/**",
           "presenter.html",
           "samples/**",
-          "bridge/**"
+          "bridge/**",
+          "web-version.json"
         ]
       }
     ],
     "mac": {
       "category": "public.app-category.navigation",
-      "icon": "../icons/pwa-512x512.png",
+      "icon": "../icons/studiogen-1024.png",
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "DriveDeck listens for your voice commands.",
-        "NSCameraUsageDescription": "DriveDeck uses the camera to recognise what is around the car.",
-        "NSLocationUsageDescription": "DriveDeck shows where you are and guides you.",
-        "NSLocationWhenInUseUsageDescription": "DriveDeck shows where you are and guides you."
-      }
+        "NSMicrophoneUsageDescription": "StudioGen listens for your voice commands.",
+        "NSCameraUsageDescription": "StudioGen uses the camera to follow the presenter and recognise objects.",
+        "NSLocationUsageDescription": "StudioGen shows where you are and guides you.",
+        "NSLocationWhenInUseUsageDescription": "StudioGen shows where you are and guides you."
+      },
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "dmg": {
-      "title": "DriveDeck ${version}"
+      "title": "StudioGen ${version}"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "../icons/pwa-512x512.png"
+      "icon": "../icons/studiogen-1024.png"
     },
     "win": {
       "target": "nsis",
-      "icon": "../icons/pwa-512x512.png"
+      "icon": "../icons/studiogen-1024.png"
     },
     "publish": null
   }

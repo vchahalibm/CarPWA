@@ -15,8 +15,12 @@
      upper arm: z -1.3 hangs down, 0 is out sideways; y + brings it
      forward; x + twists it (with the elbow bent, the hand goes up past
      the face). Right lower arm: z + bends the elbow up, y + swings the
-     forearm across the body. Spine, chest, neck, head: x - leans
-     forward (chin down), y + turns to the right of the screen.
+     forearm across the body. Right hand (wrist): z - bends toward the
+     palm, + back; y rocks it sideways (a wave). Right fingers close into
+     the palm with z -, the thumb folds across it with y - (left: mirrored).
+     Spine, chest, neck, head: x - leans forward (chin down), y + turns to
+     the right of the screen. Check new poses in close-ups: fingers and
+     wrists must never bend backwards.
    - Extra channels: $face { expression: weight }, $look [x, y] (where the
      eyes and head go, -1..1 of the screen, x + to the right), $hips [x, y]
      (metres), $zoom (the camera pulls back for wide movements).
@@ -27,35 +31,36 @@
 const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'], PHAL = ['Proximal', 'Intermediate', 'Distal'];
 /** Hand shapes for the right hand (mirrored for the left): curl per finger 0 (straight) .. 1 (closed). */
 const HANDS = {
-  relaxed: [0.15, 0.2, 0.25, 0.3, 0.35], open: [0, 0, 0, 0, 0], fist: [0.7, 1, 1, 1, 1], point: [0.6, 0, 1, 1, 1],
-  thumbsUp: [-0.2, 1, 1, 1, 1], victory: [0.7, 0, 0, 1, 1], soft: [0.25, 0.35, 0.45, 0.5, 0.55],
+  relaxed: [0.15, 0.2, 0.25, 0.3, 0.35], open: [0, 0, 0, 0, 0], fist: [1, 1, 1, 1, 1], point: [0.9, 0, 1, 1, 1],
+  thumbsUp: [0, 1, 1, 1, 1], victory: [0.9, 0, 0, 1, 1], soft: [0.25, 0.35, 0.45, 0.5, 0.55],
 };
-/** A hand shape as bone angles. Fingers bend about z (right hand +), the thumb about y. */
+/** A hand shape as bone angles. Fingers close into the palm about z (right hand -), the thumb folds across it about y (right -);
+    checked in close-ups of the hand (they must never bend backwards). */
 function handPose(shape, side = 'right') {
-  const c = HANDS[shape] || HANDS.relaxed, p = {}, s = side === 'right' ? 1 : -1;
+  const c = HANDS[shape] || HANDS.relaxed, p = {}, s = side === 'right' ? -1 : 1;
   FINGERS.forEach((f, i) => PHAL.forEach((ph, k) => {
-    p[`${side}${f}${ph}`] = f === 'Thumb' ? [0, s * c[i] * (k ? 0.6 : 0.5), 0] : [0, 0, s * c[i] * (k === 0 ? 1.25 : k === 1 ? 1.35 : 0.9)];
+    p[`${side}${f}${ph}`] = f === 'Thumb' ? (k ? [0, s * c[i] * 0.7, 0] : [-0.5 * c[i], s * c[i] * 0.6, s * c[i] * 0.6]) : [0, 0, s * c[i] * (k === 0 ? 1.25 : k === 1 ? 1.35 : 0.9)];
   }));
   return p;
 }
 const ARM = { // right-arm poses, reused
   down: { rightUpperArm: [0, 0, -1.3], rightLowerArm: [0, -0.25, 0] },
-  wave: { rightUpperArm: [0, 0.9, -0.62], rightLowerArm: [0, 0.05, 1.5], rightHand: [0, 0, 0] },
+  wave: { rightUpperArm: [0, 0.9, -0.62], rightLowerArm: [0, 0.05, 1.5], rightHand: [0, 0.3, 0] },
   point: { rightUpperArm: [0, 0.95, -0.42], rightLowerArm: [0, 0.1, 0.1], rightHand: [0, 0, 0] },
-  pointUp: { rightUpperArm: [0, 0.75, -0.55], rightLowerArm: [0, 0.05, 1.75], rightHand: [0, 0, 0.1] },
+  pointUp: { rightUpperArm: [0, 0.75, -0.55], rightLowerArm: [0, 0.05, 1.75], rightHand: [0, 0.2, 0] },
   pointDown: { rightUpperArm: [0, 0.65, -0.95], rightLowerArm: [0, 0.15, 0.1], rightHand: [0, 0, -0.2] },
   present: { rightUpperArm: [0, 0.55, -0.72], rightLowerArm: [0, 0.35, 0.35], rightHand: [-0.9, 0, 0] },
   heart: { rightUpperArm: [0, 0.9, -0.62], rightLowerArm: [0, 1.4, 0] },
-  chin: { rightUpperArm: [0, 1.5, -0.62], rightLowerArm: [0, 1.8, 1.0], rightHand: [0, 0, 0.2] },
+  chin: { rightUpperArm: [0, 1.5, -0.62], rightLowerArm: [0, 1.8, 1.0], rightHand: [0, 0, -0.2] },
   thumb: { rightUpperArm: [0.6, 1.2, -1.05], rightLowerArm: [0, 0.3, 1.45], rightHand: [0, 0, 0] },
-  stop: { rightUpperArm: [0, 1.15, -0.55], rightLowerArm: [0, 0.2, 1.15], rightHand: [0, 0, -0.9] },
+  stop: { rightUpperArm: [0, 1.15, -0.55], rightLowerArm: [0, 0.2, 1.15], rightHand: [0, 0.3, 0.45] },
   open: { rightUpperArm: [0, 0.45, -0.75], rightLowerArm: [0, 0.2, 0.35], rightHand: [-1.1, 0, 0] },
   shrug: { rightUpperArm: [0, 0.45, -1.15], rightLowerArm: [0, 0.9, 0.6], rightHand: [-1.2, 0, 0], rightShoulder: [0, 0, 0.18] },
   up: { rightUpperArm: [0, 0.25, 0.85], rightLowerArm: [0, 0, 0.35], rightHand: [0, 0, 0] },
   front: { rightUpperArm: [0, 1.0, -0.95], rightLowerArm: [0, 0.9, 0.55], rightHand: [-0.5, 0, 0] },
-  hip: { rightUpperArm: [0, -0.25, -0.95], rightLowerArm: [0, -1.4, 0], rightHand: [0, 0, 0.4] },
+  hip: { rightUpperArm: [0, -0.25, -0.95], rightLowerArm: [0, -1.4, 0], rightHand: [0, 0, 0] },
   salute: { rightUpperArm: [0.9, 1.4, -1.1], rightLowerArm: [0, 0, 2.2], rightHand: [0, 0, -0.3] },
-  face: { rightUpperArm: [0, 1.5, -0.5], rightLowerArm: [0, 1.95, 1.15], rightHand: [0, 0, 0.3] },
+  face: { rightUpperArm: [0, 1.5, -0.5], rightLowerArm: [0, 1.95, 1.15], rightHand: [0, 0, -0.3] },
 };
 /** The same pose for the other side: left ↔ right, y and z flipped (x, and $hips y / $look y, stay). */
 function mirrorPose(p) {
@@ -75,12 +80,12 @@ const pose = (...parts) => Object.assign({}, ...parts);
 const MOTIONS = {
   // ---------- Greetings ----------
   Wave: { group: 'Greet', name: 'Wave hello', len: 2.8, keys: [[0.55, pose(ARM.wave, handPose('open'), { spine: [0, -0.06, 0.03], head: [0, 0, 0.08] })], [2.2, pose(ARM.wave, handPose('open'), { spine: [0, -0.06, 0.03], head: [0, 0, 0.08] })]],
-    osc: [['rightLowerArm', 2, 0.24, 2.2, 0.55, 2.25, 0], ['rightHand', 2, 0.32, 2.2, 0.55, 2.25, -0.9], ['rightUpperArm', 1, 0.05, 2.2, 0.55, 2.25, 0.4]], face: { happy: 0.75 } },
+    osc: [['rightLowerArm', 2, 0.14, 2.2, 0.55, 2.25, 0], ['rightHand', 1, 0.38, 2.2, 0.55, 2.25, -0.9], ['rightUpperArm', 1, 0.05, 2.2, 0.55, 2.25, 0.4]], face: { happy: 0.75 } },
   WaveBoth: { group: 'Greet', name: 'Wave with both hands', len: 2.8, zoom: 1.12, keys: [[0.55, bothSides(pose(ARM.wave, handPose('open')))], [2.2, bothSides(pose(ARM.wave, handPose('open')))]],
-    osc: [['rightLowerArm', 2, 0.24, 2.2, 0.55, 2.25, 0], ['leftLowerArm', 2, 0.24, 2.2, 0.55, 2.25, 0], ['rightHand', 2, 0.3, 2.2, 0.55, 2.25, -0.9], ['leftHand', 2, 0.3, 2.2, 0.55, 2.25, -0.9]], face: { happy: 0.9 } },
+    osc: [['rightLowerArm', 2, 0.14, 2.2, 0.55, 2.25, 0], ['leftLowerArm', 2, 0.14, 2.2, 0.55, 2.25, 0], ['rightHand', 1, 0.36, 2.2, 0.55, 2.25, -0.9], ['leftHand', 1, 0.36, 2.2, 0.55, 2.25, -0.9]], face: { happy: 0.9 } },
   Hello: { group: 'Greet', name: 'Small hand raise', len: 1.6, keys: [[0.45, pose(ARM.wave, handPose('open'), { rightUpperArm: [0, 1.1, -0.8] })], [1.1, pose(ARM.wave, handPose('open'), { rightUpperArm: [0, 1.1, -0.8] })]], face: { happy: 0.6 } },
   Goodbye: { group: 'Greet', name: 'Wave goodbye with a bow', len: 3.2, keys: [[0.5, pose(ARM.wave, handPose('open'))], [1.9, pose(ARM.wave, handPose('open'))], [2.5, { spine: [-0.18, 0, 0], chest: [-0.12, 0, 0], head: [-0.22, 0, 0] }]],
-    osc: [['rightLowerArm', 2, 0.22, 2, 0.5, 1.9, 0], ['rightHand', 2, 0.3, 2, 0.5, 1.9, -0.9]], face: { happy: 0.7 } },
+    osc: [['rightLowerArm', 2, 0.14, 2, 0.5, 1.9, 0], ['rightHand', 1, 0.36, 2, 0.5, 1.9, -0.9]], face: { happy: 0.7 } },
   Bow: { group: 'Greet', name: 'Bow', len: 2.2, keys: [[0.8, { spine: [-0.25, 0, 0], chest: [-0.18, 0, 0], neck: [-0.1, 0, 0], head: [-0.2, 0, 0], ...bothSides(ARM.down), $look: [0, -0.6] }], [1.3, { spine: [-0.25, 0, 0], chest: [-0.18, 0, 0], neck: [-0.1, 0, 0], head: [-0.2, 0, 0], ...bothSides(ARM.down), $look: [0, -0.6] }]], face: { relaxed: 0.6 } },
   Welcome: { group: 'Greet', name: 'Welcome, arms open', len: 2.6, zoom: 1.15, keys: [[0.7, pose(bothSides(pose(ARM.open, handPose('open'))), { chest: [0.06, 0, 0], head: [0.06, 0, 0] })], [1.9, pose(bothSides(pose(ARM.open, handPose('open'))), { chest: [0.06, 0, 0], head: [0.06, 0, 0] })]], face: { happy: 0.85 } },
   HandOnHeart: { group: 'Greet', name: 'Hand on heart (thank you)', len: 2.4, keys: [[0.6, pose(mirrorPose(ARM.heart), handPose('open', 'left'), { head: [-0.12, 0, -0.1], spine: [-0.06, 0, 0] })], [1.8, pose(mirrorPose(ARM.heart), handPose('open', 'left'), { head: [-0.12, 0, -0.1], spine: [-0.06, 0, 0] })]], face: { relaxed: 0.7, happy: 0.4 } },

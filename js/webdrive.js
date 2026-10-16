@@ -93,6 +93,7 @@ const WebDrive = {
   },
   /** Something the page reported while recording. */
   event(f, m) {
+    if (typeof AppSteps !== 'undefined' && AppSteps.rec) return AppSteps.webEvent(f, m); // recording app steps: the page's steps are part of them
     const R = this.rec; if (!R || R.f !== f) return;
     if (m.type === 'step') {
       R.steps.push(m.step); Log.i('web', `Recorded: ${this.describe(m.step)}`, { found: Object.keys(m.step.loc).filter(k => m.step.loc[k] !== '' && m.step.loc[k] != null) });
@@ -116,7 +117,7 @@ const WebDrive = {
       if (!quiet) { const r = await c.call('find', step.loc); if (r.ok) await this.point(f, r.rect); }
       res = await c.call('play', step, { quiet });
     }
-    if (!quiet && res.rect) this.ring(f, res.rect, res.ok);
+    if (!quiet && res.rect) { this.ring(f, res.rect, res.ok); const [x, y] = this.onScreen(f, res.rect); ClickDot.show(x, y, false, !res.ok); }
     Log[res.ok ? 'i' : 'w']('web', `${res.ok ? 'Played' : 'Failed'}: ${this.describe(step)}`, { how: res.how, error: res.error || undefined, quiet });
     Bus.emit('web.step', { value: this.describe(step) });
     if (!res.ok && !quiet) toast(res.error || 'That web step didn’t work');
@@ -234,6 +235,8 @@ const WebDrive = {
     const body = f.closest('.mw-body') || f.parentElement, fb = f.getBoundingClientRect(), bb = body.getBoundingClientRect(), k = fb.width / (r.vw || fb.width);
     return { body, x: fb.left - bb.left + (r.x + r.w / 2) * k, y: fb.top - bb.top + (r.y + r.h / 2) * k, w: r.w * k, h: r.h * k };
   },
+  /** The middle of something in the page, in window coordinates. */
+  onScreen(f, r) { const fb = f.getBoundingClientRect(), k = fb.width / (r.vw || fb.width); return [fb.left + (r.x + r.w / 2) * k, fb.top + (r.y + r.h / 2) * k]; },
   /** The audience's pointer glides to the target before the click. */
   point(f, r) {
     const p = this.spot(f, r);
@@ -419,6 +422,15 @@ Actions.define('web.helper', { group: 'Web pages', name: 'Run a site helper', ar
   const f = WebDrive.frame(); if (!WebDrive.guest(f)) return say('Site helpers run in the desktop app’s web widgets.');
   return WebDrive.runHelper(f, h, 'script step'); } });
 
+/* ---------- A pulsating dot where a script clicks (app steps, web steps, “Click at a place on the screen”) ---------- */
+const ClickDot = {
+  show(x, y, quiet, bad) {
+    if (quiet) return;
+    const d = document.createElement('div'); d.className = 'cdot' + (bad ? ' bad' : '');
+    d.style.left = `${Math.round(x)}px`; d.style.top = `${Math.round(y)}px`; document.body.appendChild(d);
+    setTimeout(() => d.remove(), 1900);
+  },
+};
 /* ---------- Pointer: click anything on Stage at a screen position; point and pinch with Follow the presenter ---------- */
 const Pointer = {
   /** Click what's at (x, y) in the window as a person would: real input in a browser widget, the element in a same-site
@@ -432,7 +444,7 @@ const Pointer = {
     if (!t) return false;
     const o = { bubbles: true, cancelable: true, view: win, clientX: x, clientY: y };
     for (const k of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) t.dispatchEvent(new (k.startsWith('pointer') ? win.PointerEvent : win.MouseEvent)(k, o));
-    t.click?.(); return true;
+    t.dispatchEvent(new win.MouseEvent('click', o)); return true; // an event, not t.click(): the spot is often an icon (SVG has no click())
   },
   /* The presenter's hand (People, Settings › Mode › Point to click): the index fingertip moves a dot; a pinch (thumb to
      fingertip) clicks where the dot was just before. */
@@ -464,4 +476,4 @@ const Pointer = {
 };
 Actions.define('web.clickAt', { group: 'Web pages', name: 'Click at a place on the screen', arg: 'x,y as fractions of the screen, e.g. 0.5,0.4', run(v, say) {
   const [x, y] = String(v).split(/[ ,]+/).map(Number); if (!(x >= 0 && y >= 0)) return say('Give the place as x,y fractions of the screen, like 0.5,0.4.');
-  Pointer.clickAt(x <= 1 ? x * innerWidth : x, y <= 1 ? y * innerHeight : y); } });
+  const px = x <= 1 ? x * innerWidth : x, py = y <= 1 ? y * innerHeight : y; ClickDot.show(px, py); Pointer.clickAt(px, py); } });

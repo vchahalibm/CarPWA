@@ -906,6 +906,13 @@ svg{display:block;flex:none}
 .wg-rs{position:absolute;right:0;bottom:0;z-index:4;width:56px;height:56px;display:grid;place-items:center;border-radius:18px 0 26px 0;background:var(--acc);color:#000;cursor:nwse-resize;touch-action:none}
 .wg-rs.v{cursor:ns-resize}
 .wg-rs svg{width:24px;height:24px}
+.wg-rs.l{right:auto;left:0;border-radius:0 18px 0 26px;cursor:nesw-resize}
+/* Small widgets (resized down): the edit buttons wrap and scroll rather than spill out */
+.wg-edit{flex-wrap:wrap;align-content:center;overflow:auto}
+/* Floating widgets (camera, 3D models) over the others, anywhere on the dashboard */
+.wfloats{position:absolute;inset:0;pointer-events:none;z-index:6}
+.wfloats > .wg.float{position:absolute;pointer-events:auto;box-shadow:0 18px 50px rgba(0,0,0,.45);border-color:color-mix(in srgb,var(--acc) 35%,var(--line))}
+.wf-edit{cursor:move;touch-action:none}
 .wg.resizing{animation:none!important;outline:3px solid var(--acc);outline-offset:-3px;z-index:5}
 
 .update-bar{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:280;display:flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;
@@ -1265,3 +1272,17 @@ table.bench small{color:var(--text-2)}
 .wd-txt span{color:var(--text-2);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wd-list{margin:0 0 10px;padding-left:22px;line-height:1.5}
 .sui-desc{margin:-2px 0 6px 4px;font-size:14px;color:var(--text-2)}
+
+/* Floating widgets keep their card look in seamless cluster styles */
+.seamless .wfloats > .wg.float{background:var(--panel-2);border-radius:28px;border:1px solid var(--line)}
+
+/* ---------- App steps: the pointer gliding to each click, and a pulsating dot where a script clicks ---------- */
+#asCursor{position:fixed;z-index:10000;pointer-events:none}
+.cdot{position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#ff375f;box-shadow:0 0 0 3px rgba(255,255,255,.92),0 2px 12px rgba(0,0,0,.4);z-index:10001;pointer-events:none;animation:cdotIn 1.9s ease-out forwards}
+.cdot::before,.cdot::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:3px solid #ff375f;animation:cdotPulse .9s ease-out 2;opacity:0}
+.cdot::after{animation-delay:.45s}
+.cdot.bad,.cdot.bad::before,.cdot.bad::after{background-color:#ff9f0a;border-color:#ff9f0a}
+.cdot.bad::before,.cdot.bad::after{background:none}
+@keyframes cdotPulse{from{transform:scale(1);opacity:.95}to{transform:scale(3.6);opacity:0}}
+@keyframes cdotIn{0%{transform:scale(.3)}12%{transform:scale(1.2)}24%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.cdot::before,.cdot::after{animation:none}}

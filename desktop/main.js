@@ -176,6 +176,15 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:stop-presenting', own(stopPresenting));
   ipcMain.handle('dd:presenter', own(() => { openPresenter(); return true; }));
   ipcMain.handle('dd:login-item', own(loginItem));
+  // Script steps (js/appsteps.js): real mouse and keyboard input in the app's own window, as a person would, so anything on
+  // screen reacts (canvases, maps, web widgets). Only the app's own page can ask, and only for its own window.
+  const INPUT = new Set(['mouseMove', 'mouseDown', 'mouseUp', 'mouseWheel', 'keyDown', 'keyUp', 'char']);
+  ipcMain.handle('dd:input', (e, evs) => {
+    if (!String(e.senderFrame?.url || '').startsWith(ORIGIN)) return false;
+    for (const ev of [].concat(evs || [])) if (ev && INPUT.has(ev.type)) e.sender.sendInputEvent(ev);
+    return true;
+  });
+  ipcMain.handle('dd:insert-text', (e, text) => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? e.sender.insertText(String(text || '')).then(() => true) : false);
   ipcMain.handle('dd:bridge-src', () => readBridge()); // for webview-preload.js; a public file of the app
   // The browsing session: no camera, microphone, location or notifications for web pages in widgets.
   const browse = session.fromPartition(BROWSE);

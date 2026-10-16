@@ -223,7 +223,7 @@ const plural = l => ({ person: 'people', bus: 'buses', 'traffic light': 'traffic
 W.camera = { name: 'Camera', html: () => `<div class="camw"><video muted playsinline autoplay></video><canvas></canvas><div class="ppl-blur"></div><canvas class="ppl"></canvas>
     <div class="cam-go"><span>${svg('camera')}</span><b>Camera &amp; objects</b><small>${esc(Vision.model().name)} · works offline</small><button class="w-cta" data-cam="start">Start camera</button></div>
     <div class="cam-bar"><span class="cam-status"></span><button class="cam-stop" data-cam="stop" aria-label="Stop the camera" hidden>${svg('close')}</button></div></div>`,
-  config: () => openView('settings') };
+  config: () => openView('settings'), float: true };
 Bus.on('dash.rendered', () => {
   const has = !!$('#dashRoot .camw');
   if (!has && Vision.users.has('widget')) Vision.stop('widget');

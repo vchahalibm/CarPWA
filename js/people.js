@@ -13,7 +13,7 @@
      (re-found by position and clothing colour). Nothing is stored: it's
      all in memory and gone when tracking stops.
    - The Camera widget on Stage shows it all live: skeletons, hands, face
-     boxes, the presenter's halo, claim progress, timings.
+     meshes, the presenter's halo, claim progress, timings.
    Loaded after script.js.
    ============================================================ */
 const MEDIAPIPE = 'vendor/mediapipe/';
@@ -54,7 +54,9 @@ self.onmessage = async ({ data: m }) => {
       gr = await make(V.GestureRecognizer, 'gesture_recognizer.task', { numHands: 4, minHandDetectionConfidence: 0.5 }, 'hands');
       pose = await make(V.PoseLandmarker, 'pose_landmarker_lite.task', { numPoses: 4 }, 'body');
       face = await make(V.FaceLandmarker, 'face_landmarker.task', { numFaces: 4, outputFaceBlendshapes: true }, 'face');
-      send({ type: 'loaded', id: m.id, info });
+      // The face mesh's lines (MediaPipe's tesselation and contours), for the Camera widget to draw.
+      const edges = l => (l || []).flatMap(c => [c.start, c.end]);
+      send({ type: 'loaded', id: m.id, info, mesh: { tess: edges(V.FaceLandmarker.FACE_LANDMARKS_TESSELATION), cont: edges(V.FaceLandmarker.FACE_LANDMARKS_CONTOURS) } });
     } else if (m.type === 'frame') {
       const f = m.frame, t = m.t, ms = {}, out = { w: f.width, h: f.height };
       let s = performance.now(); const g = gr.recognizeForVideo(f, t); ms.hands = performance.now() - s;
@@ -74,7 +76,7 @@ self.onmessage = async ({ data: m }) => {
       out.faces = (fc.faceLandmarks || []).map((lm, i) => {
         let x0 = 1, y0 = 1, x1 = 0, y1 = 0; for (const q of lm) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
         const bs = Object.fromEntries((fc.faceBlendshapes?.[i]?.categories || []).map(c => [c.categoryName, c.score]));
-        return { box: [x0, y0, x1, y1], jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
+        return { box: [x0, y0, x1, y1], lm: lm.map(q => [q.x, q.y]), jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
       });
       out.ms = Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, Math.round(v)]));
       send({ type: 'result', id: m.id, out });
@@ -102,7 +104,7 @@ const People = {
       w.call = (msg, transfer) => new Promise((ok, no) => { const id = ++seq; pending.set(id, m => m.type === 'error' ? no(new Error(m.message)) : ok(m)); w.postMessage({ ...msg, id }, transfer || []); });
       w.call({ type: 'load', url: new URL(MEDIAPIPE, document.baseURI).href, gpu }).then(m => {
         Log.i('people', `People tracking ready ${Math.round(performance.now() - s)} ms`, m.info); Log.mem('people', 'MediaPipe');
-        Budget.add('people', 'People tracking (MediaPipe)', () => this.stop(true), Budget.COST.people); w.info = m.info; res(w);
+        Budget.add('people', 'People tracking (MediaPipe)', () => this.stop(true), Budget.COST.people); w.info = m.info; this.mesh = m.mesh; res(w);
       }, e => { w.terminate(); rej(e); });
     })));
     return this.loading.then(w => (this.worker = w), e => { this.loading = null; Log.e('people', 'People tracking failed to load', e); toast('People tracking couldn’t start here'); throw e; });
@@ -272,8 +274,13 @@ const People = {
           if (h.g !== 'None' && h.gs > 0.5) { x.fillStyle = me ? '#ffd60a' : '#fff'; x.fillText(`${GESTURE_WORDS[h.g] || h.g} ${Math.round(h.gs * 100)}%`, X(h.lm[0][0]), Y(h.lm[0][1]) + 22 * dpr); }
         }
         if (t.face) {
-          const [a, b, c, d] = t.face.box, l = Math.min(X(a), X(c)), w = Math.abs(X(c) - X(a)), top = Y(b), hh = Y(d) - Y(b);
-          x.strokeStyle = col; x.lineWidth = (me ? 3 : 1.5) * dpr; x.strokeRect(l, top, w, hh);
+          const [a, b, c, d] = t.face.box, l = Math.min(X(a), X(c)), w = Math.abs(X(c) - X(a)), top = Y(b), hh = Y(d) - Y(b), M = this.mesh, lm = t.face.lm;
+          if (M?.tess?.length && lm?.length > 400 && !(settings.blurOthers && !me)) { // the face mesh: fine lines, then the contours (eyes, brows, lips, outline)
+            const lines = (e, style, wd) => { x.strokeStyle = style; x.lineWidth = wd * dpr; x.beginPath();
+              for (let k = 0; k < e.length; k += 2) { const p = lm[e[k]], q = lm[e[k + 1]]; if (p && q) { x.moveTo(X(p[0]), Y(p[1])); x.lineTo(X(q[0]), Y(q[1])); } } x.stroke(); };
+            lines(M.tess, me ? 'rgba(53,200,255,.45)' : 'rgba(255,255,255,.35)', 0.7);
+            lines(M.cont, me ? '#35c8ff' : 'rgba(255,255,255,.7)', me ? 1.6 : 1.1);
+          } else { x.strokeStyle = col; x.lineWidth = (me ? 3 : 1.5) * dpr; x.strokeRect(l, top, w, hh); }
           if (me && t.face.jaw > 0.12) { x.fillStyle = '#30d158'; x.fillText('speaking', l, top + hh + 20 * dpr); }
           if (!me && settings.blurOthers && blur) blur.insertAdjacentHTML('beforeend', `<i style="left:${l / dpr}px;top:${top / dpr}px;width:${w / dpr}px;height:${hh / dpr}px"></i>`);
         }

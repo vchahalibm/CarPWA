@@ -870,8 +870,19 @@ async function resample(data, from, to) {
   return (await ctx.startRendering()).getChannelData(0);
 }
 $('#vOrb').addEventListener('click', () => Voice.rec ? Voice.stopRec() : Voice.start());
-// Load the downloaded reply voice soon after launch, so even the first reply (or spoken direction) uses it.
-setTimeout(() => { if (settings.tts === 'neural' && store.get('kokoroOK') && !Voice.tts) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().catch(() => {}); } }, 4000);
+// The desktop app speaks with the on-device voice by default: switched to it once (you can still choose another in
+// Settings › Voice), and downloaded in the background without asking; a computer has the room and the connection.
+if (IS_DESKTOP_APP && !store.get('ttsDesktop')) {
+  store.set('ttsDesktop', true); store.set('ttsAsked', true);
+  if (settings.tts !== 'neural') { Log.i('tts', 'Desktop app: replies in the on-device voice', { was: settings.tts }); settings.tts = 'neural'; store.set('settings', settings); }
+}
+// Load the downloaded reply voice soon after launch, so even the first reply (or spoken direction) uses it. The desktop app
+// downloads it first if it isn't there yet.
+setTimeout(() => {
+  if (settings.tts !== 'neural' || Voice.tts) return;
+  if (store.get('kokoroOK')) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().catch(() => {}); }
+  else if (IS_DESKTOP_APP) { Log.i('tts', 'Desktop app: downloading the on-device voice'); Voice.loadTTS(false, true).catch(() => {}); }
+}, 4000);
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
 
 /* ---------- Assistant widget: a hands-free conversation view ---------- */

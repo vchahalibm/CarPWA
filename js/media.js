@@ -330,6 +330,7 @@ const Media = {
 };
 
 for (const [k, K] of Object.entries(MEDIA_KINDS)) W[k] = { name: K.name, multi: true, html: id => Media.html(id), config: (id, isNew) => Media.config(id, isNew) };
+W.model.float = true; // can float over the other widgets (Dash.float)
 Bus.on('dash.rendered', () => Media.mountAll());
 Bus.on('dash.resized', () => { clearTimeout(Media.rt); Media.rt = setTimeout(() => Object.keys(Media.pdf).forEach(id => Media.pdfDraw(id)), 150); });
 // YouTube player events (with enablejsapi): a video ending.

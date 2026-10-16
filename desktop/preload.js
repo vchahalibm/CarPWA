@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   presenter: () => ipcRenderer.invoke('dd:presenter'),
   /** Start DriveDeck when you log in (in the menu bar). */
   loginItem: on => ipcRenderer.invoke('dd:login-item', on),
+  /** Real input in this window (script steps): mouse and key events as Electron's sendInputEvent takes them. */
+  input: evs => ipcRenderer.invoke('dd:input', evs),
+  /** Type text into whatever has the focus, as the keyboard would. */
+  insertText: text => ipcRenderer.invoke('dd:insert-text', text),
   /** The menu bar asks the page for something (e.g. 'settings'). */
   onMenu: f => ipcRenderer.on('dd:menu', (e, what) => f(what)),
 });

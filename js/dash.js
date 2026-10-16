@@ -314,6 +314,7 @@ function widgetIds() {
   for (const w of ['left', 'right']) Dash.list(w).forEach(i => ids.add(i));
   for (const l of Object.values(store.get('paneCols', {}))) l.forEach(i => i !== '@' && ids.add(i));
   if (Dash.layout === 'stage') for (const w of STAGE_ZONES) Dash.list(w).forEach(i => ids.add(i));
+  Object.keys(Dash.floats()).forEach(i => ids.add(i));
   return [...ids].filter(i => W[wtype(i)]);
 }
 const DEFAULT_WIDGETS = ['chat', 'trip', 'weather', 'calendar', 'clock', 'nowPlaying', 'roll', 'pitch', 'elevation'];
@@ -359,10 +360,52 @@ const Dash = {
     return Array.isArray(v) ? v : id === '@' ? [1, 2] : [1, 1];
   },
   setSize(where, id, wh) { const z = store.get('wsizes', {}); z[`${where}.${id}`] = wh; store.set('wsizes', z); },
+  /** Width of a side column as a fraction of the dashboard: 'stage' (the presenter column), 'left', 'right' (beside the cluster). */
+  sideW: k => store.get('sideW', {})[k],
+  setSideW(k, f) { const z = store.get('sideW', {}); z[k] = +f.toFixed(4); store.set('sideW', z); },
+
+  /* Floating widgets (W[type].float: the camera, 3D models): over the others, anywhere on the dashboard, at any size.
+     Kept per layout as [x, y, w, h] fractions of the dashboard; a floating widget is in none of the layout's lists. */
+  floats(layout = this.layout) { return Object.fromEntries(Object.entries(store.get('wfloats', {})[layout] || {}).filter(([id]) => W[wtype(id)])); },
+  setFloat(id, rect, layout = this.layout) {
+    const a = store.get('wfloats', {}), f = a[layout] ||= {};
+    if (rect) f[id] = rect.map(v => +(+v).toFixed(4)); else delete f[id];
+    store.set('wfloats', a);
+  },
+  /** The widget lists of the current layout. */
+  lists() {
+    if (this.layout === 'stage') return STAGE_ZONES;
+    if (this.layout === 'cluster') return ['left', 'right', ...$$('#dashRoot .cl-main .cl > *').map((_, i) => `${this.style}.p${i}`)];
+    if (this.layout === 'widgets') return this.pages().map((_, p) => 'pg' + p);
+    return [];
+  },
+  float(id, on, rect) {
+    if (this.layout === 'map') return false;
+    if (on) {
+      for (const w of this.lists()) { const l = this.list(w); if (l.includes(id)) this.setList(w, l.filter(x => x !== id)); }
+      this.setFloat(id, rect || this.floats()[id] || (wtype(id) === 'camera' ? [0.03, 0.6, 0.24, 0.34] : [0.72, 0.5, 0.25, 0.46]));
+    } else {
+      this.setFloat(id, null);
+      const where = this.layout === 'stage' ? 'stage.side' : this.layout === 'cluster' ? 'right' : 'pg' + Math.min(store.get('wpage', 0), this.pages().length - 1);
+      const l = this.list(where); if (!l.includes(id)) this.setList(where, [...l, id]);
+    }
+    Log.i('dash', on ? `Floating ${id}` : `${id} back among the widgets`, { layout: this.layout, rect: this.floats()[id] });
+    this.render(); return true;
+  },
+  floatCard(id, [x, y, w, h]) {
+    const t = wtype(id), def = W[t], name = Wcfg.get(id).title || def.name;
+    const edit = this.editing ? `<div class="wg-edit wf-edit" data-fmove="${id}" title="Drag to move">
+        <button data-dash="dock::${id}" aria-label="Put ${name} back among the widgets">${svg('float')}</button>
+        <button class="x" data-dash="frm::${id}" aria-label="Remove ${name}">${svg('close')}</button>
+        ${def.config ? `<button data-dash="cfg::${id}" aria-label="${name} settings">${svg('sliders')}</button>` : ''}</div>
+      <div class="wg-rs" data-frs="${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>` : '';
+    return `<div class="wg w-${t} float" data-wid="${id}" style="left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;height:${h * 100}%">${def.html(id)}${edit}</div>`;
+  },
 
   /** One widget card. Edit mode adds move/remove buttons and a corner resize handle. */
   card(id, i, list, where) {
     const [w, h] = this.size(where, id), t = wtype(id), def = W[t], name = Wcfg.get(id).title || def.name, grid = where.startsWith('pg');
+    const sideR = where === 'stage.side' || where === 'right', wide = where.startsWith('stage.') || where === 'left' || where === 'right'; // the handle also sets the column's width
     const ic = r => svg('back').replace('<svg', `<svg style="transform:rotate(${r}deg)"`);
     const [prev, next] = grid ? [ic(0), ic(180)] : [ic(90), ic(-90)];
     let edit = '';
@@ -371,10 +414,12 @@ const Dash = {
         <button class="x" data-dash="rm:${where}:${id}" aria-label="Remove ${name}">${svg('close')}</button>
         <button data-dash="down:${where}:${id}" aria-label="Move ${name} ${grid ? 'later' : 'down'}" ${i < list.length - 1 ? '' : 'disabled'}>${next}</button>
         ${where === 'left' || where === 'right' ? `<button data-dash="swap:${where}:${id}" aria-label="Move ${name} to the other side">${where === 'left' ? ic(180) : ic(0)}</button>` : ''}
-        ${def.config ? `<button data-dash="cfg:${where}:${id}" aria-label="${name} settings">${svg('sliders')}</button>` : ''}</div>
-        <div class="wg-rs ${grid ? '' : 'v'}" data-rs="${where}:${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>`;
+        ${def.config ? `<button data-dash="cfg:${where}:${id}" aria-label="${name} settings">${svg('sliders')}</button>` : ''}
+        ${def.float && this.layout !== 'map' ? `<button data-dash="float:${where}:${id}" aria-label="Float ${name} over the other widgets">${svg('float')}</button>` : ''}</div>
+        <div class="wg-rs ${grid || wide ? '' : 'v'} ${sideR ? 'l' : ''}" data-rs="${where}:${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>`;
     }
-    const style = grid ? `grid-column:span ${w};grid-row:span ${h}` : `flex-grow:${h}`;
+    // Grid spans are in half cells, so a widget can be as small as a quarter of a cell.
+    const style = grid ? `grid-column:span ${Math.round(w * 2)};grid-row:span ${Math.round(h * 2)}` : `flex-grow:${h}`;
     return `<div class="wg w-${t}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${def.html(id)}${edit}</div>`;
   },
   addTile(where, label = 'Add') { return `<button class="wg add" data-cw="1" data-ch="1" data-dash="add:${where}">${svg('plus')}<span>${label}</span></button>`; },
@@ -382,7 +427,7 @@ const Dash = {
   /** Coming back to the dashboard: draw it again only if something about it changed, so playing videos, open
       documents and web pages in widgets carry on where they were. */
   key() { return JSON.stringify([this.layout, this.style, this.editing, settings.units, settings.accent, store.get('widgetPages'), store.get('widgets'),
-    store.get('clusterSides'), store.get('paneCols'), store.get('wsizes'), store.get('wcfg'), store.get('stageLists'), settings.captions]); },
+    store.get('clusterSides'), store.get('paneCols'), store.get('wsizes'), store.get('wcfg'), store.get('stageLists'), store.get('wfloats'), store.get('sideW'), settings.captions]); },
   show() {
     if (this.lastKey && this.lastKey === this.key() && $('#dashRoot')?.childElementCount) {
       this.placeMap(!!(this.layout === 'cluster' && CLUSTERS[this.style].map3d)); this.update(true); this.fitGrid(); Bar.show();
@@ -396,7 +441,7 @@ const Dash = {
     document.documentElement.dataset.accent = settings.accent || CLUSTERS[this.style].accent;
     let html, map3d = false;
     if (this.layout === 'cluster') {
-      const col = s => { const l = this.list(s); return l.length || this.editing ? `<div class="cl-side" data-side="${s}">
+      const col = s => { const l = this.list(s), f = this.sideW(s); return l.length || this.editing ? `<div class="cl-side" data-side="${s}" ${f ? `style="width:${(f * 100).toFixed(2)}%"` : ''}>
           ${l.map((id, i, a) => this.card(id, i, a, s)).join('')}${this.editing ? this.addTile(s) : ''}</div>` : ''; };
       html = `<div class="cl-wrap">${col('left')}<div class="cl-main">${CLUSTERS[this.style].html()}</div>${col('right')}</div>`;
       map3d = !!CLUSTERS[this.style].map3d;
@@ -412,7 +457,9 @@ const Dash = {
           <div class="wg">${W.nowPlaying.html()}</div></div></div>`;
     else if (this.layout === 'stage') {
       const zone = (z, cls) => { const l = this.list(z); return `<div class="${cls}" data-side="${z}">${l.map((id, i, a) => this.card(id, i, a, z)).join('')}${this.editing ? this.addTile(z) : ''}</div>`; };
-      html = `<div class="stage">${zone('stage.main', 'st-main')}${zone('stage.side', 'st-side')}
+      const side = this.list('stage.side').length || this.editing, f = this.sideW('stage');
+      const cols = side ? (f ? `grid-template-columns:minmax(0,1fr) ${(f * 100).toFixed(2)}%` : '') : 'grid-template-columns:minmax(0,1fr)';
+      html = `<div class="stage" style="${cols}">${zone('stage.main', 'st-main')}${side ? zone('stage.side', 'st-side') : ''}
         <div class="st-cap" ${settings.captions ? '' : 'hidden'} aria-live="polite"><div class="cap-you" hidden></div><div class="cap-ai" hidden></div></div>
         <div class="st-beats" hidden></div></div>`;
     }
@@ -428,6 +475,8 @@ const Dash = {
     root.className = 'dash-root lay-' + this.layout + (this.layout === 'cluster' ? ' st-' + this.style : '') + (this.editing ? ' with-bar editing' : '');
     root.innerHTML = html;
     if (this.layout === 'cluster') this.columnize(root);
+    const fl = this.layout === 'map' ? [] : Object.entries(this.floats());
+    if (fl.length) root.insertAdjacentHTML('beforeend', `<div class="wfloats">${fl.map(([id, r]) => this.floatCard(id, r)).join('')}</div>`);
     this.placeMap(map3d);
     this.renderBar();
     this.bound = $$('[data-t],[data-arc],[data-rot],[data-w],[data-tf],[data-show],[data-html],[data-cls]', root);
@@ -474,28 +523,30 @@ const Dash = {
   fitOne(g) {
     const items = [...g.children], W = g.clientWidth, H = g.clientHeight, gap = parseFloat(getComputedStyle(g).rowGap) || 0; // 0 when seamless
     if (!W || !H) return;
+    // Sizes are in cells and may be halves; the grid's tracks are half cells (a cell is two tracks and the gap between).
     const spans = items.map(el => [+el.dataset.cw || 1, +el.dataset.ch || 1]);
     const area = spans.reduce((a, [w, h]) => a + w * h, 0);
-    const apply = cols => items.forEach((el, k) => el.style.gridColumn = `span ${Math.min(spans[k][0], cols)}`);
+    const apply = cols => items.forEach((el, k) => { el.style.gridColumn = `span ${Math.min(Math.max(1, Math.round(spans[k][0] * 2)), cols * 2)}`; el.style.gridRow = `span ${Math.max(1, Math.round(spans[k][1] * 2))}`; });
+    const tracks = cols => g.style.gridTemplateColumns = `repeat(${cols * 2},minmax(0,1fr))`;
     let best = null, loose = null;
     g.style.gridAutoRows = '10px';
-    for (let cols = 1; cols <= Math.max(1, area); cols++) {
+    for (let cols = 1; cols <= Math.max(1, Math.ceil(area)); cols++) {
       const cw = (W - gap * (cols - 1)) / cols; if (cw < 96) break;
-      g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`; apply(cols);
-      const rows = getComputedStyle(g).gridTemplateRows.split(' ').length; // rows the dense packing actually used
-      const rh = (H - gap * (rows - 1)) / rows;
+      tracks(cols); apply(cols);
+      const rows = getComputedStyle(g).gridTemplateRows.split(' ').length; // half rows the dense packing actually used
+      const th = (H - gap * (rows - 1)) / rows, rh = th * 2 + gap;
       const score = Math.min(cw, rh);
-      if (!loose || score > loose.score) loose = { cols, rh, score };
+      if (!loose || score > loose.score) loose = { cols, th, score };
       if (cw / rh > 2.6 || rh / cw > 1.9) continue; // prefer card-shaped cells
-      if (!best || score > best.score) best = { cols, rh, score };
+      if (!best || score > best.score) best = { cols, th, score };
     }
     best ||= loose; // e.g. one or two widgets on a tall phone: fill the page rather than shrink to small tiles
     if (best && best.score >= 104) {
-      g.style.gridTemplateColumns = `repeat(${best.cols},minmax(0,1fr))`; apply(best.cols);
-      g.style.gridAutoRows = `${Math.floor(best.rh)}px`; g.dataset.cols = best.cols; g.classList.add('fit');
+      tracks(best.cols); apply(best.cols);
+      g.style.gridAutoRows = `${Math.floor(best.th)}px`; g.dataset.cols = best.cols; g.classList.add('fit');
     } else { // too many to fit: fixed-size cells that scroll
       const cols = Math.max(1, Math.floor((W + gap) / (170 + gap)));
-      g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`; apply(cols); g.style.gridAutoRows = '170px'; g.dataset.cols = cols; g.classList.remove('fit');
+      tracks(cols); apply(cols); g.style.gridAutoRows = `${(170 - gap) / 2}px`; g.dataset.cols = cols; g.classList.remove('fit');
     }
   },
   placeMap(map3d) {
@@ -547,6 +598,9 @@ const Dash = {
       if (inst !== id && W[id].config) W[id].config(inst, true); // a new instance: choose what it shows
     }
     else if (c === 'cfg') W[wtype(id)]?.config?.(id);
+    else if (c === 'float') this.float(id, true);
+    else if (c === 'dock') this.float(id, false);
+    else if (c === 'frm') { this.setFloat(id, null); if (id.includes('~') && !widgetIds().includes(id)) Wcfg.del(id); this.render(); }
     else if (c === 'rm') { this.setList(where, this.list(where).filter(x => x !== id)); if (id.includes('~') && !widgetIds().includes(id)) Wcfg.del(id); this.render(); }
     else if (c === 'swap') {
       const o = where === 'left' ? 'right' : 'left', to = this.list(o);
@@ -631,29 +685,69 @@ Dash.refit = () => {
   addEventListener('orientationchange', () => { go(); setTimeout(() => { last = ''; go(); }, 400); }); // iOS settles late
   screen.orientation?.addEventListener?.('change', () => setTimeout(() => { last = ''; go(); }, 300));
 })();
-/* Drag a widget's corner handle to resize it in whole cells; the grid re-packs around it. */
+/* Drag a widget's corner handle to resize it: on widget pages in half cells (the grid re-packs around it); in columns (Stage,
+   beside the cluster, under a dial) its share of the column changes smoothly, down to a sliver, and dragging sideways sets
+   the column's width (the Stage presenter column, the cluster's side columns). */
 document.addEventListener('pointerdown', e => {
   const hnd = e.target.closest('[data-rs]'); if (!hnd) return;
   e.preventDefault(); e.stopPropagation();
   const [where, id] = hnd.dataset.rs.split(':'), card = hnd.closest('.wg,.pane'), box = card.parentElement, r = card.getBoundingClientRect();
   const w0 = +card.dataset.cw || 1, h0 = +card.dataset.ch || 1, grid = where.startsWith('pg');
-  const cols = grid ? +box.dataset.cols || 1 : 1, cellW = (r.width + 12) / w0, cellH = grid ? (r.height + 12) / h0 : box.clientHeight / 4;
-  const x0 = e.clientX, y0 = e.clientY;
-  let nw = w0, nh = h0;
+  const gap = parseFloat(getComputedStyle(box).rowGap) || 0, cols = grid ? +box.dataset.cols || 1 : 1, cellW = (r.width + gap) / w0, cellH = (r.height + gap) / h0;
+  const half = v => Math.round(v * 2) / 2, x0 = e.clientX, y0 = e.clientY;
+  // Column width: the Stage presenter column, or this side of the cluster.
+  const root = $('#dashRoot'), rootW = root.clientWidth || 1;
+  const wkey = where.startsWith('stage.') ? 'stage' : where === 'left' || where === 'right' ? where : null;
+  const colEl = wkey === 'stage' ? $('#dashRoot .st-side') : wkey ? card.closest('.cl-side') : null, colW0 = colEl?.getBoundingClientRect().width || 0;
+  let nw = w0, nh = h0, nf = null;
   card.classList.add('resizing'); hnd.setPointerCapture?.(e.pointerId);
   const move = ev => {
-    const w = grid ? Math.max(1, Math.min(cols, w0 + Math.round((ev.clientX - x0) / cellW))) : 1;
-    const h = Math.max(1, Math.min(4, h0 + Math.round((ev.clientY - y0) / cellH)));
-    if (w === nw && h === nh) return;
-    nw = w; nh = h; card.dataset.cw = w; card.dataset.ch = h;
-    if (grid) { card.style.gridColumn = `span ${w}`; card.style.gridRow = `span ${h}`; } else card.style.flexGrow = h;
+    const dx = ev.clientX - x0, dy = ev.clientY - y0;
+    if (grid) {
+      const w = Math.max(0.5, Math.min(cols, half(w0 + dx / cellW))), h = Math.max(0.5, Math.min(6, half(h0 + dy / cellH)));
+      if (w === nw && h === nh) return;
+      nw = w; nh = h; card.dataset.cw = w; card.dataset.ch = h;
+      card.style.gridColumn = `span ${Math.round(w * 2)}`; card.style.gridRow = `span ${Math.round(h * 2)}`;
+      return;
+    }
+    // Its share of the column, so that it is about as tall as dragged to (others keep theirs).
+    nh = +Math.max(0.05, Math.min(12, h0 * Math.max(24, r.height + dy) / Math.max(24, r.height))).toFixed(2);
+    card.dataset.ch = nh; card.style.flexGrow = nh;
+    if (colEl && Math.abs(dx) > 4) {
+      const px = wkey === 'left' ? colW0 + dx : colW0 - dx; // the presenter column and the right side grow to the left
+      nf = Math.max(Math.min(0.05, 56 / rootW), Math.min(0.7, px / rootW));
+      if (wkey === 'stage') colEl.parentElement.style.gridTemplateColumns = `minmax(0,1fr) ${(nf * 100).toFixed(2)}%`; else colEl.style.width = `${(nf * 100).toFixed(2)}%`;
+    }
   };
   const end = () => {
     hnd.removeEventListener('pointermove', move); card.classList.remove('resizing');
-    Dash.setSize(where, id, [nw, nh]); Dash.fitGrid();
+    Dash.setSize(where, id, [nw, nh]); if (nf != null) Dash.setSideW(wkey, nf);
+    Dash.lastKey = Dash.key(); Dash.refit();
   };
   hnd.addEventListener('pointermove', move);
   hnd.addEventListener('pointerup', end, { once: true }); hnd.addEventListener('pointercancel', end, { once: true });
+}, true);
+/* Floating widgets in edit mode: drag the card to move it, its corner to resize it (anywhere on the dashboard, any size). */
+document.addEventListener('pointerdown', e => {
+  const mv = e.target.closest('[data-fmove]'), rs = e.target.closest('[data-frs]');
+  if (!(mv || rs) || e.target.closest('button')) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = (mv || rs).dataset.fmove || rs.dataset.frs, card = (mv || rs).closest('.wg.float'), layer = card.parentElement, L = layer.getBoundingClientRect();
+  const r0 = Dash.floats()[id] || [0, 0, 0.3, 0.3], x0 = e.clientX, y0 = e.clientY, minW = Math.min(0.5, 64 / L.width), minH = Math.min(0.5, 64 / L.height);
+  let r = [...r0];
+  card.classList.add('resizing'); (mv || rs).setPointerCapture?.(e.pointerId);
+  const move = ev => {
+    const dx = (ev.clientX - x0) / L.width, dy = (ev.clientY - y0) / L.height;
+    if (rs) { r[2] = Math.max(minW, Math.min(1 - r0[0], r0[2] + dx)); r[3] = Math.max(minH, Math.min(1 - r0[1], r0[3] + dy)); }
+    else { r[0] = Math.max(0, Math.min(1 - r0[2], r0[0] + dx)); r[1] = Math.max(0, Math.min(1 - r0[3], r0[1] + dy)); }
+    Object.assign(card.style, { left: `${r[0] * 100}%`, top: `${r[1] * 100}%`, width: `${r[2] * 100}%`, height: `${r[3] * 100}%` });
+  };
+  const end = () => {
+    (mv || rs).removeEventListener('pointermove', move); card.classList.remove('resizing');
+    Dash.setFloat(id, r); Dash.lastKey = Dash.key(); Bus.emit('dash.resized');
+  };
+  (mv || rs).addEventListener('pointermove', move);
+  (mv || rs).addEventListener('pointerup', end, { once: true }); (mv || rs).addEventListener('pointercancel', end, { once: true });
 }, true);
 listeners.push(() => Dash.update());
 setInterval(() => Dash.update(), 1000);

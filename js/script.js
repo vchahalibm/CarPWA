@@ -290,6 +290,7 @@ const ScriptUI = {
       <p class="cmd-help">A script has the assistant lead a presentation or demo on Stage: it says each step (with an expression and a gesture), turns your slides, opens web pages and runs any widget action, and moves on when you say “next”, show a hand gesture, press the clicker, or after a pause. “Go back”, “back two steps” and “start over” always work. <button class="link-btn" data-sui="help">How to write one</button></p>
       <div class="group">
         <button class="row btn" data-sui="new"><div class="main"><div class="t">＋ New script</div><div class="s">Starts from the sample, ready to change</div></div></button>
+        ${typeof AppSteps !== 'undefined' ? `<button class="row btn" data-sui="recscript"><div class="main"><div class="t">● Record a new script</div><div class="s">Use DriveDeck as in the demo (click, type, scroll, drag on widgets, web pages, anywhere); the script plays it back</div></div></button>` : ''}
         <button class="row btn" data-sui="upload"><div class="main"><div class="t">${svg('upload')} Upload a script (.json)</div></div></button>
         <button class="row btn" data-sui="template"><div class="main"><div class="t">${svg('download')} Download the sample as a template</div><div class="s">Edit it in any text editor, then upload it</div></div></button>
         <input type="file" id="suiFile" accept=".json,application/json" hidden>
@@ -336,6 +337,8 @@ const ScriptUI = {
     if (a === 'recplay') { const r = WebDrive.recs().find(x => x.name === id); if (r) { this.shown = false; openView('dashboard'); setTimeout(() => WebDrive.playAll(r.steps), 400); } return; }
     if (a === 'recdel') return sheet('Delete this recording?', `<p>${esc(id)}</p>`, [['Delete', () => { WebDrive.delRec(id); this.render(); }], ['Cancel']]);
     if (a === 'rec' && this.draft) { this.shown = false; return WebDrive.recordInto(this, +id.split('.')[1]); }
+    if (a === 'recapp' && this.draft) { this.shown = false; return AppSteps.recordInto(this, +id.split('.')[1]); }
+    if (a === 'recscript') return AppSteps.recordScript();
     if (a === 'del') return sheet('Delete this script?', `<p>${esc(Scripts.get(id)?.name)}</p>`, [['Delete', () => { Scripts.del(id); this.render(); }], ['Cancel']]);
     // Editor
     const d = this.draft; if (!d) return;
@@ -395,7 +398,7 @@ const ScriptUI = {
         <div class="sui-row"><label class="fld"><span>Id</span>${inp(`beats.${n}.id`, b.id)}</label><label class="fld grow"><span>Title</span>${inp(`beats.${n}.title`, b.title)}</label>
           <div class="sui-btns"><button class="big-btn" data-sui="try:${n}" aria-label="Run from here">${svg('play')}</button><button class="big-btn" data-sui="up:b.${n}" aria-label="Move up" ${n ? '' : 'disabled'}>↑</button>
           <button class="big-btn" data-sui="down:b.${n}" aria-label="Move down" ${n < d.beats.length - 1 ? '' : 'disabled'}>↓</button><button class="big-btn" data-sui="rmbeat:b.${n}" aria-label="Delete step">${svg('del')}</button></div></div>
-        <div class="sui-sub">Do</div>${steps(b.do, `beats.${n}.do`, 'b', n)}<button class="link-btn" data-sui="adddo:b.${n}">＋ Add an action</button>${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}
+        <div class="sui-sub">Do</div>${steps(b.do, `beats.${n}.do`, 'b', n)}<button class="link-btn" data-sui="adddo:b.${n}">＋ Add an action</button>${typeof WebDrive !== 'undefined' ? `<button class="link-btn" data-sui="rec:b.${n}">● Record web steps</button>` : ''}${typeof AppSteps !== 'undefined' ? `<button class="link-btn" data-sui="recapp:b.${n}">● Record app steps</button>` : ''}
         <label class="fld"><span>The assistant says <small>{notes} = the slide’s speaker notes</small></span><textarea data-sf="beats.${n}.say" rows="3">${esc(b.say || '')}</textarea></label>
         <div class="sui-row"><label class="fld"><span>Expression</span>${sel(`beats.${n}.mood`, b.mood, SCRIPT_MOODS)}</label><label class="fld"><span>Gesture</span>${sel(`beats.${n}.gesture`, b.gesture, SCRIPT_GESTURES)}</label></div>
         <div class="sui-sub">Next step when</div>

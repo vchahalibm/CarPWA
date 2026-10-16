@@ -35,6 +35,12 @@ Actions.define('open', { group: 'Dashboard', name: 'Open a screen', arg: 'Screen
   const id = v === 'dashboard' ? 'dashboard' : lookup(SCREEN_NAMES, v) || (appById(v) ? v : null);
   if (id) id === 'dashboard' ? openView('dashboard') : openApp(id);
 } });
+Actions.define('widget.float', { group: 'Dashboard', name: 'Float a widget over the others', arg: 'Widget (camera, model~stage…), then x,y,w,h as fractions; blank = where it was', run(v, say) {
+  const [id, ...n] = String(v).trim().split(/[\s,]+/), wid = widgetIds().find(i => i === id || wtype(i) === id) || id;
+  if (!W[wtype(wid)]?.float) return say?.('Only the camera and 3D model widgets can float.');
+  const r = n.map(Number); Dash.float(wid, true, r.length === 4 && r.every(x => x >= 0 && x <= 1) ? r : null); } });
+Actions.define('widget.dock', { group: 'Dashboard', name: 'Put a floating widget back among the others', arg: 'Widget (camera, model~stage…)', run(v) {
+  const id = Object.keys(Dash.floats()).find(i => i === v.trim() || wtype(i) === v.trim()); if (id) Dash.float(id, false); } });
 Actions.define('dash.page', { group: 'Dashboard', name: 'Show a widget page', arg: 'Page number', run(v) {
   const p = Math.max(0, Math.min(Dash.pages().length - 1, (parseInt(v, 10) || 1) - 1));
   store.set('wpage', p); settings.dashLayout = 'widgets'; store.set('settings', settings); openView('dashboard');

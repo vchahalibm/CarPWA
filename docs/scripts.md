@@ -45,3 +45,11 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
   `web.click` (by text or data-testid). Recorded in the editor (Record web steps) on the page in a web widget. Same-origin
   pages are driven directly; other pages need `bridge/drivedeck-bridge.js` with `data-allow` listing DriveDeck's origin.
   Shown replays move a pointer and draw a ring; quiet ones (going back) don't. Password-like fields are never recorded.
+- **App steps** (`js/appsteps.js`): `app.step` (value: a recorded step, JSON `{ "t": "click"|"drag"|"type"|"select"|"key"|"scroll"|"web"|"wait",
+  "loc": { wid, scope, tag, data, id, label, text, name, ph, path, fx, fy, wx, wy, view }, … }`: `drag` has `to` [x, y] window fractions and
+  `ms`; `type`/`select` a `value`; `key` a `key`; `scroll` `top`, `left`, `frac`; `web` a widget id `wid` and a Web step `step`),
+  `app.play` (a named recording in `dd.appRecs`) and `app.click` (by label or text, or `x,y` fractions). Recorded from Settings ›
+  Scripts › Record a new script (a one-step script whose actions are the recording, with `wait`s where you paused) or a step's
+  Record app steps. Replays glide a pointer, show a pulsating dot at each click, and use real input in the desktop app
+  (`DriveDeckDesktop.input` / `insertText`); a covered spot is clicked on another visible part of the element, or directly.
+- Floating widgets: `widget.float` (`camera` or `model~id`, then optional `x,y,w,h` fractions) and `widget.dock`.

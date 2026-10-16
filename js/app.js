@@ -109,6 +109,7 @@ const I = {
   download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
   stage: '<rect x="2.5" y="3.5" width="19" height="12.5" rx="1.5"/><path d="M12 16v4.5M8 20.5h8M7 12l3.5-3.5 2.5 2.5L17 7"/>',
   upload: '<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>',
+  float: '<rect x="2.5" y="4" width="19" height="16" rx="2"/><rect x="11.5" y="11" width="7.5" height="6" rx="1"/>',
   restart: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 3.5V9h5.5"/>',
   person: '<circle cx="12" cy="7" r="3.8"/><path d="M4.5 21c.8-4.2 3.8-6.5 7.5-6.5s6.7 2.3 7.5 6.5"/>',
 };
@@ -1232,7 +1233,7 @@ function renderSettings() {
       ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
       ${store.get('whisperOK') || (settings.stt !== 'whisper' && !((typeof Voice !== 'undefined' && !SR))) ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
       ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? '' : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
-      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this phone, works offline' : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the phone’s voice until then`) : settings.tts === 'phone' ? 'The phone’s built-in voice' : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['neural', 'On-device'], ['phone', 'Phone'], ['off', 'Off']])}</div>
+      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this phone, works offline' : (typeof IS_DESKTOP_APP !== 'undefined' && IS_DESKTOP_APP ? 'Kokoro · natural voice on this computer, downloading in the background' : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the phone’s voice until then`)) : settings.tts === 'phone' ? 'The phone’s built-in voice' : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['neural', 'On-device'], ['phone', 'Phone'], ['off', 'Off']])}</div>
       ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
       ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
       ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}

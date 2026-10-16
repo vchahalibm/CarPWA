@@ -70,9 +70,9 @@ self.onmessage = async ({ data: m }) => {
         for (let y = Math.max(0, Math.floor(y0 * 48)); y < Math.min(48, Math.ceil(Math.max(y1, y0 + 0.15) * 48)); y++)
           for (let x = Math.max(0, Math.floor(x0 * 64)); x < Math.min(64, Math.ceil(x1 * 64)); x++) { const k = (y * 64 + x) * 4; r += px[k]; gg += px[k + 1]; b += px[k + 2]; n++; }
         return n ? [r / n, gg / n, b / n].map(Math.round) : null; };
-      out.hands = (g.landmarks || []).map((lm, i) => ({ lm: lm.map(q => [q.x, q.y]), side: g.handedness?.[i]?.[0]?.categoryName || '',
+      out.hands = (g.landmarks || []).map((lm, i) => ({ lm: lm.map(q => [q.x, q.y]), wl: (g.worldLandmarks?.[i] || []).map(q => [q.x, q.y, q.z]), side: g.handedness?.[i]?.[0]?.categoryName || '',
         g: g.gestures?.[i]?.[0]?.categoryName || 'None', gs: g.gestures?.[i]?.[0]?.score || 0 }));
-      out.poses = (p.landmarks || []).map(lm => ({ lm: lm.map(q => [q.x, q.y, q.visibility ?? 1]), sig: torso(lm) }));
+      out.poses = (p.landmarks || []).map((lm, i) => ({ lm: lm.map(q => [q.x, q.y, q.visibility ?? 1]), wl: (p.worldLandmarks?.[i] || []).map(q => [q.x, q.y, q.z]), sig: torso(lm) }));
       out.faces = (fc.faceLandmarks || []).map((lm, i) => {
         let x0 = 1, y0 = 1, x1 = 0, y1 = 0; for (const q of lm) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
         const bs = Object.fromEntries((fc.faceBlendshapes?.[i]?.categories || []).map(c => [c.categoryName, c.score]));
@@ -89,7 +89,8 @@ const People = {
   last: null, fps: 0, mouth: [], swipe: { at: 0 },
   /** Stage + "Follow the presenter" + the dashboard on screen: run; otherwise stop (camera off, worker ended). */
   sync() {
-    const want = typeof Stage !== 'undefined' && Stage.on && settings.peopleOn && current === 'dashboard' && document.visibilityState === 'visible';
+    // `hold`: capturing a motion (js/mocap.js) keeps it running wherever you are.
+    const want = this.hold || typeof Stage !== 'undefined' && Stage.on && settings.peopleOn && current === 'dashboard' && document.visibilityState === 'visible';
     if (want && !this.running && Date.now() > (this.noRoomUntil || 0)) this.start(); else if (!want && this.running) this.stop();
   },
   load() {
@@ -200,6 +201,7 @@ const People = {
     const o = this.tracks.find(t => t.id === this.owner && t.seen === now);
     if (o) { this.gestures(o, now); this.mouth.push([now, o.face?.jaw ?? -1]); }
     if (typeof Pointer !== 'undefined') Pointer.hand(o?.hands || [], now); // Point to click (Settings › Mode)
+    if (typeof Mocap !== 'undefined' && Mocap.on) Mocap.frame(o || here.filter(t => t.pose).sort((a, b) => (b.box[2] - b.box[0]) - (a.box[2] - a.box[0]))[0], now);
     this.mouth = this.mouth.filter(m => now - m[0] < 20000);
     // The avatar looks at the presenter, or the nearest face, or ahead.
     const look = o || here.filter(t => t.face).sort((a, b) => (b.face.box[2] - b.face.box[0]) - (a.face.box[2] - a.face.box[0]))[0];

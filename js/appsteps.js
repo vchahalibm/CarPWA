@@ -148,7 +148,12 @@ const AppSteps = {
   /** A step the web page in a web widget reported (WebDrive.event hands it over while this records). */
   webEvent(f, m) {
     const R = this.rec; if (!R) return;
-    if (m.type === 'step') { this.flushTyping(); this.push({ t: 'web', wid: f.closest('.mw')?.dataset.media || '', step: m.step }); if (m.rect) WebDrive.ring(f, m.rect, true); }
+    if (m.type === 'step') {
+      // A click on a label also "clicks" its field: keep the label's click only.
+      const prev = R.steps.at(-1), L = m.step.loc || {};
+      if (prev?.t === 'web' && prev.step.t === 'click' && m.step.t === 'click' && prev.step.loc?.tag === 'label' && L.tag === 'input' && L.text === prev.step.loc.text && performance.now() - R.last < 600) return;
+      this.flushTyping(); this.push({ t: 'web', wid: f.closest('.mw')?.dataset.media || '', step: m.step }); if (m.rect) WebDrive.ring(f, m.rect, true);
+    }
     else if (m.type === 'expect') { const s = R.steps.filter(x => x.t === 'web').at(-1); if (s) s.step.expect = m.expect; }
   },
   flushTyping() { const T = this.rec?.typing; if (!T) return; this.rec.typing = null; T.step.value = T.el.value; this.push(T.step); },
@@ -181,7 +186,7 @@ const AppSteps = {
     if (!s) return '';
     if (s.t === 'wait') return `Wait ${s.s} s`;
     if (s.t === 'web') return typeof WebDrive !== 'undefined' ? `Web page: ${WebDrive.describe(s.step)}` : 'Web page step';
-    const L = s.loc || {}, what = L.match?.text ? `“${L.match.text}” on screen` : L.match?.img ? 'the captured area' : L.label || L.text || L.ph || L.name || (L.wid ? `${W[wtype(L.wid)]?.name || L.wid} widget` : L.tag || 'the screen');
+    const L = s.loc || {}, what = L.match?.det ? `the nearest ${L.match.det} (your detector)` : L.match?.ai ? `${L.match.ai} (screen model)` : L.match?.text ? `“${L.match.text}” on screen` : L.match?.img ? 'the captured area' : L.label || L.text || L.ph || L.name || (L.wid ? `${W[wtype(L.wid)]?.name || L.wid} widget` : L.tag || 'the screen');
     const where = L.wid && (L.label || L.text) ? ` (${W[wtype(L.wid)]?.name || L.wid})` : '';
     return { click: `Click ${what}${where}`, drag: `Drag ${what}${where}`, type: `Type “${s.value}” in ${what}`, select: `Choose “${s.value}” in ${what}`,
       key: `Press ${s.key === ' ' ? 'Space' : s.key}${L.tag || L.match ? ` in ${what}` : ''}`, scroll: s.amount ? `Scroll ${s.amount === 'top' || s.amount === 'bottom' ? `to the ${s.amount}` : s.amount} at ${what}` : `Scroll ${what}${where}` }[s.t] || s.t;
@@ -190,21 +195,34 @@ const AppSteps = {
   /* ---------- Finding by text on screen, or by a picture of an area of the screen ----------
      For steps made in the editor (or edited there): they keep working when ids, classes and layout change. */
   /** { el, pt, how } for a locator: { match: { text } }, { match: { img } }, or a recorded element. */
-  async locate(L) {
-    if (L?.match?.text) return (await this.byText(L.match.text, L)) || null;
+  async locate(L, quick) { // quick (optional steps): no reading the screen when the text isn't on the page
+    if (L?.match?.ai) { // described in words: the screen model (js/screenmodel.js)
+      try { const f = await ScreenAI.find(L.match.ai, L.match.in); return f ? { el: document.elementFromPoint(f.pt[0], f.pt[1]) || document.body, pt: f.pt, how: 'screen model' } : null; }
+      catch (e) { Log.w('app', 'Screen model unavailable', e); toast(e.message); return null; }
+    }
+    if (L?.match?.det) { // an element of a kind, by your own detector (tools/trainer): the nearest one to where it was
+      try {
+        const shot = await this.screen(), { dets } = await UiDetect.detect(await createImageBitmap(shot.canvas)), names = UiDetect.cfg()?.classes || [];
+        const near = d => Math.hypot((d.box[0] + d.box[2]) / 2 - (L.wx ?? 0.5), (d.box[1] + d.box[3]) / 2 - (L.wy ?? 0.5));
+        const d = dets.filter(x => x.score >= 0.3 && names[x.c] === L.match.det).sort((a, b) => near(a) - near(b))[0]; if (!d) return null;
+        const pt = [(d.box[0] + d.box[2]) / 2 * innerWidth, (d.box[1] + d.box[3]) / 2 * innerHeight];
+        return { el: document.elementFromPoint(pt[0], pt[1]) || document.body, pt, how: 'detector' };
+      } catch (e) { Log.w('app', 'Your detector couldn’t run', e); toast(e.message); return null; }
+    }
+    if (L?.match?.text) return (await this.byText(L.match.text, L, quick)) || null;
     if (L?.match?.img) return (await this.byPicture(L.match)) || null;
     return this.find(L);
   },
   norm: t => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim(),
   /** Visible text that reads `text` (whole words first, then part of a longer text), in DriveGen/StudioGen and its web widgets. */
-  async byText(text, L = {}) {
+  async byText(text, L = {}, quick) {
     const q = this.norm(text), hits = []; if (!q) return null;
     const near = h => Math.hypot(h.pt[0] / innerWidth - (L.wx ?? 0.5), h.pt[1] / innerHeight - (L.wy ?? 0.5));
     const scan = (doc, ox, oy) => {
       const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
       for (let n; (n = w.nextNode());) {
         const raw = n.nodeValue, t = this.norm(raw); if (!t || !t.includes(q)) continue;
-        const el = n.parentElement; if (!el || el.closest('#wdBar,#asPick,script,style,[hidden]') || !this.shown(el)) continue;
+        const el = n.parentElement; if (!el || el.closest('#wdBar,#asPick,#toast,script,style,[hidden]') || !this.shown(el) || el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) continue;
         const r = doc.createRange(), i = raw.toLowerCase().indexOf(text.trim().toLowerCase());
         if (i >= 0) { r.setStart(n, i); r.setEnd(n, i + text.trim().length); } else r.selectNodeContents(n);
         const b = r.getBoundingClientRect(); if (!b.width || !b.height) continue;
@@ -212,14 +230,17 @@ const AppSteps = {
       }
       for (const el of doc.querySelectorAll('[aria-label],[title],[placeholder],input[type=button],input[type=submit]')) {
         const t = this.norm(el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || el.value);
-        if (!t || !t.includes(q) || !this.shown(el) || el.closest('#wdBar,#asPick')) continue;
+        if (!t || !t.includes(q) || !this.shown(el) || el.closest('#wdBar,#asPick,#toast') || el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) continue;
         const b = el.getBoundingClientRect(); hits.push({ el, pt: [ox + b.left + b.width / 2, oy + b.top + b.height / 2], exact: t === q, len: t.length });
       }
       for (const f of doc.querySelectorAll('iframe')) { try { const b = f.getBoundingClientRect(); if (f.contentDocument?.body) scan(f.contentDocument, ox + b.left, oy + b.top); } catch {} }
     };
     scan(document, 0, 0);
     if (!hits.length && typeof WebDrive !== 'undefined') for (const f of $$('#dashRoot webview')) { // a browser widget: its own page finds it
-      try { const c = await WebDrive.conn(f), r = await c.call('find', { text: text.trim(), tag: '', data: {} }); if (r?.ok) { const [x, y] = WebDrive.onScreen(f, r.rect); hits.push({ el: f, pt: [x, y], exact: true, len: q.length }); } } catch {}
+      try { const c = await WebDrive.conn(f), r = await c.call('findText', text.trim()); if (r?.ok) { const [x, y] = WebDrive.onScreen(f, r.rect); hits.push({ el: f, pt: [x, y], exact: true, len: q.length }); } } catch {}
+    }
+    if (!hits.length && !quick && typeof ScreenAI !== 'undefined' && ScreenAI.downloaded) { // not page text (a slide, a picture): read the screen
+      try { const f = await ScreenAI.readFind(text); if (f) return { el: document.elementFromPoint(f.pt[0], f.pt[1]) || document.body, pt: f.pt, how: 'text (read)' }; } catch (e) { Log.w('app', 'Reading the screen failed', e); }
     }
     if (!hits.length) return null;
     hits.sort((a, b) => (b.exact - a.exact) || (a.len - b.len) || (near(a) - near(b)));
@@ -228,16 +249,21 @@ const AppSteps = {
   /** A picture of the window: { canvas, k } with k = picture pixels per CSS pixel. Desktop: the app's own window; the PWA
       shares its tab once (the browser asks), and keeps the share for later steps. */
   async screen() {
-    let src;
-    if (window.DriveDeckDesktop?.capture) src = await loadImage(await DriveDeckDesktop.capture());
-    else {
-      if (!this.share?.active) {
-        this.share = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
-        this.shareVideo = Object.assign(document.createElement('video'), { muted: true, playsInline: true, srcObject: this.share }); await this.shareVideo.play();
+    if (window.DriveDeckDesktop?.capture) {
+      // The window, with each browser widget's page drawn in from its own capture (the window's picture can miss parts of it).
+      const win = await loadImage(await DriveDeckDesktop.capture()), k = win.naturalWidth / innerWidth;
+      const c = Object.assign(document.createElement('canvas'), { width: win.naturalWidth, height: win.naturalHeight }), x = c.getContext('2d');
+      x.drawImage(win, 0, 0);
+      for (const wv of $$('#dashRoot webview')) {
+        try { const r = wv.getBoundingClientRect(); if (!r.width || !r.height) continue; const img = await loadImage((await wv.capturePage()).toDataURL()); x.drawImage(img, r.left * k, r.top * k, r.width * k, r.height * k); } catch {}
       }
-      src = this.shareVideo;
+      return { canvas: c, k };
     }
-    const w = src.videoWidth || src.naturalWidth || src.width, h = src.videoHeight || src.naturalHeight || src.height;
+    if (!this.share?.active) {
+      this.share = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
+      this.shareVideo = Object.assign(document.createElement('video'), { muted: true, playsInline: true, srcObject: this.share }); await this.shareVideo.play();
+    }
+    const src = this.shareVideo, w = src.videoWidth || src.naturalWidth || src.width, h = src.videoHeight || src.naturalHeight || src.height;
     const c = Object.assign(document.createElement('canvas'), { width: w, height: h }); c.getContext('2d').drawImage(src, 0, 0, w, h);
     return { canvas: c, k: w / innerWidth };
   },
@@ -305,14 +331,14 @@ const AppSteps = {
     if (s.t === 'web') return WebDrive.play(s.step, { quiet, id: s.wid || undefined });
     if (s.t === 'key' && !s.loc) { await this.key(s.key, s.shift); return this.done(s, true, 'keyboard'); }
     let f = null;
-    for (let i = 0; i < 12 && !(f = await this.locate(s.loc)); i++) { // a sheet or widget may still be opening; or it's on another screen
+    for (let i = 0; i < (s.optional ? 3 : 12) && !(f = await this.locate(s.loc, s.optional)); i++) { // a sheet or widget may still be opening; or it's on another screen
       if (i === 4 && s.loc.view && s.loc.view !== current && typeof openView === 'function') { Log.d('app', `Opening ${s.loc.view} for the next step`); openView(s.loc.view); }
       await pause(250);
     }
     if (f && f.el.closest?.('#dashBar') && $('#view-dashboard').classList.contains('bar-hidden')) { Bar.show(); await pause(380); } // the layout bar slides back first
-    if (!f) { Log.w('app', `Not found: ${this.describe(s)}`, { loc: s.loc }); if (!quiet) toast(`Couldn’t find ${this.describe(s).replace(/^\w+ /, '')}`); return { ok: false }; }
+    if (!f) { Log.w('app', `Not found: ${this.describe(s)}`, { loc: s.loc, optional: !!s.optional }); if (!quiet && !s.optional) toast(`Couldn’t find ${this.describe(s).replace(/^\w+ /, '')}`); return { ok: false }; }
     let [x, y] = this.spot(f, s.loc);
-    const free = /^(position|text|picture)$/.test(f.how) ? [x, y] : this.reach(f.el, x, y); // covered all over: click the element itself
+    const free = /^(position|text|picture|screen model|detector|text \(read\))$/.test(f.how) ? [x, y] : this.reach(f.el, x, y); // covered all over: click the element itself
     if (free) [x, y] = free;
     if (s.t === 'click') { if (!quiet) await Cursor.to(x, y); ClickDot.show(x, y, quiet); if (free) await this.click(f.el, x, y); else this.direct(f.el, x, y); }
     else if (s.t === 'drag') {
@@ -335,8 +361,13 @@ const AppSteps = {
   },
   done(s, ok, how) { Log.i('app', `Played: ${this.describe(s)}`, { how }); Bus.emit('app.step', { value: this.describe(s) }); return { ok, how }; },
   async playAll(steps, o = {}) { for (const s of steps) { await this.play(s, o); if (!o.quiet && s.t !== 'wait') await pause(350); } },
+  /** A browser widget under (x, y): its own input (the window's input doesn't reach the page inside it). */
+  guestAt(x, y) { const e = document.elementFromPoint(x, y); if (e?.tagName !== 'WEBVIEW') return null; const r = e.getBoundingClientRect(); return { wv: e, x: x - r.left, y: y - r.top }; },
   /** A click as a person makes it: real input in the desktop app, else the events a click fires. */
   async click(el, x, y) {
+    const g = this.real && this.guestAt(x, y);
+    if (g) { this.focusGuest = g.wv; const c = await WebDrive.conn(g.wv).catch(() => null); if (!(c && await WebDrive.tap(g.wv, c, g.x, g.y))) await WebDrive.input(g.wv, g.x, g.y); return; }
+    this.focusGuest = null;
     if (this.real) {
       x = Math.round(x); y = Math.round(y);
       await DriveDeckDesktop.input({ type: 'mouseMove', x, y }); await pause(30);
@@ -353,7 +384,13 @@ const AppSteps = {
     for (const k of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) el.dispatchEvent(new (k.startsWith('pointer') ? PointerEvent : MouseEvent)(k, o));
   },
   async drag(el, x0, y0, x1, y1, ms) {
-    const n = Math.max(8, Math.round(ms / 25));
+    const n = Math.max(8, Math.round(ms / 25)), g = this.real && this.guestAt(x0, y0);
+    if (g) { // a drag inside a browser widget's page
+      const r = g.wv.getBoundingClientRect(), L = (x, y) => ({ x: Math.round(x - r.left), y: Math.round(y - r.top) });
+      g.wv.sendInputEvent({ type: 'mouseDown', ...L(x0, y0), button: 'left', clickCount: 1 });
+      for (let i = 1; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n; g.wv.sendInputEvent({ type: 'mouseMove', ...L(x, y), button: 'left', modifiers: ['leftButtonDown'] }); Cursor.at(x, y); await pause(ms / n); }
+      g.wv.sendInputEvent({ type: 'mouseUp', ...L(x1, y1), button: 'left', clickCount: 1 }); return;
+    }
     if (this.real) {
       await DriveDeckDesktop.input({ type: 'mouseMove', x: Math.round(x0), y: Math.round(y0) });
       await DriveDeckDesktop.input({ type: 'mouseDown', x: Math.round(x0), y: Math.round(y0), button: 'left', clickCount: 1 });
@@ -374,16 +411,20 @@ const AppSteps = {
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
       el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return;
     }
-    await this.click(el, x, y); el.focus?.(); el.select?.(); // replace what's there, like typing over a selection
+    await this.click(el, x, y);
+    if (this.focusGuest) { await this.focusGuest.executeJavaScript('document.activeElement?.select?.()').catch(() => {}); await this.focusGuest.insertText(value); await pause(80); return; } // a field in a browser widget's page
+    el.focus?.(); el.select?.(); // replace what's there, like typing over a selection
     await DriveDeckDesktop.insertText(value); await pause(80);
   },
   async key(key, shift, el) {
     const code = { ' ': 'Space', Enter: 'Enter', Escape: 'Escape', Tab: 'Tab', Backspace: 'Backspace', Delete: 'Delete' }[key] || key;
+    const guest = this.real && (document.activeElement?.tagName === 'WEBVIEW' ? document.activeElement : this.focusGuest);
     if (this.real) {
+      const send = guest ? e => guest.sendInputEvent(e) : e => DriveDeckDesktop.input(e);
       const k = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right' }[key] || key, mods = shift ? ['shift'] : [];
-      await DriveDeckDesktop.input({ type: 'keyDown', keyCode: k, modifiers: mods });
-      if (key === 'Enter' || key === ' ') await DriveDeckDesktop.input({ type: 'char', keyCode: key === 'Enter' ? '\r' : ' ', modifiers: mods });
-      await DriveDeckDesktop.input({ type: 'keyUp', keyCode: k, modifiers: mods }); await pause(60); return;
+      await send({ type: 'keyDown', keyCode: k, modifiers: mods });
+      if (key === 'Enter' || key === ' ') await send({ type: 'char', keyCode: key === 'Enter' ? '\r' : ' ', modifiers: mods });
+      await send({ type: 'keyUp', keyCode: k, modifiers: mods }); await pause(60); return;
     }
     const t = el || document.activeElement || document.body, o = { key, code, bubbles: true, cancelable: true, shiftKey: !!shift };
     const go = t.dispatchEvent(new KeyboardEvent('keydown', o)); t.dispatchEvent(new KeyboardEvent('keyup', o));
@@ -426,6 +467,7 @@ const loadImage = src => new Promise((res, rej) => { const i = new Image(); i.on
 /** Grey levels of an image region scaled to w×h. */
 function greyOf(src, sx, sy, sw, sh, w, h) {
   const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), x = c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; // shrinking text without aliasing, the same way for the screen and the picture
   x.drawImage(src, sx, sy, sw, sh, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h);
   for (let i = 0; i < g.length; i++) g[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
   return g;
@@ -443,26 +485,28 @@ function ncc(s, sw, t, tw, th, positions) {
   }
   return out.sort((a, b) => b.score - a.score);
 }
-/** Where `tpl` (shown at tw×th screen pixels) is in `screen`: { x, y (its middle, in screen pixels), score }. Coarse to fine;
-    near ties go to the place it was captured. */
+/** Where `tpl` (shown at tw×th screen pixels) is in `screen`: { x, y (its middle, in screen pixels), score }. A coarse pass
+    keeps the best spots, well apart; the fine pass compares at the picture's own resolution (only the screen is scaled, so
+    small text keeps its shape). Near ties go to the place it was captured. */
 function matchPicture(screen, tpl, tw, th, near) {
   const W = screen.width, H = screen.height;
-  const k1 = Math.min(1, 22 / Math.max(tw, th), 360 / W); // coarse: the template about 22 px
+  const k1 = Math.min(1, 36 / Math.max(tw, th), 520 / W);
   const sw = Math.max(8, Math.round(W * k1)), sh = Math.max(8, Math.round(H * k1)), tw1 = Math.max(4, Math.round(tw * k1)), th1 = Math.max(4, Math.round(th * k1));
   if (tw1 >= sw || th1 >= sh) return null;
   const s1 = greyOf(screen, 0, 0, W, H, sw, sh), t1 = greyOf(tpl, 0, 0, tpl.width, tpl.height, tw1, th1), pos = [];
   for (let y = 0; y <= sh - th1; y++) for (let x = 0; x <= sw - tw1; x++) pos.push([x, y]);
-  const coarse = ncc(s1, sw, t1, tw1, th1, pos).slice(0, 6);
-  // Fine: around the best few, at about 3× the detail.
-  const k2 = Math.min(1, k1 * 3), sw2 = Math.round(W * k2), sh2 = Math.round(H * k2), tw2 = Math.max(4, Math.round(tw * k2)), th2 = Math.max(4, Math.round(th * k2));
-  const s2 = greyOf(screen, 0, 0, W, H, sw2, sh2), t2 = greyOf(tpl, 0, 0, tpl.width, tpl.height, tw2, th2);
+  const all = ncc(s1, sw, t1, tw1, th1, pos), picks = [];
+  for (const c of all) { if (picks.length >= 20) break; if (picks.every(p => Math.abs(p.x - c.x) > tw1 * 0.6 || Math.abs(p.y - c.y) > th1 * 0.6)) picks.push(c); }
+  // Fine: the screen at the picture's own scale around each pick; the picture as it is.
+  const k2 = Math.min(1, tpl.width / tw), sw2 = Math.round(W * k2), sh2 = Math.round(H * k2), tw2 = tpl.width, th2 = tpl.height;
+  const s2 = greyOf(screen, 0, 0, W, H, sw2, sh2), t2 = greyOf(tpl, 0, 0, tw2, th2, tw2, th2);
   let best = null;
-  for (const c of coarse) {
+  for (const c of picks) {
     const cx = Math.round(c.x * k2 / k1), cy = Math.round(c.y * k2 / k1), r = Math.ceil(k2 / k1) + 2, p = [];
     for (let y = Math.max(0, cy - r); y <= Math.min(sh2 - th2, cy + r); y++) for (let x = Math.max(0, cx - r); x <= Math.min(sw2 - tw2, cx + r); x++) p.push([x, y]);
     const f = ncc(s2, sw2, t2, tw2, th2, p)[0]; if (!f) continue;
     const mx = (f.x + tw2 / 2) / k2, my = (f.y + th2 / 2) / k2, d = near ? Math.hypot(mx - near[0], my - near[1]) / Math.hypot(W, H) : 0;
-    const v = { x: mx, y: my, score: f.score, rank: f.score - d * 0.15 };
+    const v = { x: mx, y: my, score: f.score, rank: f.score - d * 0.05 };
     if (!best || v.rank > best.rank) best = v;
   }
   return best;

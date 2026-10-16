@@ -261,9 +261,215 @@ const SAMPLE_SCRIPT = {
     { id: 'thanks', title: 'Thank you', do: [{ do: 'doc.page', value: '4' }], say: '{notes}', mood: 'Happy', gesture: 'Wave', next: { on: ['thank you', 'done'] } },
   ],
 };
+/* A complex sample on a live site (desktop app): built from steps recorded and captured on goindigo.in. */
+const INDIGO_DEMO = {
+  "name": "IndiGo live booking demo",
+  "about": "A complex sample on a live site (goindigo.in, desktop app): a site helper, recorded steps, text, a screen picture and the screen model, with the assistant speaking and moving.",
+  "setup": [
+    {
+      "do": "mode.set",
+      "value": "stage"
+    },
+    {
+      "do": "stage.widgets",
+      "value": "main=web~stage; side=model~stage"
+    },
+    {
+      "do": "web.open",
+      "value": "https://www.goindigo.in/"
+    },
+    {
+      "do": "wait",
+      "value": "6"
+    }
+  ],
+  "beats": [
+    {
+      "id": "welcome",
+      "title": "Welcome",
+      "say": "Hello everyone! Today I will book a flight on a live website, IndiGo, all by myself.",
+      "mood": "Happy",
+      "gesture": "Welcome",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 1
+      }
+    },
+    {
+      "id": "helper",
+      "title": "Tidy the page (site helper)",
+      "do": [
+        {
+          "do": "web.helper",
+          "value": "IndiGo: ready for the demo"
+        },
+        {
+          "do": "wait",
+          "value": "3"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"optional\":true,\"loc\":{\"match\":{\"text\":\"Accept Essential Only\"},\"wx\":0.35,\"wy\":0.9}}"
+        }
+      ],
+      "say": "First, a site helper tidies the page for us: essential cookies only, pop-ups closed, and the booking box in view.",
+      "gesture": "PresentLeft",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 1
+      }
+    },
+    {
+      "id": "recorded",
+      "title": "Recorded clicks",
+      "do": [
+        {
+          "say": "These two clicks were recorded: round trip, and back to one way."
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"web\",\"wid\":\"web~stage\",\"step\":{\"t\":\"click\",\"loc\":{\"testid\":\"\",\"id\":\"\",\"css\":\"div:nth-of-type(1) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > label:nth-of-type(2)\",\"tag\":\"label\",\"role\":\"\",\"text\":\"Round Trip\",\"name\":\"\",\"x\":0.279,\"y\":0.653,\"w\":0.11,\"h\":0.057,\"type\":\"\"},\"at\":\"\"}}"
+        },
+        {
+          "do": "wait",
+          "value": "1.7"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"web\",\"wid\":\"web~stage\",\"step\":{\"t\":\"click\",\"loc\":{\"testid\":\"\",\"id\":\"\",\"css\":\"div:nth-of-type(1) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > label:nth-of-type(1)\",\"tag\":\"label\",\"role\":\"\",\"text\":\"One Way\",\"name\":\"\",\"x\":0.133,\"y\":0.653,\"w\":0.099,\"h\":0.057,\"type\":\"\"},\"at\":\"\"}}"
+        }
+      ],
+      "gesture": "PointLeft",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 1
+      }
+    },
+    {
+      "id": "where",
+      "title": "Destination (text on screen)",
+      "do": [
+        {
+          "say": "Now I find the To field by its text, type Bengaluru, and pick the airport from the list."
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"text\":\"Going to?\"},\"wx\":0.4,\"wy\":0.6}}"
+        },
+        {
+          "do": "wait",
+          "value": "1.2"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"type\",\"value\":\"Bengaluru\",\"loc\":{\"match\":{\"text\":\"Start typing\"},\"wx\":0.4,\"wy\":0.3}}"
+        },
+        {
+          "do": "wait",
+          "value": "2"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"text\":\"Kempegowda\"},\"wx\":0.4,\"wy\":0.45}}"
+        },
+        {
+          "do": "wait",
+          "value": "1"
+        }
+      ],
+      "gesture": "Explain",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 1
+      }
+    },
+    {
+      "id": "swap",
+      "title": "Swap (a picture of the screen)",
+      "do": [
+        {
+          "say": "This little swap icon has no text, so I find it by its picture. Delhi and Bengaluru trade places,"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"img\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABICAYAAABhlHJbAAAEDklEQVR4AezcyyttcRQH8O8hIY+RicfASBiQiUcxUUSKIzIxkAklIqKQMPFmLDMxRCnEAH+ByCNl4DnyZuD9uNf61Rnczc3dZ92zf3tnqXW0z7bOPr/PWXv/1m+f4vdLflgCfpAfloAAsvgAARRApgAzXSpQAJkCzHSpQAFkCjDTpQIFkCnATJcKFEDTAv81QSqQySmAAsgUYKZLBQogU4CZLhUogEwBZrpUoAAyBZjptqnAj6/G8PT0hOvra+aQrE23BSDhXV5eYmpqChMTE7i9vbVWgXE07YCEd35+ruBaWlowPj4ugP/6gXrwJicnMTQ0hMDAQJSVlSEyMtLwEvbd1FaBHjw6ZT14VVVVqK2tRUBAgH3FDO9MCyDhnZ2dqdN2cHAQj4+PyM/Ph9vtxtXVFU5OTkzH6ekp3t/fDcPz/aYWwPv7eywtLWFgYAAESRX3/PyM0dFRDA8Pm46RkRGMjY1he3vb92KGI2gBpIrb3d3FxcUFqBpp1l1cXMTMzIxXMT09jdnZWezs7BiG5/tNLYChoaHIy8tDRkYG/P39ERISgpycHDQ2NnoVTU1NqKurQ1ZWlu/FDEfQAkizbVpaGjo7O5Geno6Xlxd1HczOzkZDQ4PpqK+vR0VFBWJiYgzD8/2mFkAaVlBQkKoYQkxKSsLc3Bz6+vqwublJux0T2gBJ6CtEmhBubm5otyNCKyAJeRC7urrU6UztCE0qtO+reHt7AwHT76/2W/2cdkAasAeRekJqpKOioujpT0FoBwcHqmVZXl4GtT6f/sjiJ2wBSGOmiSU5ORkFBQV/XYkQ4P7+Pvr7+9HW1qZ6Sd2ItgEkxO+CGu6EhAQUFRWBKrG7u1s7ou8Av9PwYr/L5UJ0dDTa29tRWFhoC0QtgLT6eHh4wNHREQ4PD03F8fGxoi8vL0dKSopavumsRC2AhLe6uqrWvDRxmA1qdejma3BwMF5fX1Xv2NPTg42NDYVr5YMWQFoLr62tYX5+HgsLC14F3YxYX19XVrSSocrc29tT21Y+aAEMCwtDSUkJ6A50c3MzvAlqd1JTU9VaOjw8HLm5ucjMzLTSTh1LCyDNpomJiaiurkZNTY3pqKysRHx8vLoVRj1kcXExWltbERsbqwZl5YMWQM4A6fq5srKC3t5ebG1tgfCoJ4yLi+O8rNe5jgKkRpquc3bBI3XHAdLXn3d3dygtLVWrEV2VR3gUjgKkayfd+qJbYB0dHdCN5zhAl8uFiIgIuD++fNIxYRCYMRxVgcY3b4dtAWR+Cn8AMl/rR6YLIPNjF0ABZAow06UCBZApwEyXChRApgAzXSpQAJkCzHSpQAFkCjDTf3wFMv3kn48JIFeAmS+nsAAyBZjpUoECyBRgpksFCiBTgJn+GwAA//+wZg3SAAAABklEQVQDAOGJi35Zj3CHAAAAAElFTkSuQmCC\",\"w\":40,\"h\":36,\"at\":[0.343,0.2512]},\"wx\":0.343,\"wy\":0.2512}}"
+        },
+        {
+          "do": "wait",
+          "value": "1.5"
+        },
+        {
+          "say": "and back again.",
+          "gesture": "Laugh"
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"img\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABICAYAAABhlHJbAAAEDklEQVR4AezcyyttcRQH8O8hIY+RicfASBiQiUcxUUSKIzIxkAklIqKQMPFmLDMxRCnEAH+ByCNl4DnyZuD9uNf61Rnczc3dZ92zf3tnqXW0z7bOPr/PWXv/1m+f4vdLflgCfpAfloAAsvgAARRApgAzXSpQAJkCzHSpQAFkCjDTpQIFkCnATJcKFEDTAv81QSqQySmAAsgUYKZLBQogU4CZLhUogEwBZrpUoAAyBZjptqnAj6/G8PT0hOvra+aQrE23BSDhXV5eYmpqChMTE7i9vbVWgXE07YCEd35+ruBaWlowPj4ugP/6gXrwJicnMTQ0hMDAQJSVlSEyMtLwEvbd1FaBHjw6ZT14VVVVqK2tRUBAgH3FDO9MCyDhnZ2dqdN2cHAQj4+PyM/Ph9vtxtXVFU5OTkzH6ekp3t/fDcPz/aYWwPv7eywtLWFgYAAESRX3/PyM0dFRDA8Pm46RkRGMjY1he3vb92KGI2gBpIrb3d3FxcUFqBpp1l1cXMTMzIxXMT09jdnZWezs7BiG5/tNLYChoaHIy8tDRkYG/P39ERISgpycHDQ2NnoVTU1NqKurQ1ZWlu/FDEfQAkizbVpaGjo7O5Geno6Xlxd1HczOzkZDQ4PpqK+vR0VFBWJiYgzD8/2mFkAaVlBQkKoYQkxKSsLc3Bz6+vqwublJux0T2gBJ6CtEmhBubm5otyNCKyAJeRC7urrU6UztCE0qtO+reHt7AwHT76/2W/2cdkAasAeRekJqpKOioujpT0FoBwcHqmVZXl4GtT6f/sjiJ2wBSGOmiSU5ORkFBQV/XYkQ4P7+Pvr7+9HW1qZ6Sd2ItgEkxO+CGu6EhAQUFRWBKrG7u1s7ou8Av9PwYr/L5UJ0dDTa29tRWFhoC0QtgLT6eHh4wNHREQ4PD03F8fGxoi8vL0dKSopavumsRC2AhLe6uqrWvDRxmA1qdejma3BwMF5fX1Xv2NPTg42NDYVr5YMWQFoLr62tYX5+HgsLC14F3YxYX19XVrSSocrc29tT21Y+aAEMCwtDSUkJ6A50c3MzvAlqd1JTU9VaOjw8HLm5ucjMzLTSTh1LCyDNpomJiaiurkZNTY3pqKysRHx8vLoVRj1kcXExWltbERsbqwZl5YMWQM4A6fq5srKC3t5ebG1tgfCoJ4yLi+O8rNe5jgKkRpquc3bBI3XHAdLXn3d3dygtLVWrEV2VR3gUjgKkayfd+qJbYB0dHdCN5zhAl8uFiIgIuD++fNIxYRCYMRxVgcY3b4dtAWR+Cn8AMl/rR6YLIPNjF0ABZAow06UCBZApwEyXChRApgAzXSpQAJkCzHSpQAFkCjDTf3wFMv3kn48JIFeAmS+nsAAyBZjpUoECyBRgpksFCiBTgJn+GwAA//+wZg3SAAAABklEQVQDAOGJi35Zj3CHAAAAAElFTkSuQmCC\",\"w\":40,\"h\":36,\"at\":[0.343,0.2512]},\"wx\":0.343,\"wy\":0.2512}}"
+        },
+        {
+          "do": "wait",
+          "value": "1"
+        }
+      ],
+      "gesture": "PointLeft",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 1
+      }
+    },
+    {
+      "id": "search",
+      "title": "Search (the screen model)",
+      "do": [
+        {
+          "say": "Last, the screen model finds the Search button from those words alone, and presses it."
+        },
+        {
+          "do": "app.step",
+          "value": "{\"t\":\"click\",\"loc\":{\"match\":{\"ai\":\"the Search button\",\"in\":\"web\"},\"wx\":0.3,\"wy\":0.6}}"
+        },
+        {
+          "do": "wait",
+          "value": "6"
+        }
+      ],
+      "say": "And here are the flights from Delhi to Bengaluru.",
+      "gesture": "PresentBoth",
+      "next": {
+        "on": [
+          "next"
+        ],
+        "after": 2
+      }
+    },
+    {
+      "id": "thanks",
+      "title": "Thank you",
+      "say": "That was StudioGen working a live website: a site helper, recorded clicks, text on screen, a picture of the screen, and the screen model. Thank you!",
+      "mood": "Happy",
+      "gesture": "Bow",
+      "next": {
+        "on": [
+          "thank you",
+          "done"
+        ]
+      }
+    }
+  ]
+};
 const Scripts = {
   mine: () => store.get('scripts', []),
-  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, ...this.mine()]; },
+  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, ...(window.DriveDeckDesktop?.browser ? [{ id: 'sample-indigo', name: INDIGO_DEMO.name, json: INDIGO_DEMO, sample: true }] : []), ...this.mine()]; },
   get(id) { return this.all().find(s => s.id === id); },
   find(name) { const q = plain(name); return this.all().find(s => plain(s.name) === q) || (q && this.all().find(s => plain(s.name).includes(q))) || (!q ? this.all()[0] : null); },
   put(s) { const l = this.mine(), i = l.findIndex(x => x.id === s.id); if (i >= 0) l[i] = s; else l.push(s); store.set('scripts', l); return s; },
@@ -285,31 +491,35 @@ const ScriptUI = {
     const body = $('#settingsBody');
     if (this.page === 'help') return body.innerHTML = this.helpHtml();
     if (this.page === 'edit' && this.draft) return this.renderEditor();
+    const open = store.get('suiOpen', { scripts: true }), sec = (id, title, sub, inner) => `<details class="sui-sec" data-sec="${id}" ${open[id] ? 'open' : ''}>
+        <summary><div class="main"><div class="t">${title}</div><div class="s">${sub}</div></div><span class="chev">${svg('back')}</span></summary><div class="sui-sec-body">${inner}</div></details>`;
+    const ic = (n, label, attr, cls = '') => `<button class="icon-btn ${cls}" ${attr} aria-label="${esc(label)}" title="${esc(label)}">${svg(n)}</button>`;
+    const desk = !!window.DriveDeckDesktop?.browser;
+    const scripts = `<div class="chip-row">
+        <button class="chip accent" data-sui="new">${svg('plus')}New script</button>
+        ${typeof AppSteps !== 'undefined' ? `<button class="chip" data-sui="recscript"><i class="rec-dot"></i>Record a new script</button>` : ''}
+        <button class="chip" data-sui="upload">${svg('upload')}Upload</button><button class="chip" data-sui="template">${svg('download')}Template</button>
+        <button class="chip" data-sui="help">How to write one</button><input type="file" id="suiFile" accept=".json,application/json" hidden></div>
+      <div class="sui-list">${Scripts.all().map(s => `<div class="sui-item"><div class="main"><div class="t">${esc(s.name)}${s.sample ? ' <span class="tag">sample</span>' : ''}</div>
+          <div class="s">${(s.json.beats || []).length} step${(s.json.beats || []).length === 1 ? '' : 's'}${s.json.about ? ' · ' + esc(s.json.about) : ''}</div></div>
+          <div class="sui-actions"><button class="mini-btn accent" data-sui="run:${esc(s.id)}">${svg('play')}Run</button><button class="mini-btn" data-sui="edit:${esc(s.id)}">${s.sample ? 'Copy' : 'Edit'}</button>
+          ${ic('download', `Download ${s.name}`, `data-sui="dl:${esc(s.id)}"`)}${s.sample ? '' : ic('del', `Delete ${s.name}`, `data-sui="del:${esc(s.id)}"`)}</div></div>`).join('')}</div>`;
+    const motions = typeof Mocap !== 'undefined' ? MotionUI.html() : '';
+    const recs = typeof WebDrive !== 'undefined' ? `<p class="sui-note">Older, page-only recordings: clicks and typing on the page in a web widget, played by “Play a recorded sequence”. <b>Record a new script</b> above records the same and everything else in ${APP_NAME}, and its steps can also find things by text, a screen area or a description.</p>
+      <div class="sui-list">${WebDrive.recs().map(r => `<div class="sui-item"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
+          <div class="sui-actions"><button class="mini-btn" data-sui="recplay:${esc(r.name)}">${svg('play')}Play</button>${ic('del', `Delete ${r.name}`, `data-sui="recdel:${esc(r.name)}"`)}</div></div>`).join('') || '<div class="sui-empty">None yet</div>'}</div>
+      <div class="chip-row"><button class="chip" data-sui="recalone"><i class="rec-dot"></i>Record a page sequence</button></div>` : '';
     body.innerHTML = `
       <button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Settings</div></div></button>
-      <div class="group-title">Scripts</div>
-      <p class="cmd-help">A script has the assistant lead a presentation or demo on Stage: it says each step (with an expression and a gesture), turns your slides, opens web pages and runs any widget action, and moves on when you say “next”, show a hand gesture, press the clicker, or after a pause. “Go back”, “back two steps” and “start over” always work. <button class="link-btn" data-sui="help">How to write one</button></p>
-      <div class="group">
-        <button class="row btn" data-sui="new"><div class="main"><div class="t">＋ New script</div><div class="s">Starts from the sample, ready to change</div></div></button>
-        ${typeof AppSteps !== 'undefined' ? `<button class="row btn" data-sui="recscript"><div class="main"><div class="t">● Record a new script</div><div class="s">Use ${APP_NAME} as in the demo (click, type, scroll, drag on widgets, web pages, anywhere); the script plays it back</div></div></button>` : ''}
-        <button class="row btn" data-sui="upload"><div class="main"><div class="t">${svg('upload')} Upload a script (.json)</div></div></button>
-        <button class="row btn" data-sui="template"><div class="main"><div class="t">${svg('download')} Download the sample as a template</div><div class="s">Edit it in any text editor, then upload it</div></div></button>
-        <input type="file" id="suiFile" accept=".json,application/json" hidden>
-      </div>
-      <div class="group-title">Your scripts</div>
-      <div class="group">${Scripts.all().map(s => `<div class="row-wrap"><div class="row"><div class="main"><div class="t">${esc(s.name)}${s.sample ? ' <small>sample</small>' : ''}</div>
-          <div class="s">${(s.json.beats || []).length} steps${s.json.about ? ' · ' + esc(s.json.about) : ''}</div></div>
-          <div class="sui-btns"><button class="big-btn accent" data-sui="run:${esc(s.id)}">${svg('play')}Run</button>
-          <button class="big-btn" data-sui="edit:${esc(s.id)}">${s.sample ? 'Copy' : 'Edit'}</button>
-          <button class="big-btn" data-sui="dl:${esc(s.id)}" aria-label="Download ${esc(s.name)}">${svg('download')}</button>
-          ${s.sample ? '' : `<button class="big-btn" data-sui="del:${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${svg('del')}</button>`}</div></div></div>`).join('')}</div>
-      ${typeof WebDrive !== 'undefined' ? `<div class="group-title">Recorded web sequences</div>
-      <p class="cmd-help">${window.DriveDeckDesktop?.browser ? 'Clicks and typing on any web page in a web widget' : 'Clicks on your own web pages'}, replayed by a script step (“Play a recorded sequence”). Record them inside a script step (Record web steps), or here.</p>
-      <div class="group">${WebDrive.recs().map(r => `<div class="row-wrap"><div class="row"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${r.steps.length} steps · ${esc(r.url || '')}</div></div>
-          <div class="sui-btns"><button class="big-btn" data-sui="recplay:${esc(r.name)}">${svg('play')}Play</button><button class="big-btn" data-sui="recdel:${esc(r.name)}" aria-label="Delete ${esc(r.name)}">${svg('del')}</button></div></div></div>`).join('')}
-        <button class="row btn" data-sui="recalone"><div class="main"><div class="t">● Record a sequence</div><div class="s">On the page in the web widget, as it is now</div></div></button></div>
-      ${window.DriveDeckDesktop?.browser ? WebDrive.helpersHtml() + UiDetect.html() : ''}` : ''}`;
+      <p class="cmd-help">The assistant leads a presentation or demo on Stage: it says each step with an expression and a motion, turns your slides, opens and works web pages, and moves on when you say “next”, show a hand gesture, press the clicker or after a pause.</p>
+      ${sec('scripts', 'Scripts', `${Scripts.all().length} · make, record, run`, scripts)}
+      ${motions ? sec('motions', 'Assistant motions', `${Object.keys(MOTIONS).length} · preview them, or capture your own with the camera`, motions) : ''}
+      ${recs ? sec('recs', 'Web page recordings', `${WebDrive.recs().length} · page-only sequences`, recs) : ''}
+      ${desk && typeof WebDrive !== 'undefined' ? sec('helpers', 'Site helpers', `${WebDrive.helperList().length} · your CSS and JavaScript for chosen sites`, WebDrive.helpersHtml()) : ''}
+      ${typeof ScreenAI !== 'undefined' ? sec('models', 'Screen understanding', ScreenAI.downloaded ? 'Florence-2 ready' : 'Models that find things on screen', ScreenAI.html()) : ''}`;
     $('#suiFile').addEventListener('change', e => this.upload(e.target.files[0]));
+    $$('.sui-sec', body).forEach(d => d.addEventListener('toggle', () => { const o = store.get('suiOpen', { scripts: true }); o[d.dataset.sec] = d.open; store.set('suiOpen', o); if (d.dataset.sec === 'motions') MotionUI.toggled(d.open); }));
+    if (open.motions && typeof MotionUI !== 'undefined') MotionUI.toggled(true);
   },
   async upload(f) {
     if (!f) return;
@@ -365,7 +575,7 @@ const ScriptUI = {
       const L = listAt(id), i = idxAt(id), st = appStepOf(L[i].value) || { t: 'click', loc: {} };
       this.shown = false; openView('dashboard');
       return setTimeout(async () => { const m = a === 'picktext' ? await AppSteps.pickText() : await AppSteps.pickArea(); this.shown = true; this.page = 'edit'; openView('settings');
-        if (m) { st.loc = { ...st.loc, match: a === 'picktext' ? { text: m.text } : m, wx: m.at[0], wy: m.at[1] }; L[i].value = JSON.stringify(st); } this.renderEditor(); }, 450);
+        if (m) { st.loc = { ...st.loc, match: st.loc.match?.det ? st.loc.match : a === 'picktext' ? { text: m.text } : m, wx: m.at[0], wy: m.at[1] }; L[i].value = JSON.stringify(st); } this.renderEditor(); }, 450);
     }
     if (a === 'try1') { // play this one action on the dashboard, then come back
       const x = listAt(id)[idxAt(id)]; this.shown = false; openView('dashboard');
@@ -418,17 +628,19 @@ const ScriptUI = {
     const inp = (path, v, ph = '') => `<input data-sf="${path}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off">`;
     const desc = x => x.do === 'web.step' && typeof WebDrive !== 'undefined' ? `<div class="sui-desc">${esc(WebDrive.describe(stepOf(x.value)))}</div>` : '';
     const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
-    const motionSel = (path, v, none) => { const g = {}; for (const [k, m] of Object.entries(MOTIONS)) (g[m.group || 'Other'] ||= []).push([k, m.name]);
+    const motionSel = (path, v, none) => { const g = {}; for (const [k, m] of Object.entries(MOTIONS)) if (!k.startsWith('__')) (g[m.group || 'Other'] ||= []).push([k, m.name]);
       return `<select data-sf="${path}">${none ? '<option value="">—</option>' : ''}${Object.entries(g).map(([n, l]) => `<optgroup label="${esc(n)}">${l.map(([k, nm]) => opt(k, motionName(v) || v, nm)).join('')}</optgroup>`).join('')}</select>`; };
     const pointSel = (path, v) => `<select data-sf="${path}">${[...widgetIds().map(i => [i, `${Wcfg.get(i).title || W[wtype(i)].name} (${i})`]), ['doc', 'The document'], ['web', 'The web page'], ['left', 'Left of the screen'], ['right', 'Right of the screen'], ['up', 'Up'], ['down', 'Down']].map(([k, l]) => opt(k, v, l)).join('')}</select>`;
     /** A recorded or made app step (click, type, key, scroll…), its target found by the recorded element, text on screen or a captured area. */
     const appRow = (x, path) => {
-      const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, mode = L.match?.img ? 'area' : L.match ? 'text' : 'el', f = `data-asf="${path}"`;
+      const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, mode = L.match?.img ? 'area' : L.match?.ai != null ? 'ai' : L.match?.det ? 'det' : L.match ? 'text' : 'el', f = `data-asf="${path}"`;
       if (st.t === 'wait' || st.t === 'web') return `<span class="sui-tag">${st.t === 'web' ? 'Web page' : 'Wait'}</span><div class="sui-desc grow">${esc(AppSteps.describe(st))}</div>`;
       const recorded = !!(L.tag || L.path || Object.keys(L.data || {}).length);
       return `<span class="sui-tag">App</span>
         <select ${f} data-k="t">${[['click', 'Click'], ['type', 'Type'], ['select', 'Choose'], ['key', 'Press a key'], ['scroll', 'Scroll'], ...(st.t === 'drag' ? [['drag', 'Drag']] : [])].map(([k, l]) => opt(k, st.t, l)).join('')}</select>
-        <select ${f} data-k="find">${[...(recorded ? [['el', `The recorded element (${AppSteps.describe({ t: st.t, loc: { ...L, match: null } }).replace(/^\S+ /, '')})`]] : []), ['text', 'Text on screen'], ['area', 'An area of the screen']].map(([k, l]) => opt(k, mode, l)).join('')}</select>
+        <select ${f} data-k="find">${[...(recorded ? [['el', `The recorded element (${AppSteps.describe({ t: st.t, loc: { ...L, match: null } }).replace(/^\S+ /, '')})`]] : []), ['text', 'Text on screen'], ['area', 'An area of the screen'], ['ai', 'Described (screen model)'], ...(UiDetect.cfg() ? [['det', 'An element of a kind (your detector)']] : [])].map(([k, l]) => opt(k, mode, l)).join('')}</select>
+        ${mode === 'det' ? `<select ${f} data-k="det">${(UiDetect.cfg()?.classes || []).map(c => opt(c, L.match.det)).join('')}</select><button class="link-btn" data-sui="picktext:${path}">Pick where</button>` : ''}
+        ${mode === 'ai' ? `<input ${f} data-k="ai" value="${esc(L.match.ai || '')}" placeholder="What it is, e.g. the Search Flight button">` : ''}
         ${mode === 'text' ? `<input ${f} data-k="text" value="${esc(L.match.text || '')}" placeholder="The text to find"><button class="link-btn" data-sui="picktext:${path}">Pick on screen</button>` : ''}
         ${mode === 'area' ? `<img class="sui-thumb" src="${esc(L.match.img)}" alt="The captured area"><button class="link-btn" data-sui="pickarea:${path}">Capture again</button>` : ''}
         ${st.t === 'type' || st.t === 'select' ? `<input ${f} data-k="value" value="${esc(st.value ?? '')}" placeholder="${st.t === 'type' ? 'Text to type' : 'Option'}">` : ''}
@@ -516,8 +728,10 @@ document.addEventListener('change', e => {
   const path = f.dataset.asf, keys = path.split('.'), list = keys[0] === 'setup' ? ScriptUI.draft.setup : ScriptUI.draft.beats[+keys[1]].do, x = list[+keys.at(-1)];
   const st = appStepOf(x.value) || { t: 'click', loc: {} }, v = f.value, k = f.dataset.k; st.loc ||= {};
   if (k === 't') { st.t = v; if (v === 'scroll' && st.top == null) st.amount ||= 'down'; if ((v === 'type' || v === 'select') && st.value == null) st.value = ''; if (v === 'key') st.key ||= 'Enter'; }
-  else if (k === 'find') { if (v === 'el') delete st.loc.match; else if (v === 'text') st.loc.match = { text: st.loc.match?.text || st.loc.text || st.loc.label || '' }; else if (!st.loc.match?.img) { x.value = JSON.stringify(st); return ScriptUI.cmd(`pickarea:${path}`); } }
+  else if (k === 'find') { if (v === 'el') delete st.loc.match; else if (v === 'text') st.loc.match = { text: st.loc.match?.text || st.loc.text || st.loc.label || '' }; else if (v === 'ai') st.loc.match = { ai: st.loc.match?.ai || st.loc.match?.text || st.loc.label || st.loc.text || '' }; else if (v === 'det') st.loc.match = { det: (UiDetect.cfg()?.classes || ['button'])[0] }; else if (!st.loc.match?.img) { x.value = JSON.stringify(st); return ScriptUI.cmd(`pickarea:${path}`); } }
   else if (k === 'text') st.loc.match = { ...(st.loc.match || {}), text: v };
+  else if (k === 'ai') st.loc.match = { ai: v };
+  else if (k === 'det') st.loc.match = { det: v };
   else st[k] = v;
   x.value = JSON.stringify(st); ScriptUI.renderEditor();
 });

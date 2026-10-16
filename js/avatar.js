@@ -72,12 +72,12 @@ const VrmAvatar = {
   run() { if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.tick(t)); } },
   tick(t) {
     this.raf = 0;
-    for (const [id, i] of this.all) if (!i.canvas.isConnected && !i.disposed && !$(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`)) { i.dispose(); this.all.delete(id); }
+    for (const [id, i] of this.all) if (!i.canvas.isConnected && !i.disposed && (i.preview || !$(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`))) { i.dispose(); this.all.delete(id); }
     if (!this.all.size) { Budget.drop('avatar'); return; }
-    const on = document.visibilityState === 'visible' && current === 'dashboard';
+    const on = document.visibilityState === 'visible' && (current === 'dashboard' || [...this.all.values()].some(i => i.preview && i.canvas.isConnected));
     if (on && t - this.last >= 32) { // ~30 fps is plenty, and saves battery
       const dt = Math.min(0.1, (t - this.last) / 1000); this.last = t;
-      for (const i of this.all.values()) if (i.canvas.isConnected && i.canvas.clientWidth) i.update(dt, t / 1000);
+      for (const i of this.all.values()) if (i.canvas.isConnected && i.canvas.clientWidth && (current === 'dashboard' || i.preview)) i.update(dt, t / 1000);
     } else if (!on) this.last = t;
     this.raf = requestAnimationFrame(x => this.tick(x));
   },
@@ -235,6 +235,8 @@ class AvatarInstance {
       fW = rise;
       if (g.t >= g.len) this.gest = null;
     }
+    // The live pose while capturing a motion (js/mocap.js): it copies you.
+    const live = VrmAvatar.live; if (live) for (const [n, v] of Object.entries(live)) T[n] = [...v];
     // 4. Where it looks: a motion's target, else the presenter (Stage, people tracking), else ahead. The head turns part of
     //    the way, the eyes the rest.
     const G = VrmAvatar.gaze, gz = this.gz ||= { x: 0, y: 0 }, want = { x: G ? G.x : 0, y: G ? G.y : 0 };

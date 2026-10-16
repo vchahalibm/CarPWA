@@ -88,6 +88,25 @@
       ping: () => ({ ok: true, url: here(), title: doc.title }),
       record(on) { rec = !!on; return { ok: true, url: here() }; },
       find(L) { const f = find(L); return f ? { ok: true, how: f.how, rect: rect(f.el) } : { ok: false, error: 'not found' }; },
+      /** Visible text on the page that reads `t` (whole text first, then part of a longer one, nearest the top): the middle of
+          those words, scrolled into view. For script steps that act on "text on screen". */
+      findText(t) {
+        const q = clean(t).toLowerCase(); if (!q) return { ok: false };
+        const hits = [], w = doc.createTreeWalker(doc.body, 4);
+        for (let n; (n = w.nextNode());) {
+          const v = n.nodeValue || '', lv = v.replace(/\s+/g, ' ').toLowerCase(), i = lv.indexOf(q); if (i < 0) continue;
+          const el = n.parentElement; if (!el || !visible(el) || /^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName)) continue;
+          const st = win.getComputedStyle(el); if (st.visibility === 'hidden' || +st.opacity === 0) continue;
+          hits.push({ el, exact: clean(el.innerText || '').toLowerCase() === q, len: lv.trim().length });
+        }
+        for (const el of doc.querySelectorAll('[aria-label],[title],[placeholder],input[type=button],input[type=submit]'))
+          if (visible(el) && clean(el.getAttribute('aria-label') || el.title || el.placeholder || el.value).toLowerCase().includes(q)) hits.push({ el, exact: true, len: q.length });
+        if (!hits.length) return { ok: false, error: 'not found' };
+        hits.sort((a, b) => (b.exact - a.exact) || (a.len - b.len));
+        const el = hits[0].el.closest(INTERACTIVE) || hits[0].el;
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return { ok: true, how: 'text', rect: rect(el), text: clean(el.innerText || el.value || '') };
+      },
       /** Find a step's element and bring it into view (a field: focused, its text selected, ready to be typed over). */
       async prepare(s, opts = {}) {
         let f = null;

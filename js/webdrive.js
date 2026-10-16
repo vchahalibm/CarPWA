@@ -25,6 +25,51 @@
    Loaded after people.js.
    ============================================================ */
 const BRIDGE = 'bridge/drivedeck-bridge.js';
+/* Site helper examples (Settings › Scripts › Site helpers › Use): starting points to copy and change. */
+const SITE_HELPER_EXAMPLES = [
+  { name: 'Close cookie banners', about: 'Any site: clicks “Accept essential” or “Reject” when a consent banner shows, and hides common banners', match: '*', on: false,
+    css: '#onetrust-banner-sdk, #CybotCookiebotDialog, .cc-window, [aria-label="cookieconsent"] { display: none !important; }',
+    js: `// Click the most privacy-friendly button on a cookie banner, if there is one.
+const words = ['accept essential only', 'essential only', 'reject all', 'only necessary', 'necessary only', 'decline'];
+const btn = [...document.querySelectorAll('button, a, [role=button]')].find(b => words.some(w => (b.innerText || '').trim().toLowerCase().includes(w)));
+if (btn) btn.click();` },
+  { name: 'IndiGo: ready for the demo', about: 'goindigo.in: essential cookies only, pop-ups closed, larger text, the booking box in view', match: 'https://www.goindigo.in/*',
+    css: 'html { scroll-behavior: smooth; }',
+    js: `// Wait for the page, then tidy it up for the audience.
+const until = (f, ms = 8000) => new Promise(res => { const t0 = Date.now(), i = setInterval(() => { const v = f(); if (v || Date.now() - t0 > ms) { clearInterval(i); res(v); } }, 250); });
+const byText = t => [...document.querySelectorAll('button, a, [role=button]')].find(b => (b.innerText || '').trim().toLowerCase() === t);
+(async () => {
+  (await until(() => byText('accept essential only')))?.click();
+  // Close any promotion pop-up (an X button inside a dialog).
+  document.querySelectorAll('[role=dialog] button[aria-label*=lose i], .modal button.close').forEach(b => b.click());
+  document.querySelector('[class*=booking], [class*=search-widget], form')?.scrollIntoView({ block: 'center' });
+})();` },
+  { name: 'Spotlight one part', about: 'Script step: dims the page except what the selector names (change the selector), to point the audience at it', match: '',
+    css: '', js: `// Change this to what you want to show (any CSS selector).
+const selector = 'main h1';
+document.getElementById('dd-spot')?.remove();
+const el = document.querySelector(selector); if (el) {
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const r = el.getBoundingClientRect(), d = document.createElement('div'); d.id = 'dd-spot';
+  Object.assign(d.style, { position: 'fixed', left: r.left - 8 + 'px', top: r.top - 8 + 'px', width: r.width + 16 + 'px', height: r.height + 16 + 'px',
+    borderRadius: '12px', boxShadow: '0 0 0 9999px rgba(0,0,0,.55)', outline: '4px solid #ff375f', zIndex: 2147483647, pointerEvents: 'none', transition: 'all .3s' });
+  document.body.appendChild(d); setTimeout(() => d.remove(), 6000);
+}` },
+  { name: 'Larger text for the room', about: 'Any site you list: everything 25% bigger, easier to read on a TV', match: 'https://example.com/*',
+    css: 'html { zoom: 1.25; }', js: '' },
+  { name: 'Fill a demo search', about: 'Script step: types demo values into fields found by their label or placeholder (never passwords or card numbers)', match: '',
+    css: '', js: `// Field label or placeholder → the value to type. Change these for your page.
+const values = { 'From': 'Delhi', 'To': 'Bengaluru' };
+const field = label => [...document.querySelectorAll('input, textarea')].find(i => [i.placeholder, i.getAttribute('aria-label'), i.labels?.[0]?.innerText].some(t => (t || '').toLowerCase().includes(label.toLowerCase())));
+for (const [label, value] of Object.entries(values)) {
+  const i = field(label); if (!i || i.type === 'password') continue;
+  i.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, value);
+  i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true }));
+}` },
+  { name: 'Scroll to a section', about: 'Script step: scrolls smoothly to a heading by its text (change the text)', match: '',
+    css: '', js: `const text = 'Offers'; // the heading to show
+[...document.querySelectorAll('h1, h2, h3, h4')].find(h => h.innerText.trim().toLowerCase().includes(text.toLowerCase()))?.scrollIntoView({ behavior: 'smooth', block: 'start' });` },
+];
 Bus.define('web.step', 'A recorded web step plays', 'what it did');
 
 const WebDrive = {
@@ -210,11 +255,18 @@ const WebDrive = {
     if (h.js) return wv.executeJavaScript(h.js).catch(e => { Log.w('web', `Site helper “${h.name}” failed`, e); toast(`Site helper “${h.name}”: ${e.message || e}`); });
   },
   helpersHtml() {
-    return `<div class="group-title">Site helpers</div>
-      <p class="cmd-help">Your own CSS and JavaScript for chosen sites, run in the page when it loads in a web widget (hide a cookie banner, open a panel, set the page up for the demo), or by a script step (“Run a site helper”). They stay on this computer.</p>
-      <div class="group">${this.helperList().map((h, i) => `<div class="row-wrap"><button class="row" data-sh="${i}"><div class="main"><div class="t">${esc(h.name)}${h.on === false ? ' <small>off</small>' : ''}</div><div class="s">${esc(h.match || 'Only when a script step runs it')}</div></div></button></div>`).join('')}
-        <button class="row btn" data-sh="new"><div class="main"><div class="t">＋ Add a site helper</div></div></button></div>`;
+    const ic = (n, label, attr) => `<button class="icon-btn" ${attr} aria-label="${esc(label)}" title="${esc(label)}">${svg(n)}</button>`;
+    return `<p class="sui-note">Your own CSS and JavaScript for chosen sites, run in the page when it loads in a web widget (hide a cookie banner, close a pop-up, set the page up for the demo), or by a script step (“Run a site helper”). They stay on this computer. Only add code you wrote or trust: it runs inside the site, signed in as you.</p>
+      <div class="sui-list">${this.helperList().map((h, i) => `<div class="sui-item"><div class="main"><div class="t">${esc(h.name)}${h.on === false ? ' <span class="tag">off</span>' : ''}</div><div class="s">${esc(h.match || 'Only when a script step runs it')}</div></div>
+          <div class="sui-actions"><button class="mini-btn" data-sh="${i}">Edit</button>${ic('play', `Run ${h.name} on the page now`, `data-shrun="${i}"`)}</div></div>`).join('') || '<div class="sui-empty">None yet: start from an example below</div>'}</div>
+      <div class="chip-row"><button class="chip accent" data-sh="new">${svg('plus')}New site helper</button></div>
+      <div class="sui-subhead">Examples to start from</div>
+      <div class="sui-list">${SITE_HELPER_EXAMPLES.map((h, i) => `<div class="sui-item"><div class="main"><div class="t">${esc(h.name)}</div><div class="s">${esc(h.about)}</div></div>
+          <div class="sui-actions"><button class="mini-btn" data-shex="${i}">Use</button></div></div>`).join('')}</div>`;
   },
+  /** An example becomes your own helper, opened to edit. */
+  useExample(i) { const x = SITE_HELPER_EXAMPLES[+i]; const L = this.helperList(); L.push({ name: x.name, match: x.match, css: x.css, js: x.js, on: x.on !== false }); store.set('siteHelpers', L); this.editHelper(L.length - 1); },
+  runNow(i) { const h = this.helperList()[+i], f = this.frame(); if (!h) return; if (!this.guest(f)) return toast('Open the page in a web widget first'); this.runHelper(f, h, 'tried from Settings'); toast(`Ran “${h.name}”`); },
   editHelper(i) {
     const l = this.helperList(), h = i === 'new' ? { name: `Helper ${l.length + 1}`, match: '', css: '', js: '', on: true } : l[+i];
     sheet(i === 'new' ? 'New site helper' : 'Site helper', `<label class="fld"><span>Name</span><input id="shName" value="${esc(h.name)}"></label>
@@ -328,6 +380,7 @@ addEventListener('message', e => {
 });
 document.addEventListener('click', e => { const b = e.target.closest('[data-wd]'); if (!b) return; e.stopPropagation(); WebDrive.finish(b.dataset.wd === 'done'); }, true);
 document.addEventListener('click', e => { const b = e.target.closest('[data-sh]'); if (b) WebDrive.editHelper(b.dataset.sh); });
+document.addEventListener('click', e => { const b = e.target.closest('[data-shex],[data-shrun]'); if (!b) return; e.stopPropagation(); b.dataset.shex != null ? WebDrive.useExample(b.dataset.shex) : WebDrive.runNow(b.dataset.shrun); }, true);
 
 /* ---------- Actions (scripts, voice commands, links) ---------- */
 const stepOf = v => { try { const s = typeof v === 'string' ? JSON.parse(v) : v; return s?.loc ? s : null; } catch { return null; } };
@@ -396,11 +449,9 @@ const UiDetect = {
   unload() { this.worker?.terminate(); this.worker = null; this.loading = null; Budget.loaded.delete('uidet'); },
   html() {
     const C = this.cfg();
-    return `<div class="group-title">Screen-element model</div>
-      <p class="cmd-help">When a recorded step's element can't be found any more (renamed, moved), a detector you trained with the Trainer (tools/trainer › Models › Export) looks at the page for a control of the same kind near where it was, and clicks it. Choose its <b>model.onnx</b> (or model.int8.onnx) and <b>model.json</b>.</p>
-      <div class="group"><div class="row"><div class="main"><div class="t">${C ? esc(C.name) : 'None'}</div><div class="s">${C ? esc((C.classes || []).join(', ')) : 'Without one, a step whose element is gone stops with a message'}</div></div></div>
-        <label class="row btn"><div class="main"><div class="t">Choose the model files…</div></div><input type="file" id="uiModelFiles" multiple accept=".onnx,.json,application/json" hidden></label>
-        ${C ? '<button class="row btn" data-uimodel="rm"><div class="main"><div class="t">Remove</div></div></button>' : ''}</div>`;
+    return `<div class="sui-model"><div class="main"><div class="t">Your own detector${C ? `: ${esc(C.name)}` : ''}</div>
+        <div class="s">${C ? `Finds ${esc((C.classes || []).join(', '))}. ` : ''}Fast and exact on your screens: train it with the Trainer (tools/trainer), export model.onnx and model.json, and choose them here. Used for “an element of a kind” steps and when a recorded web step’s element moved.</div></div>
+        <div class="sui-btns"><label class="mini-btn">${C ? 'Replace' : 'Choose files'}<input type="file" id="uiModelFiles" multiple accept=".onnx,.json,application/json" hidden></label>${C ? '<button class="mini-btn" data-uimodel="rm">Remove</button>' : ''}</div></div>`;
   },
   async choose(files) {
     const onnx = [...files].find(f => /\.onnx$/i.test(f.name)), json = [...files].find(f => /\.json$/i.test(f.name));
@@ -418,7 +469,8 @@ document.addEventListener('change', e => { if (e.target.id === 'uiModelFiles') U
 document.addEventListener('click', e => { if (e.target.closest('[data-uimodel="rm"]')) { const C = UiDetect.cfg(); if (C?.file) Files.del(C.file.key).catch(() => {}); store.set('uiModel', null); UiDetect.unload(); ScriptUI.render(); } });
 
 Actions.define('web.helper', { group: 'Web pages', name: 'Run a site helper', arg: 'Site helper name', run(v, say) {
-  const h = WebDrive.helperList().find(x => plain(x.name) === plain(v)); if (!h) return say(`I don’t have a site helper called ${v}.`);
+  const h = WebDrive.helperList().find(x => plain(x.name) === plain(v)) || SITE_HELPER_EXAMPLES.find(x => plain(x.name) === plain(v)); // yours, else an example
+  if (!h) return say(`I don’t have a site helper called ${v}.`);
   const f = WebDrive.frame(); if (!WebDrive.guest(f)) return say('Site helpers run in the desktop app’s web widgets.');
   return WebDrive.runHelper(f, h, 'script step'); } });
 

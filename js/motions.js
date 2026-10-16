@@ -43,6 +43,8 @@ function handPose(shape, side = 'right') {
   }));
   return p;
 }
+/** A hand from curls per finger (0 straight .. 1 closed): captured motions (js/mocap.js). */
+function handCurls(c, side = 'right') { HANDS.__c = c; const p = handPose('__c', side); delete HANDS.__c; return p; }
 const ARM = { // right-arm poses, reused
   down: { rightUpperArm: [0, 0, -1.3], rightLowerArm: [0, -0.25, 0] },
   wave: { rightUpperArm: [0, 0.9, -0.62], rightLowerArm: [0, 0.05, 1.5], rightHand: [0, 0.3, 0] },

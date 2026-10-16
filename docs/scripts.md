@@ -64,3 +64,9 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
   labels and titles, same-site frames and web widgets; nearest to wx/wy wins ties), or by **a picture of an area**:
   `"match": { "img": "<data URL>", "w": 68, "h": 68, "at": [x, y] }` (template matching on a picture of the window; the
   desktop app takes it itself, the PWA shares its tab once). Editor-made scrolls use `"amount": "down" | "up" | "top" | "bottom"`.
+- More targets: `"match": { "ai": "the Search button", "in": "web" }` (the screen model, js/screenmodel.js: words read
+  on screen first, then phrase grounding; `in` limits it to a widget), `"match": { "det": "button" }` (your own detector:
+  the nearest element of that kind to `wx`/`wy`). `"optional": true` on an app step: if it isn't there, carry on quietly.
+- In browser widgets (desktop app) clicks, typing and keys go to the page itself; text is found inside it; pictures match
+  against the page's own capture.
+- The sample **IndiGo live booking demo** (`INDIGO_DEMO` in js/script.js) uses all of these on goindigo.in.

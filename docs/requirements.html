@@ -239,9 +239,9 @@ const REQS = [
   ['W-02','W','Record and replay app steps','Clicks, typing, keys, scrolls and drags anywhere in the app.','ALL','built'],
   ['W-03','W','Find things on screen by description','Florence-2 on the device; your own detector from the Trainer.','SG','built'],
   ['W-04','W','Site helpers','Your CSS/JS per site, with examples.','SG','built'],
-  ['W-05','W','Run AppleScript / JXA from scripts','Inputs from variables, output back; approval on first run; time limit and Stop.','SG','new','R3'],
+  ['W-05','W','Run AppleScript / JXA from scripts','Steps run AppleScript, JavaScript for Automation, a Shortcut or a shell command in the desktop app\'s main process; values go in as arguments (never pasted into the code); output kept with “as” (JSON read as data); time limit; in the background too.','SG','built','R3'],
   ['W-06','W','Run PowerShell from scripts (Windows)','Later, with the Windows build (P-09).','SG','plan','R3'],
-  ['W-07','W','Ready-made OS task library','Open apps/files, Finder, Mail drafts, Calendar, Numbers/Excel export, run a macOS Shortcut.','SG','new','R3'],
+  ['W-07','W','Ready-made OS task library','In the editor\'s picker: open an app, open a file/folder/link, what\'s in front, list a folder, Finder selection, notification, draft an email, read the clipboard, set the volume, run a Shortcut, battery and disk.','SG','built','R3'],
   ['W-08','W','Data steward / analyst tasks','Decided: CSV files and databases first; results as tables and charts in a data visualization widget.','SG','new','R3'],
   ['W-09','W','Data visualization widget','A widget that shows a table and charts (bar, line, pie, scatter) from CSV, a database query or a task\'s result; scripts and the assistant fill and change it.','ALL','new','R3'],
   ['B-01','B','Export and import bundles','A script with its motions, helpers and recordings in one file.','ALL','built'],
@@ -255,7 +255,7 @@ const REQS = [
   ['L-03','L','Reach the Mac from the car','Decided: pair on the same Wi-Fi first, then Tailscale for anywhere; no relay server.','DP','new','R3'],
   ['L-04','L','The Mac\'s models for an iPad on Stage','Roadmap Phase C/D; falls back to on-device.','DT','plan'],
   ['X-01','X','Never record passwords, payment or one-time codes','','ALL','built'],
-  ['X-02','X','Code that runs on your behalf needs your approval','Site helpers and OS tasks from imports are flagged and run only after you approve their code (decided: imported scripts may run OS tasks once approved).','SG','new','R3'],
+  ['X-02','X','Code that runs on your behalf needs your approval','Each piece of OS code asks first in a native dialog showing it (Run once / Always allow this code / Don\'t run); always-allowed code is remembered by its hash, so changed or imported code asks again; imported bundles with OS tasks are flagged; Settings › System › Tasks you always allow lists them to forget.','SG','built','R3'],
   ['X-03','X','Private by default','Recordings, motions, helpers and logs stay on the device; no proxies.','ALL','built'],
 ];
 const ST = { built: 'Built', part: 'Partly built', plan: 'Planned', new: 'New', bug: 'Bug', ask: 'Discuss' };

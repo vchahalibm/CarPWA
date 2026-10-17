@@ -31,6 +31,14 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     apply: kind => ipcRenderer.invoke('dd:update-apply', kind),
     on: f => ipcRenderer.on('dd:update', (e, s) => f(s)),
   },
+  /** Tasks on this computer for scripts (desktop/tasks.js): { id, kind: applescript | jxa | shortcut | shell, code, args, label, timeout }
+      → { ok, out, err, code, ms }. The user approves each piece of code first (a native dialog). */
+  tasks: {
+    run: o => ipcRenderer.invoke('dd:task-run', o),
+    stop: id => ipcRenderer.invoke('dd:task-stop', id),
+    approvals: () => ipcRenderer.invoke('dd:task-approvals'),
+    forget: h => ipcRenderer.invoke('dd:task-forget', h),
+  },
   /** The menu bar asks the page for something (e.g. 'settings'). */
   onMenu: f => ipcRenderer.on('dd:menu', (e, what) => f(what)),
 });

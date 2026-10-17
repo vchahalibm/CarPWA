@@ -68,7 +68,8 @@ const Bundles = {
     const li = (t, l) => l.length ? `<li><b>${t}</b>: ${l.map(esc).join(', ')}</li>` : '';
     sheet(`Import “${b.name}”`, `<ul class="se-note">${li('Scripts', b.scripts.map(s => s.name))}${li('Motions', Object.keys(b.motions || {}))}${li('Site helpers', (b.helpers || []).map(h => h.name))}${li('Recordings', [...(b.webRecs || []), ...(b.appRecs || [])].map(r => r.name))}</ul>
       ${from ? `<p class="se-note">From ${esc(from)}</p>` : ''}${bad.length ? `<p class="se-empty warn">${bad.length} problem${bad.length === 1 ? '' : 's'}: ${esc(bad[0])}</p>` : ''}
-      ${(b.helpers || []).length ? '<p class="se-note">Site helpers run code inside web pages: only import them from people you trust.</p>' : ''}`,
+      ${(b.helpers || []).length ? '<p class="se-note">Site helpers run code inside web pages: only import them from people you trust.</p>' : ''}
+      ${JSON.stringify(b.scripts).includes('"do":"os.') ? '<p class="se-empty warn">These scripts run tasks on this computer (AppleScript, Shortcuts or shell). Each one asks you, showing its code, before it runs the first time.</p>' : ''}`,
       [['Import', () => this.import(b)], ['Cancel']]);
   },
   import(b) {

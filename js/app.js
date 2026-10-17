@@ -1264,6 +1264,7 @@ function renderSettings() {
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
+      ${typeof OsTasks !== 'undefined' && OsTasks.can() ? btn('osApprovals', 'Tasks you always allow', 'AppleScript, Shortcuts and shell code from scripts') : ''}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() + btn('offlineAll', 'Download everything for offline use', 'Avatars and camera models download the first time they’re needed; this fetches them all now') : ''}
       <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : `version ${webVer || '…'}${swReg?.waiting ? ' · update ready' : ''}`}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;

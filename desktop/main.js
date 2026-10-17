@@ -6,7 +6,7 @@
    its user agent (bigger memory budget, Whisper for listening).
    It also lives in the menu bar (Tray): open it, present on another screen (the wall) with the presenter view on this
    one, start at login. The page reaches these through preload.js (window.DriveDeckDesktop). */
-const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage, screen, ipcMain, desktopCapturer } = require('electron');
+const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage, screen, ipcMain, desktopCapturer, dialog } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -17,6 +17,7 @@ try { const ud = app.getPath('userData'), old = path.join(path.dirname(ud), 'Dri
 // Packaged: the web files are copied into Resources/web, and updates (desktop/updater.js) may serve newer ones. From source: the repo root.
 const BUNDLED = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.join(__dirname, '..');
 const Updates = require('./updater')({ app, net, bundled: BUNDLED });
+const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
 let WEB = BUNDLED, VENDOR = path.join(BUNDLED, 'vendor');
 function useWeb() { const a = app.isPackaged ? Updates.active() : { app: BUNDLED, vendor: path.join(BUNDLED, 'vendor'), version: 0 }; WEB = a.app; VENDOR = a.vendor; Updates.served(a.version); bridgeSrc = null; return a; }
 
@@ -190,6 +191,11 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:stop-presenting', own(stopPresenting));
   ipcMain.handle('dd:presenter', own(() => { openPresenter(); return true; }));
   ipcMain.handle('dd:login-item', own(loginItem));
+  // Tasks on this computer (desktop/tasks.js): each piece of code needs the user's yes in a native dialog first.
+  ipcMain.handle('dd:task-run', own(o => Tasks.run(o)));
+  ipcMain.handle('dd:task-stop', own(id => Tasks.stop(id)));
+  ipcMain.handle('dd:task-approvals', own(() => Tasks.approvals()));
+  ipcMain.handle('dd:task-forget', own(h => Tasks.forget(h)));
   // Script steps (js/appsteps.js): real mouse and keyboard input in the app's own window, as a person would, so anything on
   // screen reacts (canvases, maps, web widgets). Only the app's own page can ask, and only for its own window.
   const INPUT = new Set(['mouseMove', 'mouseDown', 'mouseUp', 'mouseWheel', 'keyDown', 'keyUp', 'char']);

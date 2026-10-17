@@ -182,13 +182,19 @@ const Script = {
       if (x.intent != null) { if (!quiet) { const it = this.cur.intents.find(i => i.id === x.intent || plain(i.title) === plain(x.intent)); if (it) await this.runIntent(it, {}, tok); } continue; }
       if (x.do) {
         if (x.background) { if (!quiet) this.job(x); continue; } // the script carries on; the job reports when it's done
-        let r; try { r = Actions.call(x.do, this.fill(x.value), say, { quiet }); if (r && typeof r.then === 'function') r = await r; } // quiet: going back (web steps skip the pointer)
+        let r; try { r = Actions.call(x.do, ...this.input(x, quiet, say)); if (r && typeof r.then === 'function') r = await r; } // quiet: going back (web steps skip the pointer)
         catch (e) { Log.w('script', `Step ${x.do} failed`, e); r = undefined; if (x.as) this.vars[`${x.as}_error`] = e.message || String(e); }
         if (x.as) this.vars[x.as] = r;
         await new Promise(r2 => setTimeout(r2, quiet ? 30 : 120)); // let widgets redraw between steps
       }
       if (x.say && !quiet) await this.say(x, tok);
     }
+  },
+  /** An action step's value, say and event: the value filled in ({variables}), except code (os.* tasks: `raw`), which is used as
+      written, its values going in as arguments (`args`) so nothing heard can become code. */
+  input(x, quiet = false, say = quietSay) {
+    const raw = Actions.list[x.do]?.raw;
+    return [raw ? String(x.value ?? '') : this.fill(x.value), say, { quiet, args: (x.args || []).map(a => this.fill(a)), label: x.name || x.title || '', timeout: +x.timeout || 60 }];
   },
   /** repeat: n times · until: a condition (checked after each round) · each: a list ({var}, an array, or comma-separated), as `as` (default item). */
   async loop(x, { quiet, tok, depth }) {
@@ -213,7 +219,7 @@ const Script = {
     const name = x.name || x.title || Actions.list[x.do]?.name || x.do, j = { id: Math.random().toString(36).slice(2, 7), name, state: 'running', started: Date.now() };
     this.jobs.push(j); this.paint(); Log.i('script', `Job started: ${name}`);
     j.promise = (async () => {
-      try { let r = Actions.call(x.do, this.fill(x.value), quietSay, {}); if (r && typeof r.then === 'function') r = await r; j.state = 'done'; j.result = r; if (x.as) this.vars[x.as] = r; }
+      try { let r = Actions.call(x.do, ...this.input(x, false, quietSay)); if (r && typeof r.then === 'function') r = await r; j.state = 'done'; j.result = r; if (x.as) this.vars[x.as] = r; }
       catch (e) { j.state = 'failed'; j.error = e.message || String(e); if (x.as) this.vars[`${x.as}_error`] = j.error; Log.w('script', `Job failed: ${name}`, e); }
       j.ended = Date.now(); this.paint(); if (!this.running) return;
       Bus.emit('script.job', { value: name, ok: j.state === 'done' });
@@ -781,7 +787,7 @@ const ScriptUI = {
     if (a === 'try1') { // play this one action on the dashboard, then come back
       const x = listAt(id)[idxAt(id)]; this.shown = false; openView('dashboard');
       return setTimeout(async () => {
-        try { if (x.do) { const r = Actions.run(x.do, Script.fill(x.value), (m, then) => { if (m) Voice.respond(m); then?.(); }); if (r?.then) await r; } if (x.say) await Script.say(x, Script.token); }
+        try { if (x.do) { const r = Actions.call(x.do, ...Script.input(x, false, (m, then) => { if (m) Voice.respond(m); then?.(); })); const v = r?.then ? await r : r; if (v != null && v !== true && Actions.list[x.do]?.raw) toast(`Result: ${String(typeof v === 'object' ? JSON.stringify(v) : v).slice(0, 140)}`); } if (x.say) await Script.say(x, Script.token); }
         catch (e) { toast(e.message || 'That didn’t work'); }
         setTimeout(() => { this.shown = true; this.page = 'edit'; openView('settings'); }, 1500);
       }, 400);
@@ -853,9 +859,10 @@ document.addEventListener('change', e => {
   ScriptUI.setPath(f.dataset.sf, f.type === 'checkbox' ? f.checked : f.value);
   if (/\.do$/.test(f.dataset.sf)) ScriptUI.renderEditor(); // the value's hint depends on the action
 });
-// A switch that changes what's shown (a step in the background), and an intent's questions ("slot: question" per line).
+// A switch that changes what's shown (a step in the background), an intent's questions ("slot: question" per line), a task's inputs.
 document.addEventListener('change', e => {
-  const f = e.target.closest?.('[data-sfb],[data-sfask]'); if (!f || !ScriptUI.draft) return;
+  const f = e.target.closest?.('[data-sfb],[data-sfask],[data-sfargs]'); if (!f || !ScriptUI.draft) return;
+  if (f.dataset.sfargs) return ScriptUI.setPath(f.dataset.sfargs, f.value.split('\n').map(s => s.trim()).filter((s, i, a) => s || i < a.length - 1));
   if (f.dataset.sfb) { ScriptUI.setPath(f.dataset.sfb, f.checked); return ScriptUI.renderEditor(); }
   ScriptUI.setPath(f.dataset.sfask, Object.fromEntries(f.value.split('\n').map(l => l.split(':')).filter(p => p[0].trim() && p[1]).map(([k, ...q]) => [k.trim().replace(/\W/g, ''), q.join(':').trim()])));
 });

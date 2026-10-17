@@ -118,3 +118,16 @@ leave the microphone to you), and when what you say matches an intent, does it, 
 - Nothing matched: with **Understanding** (Settings › Assistant: Claude with your key, or an OpenAI-compatible server such
   as a local Ollama) a language model picks the intent and fills its slots, or answers briefly; otherwise `fallback`.
 - The action `brain.ask` (“Ask the model”) asks the model anything from a step; keep the answer with `as`.
+
+## Tasks on this computer (StudioGen on a Mac)
+
+`{ "do": "os.applescript" | "os.jxa" | "os.shortcut" | "os.shell", "value": "<code, or the Shortcut's name>", "args": ["{month}"], "as": "result", "timeout": 60 }`
+
+- The code runs as written in the desktop app (desktop/tasks.js). Values go in as **arguments**: AppleScript
+  `on run argv` (`item 1 of argv`), JXA `function run(argv)` (`argv[0]`), shell `"$1"`, a Shortcut's input; never pasted
+  into the code, so nothing someone says can become code.
+- The first run of each piece of code shows it in a native dialog: **Run once**, **Always allow this code** (remembered
+  by its SHA-256; changed or imported code asks again) or **Don't run**. Settings › System › Tasks you always allow.
+- The output is text, or data when it prints JSON; a failure sets `{result_error}`. Mark it `background` to keep talking
+  meanwhile. macOS asks once per app a task controls (Automation).
+- Ready-made tasks are in the editor's picker (This computer). DriveGen will run them through a paired StudioGen.

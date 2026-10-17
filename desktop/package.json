@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -27,6 +27,7 @@
       "preload.js",
       "webview-preload.js",
       "updater.js",
+      "tasks.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"
@@ -61,6 +62,7 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "StudioGen listens for your voice commands.",
         "NSCameraUsageDescription": "StudioGen uses the camera to follow the presenter and recognise objects.",
+        "NSAppleEventsUsageDescription": "StudioGen runs the tasks in your scripts that control other apps.",
         "NSLocationUsageDescription": "StudioGen shows where you are and guides you.",
         "NSLocationWhenInUseUsageDescription": "StudioGen shows where you are and guides you."
       },

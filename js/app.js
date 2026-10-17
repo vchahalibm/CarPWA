@@ -1186,6 +1186,7 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
+      ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
     </div>
     <div class="group-title">Display</div>
@@ -1449,7 +1450,7 @@ emit();
 const forDriving = () => APP_NAME !== 'StudioGen' || settings.driveTabs;
 const lastSrc = store.get('locSource', 'none');
 if (lastSrc === 'demo' && forDriving()) startDemo();
-else navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted' || lastSrc === 'gps') startGPS(); }).catch(() => {});
+else if (forDriving()) navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted' || lastSrc === 'gps') startGPS(); }).catch(() => {});
 loadWeather();
 if (forDriving()) setTimeout(simulateIncomingMessage, 25000);
 

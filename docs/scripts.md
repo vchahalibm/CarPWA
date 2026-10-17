@@ -77,3 +77,44 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
 "helpers": [{ name, match, css, js, on }], "webRecs": [...], "appRecs": [...] }` (js/bundles.js). Export includes what the
 scripts use (`Bundles.uses`); import renames clashes and rewrites the references. The library is an index:
 `{ "bundles": [{ "name", "about", "url" (relative to the index), "author" }] }`, by default `library/index.json` on GitHub Pages.
+
+## Variables, conditions, loops and background steps
+
+Any text in a step can use `{name}` (dots reach into objects: `{result.rows}`; `{time}` and `{date}` are built in).
+
+- `{ "set": "n", "value": "3" }`: remember a value (numbers stay numbers, JSON is parsed, `{k} - 1` is worked out).
+- `"as": "result"` on an action step keeps what it gives back (`brain.ask`'s answer, later an OS task's output); a failure
+  goes into `{result_error}`.
+- `{ "if": "{n} > 3", "then": [ … ], "else": [ … ] }`: conditions compare with `==, !=, >, <, >=, <=, is, is not`, or say
+  `{x} contains Paris`, `{x} is empty`, joined with `and` / `or`.
+- `{ "repeat": "3", "steps": [ … ] }`, `{ "until": "{done} is yes", "steps": [ … ] }`, `{ "each": "{rows}", "as": "row", "steps": [ … ] }`
+  (a list variable or comma-separated text; `{index}` counts the rounds; at most 1000).
+- `{ "goto": "beatId" }` jumps (also backwards: a loop over steps); `{ "stop": true }` ends the script.
+- **Background**: `"background": true` on an action step runs it as a job: the script carries on (the assistant keeps
+  talking or listening), `"then": [ … ]` runs when it's done (after the current sentence), `"else": [ … ]` if it fails,
+  `"name"` names it; `{ "await": "name" }` (or `"all"`) waits for it; the event `script.job` fires; the Stage bar shows
+  what runs.
+
+## Interactive scripts
+
+`"mode": "interactive"`: no timeline. It runs `setup` (a greeting), listens (conversation mode; `"listen": false` to
+leave the microphone to you), and when what you say matches an intent, does it, then listens again until you end it.
+
+```json
+{ "name": "Desk helper", "mode": "interactive",
+  "setup": [ { "say": "Hi! What can I do?" } ],
+  "intents": [
+    { "id": "sales", "title": "Show sales", "on": ["show sales for {month}", "sales"], "ask": { "month": "Which month?" },
+      "say": "Here are the sales for {month}.", "steps": [ { "do": "…", "value": "{month}", "as": "rows" } ] } ],
+  "fallback": [ { "say": "Sorry, I can show sales or the time." } ],
+  "idle": { "after": 90, "steps": [ { "say": "I'm here if you need me." } ] },
+  "end": { "on": ["that's all", "goodbye"], "steps": [ { "say": "Talk soon!" } ] } }
+```
+
+- An intent starts on one of its phrases (`{slot}` catches words; loose matching when most of the phrase's words are
+  there), its hand `gesture`, or an app `event` (with `{event}` = what the event carried).
+- `ask`: questions for slots still missing; the next thing you say is the answer ("two" counts as 2).
+- `{ "intent": "id" }` runs another intent from a step.
+- Nothing matched: with **Understanding** (Settings › Assistant: Claude with your key, or an OpenAI-compatible server such
+  as a local Ollama) a language model picks the intent and fills its slots, or answers briefly; otherwise `fallback`.
+- The action `brain.ask` (“Ask the model”) asks the model anything from a step; keep the answer with `as`.

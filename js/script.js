@@ -10,11 +10,19 @@
    ("go back", "back two steps", ←) or start over ("start over", Home):
    going back replays the earlier steps' actions silently, so the deck,
    the web page and the rest are where they were at that step.
+   Scripts are also small programs: variables ({name}, `set`, `as` keeps
+   what a step gives back, {slots} in phrases), `if`, loops (`repeat`,
+   `until`, `each`), `goto`, and background steps (jobs) that run while the
+   assistant carries on (`await` waits for them, `then` runs when they end).
+   Interactive scripts (`mode: "interactive"`) have no timeline: a set of
+   intents (things it can do) started by what you say or show; it answers,
+   waits for the next one, and loops until you end it.
    Format, examples and help: Settings › Scripts (ScriptUI below), and
    docs/scripts.md. Loaded after stage.js.
    ============================================================ */
 Bus.define('script.beat', 'A script step starts', 'the step’s title');
 Bus.define('script.end', 'A script ends', 'the script’s name');
+Bus.define('script.job', 'A script’s background step finishes', 'the job’s name');
 
 // The avatar's motions (js/motions.js); older names (Yes, No…) still work through motionName().
 const SCRIPT_GESTURES = Object.keys(MOTIONS);
@@ -31,6 +39,7 @@ const SCRIPT_CONTROL = [
   [/^(stop|end|quit|close) (the )?(script|demo|presentation|show)$/, 'stop'],
 ];
 const NUMW = { two: 2, three: 3, four: 4, five: 5 };
+const NUMBER_WORDS = Object.fromEntries('zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ').map((w, i) => [w, i]));
 const plain = t => String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 const asList = v => (Array.isArray(v) ? v : v == null || v === '' ? [] : String(v).split(/\s*[,|]\s*/)).map(x => String(x).trim()).filter(Boolean);
 
@@ -39,8 +48,13 @@ function scriptNorm(s) {
   const step = x => typeof x === 'string' ? { say: x } : { ...x, value: x.value == null ? '' : String(x.value) };
   const next = n => { n = typeof n === 'string' ? { on: n } : n || {};
     return { on: asList(n.on), gesture: n.gesture || '', key: n.key !== false, after: +n.after || 0, event: n.event || '', goto: n.goto || '' }; };
+  const intent = (it, i) => ({ ...it, id: String(it.id || `intent${i + 1}`), title: it.title || it.id || `Intent ${i + 1}`, on: asList(it.on), gesture: it.gesture || '', event: it.event || '',
+    ask: it.ask || {}, say: it.say || '', mood: it.mood || '', motion: it.motion || '', steps: (it.steps || []).map(step) });
   return {
-    name: String(s?.name || 'Untitled script'), about: s?.about || '',
+    name: String(s?.name || 'Untitled script'), about: s?.about || '', mode: s?.mode === 'interactive' ? 'interactive' : 'timeline', vars: s?.vars || {},
+    intents: (s?.intents || []).map(intent), fallback: (s?.fallback || []).map(step), idle: s?.idle ? { after: +s.idle.after || 0, steps: (s.idle.steps || []).map(step) } : null,
+    end: { on: asList(s?.end?.on ?? ['that’s all', 'thats all', 'we are done', 'stop the session', 'goodbye']), gesture: s?.end?.gesture || '', steps: (s?.end?.steps || []).map(step) },
+    listen: s?.listen !== false,
     setup: (s?.setup || []).map(step),
     beats: (s?.beats || []).map((b, i) => ({ ...b, id: String(b.id || `step${i + 1}`), title: b.title || b.id || `Step ${i + 1}`, say: b.say || '', mood: b.mood || '', gesture: b.gesture || '',
       do: (b.do || []).map(step), next: next(b.next), branches: (b.branches || []).map(r => ({ on: asList(r.on), gesture: r.gesture || '', goto: String(r.goto || '') })) })),
@@ -50,13 +64,17 @@ function scriptNorm(s) {
 function scriptCheck(raw) {
   const errors = [], warnings = [];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { errors: ['The file isn’t a script (expected { "name": …, "beats": [ … ] })'], warnings };
-  if (!Array.isArray(raw.beats) || !raw.beats.length) errors.push('beats: a script needs at least one beat');
+  const interactive = raw.mode === 'interactive';
+  if (interactive ? !Array.isArray(raw.intents) || !raw.intents.length : !Array.isArray(raw.beats) || !raw.beats.length) errors.push(interactive ? 'intents: an interactive script needs at least one thing it can do' : 'beats: a script needs at least one beat');
   const s = scriptNorm(raw), ids = new Set();
+  const LOGIC = ['set', 'if', 'repeat', 'until', 'each', 'await', 'goto', 'intent', 'stop'];
   const stepCheck = (x, where) => {
     if (x.do && !Actions.list[x.do]) warnings.push(`${where}: no action “${x.do}” here (it may come with a later version)`);
-    if (!x.do && !x.say && x.wait == null) errors.push(`${where}: a step needs "do" (an action), "say" or "wait"`);
+    if (!x.do && !x.say && x.wait == null && !LOGIC.some(k => x[k] != null)) errors.push(`${where}: a step needs "do" (an action), "say", "wait" or a logic step (${LOGIC.join(', ')})`);
     if (x.gesture && !motionName(x.gesture)) warnings.push(`${where}: “${x.gesture}” isn’t one of the assistant’s motions`);
+    for (const k of ['then', 'else', 'steps']) (x[k] || []).forEach((y, i) => stepCheck(typeof y === 'string' ? { say: y } : y, `${where} › ${k}[${i + 1}]`));
   };
+  s.intents.forEach((it, i) => { it.steps.forEach((x, k) => stepCheck(x, `intent ${i + 1} (${it.title}) › do[${k + 1}]`)); if (!it.on.length && !it.gesture && !it.event) warnings.push(`intent ${i + 1} (${it.title}): no phrase, gesture or event starts it`); });
   s.setup.forEach((x, i) => stepCheck(x, `setup[${i + 1}]`));
   s.beats.forEach((b, i) => {
     const w = `beat ${i + 1} (${b.id})`;
@@ -66,6 +84,8 @@ function scriptCheck(raw) {
     if (b.gesture && !motionName(b.gesture)) warnings.push(`${w}: “${b.gesture}” isn’t one of the assistant’s motions`);
     for (const g of [b.next.gesture, ...b.branches.map(r => r.gesture)]) if (g && !SCRIPT_HAND.includes(g)) warnings.push(`${w}: hand gesture “${g}” isn’t one of ${SCRIPT_HAND.join(', ')}`);
   });
+  const gotos = (L, where) => L.forEach((x, k) => { if (x.goto && !ids.has(String(x.goto))) errors.push(`${where} › do[${k + 1}]: goes to “${x.goto}”, which no beat has as its id`); for (const c of ['then', 'else', 'steps']) if (x[c]) gotos(x[c], where); });
+  s.beats.forEach((b, i) => gotos(b.do, `beat ${i + 1} (${b.id})`));
   s.beats.forEach((b, i) => {
     for (const t of [b.next.goto, ...b.branches.map(r => r.goto)]) if (t && !ids.has(t)) errors.push(`beat ${i + 1} (${b.id}): goes to “${t}”, which no beat has as its id`);
     b.branches.forEach((r, k) => { if (!r.on.length && !r.gesture) warnings.push(`beat ${i + 1} (${b.id}) › branch ${k + 1}: no phrase or gesture, so it never happens`); });
@@ -74,18 +94,19 @@ function scriptCheck(raw) {
 }
 
 const Script = {
-  cur: null, i: -1, running: false, token: 0, history: [], timer: 0,
+  cur: null, i: -1, running: false, token: 0, history: [], timer: 0, vars: {}, jobs: [], ask: null, busy: false,
   get beat() { return this.cur?.beats[this.i]; },
   /** Start a script (any accepted shape) at a beat. */
   async start(raw, from = 0) {
     const chk = scriptCheck(raw); if (chk.errors.length) { Log.w('script', 'Script has errors', chk.errors); toast(chk.errors[0]); return false; }
     this.stop(true);
-    this.cur = chk.script; this.running = true; this.history = [];
+    this.cur = chk.script; this.running = true; this.history = []; this.vars = { ...this.cur.vars }; this.jobs = []; this.ask = null; this.busy = false;
     if (current !== 'dashboard') openView('dashboard'); // a script presents on the dashboard
     // The natural voice before the first line (making room for it), so the presenter doesn't start in the device's voice.
     if (settings.tts === 'neural' && store.get('kokoroOK') && !Voice.tts) await Promise.race([Voice.loadTTS(false, true).catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
     Log.i('script', `Script: ${this.cur.name}`, { beats: this.cur.beats.length, from });
     const tok = ++this.token;
+    if (this.cur.mode === 'interactive') { this.i = -1; this.paint(); this.listen(); await this.steps(this.cur.setup, { tok }); this.waitNext(); return true; }
     await this.steps(this.cur.setup, { quiet: false, tok });
     if (tok !== this.token) return true;
     await this.restore(typeof from === 'string' ? this.index(from) : from, tok);
@@ -116,21 +137,97 @@ const Script = {
   },
   fill(t) {
     return String(t || '').replace(/\{notes\}/g, () => { const id = Media.first('doc'); return id ? Media.notes(id) : ''; })
-      .replace(/\{page\}/g, () => String(Media.pdf[Media.first('doc')]?.page || '')).trim();
+      .replace(/\{page\}/g, () => String(Media.pdf[Media.first('doc')]?.page || ''))
+      .replace(/\{([\w.]+)\}/g, (m, k) => { const v = this.val(k); return v === undefined ? m : typeof v === 'object' ? (Array.isArray(v) && v.every(x => typeof x !== 'object') ? v.join(', ') : JSON.stringify(v)) : String(v); }).trim();
+  },
+  /** A variable by name, with dots into objects ({result.rows}); time and date built in. */
+  val(k) {
+    if (k === 'time') return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (k === 'date') return new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    let o = this.vars; for (const p of k.split('.')) { if (o == null) return undefined; o = o[p]; } return o;
+  },
+  /** Text → a value: numbers stay numbers, JSON is parsed, the rest is text. */
+  parse(v) {
+    const t = String(v ?? '').trim(); if (/^-?\d+(\.\d+)?$/.test(t)) return +t;
+    if (NUMBER_WORDS[plain(t)] != null) return NUMBER_WORDS[plain(t)]; // “two” heard as a word
+    if (/^[\d\s.+\-*/()%]+$/.test(t) && /\d\s*[-+*/%]\s*[\d(]/.test(t)) { try { const n = Function(`"use strict";return (${t})`)(); if (Number.isFinite(n)) return +n.toFixed(6); } catch {} } // arithmetic: digits and operators only
+    if (/^[[{]/.test(t)) { try { return JSON.parse(t); } catch {} } return t;
+  },
+  /** A condition: “{n} > 3”, “{answer} is yes”, “{list} contains Paris”, “{x} is empty”, joined with and / or. */
+  test(c) {
+    return String(c || '').split(/\s+or\s+/i).some(part => part.split(/\s+and\s+/i).every(e => {
+      e = this.fill(e).trim(); let m;
+      if ((m = e.match(/^(.*?)\s+is\s+(not\s+)?empty$/i))) { const empty = !m[1].trim() || /^\{[\w.]+\}$/.test(m[1].trim()); return m[2] ? !empty : empty; }
+      if ((m = e.match(/^(.*?)\s+(not\s+)?contains\s+(.*)$/i))) return plain(m[1]).includes(plain(m[3])) === !m[2];
+      if ((m = e.match(/^(.*?)\s*(==|!=|>=|<=|>|<|=|\bis not\b|\bis\b)\s*(.*)$/i))) {
+        const [a, b] = [m[1].trim(), m[3].trim()], n = !isNaN(parseFloat(a)) && !isNaN(parseFloat(b)), A = n ? parseFloat(a) : plain(a), B = n ? parseFloat(b) : plain(b);
+        return { '==': A === B, '=': A === B, is: A === B, '!=': A !== B, 'is not': A !== B, '>': A > B, '<': A < B, '>=': A >= B, '<=': A <= B }[m[2].toLowerCase()];
+      }
+      return !!e && !/^(false|no|0)$/i.test(e);
+    }));
   },
   /** Run steps in order. Quiet (going back): actions only, nothing said, no waiting. */
-  async steps(list, { quiet = false, tok = this.token } = {}) {
-    for (const x of list) {
-      if (tok !== this.token) return;
+  async steps(list, { quiet = false, tok = this.token, depth = 0 } = {}) {
+    const say = quiet ? quietSay : (m, then) => { if (m) Voice.respond(m); then?.(); };
+    for (const raw of list || []) {
+      const x = typeof raw === 'string' ? { say: raw } : raw;
+      if (tok !== this.token || !this.running) return;
       if (x.wait != null) { if (!quiet) await new Promise(r => setTimeout(r, +x.wait || 0)); continue; }
+      if (x.set != null) { this.vars[x.set] = this.parse(this.fill(x.value)); continue; }
+      if (x.if != null) { await this.steps(this.test(x.if) ? x.then : x.else, { quiet, tok, depth: depth + 1 }); continue; }
+      if (x.repeat != null || x.until != null || x.each != null) { await this.loop(x, { quiet, tok, depth }); continue; }
+      if (x.await != null) { if (!quiet) await this.awaitJobs(x.await); continue; }
+      if (x.stop) { if (!quiet) { await this.steps(this.cur.end?.steps, { tok }); this.stop(); } return; }
+      if (x.goto != null) { if (!quiet) { this.jump(String(this.fill(x.goto))); } return; }
+      if (x.intent != null) { if (!quiet) { const it = this.cur.intents.find(i => i.id === x.intent || plain(i.title) === plain(x.intent)); if (it) await this.runIntent(it, {}, tok); } continue; }
       if (x.do) {
-        const r = Actions.run(x.do, this.fill(x.value), quiet ? quietSay : (m, then) => { if (m) Voice.respond(m); then?.(); }, { quiet }); // quiet: going back (web steps skip the pointer)
-        if (r && typeof r.then === 'function') await r.catch(() => {});
+        if (x.background) { if (!quiet) this.job(x); continue; } // the script carries on; the job reports when it's done
+        let r; try { r = Actions.call(x.do, this.fill(x.value), say, { quiet }); if (r && typeof r.then === 'function') r = await r; } // quiet: going back (web steps skip the pointer)
+        catch (e) { Log.w('script', `Step ${x.do} failed`, e); r = undefined; if (x.as) this.vars[`${x.as}_error`] = e.message || String(e); }
+        if (x.as) this.vars[x.as] = r;
         await new Promise(r2 => setTimeout(r2, quiet ? 30 : 120)); // let widgets redraw between steps
       }
       if (x.say && !quiet) await this.say(x, tok);
     }
   },
+  /** repeat: n times · until: a condition (checked after each round) · each: a list ({var}, an array, or comma-separated), as `as` (default item). */
+  async loop(x, { quiet, tok, depth }) {
+    if (depth > 8) return Log.w('script', 'Loops nested too deep');
+    const body = x.steps || x.then || [];
+    if (x.each != null) {
+      const v = typeof x.each === 'string' && /^\{[\w.]+\}$/.test(x.each.trim()) ? this.val(x.each.trim().slice(1, -1)) : this.parse(this.fill(x.each));
+      const list = Array.isArray(v) ? v : asList(v);
+      for (let i = 0; i < list.length && i < 1000; i++) { if (tok !== this.token) return; this.vars[x.as || 'item'] = list[i]; this.vars.index = i + 1; await this.steps(body, { quiet, tok, depth: depth + 1 }); }
+      return;
+    }
+    const n = x.repeat != null ? Math.min(1000, +this.parse(this.fill(x.repeat)) || 0) : 1000;
+    for (let i = 0; i < n; i++) {
+      if (tok !== this.token) return; this.vars.index = i + 1;
+      await this.steps(body, { quiet, tok, depth: depth + 1 });
+      if (x.until != null && this.test(x.until)) return;
+      if (!quiet && x.until != null) await new Promise(r => setTimeout(r, 200)); // never a busy loop
+    }
+  },
+  /* ---------- Background steps (jobs) ---------- */
+  job(x) {
+    const name = x.name || x.title || Actions.list[x.do]?.name || x.do, j = { id: Math.random().toString(36).slice(2, 7), name, state: 'running', started: Date.now() };
+    this.jobs.push(j); this.paint(); Log.i('script', `Job started: ${name}`);
+    j.promise = (async () => {
+      try { let r = Actions.call(x.do, this.fill(x.value), quietSay, {}); if (r && typeof r.then === 'function') r = await r; j.state = 'done'; j.result = r; if (x.as) this.vars[x.as] = r; }
+      catch (e) { j.state = 'failed'; j.error = e.message || String(e); if (x.as) this.vars[`${x.as}_error`] = j.error; Log.w('script', `Job failed: ${name}`, e); }
+      j.ended = Date.now(); this.paint(); if (!this.running) return;
+      Bus.emit('script.job', { value: name, ok: j.state === 'done' });
+      const after = j.state === 'done' ? x.then : x.else; if (after?.length) { await this.quietMoment(); await this.steps(after, { tok: this.token }); }
+    })();
+    return j;
+  },
+  /** Wait for a job by name (or “all”), at most 10 minutes. */
+  async awaitJobs(name) {
+    const js = this.jobs.filter(j => j.state === 'running' && (name === 'all' || !name || plain(j.name) === plain(name)));
+    await Promise.race([Promise.all(js.map(j => j.promise)), new Promise(r => setTimeout(r, 600000))]);
+  },
+  /** Before a job's report: let the assistant finish its sentence. */
+  async quietMoment() { for (let i = 0; i < 150 && (typeof Lips !== 'undefined' && Lips.speaking()); i++) await new Promise(r => setTimeout(r, 100)); },
   /** Get to beat k as if the show had run up to it: replay the actions before it silently, then play it. */
   async restore(k, tok = ++this.token) {
     clearTimeout(this.timer); Voice.hush?.();
@@ -142,16 +239,75 @@ const Script = {
     }
     if (tok === this.token) await this.go(k, tok);
   },
+  /* ---------- Interactive scripts: intents, asked for by voice, gesture or event ---------- */
+  /** Keep listening while it runs: conversation mode where there is one. */
+  listen() { if (this.cur.listen && typeof Convo !== 'undefined' && !Convo.active) Convo.start().catch?.(() => {}); },
+  /** Done with an intent: wait for the next (and nudge after a quiet spell, when the script says so). */
+  waitNext() {
+    this.busy = false; this.paint(); clearTimeout(this.timer);
+    const I = this.cur.idle; if (I?.after > 0 && I.steps.length) this.timer = setTimeout(async () => { if (this.running && !this.busy && !this.ask) { await this.steps(I.steps, { tok: this.token }); this.waitNext(); } }, I.after * 1000);
+  },
+  /** A phrase with {slots} against what was heard: the slots it fills, or null. Loose: the phrase's own words mostly there. */
+  matchPhrase(p, t) {
+    const words = plain(p.replace(/\{\w+\}/g, ' ')).split(' ').filter(Boolean), slots = [...p.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+    if (slots.length) {
+      const re = new RegExp('(?:^|\\s)' + plain(p.replace(/\{(\w+)\}/g, ' SLOT$1 ')).split(' ').map(w => /^slot\w+$/.test(w) ? '(.+?)' : w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+') + '(?:\\s|$)');
+      const m = (` ${t} `).match(re); if (m) return Object.fromEntries(slots.map((s, i) => [s, m[i + 1].trim()]));
+    }
+    if (!words.length) return null;
+    const have = words.filter(w => (` ${t} `).includes(` ${w} `)).length;
+    return have === words.length || (words.length >= 3 && have / words.length >= 0.75) ? {} : null;
+  },
+  /** Run an intent: fill its slots (asking for the missing ones), then its line and steps. */
+  async runIntent(it, slots = {}, tok = ++this.token, answering = false) {
+    clearTimeout(this.timer); this.busy = true; this.cur.lastIntent = it.id; this.paint();
+    if (!answering) for (const k of [...Object.keys(it.ask || {}), ...it.on.flatMap(p => [...p.matchAll(/\{(\w+)\}/g)].map(m => m[1]))]) delete this.vars[k]; // asked afresh each time
+    Object.assign(this.vars, slots);
+    const need = Object.keys(it.ask || {}).filter(k => this.vars[k] == null || this.vars[k] === '');
+    if (need.length) { this.ask = { it, slot: need[0] }; this.busy = false; this.paint(); return Voice.respond(this.fill(it.ask[need[0]])); }
+    Log.i('script', `Intent: ${it.title}`, slots); Bus.emit('script.beat', { value: it.title, id: it.id });
+    if (it.say || it.mood || it.motion) await this.say({ say: it.say, mood: it.mood, gesture: it.motion }, tok);
+    await this.steps(it.steps, { tok });
+    if (this.running && tok === this.token) this.waitNext();
+  },
+  /** What was heard in an interactive script. Always taken: an intent, an answer, the end, or the fallback. */
+  hearInteractive(text, t) {
+    this.vars.heard = text;
+    if (this.ask) { const { it, slot } = this.ask; this.ask = null; this.vars[slot] = this.parse(text.replace(/[.!?]+$/, '')); this.runIntent(it, {}, ++this.token, true); return true; }
+    if (this.cur.end.on.some(p => this.matchPhrase(p, t))) { this.end(); return true; }
+    for (const it of this.cur.intents) for (const p of it.on) { const s = this.matchPhrase(p, t); if (s) { Log.i('script', `Heard “${text}”: ${it.title}`); this.runIntent(it, s); return true; } }
+    this.unmatched(text); return true;
+  },
+  /** Nothing matched: the cloud model when one is set up (Settings › Assistant › Understanding), else the fallback. */
+  async unmatched(text) {
+    const tok = ++this.token; this.busy = true; this.paint();
+    if (typeof Brain !== 'undefined' && Brain.ready()) {
+      const r = await Brain.route(text, this.cur.intents, this.vars).catch(e => { Log.w('brain', 'Not understood', e); return null; });
+      if (tok !== this.token) return;
+      const it = r?.intent && this.cur.intents.find(i => i.id === r.intent);
+      if (it) { Log.i('script', `Model: “${text}” → ${it.title}`, r.slots); return this.runIntent(it, r.slots || {}, tok); }
+      if (r?.say) { await this.say({ say: r.say }, tok); return this.waitNext(); }
+    }
+    if (this.cur.fallback.length) await this.steps(this.cur.fallback, { tok });
+    else await this.say({ say: `Sorry, I didn’t get that. I can ${this.cur.intents.slice(0, 4).map(i => i.title.toLowerCase()).join(', ')}.` }, tok);
+    if (tok === this.token) this.waitNext();
+  },
+  async end() { const tok = ++this.token; await this.steps(this.cur.end.steps, { tok }); if (typeof Convo !== 'undefined' && Convo.active && this.cur.listen) Convo.end?.('script'); this.finish(); },
+  jobList() {
+    const t = j => `${Math.round(((j.ended || Date.now()) - j.started) / 1000)} s`;
+    sheet('In the background', this.jobs.length ? `<ul class="av-report">${this.jobs.map(j => `<li class="${j.state === 'failed' ? 'warn' : ''}">${j.state === 'running' ? '⏳' : j.state === 'done' ? '✓' : '✗'} ${esc(j.name)} · ${t(j)}${j.error ? ` · ${esc(j.error)}` : ''}</li>`).join('')}</ul>` : '<p>Nothing yet.</p>', [['Close']]);
+  },
   next() {
-    if (!this.running) return false;
+    if (!this.running || this.cur.mode === 'interactive') return false;
     const b = this.beat, to = b?.next.goto ? this.index(b.next.goto) : this.i + 1;
     this.go(to); return true;
   },
-  back(n = 1) { if (!this.running) return false; this.restore(this.i - n); return true; },
-  restart() { if (!this.running) return false; Log.i('script', 'Start over'); this.restore(0); return true; },
-  repeat() { if (!this.running) return false; this.go(this.i); return true; },
+  back(n = 1) { if (!this.running || this.cur.mode === 'interactive') return false; this.restore(this.i - n); return true; },
+  restart() { if (!this.running || this.cur.mode === 'interactive') return false; Log.i('script', 'Start over'); this.restore(0); return true; },
+  repeat() { if (!this.running || this.cur.mode === 'interactive') return false; this.go(this.i); return true; },
   jump(id) { const k = typeof id === 'number' ? id : this.index(id); if (k < 0) return false; this.restore(k); return true; },
   finish() {
+    clearTimeout(this.timer); this.ask = null;
     Log.i('script', `Script finished: ${this.cur?.name}`);
     Bus.emit('script.end', { value: this.cur?.name || '' });
     this.running = false; this.paint();
@@ -168,9 +324,11 @@ const Script = {
     for (const [re, what] of SCRIPT_CONTROL) {
       const m = t.match(re); if (!m) continue;
       Log.i('script', `Heard “${text}”: ${what}`);
+      if (this.cur.mode === 'interactive' && what !== 'stop') continue; // no steps to go back to: the words go to the intents
       if (what === 'backN') return this.back(NUMW[m[1]] || +m[1] || 1);
       return this[what]();
     }
+    if (this.cur.mode === 'interactive') return this.hearInteractive(text, t);
     const b = this.beat; if (!b) return false;
     const has = p => { const q = plain(p); return q && (` ${t} `).includes(` ${q} `); };
     const br = b.branches.find(r => r.on.some(has));
@@ -180,6 +338,10 @@ const Script = {
   },
   /** A hand gesture from the people tracker. */
   gesture(g) {
+    if (this.running && this.cur.mode === 'interactive') {
+      if (this.cur.end.gesture === g) { this.end(); return true; }
+      const it = this.cur.intents.find(i => i.gesture === g); if (it && !this.busy) { this.runIntent(it); return true; } return false;
+    }
     if (!this.running || !this.beat) return false;
     const b = this.beat, br = b.branches.find(r => r.gesture === g);
     if (br) { this.jump(br.goto); return true; }
@@ -192,7 +354,14 @@ const Script = {
     const box = $('#dashRoot .st-beats'); if (!box) return;
     box.hidden = !this.running;
     if (!this.running) { box.innerHTML = ''; return; }
-    box.innerHTML = `<button class="st-ctl" data-script="restart" aria-label="Start over">${svg('restart')}</button>
+    const jobs = this.jobs.filter(j => j.state === 'running' || Date.now() - (j.ended || 0) < 8000);
+    const jobChip = jobs.length ? `<button class="st-jobs" data-script="jobs" title="${esc(jobs.map(j => `${j.name}: ${j.state}`).join('\n'))}">${jobs.some(j => j.state === 'running') ? '⏳' : '✓'} ${jobs.length} in the background</button>` : '';
+    if (this.cur.mode === 'interactive') {
+      box.innerHTML = `<span class="st-live">${this.ask ? `Waiting for: ${esc(this.ask.slot)}` : this.busy ? 'Working…' : `Listening · ${this.cur.intents.length} things I can do`}</span>${jobChip}
+        <button class="st-ctl" data-script="list" aria-label="What it can do">${svg('grid')}</button><button class="st-ctl" data-script="stop" aria-label="End the session">${svg('close')}</button>`;
+      return;
+    }
+    box.innerHTML = `${jobChip}<button class="st-ctl" data-script="restart" aria-label="Start over">${svg('restart')}</button>
       <button class="st-ctl" data-script="back" aria-label="Previous step">${svg('back')}</button>
       <button class="st-dots" data-script="list" aria-label="All steps">${this.cur.beats.map((b, k) => `<i class="${k === this.i ? 'on' : k < this.i ? 'done' : ''}" title="${esc(b.title)}"></i>`).join('')}</button>
       <button class="st-ctl" data-script="next" aria-label="Next step">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button>
@@ -201,20 +370,26 @@ const Script = {
   /** Every step, to jump to one (presenting off-script after a glitch). */
   list() {
     if (!this.running) return;
+    if (this.cur.mode === 'interactive') return sheet(this.cur.name, `<p class="se-note">Say one of these (or tap it):</p><div class="pick-list">${this.cur.intents.map((it, k) => `<button class="big-btn" data-scriptintent="${k}">${esc(it.title)}${it.on[0] ? ` <span class="se-note">“${esc(it.on[0])}”</span>` : ''}</button>`).join('')}</div>`, [['Close']]);
     sheet(this.cur.name, `<div class="pick-list">${this.cur.beats.map((b, k) => `<button class="big-btn ${k === this.i ? 'accent' : ''}" data-scriptjump="${k}">${k + 1}. ${esc(b.title)}</button>`).join('')}</div>`, [['Close']]);
   },
 };
 Bus.on('dash.rendered', () => Script.paint());
-Bus.on('*', (d, name) => { const b = Script.running ? Script.beat : null; if (b?.next?.event && b.next.event === name && !name.startsWith('script.')) Script.next(); });
+Bus.on('*', (d, name) => {
+  if (!Script.running || (name.startsWith('script.') && name !== 'script.job')) return;
+  if (Script.cur.mode === 'interactive') { const it = Script.cur.intents.find(i => i.event === name); if (it && !Script.busy) Script.runIntent(it, { event: d?.value }); return; }
+  const b = Script.beat; if (b?.next?.event === name) Script.next();
+});
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-script],[data-scriptjump]'); if (!b) return;
+  const b = e.target.closest('[data-script],[data-scriptjump],[data-scriptintent]'); if (!b) return;
   e.stopPropagation();
   if (b.dataset.scriptjump != null) { closeSheet(); return Script.jump(+b.dataset.scriptjump); }
-  const a = b.dataset.script; if (a === 'list') Script.list(); else Script[a]?.();
+  if (b.dataset.scriptintent != null) { closeSheet(); return Script.runIntent(Script.cur.intents[+b.dataset.scriptintent]); }
+  const a = b.dataset.script; if (a === 'list') Script.list(); else if (a === 'jobs') Script.jobList(); else Script[a]?.();
 }, true);
 // Clicker and keyboard drive the script while one runs (Stage's own keys turn slides otherwise).
 addEventListener('keydown', e => {
-  if (!Script.running || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!Script.running || Script.cur.mode === 'interactive' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = { ArrowRight: 'next', PageDown: 'next', ' ': 'next', ArrowLeft: 'back', PageUp: 'back', Home: 'restart' }[e.key];
   if (!k || (k === 'next' && Script.beat && !Script.beat.next.key)) return;
   e.preventDefault(); Script[k]();
@@ -262,6 +437,22 @@ const SAMPLE_SCRIPT = {
   ],
 };
 /* A complex sample on a live site (desktop app): built from steps recorded and captured on goindigo.in. */
+/* An interactive script: no timeline, things it can do, asked for by voice; it loops until you say you're done. */
+const AGENT_SAMPLE = {
+  name: 'Desk helper (interactive)', about: 'An interactive session: ask for things in any order; one runs in the background while it keeps talking', mode: 'interactive',
+  setup: [{ say: 'Hi! I’m listening. Ask me the time, to show the demo page, to count down, or to start the report. Say “that’s all” when we’re done.', mood: 'Happy', gesture: 'Wave' }],
+  intents: [
+    { id: 'time', title: 'Tell the time', on: ['what time is it', 'whats the time', 'the time'], say: 'It’s {time}.' },
+    { id: 'page', title: 'Show the demo page', on: ['show the demo page', 'open the demo page', 'show me the page'], steps: [{ do: 'web.open', value: 'samples/demo-page.html' }, { say: 'Here it is.' }] },
+    { id: 'count', title: 'Count down', on: ['count down from {n}', 'countdown from {n}', 'count down'], ask: { n: 'From what number?' },
+      steps: [{ set: 'k', value: '{n}' }, { repeat: '{n}', steps: [{ say: '{k}' }, { set: 'k', value: '{k} - 1' }] }, { say: 'Lift off!', gesture: 'Celebrate' }] },
+    { id: 'report', title: 'Start the report', on: ['start the report', 'make the report', 'run the report'],
+      steps: [{ do: 'wait', value: '8', background: true, name: 'report', then: [{ say: 'The report is ready.', mood: 'Happy' }] }, { say: 'I’ve started the report. I’ll tell you when it’s done; ask me anything meanwhile.' }] },
+    { id: 'slides', title: 'Next slide', on: ['next slide', 'go to the next slide'], steps: [{ do: 'doc.next' }] },
+  ],
+  idle: { after: 90, steps: [{ say: 'I’m here if you need anything.' }] },
+  end: { on: ['thats all', 'that is all', 'were done', 'we are done', 'goodbye', 'end the session'], steps: [{ say: 'Okay, talk soon!', gesture: 'Wave' }] },
+};
 const INDIGO_DEMO = {
   "name": "IndiGo live booking demo",
   "about": "A complex sample on a live site (goindigo.in, desktop app): a site helper, recorded steps, text, a screen picture and the screen model, with the assistant speaking and moving.",
@@ -469,7 +660,7 @@ const INDIGO_DEMO = {
 };
 const Scripts = {
   mine: () => store.get('scripts', []),
-  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, ...(window.DriveDeckDesktop?.browser ? [{ id: 'sample-indigo', name: INDIGO_DEMO.name, json: INDIGO_DEMO, sample: true }] : []), ...this.mine()]; },
+  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, { id: 'sample-agent', name: AGENT_SAMPLE.name, json: AGENT_SAMPLE, sample: true }, ...(window.DriveDeckDesktop?.browser ? [{ id: 'sample-indigo', name: INDIGO_DEMO.name, json: INDIGO_DEMO, sample: true }] : []), ...this.mine()]; },
   get(id) { return this.all().find(s => s.id === id); },
   find(name) { const q = plain(name); return this.all().find(s => plain(s.name) === q) || (q && this.all().find(s => plain(s.name).includes(q))) || (!q ? this.all()[0] : null); },
   put(s) { const l = this.mine(), i = l.findIndex(x => x.id === s.id); if (i >= 0) l[i] = s; else l.push(s); store.set('scripts', l); return s; },
@@ -496,7 +687,7 @@ const ScriptUI = {
     const ic = (n, label, attr, cls = '') => `<button class="icon-btn ${cls}" ${attr} aria-label="${esc(label)}" title="${esc(label)}">${svg(n)}</button>`;
     const desk = !!window.DriveDeckDesktop?.browser;
     const scripts = `<div class="chip-row">
-        <button class="chip accent" data-sui="new">${svg('plus')}New script</button>
+        <button class="chip accent" data-sui="new">${svg('plus')}New script</button><button class="chip" data-sui="newagent">${svg('plus')}New interactive script</button>
         ${typeof AppSteps !== 'undefined' ? `<button class="chip" data-sui="recscript"><i class="rec-dot"></i>Record a new script</button>` : ''}
         <button class="chip" data-sui="upload">${svg('upload')}Import</button><button class="chip" data-sui="library">📦 Library</button>
         <button class="chip" data-sui="exportall">${svg('download')}Export all</button>
@@ -544,6 +735,7 @@ const ScriptUI = {
     if (a === 'upload') return $('#suiFile').click();
     if (a === 'template') return Scripts.download(SAMPLE_SCRIPT);
     if (a === 'new') return this.edit(null, JSON.parse(JSON.stringify({ ...SAMPLE_SCRIPT, name: 'My script' })));
+    if (a === 'newagent') return this.edit(null, JSON.parse(JSON.stringify({ ...AGENT_SAMPLE, name: 'My interactive script' })));
     if (a === 'run') { const s = Scripts.get(id); if (s) { this.close(); openView('dashboard'); Script.start(s.json); } return; }
     if (a === 'edit') { const s = Scripts.get(id); return this.edit(s.sample ? null : id, JSON.parse(JSON.stringify(s.sample ? { ...s.json, name: s.json.name + ' (copy)' } : s.json))); }
     if (a === 'dl') return Bundles.export([Scripts.get(id)]);
@@ -562,10 +754,11 @@ const ScriptUI = {
     // Editor
     const d = this.draft; if (!d) return;
     // A step's actions: add one of a kind, move, try, pick its target on screen.
-    const listAt = path => path.startsWith('setup') ? (d.setup ||= []) : (d.beats[+path.split('.')[1]].do ||= []);
+    // A list of steps by path ('setup', 'beats.2.do', 'intents.0.steps', 'beats.1.do.3.then'), or the list holding the step at a path.
+    const listAt = path => { const k = path.split('.'); if (/^\d+$/.test(k.at(-1)) && k.length > 1 && !/^(beats|intents)$/.test(k.at(-2))) k.pop(); let o = d; for (let i = 0; i < k.length; i++) o = o[k[i]] ??= (i === k.length - 1 || /^\d+$/.test(k[i + 1]) ? [] : {}); return o; };
     const idxAt = path => +path.split('.').at(-1);
     if (a === 'add') {
-      const [what, where] = id.split('@'), L = listAt(where === 'setup' ? 'setup' : `beats.${where}.do`), app = st => ({ do: 'app.step', value: JSON.stringify(st) });
+      const [what, where] = id.split('@'), L = listAt(where === 'setup' || where.includes('.') ? where : `beats.${where}.do`), app = st => ({ do: 'app.step', value: JSON.stringify(st) });
       const pickThen = async (fn, make) => { this.shown = false; openView('dashboard'); await new Promise(r => setTimeout(r, 450)); const m = await fn(); this.shown = true; this.page = 'edit'; openView('settings'); if (m) { L.push(make(m)); this.renderEditor(); } };
       if (what === 'say') L.push({ say: '' });
       else if (what === 'motion') L.push({ do: 'avatar.gesture', value: 'Wave' });
@@ -593,6 +786,7 @@ const ScriptUI = {
         setTimeout(() => { this.shown = true; this.page = 'edit'; openView('settings'); }, 1500);
       }, 400);
     }
+    if (a === 'rmp') { const L = listAt(id); L.splice(idxAt(id), 1); return this.renderEditor(); }
     if (a === 'save') return this.save();
     if (a === 'try') { const chk = scriptCheck(d); if (chk.errors.length) return sheet('Fix these first', this.problemsHtml(chk), [['OK']]); this.save(true); this.close(); openView('dashboard'); return Script.start(d, +id || 0); }
     if (a === 'check') { const chk = scriptCheck(d); return sheet(chk.errors.length + chk.warnings.length ? 'Check' : 'Looks good', chk.errors.length + chk.warnings.length ? this.problemsHtml(chk) : '<p>No problems found.</p>', [['OK']]); }
@@ -609,7 +803,7 @@ const ScriptUI = {
     if (a === 'rmbr') d.beats[n].branches.splice(+k, 1);
     this.renderEditor();
   },
-  edit(id, json) { this.editId = id; this.draft = json; json.beats ||= []; json.beats.forEach(b => { b.next ||= {}; }); this.page = 'edit'; this.render(); },
+  edit(id, json) { this.editId = id; this.draft = json; json.beats ||= []; if (json.mode === 'interactive') { json.intents ||= []; json.end ||= { on: ['thats all'], steps: [] }; } json.beats.forEach(b => { b.next ||= {}; }); this.page = 'edit'; this.render(); },
   save(quiet) {
     const d = this.draft, chk = scriptCheck(d);
     if (chk.errors.length && !quiet) return sheet('Not saved: fix these first', this.problemsHtml(chk), [['OK']]);
@@ -658,6 +852,12 @@ document.addEventListener('change', e => {
   const f = e.target.closest?.('[data-sf]'); if (!f || !ScriptUI.draft) return;
   ScriptUI.setPath(f.dataset.sf, f.type === 'checkbox' ? f.checked : f.value);
   if (/\.do$/.test(f.dataset.sf)) ScriptUI.renderEditor(); // the value's hint depends on the action
+});
+// A switch that changes what's shown (a step in the background), and an intent's questions ("slot: question" per line).
+document.addEventListener('change', e => {
+  const f = e.target.closest?.('[data-sfb],[data-sfask]'); if (!f || !ScriptUI.draft) return;
+  if (f.dataset.sfb) { ScriptUI.setPath(f.dataset.sfb, f.checked); return ScriptUI.renderEditor(); }
+  ScriptUI.setPath(f.dataset.sfask, Object.fromEntries(f.value.split('\n').map(l => l.split(':')).filter(p => p[0].trim() && p[1]).map(([k, ...q]) => [k.trim().replace(/\W/g, ''), q.join(':').trim()])));
 });
 // An app step's fields (what to do, how to find its target, the text, value, key, amount): edit its JSON in place.
 document.addEventListener('change', e => {

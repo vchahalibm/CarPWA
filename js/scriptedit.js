@@ -36,6 +36,17 @@ const StepEditor = {
   ICON: { say: '💬', motion: '🧍', point: '👉', wait: '⏱', click: '👆', type: '⌨️', key: '⌨️', scroll: '↕️', drag: '✋', select: '☑️', web: '🌐', slide: '📄', helper: '🧩', video: '🎬', model: '🧊', script: '📜', other: '⚙️' },
   chip(x) {
     const I = this.ICON, short = (s, n = 46) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    if (typeof x === 'string') return [I.say, `“${short(x)}”`];
+    if (x.set != null) return ['🏷', `Set {${x.set}} = ${short(x.value, 30)}`];
+    if (x.if != null) return ['🔀', `If ${short(x.if, 34)} (${(x.then || []).length} / ${(x.else || []).length})`];
+    if (x.repeat != null) return ['🔁', `Repeat ${x.repeat}× (${(x.steps || []).length} steps)`];
+    if (x.until != null) return ['🔁', `Until ${short(x.until, 34)}`];
+    if (x.each != null) return ['🔁', `For each ${x.as || 'item'} in ${short(x.each, 24)}`];
+    if (x.await != null) return ['⏳', `Wait for ${x.await === 'all' || !x.await ? 'all background steps' : `“${short(x.await, 30)}”`}`];
+    if (x.goto != null) return ['↪️', `Go to ${short(x.goto, 34)}`];
+    if (x.intent != null) return ['🎯', `Do “${short(x.intent, 34)}”`];
+    if (x.stop) return ['⏹', 'End the script'];
+    if (x.background && x.do) { const [, t] = this.chip({ ...x, background: false }); return ['⏳', `${t} (in the background)`]; }
     if (x.say != null && !x.do) return [I.say, x.say ? `“${short(x.say)}”` : 'Say something…'];
     if (x.do === 'avatar.gesture') return [I.motion, MOTIONS[motionName(x.value)]?.name || x.value || 'A motion'];
     if (x.do === 'avatar.pointAt') return [I.point, `Point at ${x.value || 'the document'}`];
@@ -55,6 +66,7 @@ const StepEditor = {
   /* ---------- The page ---------- */
   render(ui) {
     const d = ui.draft;
+    if (d.mode === 'interactive') return this.renderAgent(ui);
     const card = (b, n) => this.card(b, n, d);
     $('#settingsBody').innerHTML = `<div class="se">
       <div class="se-top"><button class="se-back" data-sui="back">‹ Scripts</button>
@@ -69,6 +81,33 @@ const StepEditor = {
           ${!d.beats.length ? '<p class="se-note">A step is one moment of the presentation: something on screen, a line from the assistant, and a cue to move on.</p>' : ''}</div>
       </div></div>`;
   },
+  /** An interactive script: a greeting, the things it can do (intents), what it says when it doesn't understand, the end. */
+  renderAgent(ui) {
+    const d = ui.draft, lanes = (path, label, ic = '🖥') => `<div class="se-lane"><div class="se-lab"><i>${ic}</i>${label}</div><div class="se-body">${this.chips(this.at(path), path)}<button class="se-add" data-se="pick:${path}">${svg('plus')}Add</button></div></div>`;
+    const evs = Object.entries(Bus.EVENTS).filter(([e]) => !e.startsWith('script.') || e === 'script.job');
+    const intent = (it, n) => `<section class="se-card"><div class="se-node">🎯</div>
+      <header>${this.inp(`intents.${n}.title`, it.title, 'What it does, e.g. Tell the time', 'se-title')}<div class="se-hacts"><button class="icon-btn" data-se="rmintent:${n}" title="Remove" aria-label="Remove">${svg('del')}</button></div></header>
+      <div class="se-lane"><div class="se-lab"><i>🎤</i>When</div><div class="se-body"><label>I say (comma-separated; {name} catches words) ${this.inp(`intents.${n}.on`, asList(it.on).join(', '), 'what time is it, show sales for {month}', 'se-wide')}</label>
+        <div class="se-row"><label>or a hand gesture ${this.sel(`intents.${n}.gesture`, it.gesture, SCRIPT_HAND.map(g => [g, GESTURE_WORDS?.[g] || g]), 'None')}</label><label>or when ${this.sel(`intents.${n}.event`, it.event, evs, 'Nothing')}</label></div>
+        <label>Ask for what's missing (one per line: name: question)  <textarea class="se-wide" data-sfask="intents.${n}.ask" rows="2" placeholder="month: Which month?">${esc(Object.entries(it.ask || {}).map(([k, q]) => `${k}: ${q}`).join('\n'))}</textarea></label></div></div>
+      <div class="se-lane"><div class="se-lab"><i>💬</i>Say</div><div class="se-body"><textarea data-sf="intents.${n}.say" rows="2" placeholder="What it says first ({variables} fill in)">${esc(it.say || '')}</textarea>
+        <div class="se-row"><label>Face ${this.sel(`intents.${n}.mood`, it.mood, SCRIPT_MOODS, 'As it is')}</label><label>Motion ${this.motionSel(`intents.${n}.motion`, it.motion, true)}</label></div></div></div>
+      ${lanes(`intents.${n}.steps`, 'Do')}</section>`;
+    $('#settingsBody').innerHTML = `<div class="se">
+      <div class="se-top"><button class="se-back" data-sui="back">‹ Scripts</button>
+        <div class="se-acts"><button class="mini-btn accent" data-sui="try:0">${svg('play')}Run</button><button class="mini-btn" data-sui="save">Save</button><button class="mini-btn" data-se="more">More…</button></div></div>
+      <div class="se-head">${this.inp('name', d.name, 'Script name', 'se-name')}${this.inp('about', d.about, 'What it is for (optional)', 'se-about')}</div>
+      <details class="se-how"><summary>How an interactive script works</summary><p>There's no order: it greets you, then listens (conversation mode). When what you say matches one of the things it can do, it does that, then listens again, until you end it. Phrases can catch words: “show sales for {month}” keeps the month as {month}; anything missing is asked for. Steps can run <b>in the background</b> while it keeps talking, and tell you when they're done. With Understanding (Settings › Assistant) a language model picks the right one when no phrase matches.</p></details>
+      <div class="se-tl">
+        <section class="se-card se-setup"><div class="se-node">●</div><header><div class="se-title-fixed">When it starts</div><span class="se-sub">A greeting, and setting the stage</span></header>${lanes('setup', 'Do')}</section>
+        ${(d.intents || []).map(intent).join('')}
+        <div class="se-end"><button class="se-addstep" data-se="addintent">${svg('plus')}Add something it can do</button></div>
+        <section class="se-card"><div class="se-node">?</div><header><div class="se-title-fixed">When it doesn't understand</div><span class="se-sub">Empty: it says what it can do</span></header>${lanes('fallback', 'Do')}</section>
+        <section class="se-card"><div class="se-node">⏱</div><header><div class="se-title-fixed">When it's quiet</div></header><div class="se-lane"><div class="se-lab"><i>⏱</i>After</div><div class="se-body"><label>Seconds with nothing asked (0: never) ${this.inp('idle.after', d.idle?.after || 0, '0')}</label></div></div>${lanes('idle.steps', 'Do')}</section>
+        <section class="se-card"><div class="se-node">⏹</div><header><div class="se-title-fixed">The end</div></header><div class="se-lane"><div class="se-lab"><i>🎤</i>When</div><div class="se-body"><label>I say ${this.inp('end.on', asList(d.end?.on).join(', '), 'thats all, goodbye', 'se-wide')}</label></div></div>${lanes('end.steps', 'Do')}</section>
+      </div></div>`;
+  },
+  at(path) { let o = ScriptUI.draft; const k = path.split('.'); for (let i = 0; i < k.length; i++) o = o[k[i]] ??= (i === k.length - 1 || /^\d+$/.test(k[i + 1]) ? [] : {}); return o; },
   insert(n) { return `<button class="se-insert" data-se="wizard:${n}" aria-label="Add a step here" title="Add a step here">${svg('plus')}</button>`; },
   setupCard(d) {
     const L = d.setup || [];
@@ -94,26 +133,39 @@ const StepEditor = {
   /** A Show lane: chips in order; the open one shows its editor under the chips. */
   chips(L, base) {
     if (!L.length) return '<div class="se-empty">Nothing yet</div>';
-    const open = this.open?.startsWith(base + '.') ? +this.open.split('.').at(-1) : -1;
+    const rest = this.open?.startsWith(base + '.') ? this.open.slice(base.length + 1) : '', open = rest ? +rest.split('.')[0] : -1; // a step inside an open step keeps it open
     return `<div class="se-chips">${L.map((x, k) => { const [ic, t] = this.chip(x);
       return `<button class="se-chip ${k === open ? 'on' : ''}" data-se="chip:${base}.${k}" title="Change"><i>${ic}</i><span>${esc(t)}</span></button>`; }).join('<span class="se-then">›</span>')}</div>
       ${open >= 0 ? this.chipEditor(L[open], `${base}.${open}`, base, open, L.length) : ''}`;
   },
   /** The editor for one action (opened from its chip). */
   chipEditor(x, path, base, k, len) {
-    const kind = base === 'setup' ? 'setup' : 'b', n = base === 'setup' ? 0 : +base.split('.')[1];
     let body;
-    if (x.say != null && !x.do) body = `<textarea data-sf="${path}.say" rows="2" placeholder="What the assistant says">${esc(x.say)}</textarea><div class="se-row"><label>Face ${this.sel(`${path}.mood`, x.mood, SCRIPT_MOODS, 'As it is')}</label><label>Motion ${this.motionSel(`${path}.gesture`, x.gesture, true)}</label></div>`;
+    const lane = (k, label) => `<div class="se-nest"><div class="se-lab sm">${label}</div>${this.chips(x[k] || [], `${path}.${k}`)}<button class="se-add" data-se="pick:${path}.${k}">${svg('plus')}Add</button></div>`;
+    const ids = (ScriptUI.draft.beats || []).map(b => [b.id, b.title]);
+    if (typeof x === 'string') body = `<div class="se-note">${esc(x)}</div>`;
+    else if (x.set != null) body = `<div class="se-row"><label>Name ${this.inp(`${path}.set`, x.set, 'answer')}</label><label>Value ${this.inp(`${path}.value`, x.value, 'text, a number, {another}…')}</label></div><div class="se-note">Use it anywhere as {${esc(x.set || 'name')}}.</div>`;
+    else if (x.if != null) body = `<label>If ${this.inp(`${path}.if`, x.if, '{count} > 3 · {answer} is yes · {list} contains Paris · {x} is empty')}</label>${lane('then', 'Then')}${lane('else', 'Otherwise')}`;
+    else if (x.repeat != null || x.until != null || x.each != null) body = `<div class="se-row">${x.repeat != null ? `<label>Times ${this.inp(`${path}.repeat`, x.repeat, '3')}</label>` : x.until != null ? `<label>Until ${this.inp(`${path}.until`, x.until, '{done} is yes')}</label>` : `<label>For each in ${this.inp(`${path}.each`, x.each, '{rows} or a, b, c')}</label><label>As ${this.inp(`${path}.as`, x.as, 'item')}</label>`}</div>${lane('steps', 'Steps')}<div class="se-note">{index} counts the rounds.</div>`;
+    else if (x.await != null) body = `<label>Background step ${this.sel(`${path}.await`, x.await, [['all', 'All of them'], ...this.jobNames()], 'All of them')}</label>`;
+    else if (x.goto != null) body = `<label>Go to ${this.sel(`${path}.goto`, x.goto, ids)}</label>`;
+    else if (x.intent != null) body = `<label>Do ${this.sel(`${path}.intent`, x.intent, (ScriptUI.draft.intents || []).map(i => [i.id, i.title]))}</label>`;
+    else if (x.stop) body = '<div class="se-note">Ends the script here (an interactive script says its goodbye first).</div>';
+    else if (x.say != null && !x.do) body = `<textarea data-sf="${path}.say" rows="2" placeholder="What the assistant says">${esc(x.say)}</textarea><div class="se-row"><label>Face ${this.sel(`${path}.mood`, x.mood, SCRIPT_MOODS, 'As it is')}</label><label>Motion ${this.motionSel(`${path}.gesture`, x.gesture, true)}</label></div>`;
     else if (x.do === 'avatar.gesture') body = `<label>Motion ${this.motionSel(`${path}.value`, x.value)}</label>`;
     else if (x.do === 'avatar.pointAt') body = `<label>Point at ${this.pointSel(`${path}.value`, x.value)}</label>`;
     else if (x.do === 'wait') body = `<label>Seconds ${this.inp(`${path}.value`, x.value, '1')}</label>`;
     else if (x.do === 'app.step') body = `<div class="se-app">${this.appFields(x, path)}</div>`;
     else body = `<div class="se-row"><label>Action ${this.actSel(`${path}.do`, x.do)}</label><label>${esc(Actions.list[x.do]?.arg || 'Value')} ${this.inp(`${path}.value`, x.value, Actions.list[x.do]?.arg || '')}</label></div>`;
+    if (x.do) body += `<div class="se-row se-bg"><label class="se-check"><input type="checkbox" data-sfb="${path}.background" ${x.background ? 'checked' : ''}> In the background: the script carries on while it runs</label>
+      <label>Keep the result as ${this.inp(`${path}.as`, x.as, 'result')}</label>${x.background ? `<label>Name ${this.inp(`${path}.name`, x.name, 'export')}</label>` : ''}</div>${x.background ? `${lane('then', 'When it’s done')}${lane('else', 'If it fails')}` : ''}`;
     return `<div class="se-edit"><div class="se-edit-body">${body}</div>
       <div class="se-edit-acts"><button class="mini-btn" data-sui="try1:${path}">${svg('play')}Try it</button>
         <button class="mini-btn" data-sui="mvup:${path}" ${k ? '' : 'disabled'}>‹ Earlier</button><button class="mini-btn" data-sui="mvdn:${path}" ${k < len - 1 ? '' : 'disabled'}>Later ›</button>
-        <button class="mini-btn danger" data-se="rm:${kind}.${n}.${k}">Remove</button><button class="mini-btn" data-se="chip:${path}">Done</button></div></div>`;
+        <button class="mini-btn danger" data-se="rmp:${path}">Remove</button><button class="mini-btn" data-se="chip:${path}">Done</button></div></div>`;
   },
+  jobNames() { const out = []; const walk = L => (L || []).forEach(x => { if (x?.background) out.push([x.name || x.do, x.name || Actions.list[x.do]?.name || x.do]); ['then', 'else', 'steps'].forEach(k => walk(x?.[k])); });
+    const d = ScriptUI.draft; walk(d.setup); (d.beats || []).forEach(b => walk(b.do)); (d.intents || []).forEach(i => walk(i.steps)); return out; },
   /** An app step's fields: what to do, how to find its target (the recorded element, text, a captured area, a description, your detector). */
   appFields(x, path) {
     const st = appStepOf(x.value) || { t: 'click', loc: {} }, L = st.loc || {}, f = `data-asf="${path}"`, o = this.opt.bind(this);
@@ -166,6 +218,9 @@ const StepEditor = {
       ['Do on screen', [T('clicktext', '👆', 'Click some text', 'Pick the words on screen'), T('clickarea', '🖼', 'Click a screen area', 'Drag a box: found again by its picture'), T('clickai', '🔎', 'Click something described', '“the Search button” (screen model)'),
         T('type', '⌨️', 'Type text', 'Into a field found by its text'), T('key', '⌨️', 'Press a key', 'Enter, Escape, arrows…'), T('scroll', '↕️', 'Scroll', 'A screenful, or to the top or bottom'), T('recapp', '⏺', 'Record what I do', 'Clicks, typing and scrolling anywhere')]],
       ['Timing and more', [T('wait', '⏱', 'Wait', 'A pause, in seconds'), T('action', '⚙️', 'Any widget action', 'Radio, video, maps, voice commands…')]],
+      ['Logic', [T('set', '🏷', 'Set a value', 'Remember something as {name}'), T('if', '🔀', 'If…', 'Do one thing or another'), T('repeat', '🔁', 'Repeat', 'Some times, or until something is true'),
+        T('each', '🔁', 'For each', 'Every row, file or item in a list'), T('await', '⏳', 'Wait for a background step', 'Steps marked “in the background” run while it carries on'),
+        ...(ScriptUI.draft?.mode === 'interactive' ? [T('intent', '🎯', 'Do another intent', 'Run one of the things it can do')] : [T('goto', '↪️', 'Go to a step', 'Jump, also backwards: a loop')]), T('ask', '🧠', 'Ask the model', 'A question to the language model (Understanding)'), T('stop', '⏹', 'End the script', 'Stop here')]],
     ];
     sheet('Add to this step', `<div class="se-pick">${groups.map(([g, tiles]) => `<div class="se-pick-g">${g}</div><div class="se-tiles">${tiles.join('')}</div>`).join('')}</div>`, [['Cancel']]);
   },
@@ -230,12 +285,19 @@ const StepEditor = {
     if (a === 'trig') return this.pickTrigger(+arg);
     if (a === 'wizard') return this.wizard(+arg);
     if (a === 'rm') { this.open = null; return ui.cmd(`rmdo:${arg}`); }
+    if (a === 'rmp') { this.open = null; return ui.cmd(`rmp:${arg}`); }
+    if (a === 'addintent') { const n = (d.intents ||= []).length; d.intents.push({ id: `intent${n + 1}`, title: '', on: [], say: '', steps: [] }); ui.renderEditor(); return setTimeout(() => $$('.se-card .se-title').at(-1)?.focus(), 50); }
+    if (a === 'rmintent') return sheet('Remove this?', `<p>${esc(d.intents[+arg]?.title || 'This intent')}</p>`, [['Remove', () => { d.intents.splice(+arg, 1); ui.renderEditor(); }], ['Cancel']]);
     if (a === 'addx') {
-      closeSheet(); const [kind, where] = arg.split('@'), base = where === 'setup' ? 'setup' : `beats.${where}.do`, L = where === 'setup' ? (d.setup ||= []) : (d.beats[+where].do ||= []);
+      closeSheet(); const [kind, where] = arg.split('@'), base = where === 'setup' || where.includes('.') ? where : `beats.${where}.do`;
+      const L = (() => { let o = d; const k = base.split('.'); for (let i = 0; i < k.length; i++) o = o[k[i]] ??= (i === k.length - 1 || /^\d+$/.test(k[i + 1]) ? [] : {}); return o; })();
       const push = x => { L.push(x); this.open = `${base}.${L.length - 1}`; ui.renderEditor(); };
       const app = st => ({ do: 'app.step', value: JSON.stringify(st) });
       const viaUi = { say: 'say', motion: 'motion', point: 'point', wait: 'wait', clicktext: 'clicktext', clickarea: 'clickarea', type: 'type', scroll: 'scroll', action: 'action' }[kind];
       if (viaUi) { const before = L.length; ui.cmd(`add:${viaUi}@${where}`); if (L.length > before) { this.open = `${base}.${L.length - 1}`; ui.renderEditor(); } return; }
+      const logic = { set: { set: 'answer', value: '' }, if: { if: '{answer} is yes', then: [], else: [] }, repeat: { repeat: '3', steps: [] }, each: { each: '{rows}', as: 'item', steps: [] }, await: { await: 'all' },
+        goto: { goto: d.beats?.[0]?.id || '' }, intent: { intent: d.intents?.[0]?.id || '' }, ask: { do: 'brain.ask', value: '', as: 'answer' }, stop: { stop: true } }[kind];
+      if (logic) return push(logic);
       if (kind === 'slide') return push({ do: 'doc.page', value: '1' });
       if (kind === 'nextslide') return push({ do: 'doc.next', value: '' });
       if (kind === 'doc') return push({ do: 'doc.open', value: '' });

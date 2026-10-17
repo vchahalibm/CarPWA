@@ -13,6 +13,11 @@ const Actions = {
   list: {}, // id → { group, name, arg (what the value is; '' for none), run(value, say, event) }
   define(id, a) { this.list[id] = a; },
   /** Run an action. `say(msg, then, opts)` gives spoken feedback (a voice command); links pass a quiet one. */
+  /** Like run, but gives back what the action returns (a value, or a promise of one) and lets errors through: scripts keep results (`as`). */
+  call(id, value = '', say = quietSay, event = {}) {
+    const a = this.list[id]; if (!a) throw new Error(`No action “${id}” here`);
+    Log.i('link', `Action ${id}`, { value }); return a.run(String(value ?? '').trim(), say, event);
+  },
   run(id, value = '', say = quietSay, event = {}) {
     const a = this.list[id];
     if (!a) { Log.w('link', `No action ${id}`); return false; }

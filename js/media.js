@@ -13,11 +13,15 @@
 const PDFJS = 'vendor/pdfjs/', PPTX = 'vendor/pptx/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
-  vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/vita.vrm', vrm: true },
-  ren: { name: 'Ren', note: 'anime-style male assistant: talks with lip-sync, blinks, looks at you, gestures', src: 'vendor/models/ren.vrm', vrm: true },
-  maya: { name: 'Maya', note: 'realistic woman (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', src: 'vendor/models/maya.vrm', vrm: true },
-  leo: { name: 'Leo', note: 'realistic man (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', src: 'vendor/models/leo.vrm', vrm: true },
-  seed: { name: 'Seed-san', note: 'anime-style, VRM 1.0 (VirtualCast): eyes, brows and surprise as well as the usual expressions', src: 'vendor/models/seed-san.vrm', vrm: true },
+  // The core avatar (AVATAR_CORE in js/avatars.js) comes with the app; `gallery` ones download on request (Settings › Assistant › Avatars).
+  vita: { name: 'Vita', note: 'anime-style assistant: talks with lip-sync, blinks, looks at you, gestures', style: 'Anime, futuristic assistant', src: 'vendor/models/vita.vrm', vrm: true, size: 14359044, lic: 'CC0', thumb: 'vendor/models/thumbs/vita.jpg' },
+  victoria: { name: 'Victoria', note: 'anime-style, pastel dress (VRoid sample)', style: 'Anime, pastel dress', src: 'vendor/models/victoria.vrm', vrm: true, gallery: true, size: 15321932, lic: 'CC0 (VRoid sample)', thumb: 'vendor/models/thumbs/victoria.jpg' },
+  kiko: { name: 'Kiko', note: 'anime-style, twin-tails and cat ears (VRoid sample)', style: 'Anime, VTuber look', src: 'vendor/models/kiko.vrm', vrm: true, gallery: true, size: 17954972, lic: 'CC0 (VRoid sample)', thumb: 'vendor/models/thumbs/kiko.jpg' },
+  noir: { name: 'Noir', note: 'anime-style gothic elf (VRoid sample)', style: 'Anime, gothic elf', src: 'vendor/models/noir.vrm', vrm: true, gallery: true, size: 21043628, lic: 'CC0 (VRoid sample)', thumb: 'vendor/models/thumbs/noir.jpg' },
+  ren: { name: 'Ren', note: 'anime-style male assistant: talks with lip-sync, blinks, looks at you, gestures', style: 'Anime, male', src: 'vendor/models/ren.vrm', vrm: true, gallery: true, size: 18481892, lic: 'CC0 (VRoid sample)', thumb: 'vendor/models/thumbs/ren.jpg' },
+  seed: { name: 'Seed-san', note: 'anime-style, VRM 1.0 (VirtualCast): eyes, brows and surprise as well as the usual expressions', style: 'Anime, VRM 1.0', src: 'vendor/models/seed-san.vrm', vrm: true, gallery: true, size: 10917800, lic: 'VRM licence, credit VirtualCast', thumb: 'vendor/models/thumbs/seed.jpg' },
+  maya: { name: 'Maya', note: 'realistic woman (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', style: 'Realistic woman, 52 face shapes', src: 'vendor/models/maya.vrm', vrm: true, gallery: true, size: 6128960, lic: 'MIT (Microsoft Rocketbox)', thumb: 'vendor/models/thumbs/maya.jpg' },
+  leo: { name: 'Leo', note: 'realistic man (Microsoft Rocketbox): full face, 52 face shapes, follows your face when capturing', style: 'Realistic man, 52 face shapes', src: 'vendor/models/leo.vrm', vrm: true, gallery: true, size: 5716696, lic: 'MIT (Microsoft Rocketbox)', thumb: 'vendor/models/thumbs/leo.jpg' },
   robot: { name: 'Assistant robot', note: 'waves, nods and reacts to what happens', src: 'vendor/models/robot-expressive.glb', avatar: true },
 };
 Bus.define('doc.page', 'A document changes page', 'the page number');
@@ -85,6 +89,10 @@ const Media = {
     const builtin = k === 'model' && !c.url && !c.file ? BUILTIN_MODELS[c.builtin] || Object.values(BUILTIN_MODELS)[0] : null;
     if (!c.url && !c.file && !builtin) return;
     let src = builtin ? builtin.src : c.url;
+    if (builtin && typeof Avatars !== 'undefined' && (builtin.gallery || builtin.mine)) { // downloaded on request, or your own
+      const key = BUILTIN_MODELS[c.builtin] ? c.builtin : AVATAR_CORE; src = await Avatars.src(key);
+      if (!src) return builtin.mine ? this.problem(body, 'This avatar isn’t on this device any more. Add it again in Avatars.', id) : Avatars.offer(body, key, id);
+    }
     try { if (c.file) src = await Files.url(c.file.key); } catch (e) { Log.e('media', 'Stored file unreadable', e); }
     if (!src) return this.problem(body, 'The file isn’t on this device any more. Choose it again.', id);
     Log.i('media', `Showing ${k}`, { id, src: c.file ? `file: ${c.file.name}` : src });
@@ -299,7 +307,7 @@ const Media = {
       <label class="fld"><span>Link</span><input id="mwUrl" type="url" value="${esc(c.url || '')}" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       ${K.accept !== '' ? `<div class="mw-file"><button class="big-btn" id="mwPick">${svg('plus')}Choose a file</button><span id="mwFileName">${c.file ? esc(c.file.name) : 'or a file from this device'}</span>
         <input type="file" id="mwFile" accept="${K.accept}" hidden></div>` : ''}
-      ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || Object.keys(BUILTIN_MODELS)[0]) === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}</option>`).join('')}</select></label>` : ''}
+      ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || Object.keys(BUILTIN_MODELS)[0]) === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}${typeof Avatars !== 'undefined' && !Avatars.local(b) ? ' (downloads when chosen)' : ''}</option>`).join('')}</select></label>` : ''}
       <label class="fld"><span>Title (optional)</span><input id="mwTitle" value="${esc(c.title || '')}" placeholder="${K.name}" autocomplete="off"></label>
       <p class="hint">${esc(K.hint)}</p></div>`,
       [['Save', () => this.saveCfg(id)], ...(isNew ? [] : [['Clear', () => this.clearCfg(id)]]), ['Cancel']]);

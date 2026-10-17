@@ -204,7 +204,8 @@ const MotionUI = {
       <p class="sui-note">It captures your body, arms, hands and fingers, legs (when they're in the picture) and your face (brows, eyes, mouth).</p>
       <div class="sui-row"><label class="fld chk"><input type="checkbox" id="moMirror" ${Mocap.mirror ? 'checked' : ''}><span>Like a mirror (your right hand moves its left)</span></label>
         <label class="fld"><span>Length</span><select id="moLen">${[3, 4, 6, 8].map(n => `<option ${n === this.len ? 'selected' : ''} value="${n}">${n} seconds</option>`).join('')}</select></label></div>
-      <label class="fld"><span>The assistant</span><select id="moModel">${Object.entries(BUILTIN_MODELS).filter(([, m]) => m.vrm).map(([k, m]) => `<option value="${k}" ${(Wcfg.get('model~stage').builtin || 'vita') === k ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note.split(':')[0])}</option>`).join('')}</select></label>
+      <label class="fld"><span>The assistant</span><select id="moModel">${Object.entries(BUILTIN_MODELS).filter(([, m]) => m.vrm).map(([k, m]) => `<option value="${k}" ${(Wcfg.get('model~stage').builtin || AVATAR_CORE) === k ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note.split(':')[0])}${Avatars.local(k) ? '' : ' (download)'}</option>`).join('')}</select></label>
+      <button class="link-btn" data-action="avatars">More avatars, or add your own…</button>
       <div class="chip-row"><button class="chip accent" data-mo="live"><i class="rec-dot"></i>Capture a motion</button></div>`;
   },
   paint() {
@@ -226,7 +227,9 @@ const MotionUI = {
     const box = $('#moAvatar'); if (!box || typeof VrmAvatar === 'undefined') return;
     const c = Wcfg.get('model~stage'), b = BUILTIN_MODELS[c.builtin]?.vrm ? BUILTIN_MODELS[c.builtin] : Object.values(BUILTIN_MODELS).find(m => m.vrm);
     box.innerHTML = '<div class="mw-empty"><span>Loading the assistant…</span></div>';
-    try { await VrmAvatar.mount('preview', box, b.src); this.inst = VrmAvatar.all.get('preview'); if (this.inst) this.inst.preview = true; }
+    const key = Object.keys(BUILTIN_MODELS).find(k => BUILTIN_MODELS[k] === b);
+    if (!Avatars.local(key)) { box.innerHTML = ''; Avatars.offer(box, key, 'preview'); return; }
+    try { await VrmAvatar.mount('preview', box, await Avatars.src(key)); this.inst = VrmAvatar.all.get('preview'); if (this.inst) this.inst.preview = true; }
     catch (e) { box.innerHTML = `<div class="mw-empty"><span>The assistant couldn’t load: ${esc(e.message)}</span></div>`; }
   },
   async cam() { for (let i = 0; i < 40; i++) { const v = $('#moCam'), s = People.video?.srcObject; if (v && s) { if (v.srcObject !== s) v.srcObject = s; return; } await pause(150); } },

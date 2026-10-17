@@ -32,3 +32,12 @@ sync"). Shown in the app as "Maya" and "Leo".
 "Seed-san" by VirtualCast, Inc. (https://github.com/vrm-c/vrm-specification/tree/master/samples/Seed-san), VRM 1.0,
 under the VRM Public License 1.0 (https://vrm.dev/licenses/1.0/): avatar use by everyone, commercial use allowed,
 redistribution allowed, **credit required**: Seed-san model by VirtualCast, Inc.
+
+## victoria.vrm, kiko.vrm and noir.vrm
+VRoid Studio sample models by pixiv Inc. (the VRoid project): "AvatarSample_G" (Victoria Rubin), "HairSample_Female"
+and "AvatarSample_D_Darkness", shown in the app as "Victoria", "Kiko" and "Noir". Released by VRoid under CC0 1.0
+(https://opengameart.org/content/vroid-studio-cc0-models, from VRoid's sample model conditions of use). VRM 0.x.
+Not part of the app: downloaded on request from Settings › Assistant › Avatars.
+
+## thumbs/
+Pictures of the avatars above, rendered in the app.

@@ -3,3 +3,4 @@
 .env*
 web-version.json
 update-out/
+vendor/models/_cand/

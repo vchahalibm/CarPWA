@@ -1184,6 +1184,10 @@ function renderSettings() {
     : 'OpenStreetMap routing · typical travel times, no live traffic';
   $('#settingsBody').innerHTML = `${debug ? DebugUI.tabs() : ''}
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
+    <div class="group-title">Assistant</div>
+    <div class="group">
+      ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
+    </div>
     <div class="group-title">Display</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Appearance</div></div>${seg('theme', [['auto', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}</div>

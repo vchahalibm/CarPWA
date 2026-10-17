@@ -92,6 +92,7 @@ const Camera = {
   /** 'back', 'front' or a device id. AR always looks at the road. */
   want(user) {
     if (user === 'ar') return 'back';
+    if (user === 'qr') return IS_DESKTOP_APP ? settings.stageCam || 'front' : 'back'; // scanning a code: a phone points its back camera at the screen
     const stage = typeof Stage !== 'undefined' && Stage.on;
     return (stage ? settings.stageCam : settings.driveCam) || (stage ? 'front' : 'back');
   },

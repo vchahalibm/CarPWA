@@ -153,6 +153,9 @@ function makeTray() {
   screen.on('display-added', menu); screen.on('display-removed', menu);
 }
 
+// The direct link to DriveGen (js/direct.js): the Mac's real local address in its WebRTC code instead of an mDNS name, which
+// some networks (hotspots, office Wi-Fi) don't resolve. The code is only ever shown as a QR on this screen.
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 app.whenReady().then(() => {
   // Serve the web files; anything outside the web folder is refused.
   useWeb();

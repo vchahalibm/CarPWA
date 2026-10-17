@@ -17,7 +17,12 @@
    ============================================================ */
 const Link = {
   mac: () => store.get('linkMac', null),
-  ready() { return !!this.mac()?.token; },
+  ready() { return (typeof Direct !== 'undefined' && Direct.connected) || !!this.mac()?.token; },
+  /** Direct (js/direct.js) when it's connected, else over Tailscale. */
+  direct: () => typeof Direct !== 'undefined' && Direct.connected,
+  macName() { return this.direct() ? Direct.peer : this.mac()?.name || 'your Mac'; },
+  viaDirect(p) { return p.then(r => ({ state: 'done', ...r }), e => ({ state: 'failed', error: e.message })); },
+  async offers() { return this.direct() ? Direct.call('offers', {}, 15000) : this.call('/api/offers'); },
   async call(p, body, ms = 30000, m = this.mac()) {
     if (!m?.url) throw new Error('Pair with your Mac first (Settings › Connections)');
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
@@ -37,8 +42,8 @@ const Link = {
   },
   /** Wait for a job on the Mac (long polls of 25 s), up to 10 minutes. */
   async job(id) { const t0 = Date.now(); for (;;) { const j = await this.call(`/api/jobs/${id}?wait=25`, null, 40000); if (j.state !== 'running' || Date.now() - t0 > 600000) return j; } },
-  async run(script, vars = {}) { const { job } = await this.call('/api/run', { script, vars }); return this.job(job); },
-  async say(text) { const { job } = await this.call('/api/say', { text }); return this.job(job); },
+  async run(script, vars = {}) { if (this.direct()) return this.viaDirect(Direct.call('run', { script, vars })); const { job } = await this.call('/api/run', { script, vars }); return this.job(job); },
+  async say(text) { if (this.direct()) return this.viaDirect(Direct.call('say', { text })); const { job } = await this.call('/api/say', { text }); return this.job(job); },
   /** What came back, as something to say. */
   spoken(j) { if (j.state === 'failed') return `It didn’t work on your Mac: ${j.error || 'no reason given'}.`; const r = j.result; return (j.said || []).join(' ') || (r != null && typeof r !== 'object' ? String(r) : '') || 'Done on your Mac.'; },
   /** The voice command “run … on my Mac”: a script it offers by name, else the words go to the Mac as said. */
@@ -46,9 +51,9 @@ const Link = {
     if (!this.ready()) return say('Pair with your Mac first: Settings, Connections.');
     say('Asking your Mac…');
     try {
-      const offers = (await this.call('/api/offers')).scripts || [], p = plain(q), s = offers.find(o => plain(o.name) === p) || offers.find(o => plain(o.name).includes(p) || p.includes(plain(o.name)));
+      const offers = (await this.offers()).scripts || [], p = plain(q), s = offers.find(o => plain(o.name) === p) || offers.find(o => plain(o.name).includes(p) || p.includes(plain(o.name)));
       const j = s ? await this.run(s.id) : await this.say(q);
-      if (j.rows?.length && typeof DataViz !== 'undefined') DataViz.set(DataViz.target(), DataViz.from(j.rows), { kind: 'script', label: `from ${this.mac().name || 'your Mac'}` });
+      if (j.rows?.length && typeof DataViz !== 'undefined') DataViz.set(DataViz.target(), DataViz.from(j.rows), { kind: 'script', label: `from ${this.macName()}` });
       Voice.respond(this.spoken(j));
     } catch (e) { Voice.respond(e.message); }
   },
@@ -57,13 +62,16 @@ const Link = {
   async settings() {
     if (window.DriveDeckDesktop?.link) return LinkHost.settings();
     const m = this.mac(); let offers = null, err = '';
-    if (m?.token) { try { offers = (await this.call('/api/offers', null, 8000)).scripts || []; } catch (e) { err = e.message; } }
-    sheet('Your Mac (StudioGen)', m?.token ? `<p>Paired with <b>${esc(m.name || m.url)}</b> (${esc(m.url)}).</p>${err ? `<p class="se-empty warn">${esc(err)}</p>` : ''}
+    if (this.ready()) { try { offers = (await (this.direct() ? this.offers() : this.call('/api/offers', null, 8000))).scripts || []; } catch (e) { err = e.message; } }
+    const direct = typeof Direct === 'undefined' ? '' : Direct.connected ? `<div class="lk-direct on"><p>✓ Connected directly to <b>${esc(Direct.peer)}</b> (same network)</p><button class="chip" data-dl="end">Disconnect</button></div>`
+      : `<div class="lk-direct"><p><b>Directly</b>, no account: on the same Wi-Fi, or with the Mac on this phone’s hotspot. Scan StudioGen’s code, then show yours to the Mac.</p><button class="chip accent" data-dl="guest">Connect directly</button></div>`;
+    sheet('Your Mac (StudioGen)', direct + (m?.token || this.direct() ? `${m?.token ? `<p class="se-note">Over Tailscale: paired with <b>${esc(m.name || m.url)}</b> (${esc(m.url)}).</p>` : ''}${err ? `<p class="se-empty warn">${esc(err)}</p>` : ''}
       ${offers ? (offers.length ? `<p class="se-note">Scripts your Mac offers (say “run … on my Mac”):</p><div class="pick-list">${offers.map(o => `<button class="big-btn" data-macrun="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>` : '<p class="se-note">Your Mac offers no scripts yet: in StudioGen, Settings › Connections, tick the ones paired devices may run.</p>') : ''}`
-      : `<p>Run scripts and tasks on your Mac from here, also on the road. On the Mac: StudioGen › Settings › Connections, with Tailscale on (on this device too).</p>
+      : `<p class="se-note"><b>Or over Tailscale</b> (from anywhere, also on mobile data; needs a Tailscale account on both): on the Mac, StudioGen › Settings › Connections › Pair a device.</p>
       <label class="se-field"><span>Your Mac’s address (shown in StudioGen)</span><input id="lkUrl" class="se-wz-in" value="${esc(m?.url || '')}" placeholder="https://my-mac.tail1234.ts.net" autocapitalize="off" autocorrect="off"></label>
-      <label class="se-field"><span>The 6-digit code StudioGen shows</span><input id="lkCode" class="se-wz-in" inputmode="numeric" maxlength="7" placeholder="123456"></label>`,
-      m?.token ? [['Forget this Mac', () => { store.set('linkMac', null); toast('Forgotten'); }], ['Close']]
+      <label class="se-field"><span>The 6-digit code StudioGen shows</span><input id="lkCode" class="se-wz-in" inputmode="numeric" maxlength="7" placeholder="123456"></label>`),
+      m?.token ? [['Forget the Tailscale pairing', () => { store.set('linkMac', null); toast('Forgotten'); }], ['Close']]
+        : this.direct() ? [['Close']]
         : [['Pair', async () => { const u = $('#lkUrl').value, c = $('#lkCode').value; if (!u || !c) return toast('The address and the code, please'); try { toast(`Paired with ${await this.pair(u, c)}`); } catch (e) { sheet('Didn’t pair', `<p>${esc(e.message)}</p>`, [['Try again', () => this.settings()], ['Close']]); } }], ['Cancel']]);
   },
 };
@@ -101,7 +109,9 @@ const LinkHost = {
     const ts = !s.tailscale ? `<p class="se-empty warn">Tailscale isn’t on this Mac. Install it (free for personal use) from tailscale.com/download, sign in, and install it on your iPhone or iPad with the same account. Then come back here.</p>`
       : !s.signedIn ? '<p class="se-empty warn">Tailscale is installed but not signed in: open it from the menu bar and sign in.</p>'
       : `<p>This Mac on your tailnet: <b>${esc(s.url || '')}</b> · ${s.sharing ? '✓ shared with your devices' : 'not shared yet'}</p>`;
-    sheet('Connections', `<div class="lk">${ts}
+    const direct = typeof Direct === 'undefined' ? '' : Direct.connected ? `<div class="lk-direct on"><p>✓ Connected directly to <b>${esc(Direct.peer)}</b></p><button class="chip" data-dl="end">Disconnect</button></div>`
+      : `<div class="lk-direct"><p><b>Directly</b>, no account: a phone or iPad on the same Wi-Fi (or this Mac on the phone’s hotspot) scans a code here and shows one back to this Mac’s camera.</p><button class="chip accent" data-dl="host">Connect a phone or iPad</button></div>`;
+    sheet('Connections', `<div class="lk">${direct}<p class="se-note"><b>Over Tailscale</b> (from anywhere; needs a Tailscale account on both)</p>${ts}
       <p class="se-note">${s.listening ? '✓' : '✗'} StudioGen answers on this Mac (port ${s.port}). Only your own Tailscale devices can reach it, and each must be paired.</p>
       ${s.pairing ? `<div class="lk-pair"><div class="lk-code">${s.pairing.code.replace(/(\d{3})/, '$1 ')}</div>${s.url ? '<div id="lkQr" title="The address, for a phone camera"></div>' : ''}<p class="se-note">In DriveGen: Settings › Connections › your Mac’s address (${esc(s.url || 'shown above')}) and this code. It works for 10 minutes.</p></div>` : ''}
       <p class="se-note"><b>Paired devices</b></p>${s.devices.length ? `<ul class="av-report">${s.devices.map(d => `<li>${esc(d.name)} <span class="se-note">since ${esc(new Date(d.paired).toLocaleDateString())}${d.seen ? `, last seen ${esc(new Date(d.seen).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}` : ''}</span> <button class="link-btn" data-lkrevoke="${esc(d.id)}">Revoke</button></li>`).join('')}</ul>` : '<p class="se-note">None yet.</p>'}
@@ -112,10 +122,10 @@ const LinkHost = {
         ['Pair a device', async () => { await L.pair(); this.settings(); }], ['Close']]);
     if (s.pairing && s.url) this.qr($('#lkQr'), s.url);
   },
-  async qr(el, text) {
+  async qr(el, text, ecc = 'M') {
     if (!el) return;
     if (!window.qrcode) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode/qrcode.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }).catch(() => {});
-    if (!window.qrcode) return; const q = qrcode(0, 'M'); q.addData(text); q.make(); el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    if (!window.qrcode) return; const q = qrcode(0, ecc); q.addData(text); q.make(); el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   },
 };
 if (window.DriveDeckDesktop?.link) DriveDeckDesktop.link.onAsk(async (kind, p) => {

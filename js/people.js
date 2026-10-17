@@ -52,7 +52,7 @@ self.onmessage = async ({ data: m }) => {
         } throw last;
       };
       gr = await make(V.GestureRecognizer, 'gesture_recognizer.task', { numHands: 4, minHandDetectionConfidence: 0.5 }, 'hands');
-      pose = await make(V.PoseLandmarker, 'pose_landmarker_lite.task', { numPoses: 4 }, 'body');
+      pose = await make(V.PoseLandmarker, m.pose || 'pose_landmarker_lite.task', { numPoses: 4 }, 'body');
       face = await make(V.FaceLandmarker, 'face_landmarker.task', { numFaces: 4, outputFaceBlendshapes: true }, 'face');
       // The face mesh's lines (MediaPipe's tesselation and contours), for the Camera widget to draw.
       const edges = l => (l || []).flatMap(c => [c.start, c.end]);
@@ -77,7 +77,7 @@ self.onmessage = async ({ data: m }) => {
         let x0 = 1, y0 = 1, x1 = 0, y1 = 0; for (const q of lm) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
         const bs = Object.fromEntries((fc.faceBlendshapes?.[i]?.categories || []).map(c => [c.categoryName, c.score]));
         const all = {}; for (const [k, v] of Object.entries(bs)) if (v > 0.03 && k !== '_neutral') all[k] = Math.round(v * 100) / 100;
-        return { box: [x0, y0, x1, y1], lm: lm.map(q => [q.x, q.y]), bs: all, jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
+        return { box: [x0, y0, x1, y1], lm: lm.map(q => [q.x, q.y, q.z]), bs: all, jaw: bs.jawOpen || 0, smile: ((bs.mouthSmileLeft || 0) + (bs.mouthSmileRight || 0)) / 2, brows: bs.browInnerUp || 0 };
       });
       out.ms = Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, Math.round(v)]));
       send({ type: 'result', id: m.id, out });
@@ -104,7 +104,8 @@ const People = {
       w.onmessage = ({ data: m }) => { const h = pending.get(m.id); if (h) { pending.delete(m.id); h(m); } };
       w.onerror = e => { Log.e('people', 'People worker error', { message: e.message }); e.preventDefault?.(); for (const h of pending.values()) h({ type: 'error', message: e.message || 'stopped' }); pending.clear(); };
       w.call = (msg, transfer) => new Promise((ok, no) => { const id = ++seq; pending.set(id, m => m.type === 'error' ? no(new Error(m.message)) : ok(m)); w.postMessage({ ...msg, id }, transfer || []); });
-      w.call({ type: 'load', url: new URL(MEDIAPIPE, document.baseURI).href, gpu }).then(m => {
+      // The full pose model where there's room for it (the desktop app): steadier joints, better for motion capture.
+      w.call({ type: 'load', url: new URL(MEDIAPIPE, document.baseURI).href, gpu, pose: IS_DESKTOP_APP ? 'pose_landmarker_full.task' : 'pose_landmarker_lite.task' }).then(m => {
         Log.i('people', `People tracking ready ${Math.round(performance.now() - s)} ms`, m.info); Log.mem('people', 'MediaPipe');
         Budget.add('people', 'People tracking (MediaPipe)', () => this.stop(true), Budget.COST.people); w.info = m.info; this.mesh = m.mesh; res(w);
       }, e => { w.terminate(); rej(e); });
@@ -148,7 +149,7 @@ const People = {
         } catch (e) { Log.w('people', 'Frame failed', e); }
         finally { this.busy = false; }
       }
-      this.timer = setTimeout(tick, 70); // ~12 frames a second
+      this.timer = setTimeout(tick, typeof Mocap !== 'undefined' && Mocap.on ? 0 : 70); // ~12 frames a second; as fast as it can while capturing a motion
     };
     tick();
   },

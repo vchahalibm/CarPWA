@@ -1258,8 +1258,8 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
-      ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() : ''}
-      <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">v0.4${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
+      ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() + btn('offlineAll', 'Download everything for offline use', 'Avatars and camera models download the first time they’re needed; this fetches them all now') : ''}
+      <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : 'web app'}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
 }
 
@@ -1492,7 +1492,7 @@ var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may d
     const was = this.s; this.s = s || {};
     if (current === 'settings' && $('#updRow')) $('#updRow').outerHTML = this.row();
     if (this.s.shellReady && this.s.shellReady !== was.shellReady) this.bar('shell');
-    else if (this.s.webReady && !was.webReady) this.bar('web');
+    else if (this.s.webReady && !was.webReady && !(this.s.latest?.web && this.s.serving >= this.s.latest.web)) this.bar('web'); // not when the newest files are already in use
     if (this.s.manual && was.phase === 'checking' && this.s.phase === 'idle')
       toast(this.s.error ? `Couldn’t check for updates: ${this.s.error}` : this.s.shellReady || this.s.webReady ? 'An update is ready' : `${APP_NAME} is up to date`);
   },
@@ -1515,6 +1515,14 @@ var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may d
   },
 } : null;
 DesktopUpdates?.init();
+// Desktop: fetch every file that otherwise comes down on first use (the list is in web-version.json).
+ACTIONS.offlineAll = async () => {
+  let list = []; try { list = Object.keys((await (await fetch('web-version.json', { cache: 'no-store' })).json()).lazy || {}); } catch {}
+  if (!list.length) return toast('Everything is already here');
+  toast(`Downloading ${list.length} files…`); let ok = 0;
+  for (const f of list) { try { const r = await fetch(f); if (r.ok) { await r.arrayBuffer(); ok++; } } catch {} }
+  toast(ok === list.length ? 'Everything is on this computer now' : `${ok} of ${list.length} downloaded: try again when online`);
+};
 ACTIONS.checkUpdates = () => { const s = DesktopUpdates?.s; if (s?.shellReady) return DesktopUpdates.bar('shell'); if (s?.webReady) return DesktopUpdates.bar('web'); DriveDeckDesktop.updates.check(); };
 function showUpdate(worker) {
   const bar = $('#updateBar');

@@ -8,6 +8,7 @@ People tracking on Stage (js/people.js) runs these in its own module worker, loa
 | `wasm/vision_wasm_module_internal.{js,wasm}` | same package (the ES-module build, for module workers) | 1.0.1 | Apache-2.0 |
 | `models/gesture_recognizer.task` | Google MediaPipe models (float16, `gesture_recognizer/gesture_recognizer`) | latest | Apache-2.0 |
 | `models/pose_landmarker_lite.task` | Google MediaPipe models (float16, `pose_landmarker/pose_landmarker_lite`) | latest | Apache-2.0 |
+| `models/pose_landmarker_full.task` | Google MediaPipe models (float16, `pose_landmarker/pose_landmarker_full`), more accurate: the desktop app and motion capture | latest | Apache-2.0 |
 | `models/face_landmarker.task` | Google MediaPipe models (float16, `face_landmarker/face_landmarker`) | latest | Apache-2.0 |
 
 Update: `npm pack @mediapipe/tasks-vision`, copy `vision_bundle.mjs` and `wasm/vision_wasm_module_internal.*`; models from

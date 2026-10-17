@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -46,7 +46,10 @@
           "presenter.html",
           "samples/**",
           "bridge/**",
-          "web-version.json"
+          "web-version.json",
+          "!vendor/models/*.vrm",
+          "!vendor/mediapipe/models/*.task",
+          "!vendor/mediapipe/wasm/*.wasm"
         ]
       }
     ],
@@ -77,6 +80,9 @@
       "target": "nsis",
       "icon": "../icons/studiogen-1024.png"
     },
-    "publish": null
+    "publish": null,
+    "electronLanguages": [
+      "en"
+    ]
   }
 }

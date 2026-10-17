@@ -103,7 +103,7 @@ const Bundles = {
   },
   /** The library: bundles listed in an index ({ bundles: [{ name, about, url, author }] }) at a web address. */
   async library() {
-    const at = store.get('libraryUrl', LIBRARY_URL);
+    const at = store.get('libraryUrl', null) || LIBRARY_URL;
     let idx; try { idx = await (await fetch(at, { cache: 'no-store' })).json(); } catch (e) { idx = { bundles: [], error: e.message }; }
     const base = new URL(at, location.href);
     sheet('Library', `<div class="se-pick"><div class="se-tiles">${(idx.bundles || []).map((x, i) => `<button class="se-tile" data-lib="${esc(new URL(x.url, base).href)}"><i>📦</i><b>${esc(x.name)}</b><span>${esc(x.about || '')}${x.author ? ` · ${esc(x.author)}` : ''}</span></button>`).join('') || `<p class="se-note">Nothing listed${idx.error ? ` (${esc(idx.error)})` : ''}.</p>`}</div>

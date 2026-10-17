@@ -11,7 +11,7 @@ import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { folderHash } = require('../../desktop/updater.js');
+const { folderHash, LAZY } = require('../../desktop/updater.js');
 
 const APP_FILES = ['index.html', 'manifest.webmanifest', 'sw.js', 'presenter.html', 'css', 'js', 'icons', 'samples', 'bridge', 'web-version.json'];
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -20,7 +20,10 @@ const tar = (out, files) => execFileSync('tar', ['--format', 'ustar', '--no-xatt
 
 const [cmd, arg] = process.argv.slice(2);
 if (cmd === 'version') {
-  const info = { version: +process.env.WEB_VERSION || 0, vendorHash: await folderHash('vendor'), commit: process.env.COMMIT || '' };
+  // The lazy files (avatars, MediaPipe models): not in the app or the updates; the app downloads them at this commit and checks them.
+  const lazy = {}; const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (LAZY.test(p)) { const b = fs.readFileSync(p); lazy[p] = { sha256: sha256(b), size: b.length }; } } };
+  walk('vendor');
+  const info = { version: +process.env.WEB_VERSION || 0, vendorHash: await folderHash('vendor'), commit: process.env.COMMIT || '', lazy };
   fs.writeFileSync('web-version.json', JSON.stringify(info, null, 2) + '\n');
   console.log('web-version.json', info);
 } else if (cmd === 'pack') {
@@ -28,7 +31,7 @@ if (cmd === 'version') {
   const info = JSON.parse(fs.readFileSync('web-version.json', 'utf8')), shell = JSON.parse(fs.readFileSync('desktop/package.json', 'utf8')).version;
   const appTar = path.join(out, `web-app-${info.version}.tar.gz`), vendorTar = path.join(out, `web-vendor-${info.vendorHash.slice(0, 16)}.tar.gz`);
   tar(appTar, APP_FILES.filter(f => fs.existsSync(f)));
-  tar(vendorTar, ['vendor']);
+  tar(vendorTar, ['--exclude', 'vendor/models/*.vrm', '--exclude', 'vendor/mediapipe/models/*.task', '--exclude', 'vendor/mediapipe/wasm/*.wasm', 'vendor']);
   // The zipped apps electron-builder made (StudioGen-<v>-arm64-mac.zip, StudioGen-<v>-mac.zip for Intel).
   const zips = fs.readdirSync('desktop/dist').filter(f => f.endsWith('.zip') && f.includes(`-${shell}-`));
   const arm = zips.find(f => f.includes('arm64')), x64 = zips.find(f => !f.includes('arm64'));

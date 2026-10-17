@@ -28,13 +28,19 @@ const newer = (a, b) => { const p = v => String(v).split('.').map(n => parseInt(
   for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 
-/** The hash CI gives the vendor folder: SHA-256 over "path\tsha256\n" for every file, sorted (also in tools/release/make-update.mjs). */
+/* Big files that aren't shipped in the app or in updates: avatars and the MediaPipe models. They're downloaded the first time
+   the page asks for one (from GitHub, at the commit the app's files were built from), checked against the SHA-256 listed in
+   web-version.json (inside the signed web files) and kept in userData/assets. */
+const LAZY = /^vendor\/(models\/[^/]+\.vrm|mediapipe\/models\/[^/]+\.task|mediapipe\/wasm\/[^/]+\.wasm)$/;
+const REPO_RAW = 'https://raw.githubusercontent.com/vchahalibm/CarPWA/';
+/** The hash CI gives the vendor folder: SHA-256 over "path\tsha256\n" for every file, sorted (also in tools/release/make-update.mjs).
+    The lazy files don't count: they aren't in the app or the updates. */
 async function folderHash(dir) {
   const out = [];
   const walk = async (d, rel) => { for (const e of await fsp.readdir(d, { withFileTypes: true })) {
     if (e.name.startsWith('.')) continue;
     const p = path.join(d, e.name), r = rel ? `${rel}/${e.name}` : e.name;
-    if (e.isDirectory()) await walk(p, r); else if (e.isFile()) out.push(`${r}\t${sha256(await fsp.readFile(p))}\n`);
+    if (e.isDirectory()) await walk(p, r); else if (e.isFile() && !LAZY.test(`vendor/${r}`)) out.push(`${r}\t${sha256(await fsp.readFile(p))}\n`);
   } };
   await walk(dir, '');
   return sha256(out.sort().join(''));
@@ -131,6 +137,27 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
   }
 
   /* ---------- Shell layer ---------- */
+  /* ---------- Lazy files ---------- */
+  const fetching = new Map();
+  /** The path of a lazy file on this computer, downloading and checking it first if needed (null if it isn't one). */
+  function lazyFile(rel) {
+    rel = rel.replace(/^\//, ''); if (!LAZY.test(rel)) return null;
+    const info = (readJson(path.join(active().app, 'web-version.json')) || bundledInfo), want = info.lazy?.[rel];
+    const file = path.join(app.getPath('userData'), 'assets', rel);
+    if (fs.existsSync(file) && (!want || fs.statSync(file).size === want.size)) return Promise.resolve(file);
+    if (!want || !info.commit) return Promise.reject(new Error(`${rel}: not listed`));
+    if (fetching.has(rel)) return fetching.get(rel);
+    const p = (async () => {
+      emit({ phase: 'downloading', what: rel.split('/').pop() }); log(`asset: downloading ${rel}`);
+      const res = await net.fetch(`${REPO_RAW}${info.commit}/${rel}`); if (!res.ok) throw new Error(`${res.status} for ${rel}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length !== want.size || sha256(buf) !== want.sha256) throw new Error(`${rel}: checksum differs`);
+      fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file + '.part', buf); fs.renameSync(file + '.part', file);
+      emit({ phase: 'idle', what: '' }); log(`asset: ${rel} ready (${Math.round(buf.length / 1e6)} MB)`); return file;
+    })().finally(() => fetching.delete(rel));
+    fetching.set(rel, p); return p;
+  }
+
   const appBundle = () => { const p = path.resolve(process.execPath, '../../..'); return app.isPackaged && p.endsWith('.app') ? p : null; };
   async function shellUpdate(m) {
     const S = m.shell, entry = S?.[process.arch];
@@ -191,10 +218,13 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
   const start = () => { cleanup(); setTimeout(() => check(), 20e3); setInterval(() => check(), EVERY); };
   status = { phase: 'idle', shell: shellVersion, serving: active().version, bundled: bundledInfo.version || 0 };
   return {
-    active, check, start, installShell, canSwap,
-    status: () => ({ ...status, shell: shellVersion, serving: status.serving, pendingShell: state.shell?.version || null }),
+    active, check, start, installShell, canSwap, asset: lazyFile, isLazy: rel => LAZY.test(String(rel).replace(/^\//, '')),
+    // "Ready" is worked out now, not remembered: after the restart the new files are the ones being served.
+    status: () => ({ ...status, webReady: active().version > (status.serving || 0), shellReady: state.shell?.version && ok(state.shell.dir) ? state.shell.version : null, shell: shellVersion, pendingShell: state.shell?.version || null }),
+    applied() { status.webReady = false; },
     served(v) { status.serving = v; },
     on(f) { listeners.add(f); return () => listeners.delete(f); },
   };
 };
 module.exports.folderHash = folderHash;
+module.exports.LAZY = LAZY;

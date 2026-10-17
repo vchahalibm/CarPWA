@@ -8,8 +8,14 @@ Squirrel/electron-updater; `desktop/updater.js` does it.
 
 | Layer | What | How often | How it's applied |
 |---|---|---|---|
-| **Web** | `index.html`, `js/`, `css/`, `icons/`, `samples/`, `bridge/`… (one ~0.6 MB `web-app-<n>.tar.gz`) and `vendor/` (one ~47 MB `web-vendor-<hash>.tar.gz`, only downloaded when the libraries change) | Every push that changes web files | Unpacked under `~/Library/Application Support/StudioGen/updates/`, served instead of the copy inside the app; **Restart now** reloads the window |
+| **Web** | `index.html`, `js/`, `css/`, `icons/`, `samples/`, `bridge/`… (one ~0.6 MB `web-app-<n>.tar.gz`) and `vendor/` (one ~47 MB `web-vendor-<hash>.tar.gz`, only downloaded when the libraries change) | Every push that changes web files | Unpacked under `~/Library/Application Support/StudioGen/updates/`, served instead of the copy inside the app; **Restart now** restarts the app |
 | **Shell** | The Electron app itself: `desktop/main.js`, `preload.js`, `webview-preload.js`, `updater.js`, Electron (zipped `StudioGen-<v>-arm64-mac.zip` / `-mac.zip`) | Only when `desktop/package.json` `version` goes up | Unzipped with `ditto`, swapped into place when you quit or press **Restart now**; the old copy is kept as `StudioGen.app.old` until the new one starts, then removed |
+
+**Lazy files** (`LAZY` in desktop/updater.js: `vendor/models/*.vrm`, `vendor/mediapipe/models/*.task`,
+`vendor/mediapipe/wasm/*.wasm`) are in neither the app nor the vendor bundle. `web-version.json` lists each with its
+SHA-256 and size (`lazy`) and the commit; the first request for one downloads it from
+`raw.githubusercontent.com/vchahalibm/CarPWA/<commit>/<path>` (`lazyFile`), checks it and keeps it in `assets/`.
+Offline before the first use, the request fails (503) and the app says so.
 
 The web number is the workflow's run number (`web-version.json`, written in CI and shipped inside the app too). A web
 update says which shell it needs (`minShell`, the shell version it was built with); an older shell first updates itself.

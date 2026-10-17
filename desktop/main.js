@@ -147,11 +147,15 @@ app.whenReady().then(() => {
   // Serve the web files; anything outside the web folder is refused.
   useWeb();
   // vendor/ may come from its own folder (libraries update separately from the app's files).
-  const serve = req => {
+  // Avatars and the MediaPipe models aren't in the app: they come down the first time they're asked for (desktop/updater.js).
+  const serve = async req => {
     const { pathname } = new URL(req.url), rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
     const base = rel.startsWith('/vendor/') ? path.dirname(VENDOR) : WEB;
-    const file = path.normalize(path.join(base, rel));
+    let file = path.normalize(path.join(base, rel));
     if (!file.startsWith(base + path.sep)) return new Response('Not found', { status: 404 });
+    if (app.isPackaged && Updates.isLazy(rel) && !fs.existsSync(file)) {
+      try { file = await Updates.asset(rel); } catch (e) { console.warn('asset', e.message); return new Response('Not available offline yet', { status: 503 }); }
+    }
     return net.fetch(pathToFileURL(file).toString());
   };
   protocol.handle(SCHEME, serve);
@@ -203,7 +207,8 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:update-check', own(() => Updates.check(true)));
   ipcMain.handle('dd:update-apply', own(kind => {
     if (kind === 'shell') { if (!Updates.installShell(true)) return false; app.quit(); return true; }
-    useWeb(); for (const w of [mainWin, presWin]) w?.webContents.reloadIgnoringCache(); return true;
+    // A real restart: the new files from the start, and nothing left over from before.
+    Updates.applied(); app.relaunch(); app.quit(); return true;
   }));
   Updates.on(s => { for (const w of [mainWin, presWin]) w?.webContents.send('dd:update', s); }); // for webview-preload.js; a public file of the app
   // The browsing session: no camera, microphone, location or notifications for web pages in widgets.

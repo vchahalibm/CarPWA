@@ -501,6 +501,7 @@ const ScriptUI = {
         <button class="chip" data-sui="upload">${svg('upload')}Import</button><button class="chip" data-sui="library">📦 Library</button>
         <button class="chip" data-sui="exportall">${svg('download')}Export all</button>
         <button class="chip" data-sui="help">How to write one</button><input type="file" id="suiFile" accept=".json,application/json" hidden></div>
+      <div class="sui-note">Library (where Library lists bundles from): <code>${esc(store.get('libraryUrl', '') || LIBRARY_URL)}</code> <button class="link-btn" data-sui="libset">Change</button></div>
       <div class="sui-list">${Scripts.all().map(s => `<div class="sui-item"><div class="main"><div class="t">${esc(s.name)}${s.sample ? ' <span class="tag">sample</span>' : ''}</div>
           <div class="s">${(s.json.beats || []).length} step${(s.json.beats || []).length === 1 ? '' : 's'}${s.json.about ? ' · ' + esc(s.json.about) : ''}</div></div>
           <div class="sui-actions"><button class="mini-btn accent" data-sui="run:${esc(s.id)}">${svg('play')}Run</button><button class="mini-btn" data-sui="edit:${esc(s.id)}">${s.sample ? 'Copy' : 'Edit'}</button>
@@ -548,6 +549,9 @@ const ScriptUI = {
     if (a === 'dl') return Bundles.export([Scripts.get(id)]);
     if (a === 'exportall') return Bundles.export(Scripts.mine(), { all: true });
     if (a === 'library') return Bundles.library();
+    if (a === 'libset') return sheet('Library address', `<label class="se-field"><span>An index.json listing bundles: your team's shared folder on a web server, a GitHub Pages site, a raw GitHub link…</span><input id="libUrl2" class="se-wz-in" value="${esc(store.get('libraryUrl', '') || LIBRARY_URL)}"></label>
+      <p class="se-note">Format: { "bundles": [ { "name", "about", "url" } ] }, with each url relative to the index or absolute.</p>`,
+      [['Save', () => { const u = $('#libUrl2').value.trim(); store.set('libraryUrl', u && u !== LIBRARY_URL ? u : null); this.render(); toast('Library address saved'); }], ['Use the default', () => { store.set('libraryUrl', null); this.render(); }], ['Cancel']]);
     if (a === 'recalone') { this.shown = false; return WebDrive.recordAlone(); }
     if (a === 'recplay') { const r = WebDrive.recs().find(x => x.name === id); if (r) { this.shown = false; openView('dashboard'); setTimeout(() => WebDrive.playAll(r.steps), 400); } return; }
     if (a === 'recdel') return sheet('Delete this recording?', `<p>${esc(id)}</p>`, [['Delete', () => { WebDrive.delRec(id); this.render(); }], ['Cancel']]);

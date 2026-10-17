@@ -29,9 +29,15 @@ const Mocap = {
   remove(name) { const all = this.saved(); delete all[name]; store.set('userMotions', all); delete MOTIONS[name]; },
   rename(from, to) { const all = this.saved(); if (!all[from] || !to || all[to] || MOTIONS[to]) return false; all[to] = { ...all[from], name: to }; delete all[from]; store.set('userMotions', all); delete MOTIONS[from]; MOTIONS[to] = { ...all[to], group: 'Captured' }; return true; },
 
+  /** Kalidokit (vendor/kalidokit, MIT): the proven solver for MediaPipe → VRM bones; loaded on first capture. */
+  lib() {
+    if (window.Kalidokit) return Promise.resolve();
+    return (this.libLoad ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/kalidokit/kalidokit.umd.js'; s.onload = res; s.onerror = () => { this.libLoad = null; rej(new Error('Kalidokit didn’t load')); }; document.head.appendChild(s); }));
+  },
   /** Follow the camera with avatar `inst` (the preview in Settings): it copies you until stop(). */
   start(inst, { mirror = true } = {}) {
-    this.inst = inst; this.mirror = mirror; this.on = true;
+    this.inst = inst; this.mirror = mirror; this.on = true; this.prev = {};
+    this.lib().catch(e => Log.w('mocap', 'Kalidokit unavailable: using the built-in solver', e));
     People.hold = true; People.sync(); Log.i('mocap', 'Following the camera', { mirror });
   },
   stop() { this.on = false; this.rec = null; People.hold = false; People.sync(); VrmAvatar.live = null; this.live = null; },
@@ -40,7 +46,7 @@ const Mocap = {
   /** A frame from the people tracker: the person to copy (the presenter, or the biggest one). */
   frame(track, now) {
     if (!this.on || !this.inst || !track?.pose?.wl?.length) return;
-    let pose = null; try { pose = this.solve(track); } catch (e) { Log.w('mocap', 'Pose not solved', e); }
+    let pose = null; try { pose = window.Kalidokit ? this.solveK(track) : this.solve(track); } catch (e) { Log.w('mocap', 'Pose not solved', e); }
     if (!pose) return;
     VrmAvatar.live = this.live = pose; MotionUI.seen?.(this.seen);
     const R = this.rec; if (!R) return;
@@ -110,6 +116,43 @@ const Mocap = {
       hands: (track.hands || []).filter(h => h.wl?.length).length, face: !!bs };
     return Object.keys(out).length ? out : null;
   },
+  /** With Kalidokit: pose and hands from its solvers (with the weights its VRM demo uses), the head from its face solver, the
+      face from MediaPipe's 52 shapes. Kalidokit copies like a mirror; “not a mirror” flips the picture and swaps the sides. */
+  solveK(track) {
+    const K = window.Kalidokit, L = People.last || { w: 640, h: 480 }, m = this.mirror, lm = track.pose.lm, wl = track.pose.wl, out = {};
+    const SW = [0, 4, 5, 6, 1, 2, 3, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23, 26, 25, 28, 27, 30, 29, 32, 31], o = i => m ? i : SW[i];
+    const P2 = lm.map((_, i) => { const q = lm[o(i)]; return { x: m ? q[0] : 1 - q[0], y: q[1], z: 0, visibility: q[2] }; });
+    const P3 = wl.map((_, i) => { const q = wl[o(i)]; return { x: m ? q[0] : -q[0], y: q[1], z: q[2], visibility: lm[o(i)][2] }; });
+    const vis = (...i) => i.every(k => (lm[k]?.[2] ?? 0) > 0.5);
+    const rig = K.Pose.solve(P3, P2, { runtime: 'mediapipe', imageSize: { width: L.w, height: L.h }, enableLegs: true });
+    const r = (v, d = 1) => v ? [v.x * d, v.y * d, v.z * d] : null;
+    if (rig) {
+      Object.assign(out, { hips: r(rig.Hips?.rotation, 0.7), spine: r(rig.Spine, 0.45), chest: r(rig.Spine, 0.25) });
+      if (vis(11, 13) || vis(12, 14)) Object.assign(out, { rightUpperArm: r(rig.RightUpperArm), rightLowerArm: r(rig.RightLowerArm), leftUpperArm: r(rig.LeftUpperArm), leftLowerArm: r(rig.LeftLowerArm) });
+      if (vis(25, 26)) Object.assign(out, { rightUpperLeg: r(rig.RightUpperLeg), rightLowerLeg: r(rig.RightLowerLeg), leftUpperLeg: r(rig.LeftUpperLeg), leftLowerLeg: r(rig.LeftLowerLeg) });
+    }
+    // Hands: each to the side it drives (your left hand moves its right, like a mirror).
+    for (const h of track.hands || []) {
+      if (!h.lm?.length) continue;
+      const dR = Math.hypot(h.lm[0][0] - lm[16][0], h.lm[0][1] - lm[16][1]), dL = Math.hypot(h.lm[0][0] - lm[15][0], h.lm[0][1] - lm[15][1]);
+      const yours = dR < dL ? 'Right' : 'Left', Side = m ? (yours === 'Right' ? 'Left' : 'Right') : yours, side = Side.toLowerCase();
+      const pts = h.lm.map((q, i) => ({ x: m ? q[0] : 1 - q[0], y: q[1], z: h.wl?.[i]?.[2] ?? 0 }));
+      const hr = K.Hand.solve(pts, Side); if (!hr) continue;
+      out[`${side}Hand`] = [hr[`${Side}Wrist`].x, hr[`${Side}Wrist`].y, rig?.[`${Side}Hand`]?.z ?? 0];
+      for (const f of ['Index', 'Middle', 'Ring', 'Little']) for (const j of ['Proximal', 'Intermediate', 'Distal']) out[`${side}${f}${j}`] = r(hr[`${Side}${f}${j}`]);
+      out[`${side}ThumbMetacarpal`] = r(hr[`${Side}ThumbProximal`]); out[`${side}ThumbProximal`] = r(hr[`${Side}ThumbIntermediate`]); out[`${side}ThumbDistal`] = r(hr[`${Side}ThumbDistal`]);
+    }
+    // Head
+    const fl = track.face?.lm;
+    if (fl?.length >= 468) { const f = K.Face.solve(fl.map(q => ({ x: m ? q[0] : 1 - q[0], y: q[1], z: q[2] || 0 })), { runtime: 'mediapipe', imageSize: { width: L.w, height: L.h } }); if (f?.head) out.neck = r(f.head, 0.7); }
+    // A little smoothing on top of the avatar's springs (the solvers jitter frame to frame).
+    for (const [k, v] of Object.entries(out)) { if (!v) { delete out[k]; continue; } const p = this.prev[k]; if (p) out[k] = v.map((x, i) => p[i] + (x - p[i]) * 0.55); this.prev[k] = out[k]; }
+    // Face shapes and what it can see, as before.
+    const bs = track.face?.bs;
+    if (bs) for (const [k, v] of Object.entries(bs)) if (v >= 0.05) out[`$a:${m ? k.replace(/Left$/, '#').replace(/Right$/, 'Left').replace(/#$/, 'Right') : k}`] = [v];
+    this.seen = { body: vis(11, 12), arms: vis(13) || vis(14), legs: vis(25) || vis(26), hands: (track.hands || []).length, face: !!bs };
+    return Object.keys(out).length ? out : null;
+  },
   /** Recorded frames → a motion: keys every 0.2 s (the spline smooths between them), easing in and out like the built-in ones. */
   toMotion(frames) {
     if (frames.length < 3) return null;
@@ -128,19 +171,35 @@ const MotionUI = {
     const groups = {}; for (const [k, m] of Object.entries(MOTIONS)) if (!k.startsWith('__')) (groups[m.group || 'Other'] ||= []).push([k, m]);
     const order = ['Captured', 'Greet', 'Present', 'React', 'Body', 'Other'].filter(g => groups[g]);
     return `<div class="mo-stage"><div class="mo-avatar" id="moAvatar"><div class="mw-empty"><span>Loading the assistant…</span></div></div>
-      <div class="mo-camw camw on ${Camera.mirrored ? "mirror" : ""}" data-fit="contain" id="moCamWrap" hidden><video id="moCam" muted autoplay playsinline></video><canvas class="ppl"></canvas><div class="mo-parts" id="moParts"></div></div>
       <div class="mo-side" id="moSide">${this.side()}</div></div>
       ${order.map(g => `<details class="mo-group" ${g === 'Captured' || g === 'Greet' ? 'open' : ''}><summary>${esc(g)} <span class="tag">${groups[g].length}</span></summary>
         <div class="mo-list">${groups[g].map(([k, m]) => `<div class="mo-item"><button class="mo-play" data-mo="play:${esc(k)}" aria-label="Preview ${esc(m.name || k)}">${svg('play')}</button>
           <div class="main"><div class="t">${esc(m.name || k)}</div><div class="s">${esc(k)} · ${m.len}s</div></div>
           ${g === 'Captured' ? `<button class="icon-btn" data-mo="ren:${esc(k)}" aria-label="Rename" title="Rename">${svg('sliders')}</button><button class="icon-btn" data-mo="del:${esc(k)}" aria-label="Delete" title="Delete">${svg('del')}</button>` : ''}</div>`).join('')}</div></details>`).join('')}`;
   },
+  /** The full-screen capture view's top bar: what's happening and the buttons, above the camera. */
+  top() {
+    if (this.state === 'done') return `<div class="mo-status">Captured ${this.pending.keys.length} keyframes, ${this.pending.len}s. Play it on the assistant, name it, save it.</div>
+      <div class="mo-top-row"><input id="moName" class="se-wz-in" value="My motion ${Object.keys(Mocap.saved()).length + 1}" autocomplete="off" aria-label="Name">
+        <button class="chip" data-mo="replay">${svg('play')}Play</button><button class="chip accent" data-mo="save">Save to the library</button><button class="chip" data-mo="again">Capture again</button><button class="chip" data-mo="discard">Close</button></div>`;
+    return `<div class="mo-status">${this.state === 'live' ? 'Move: the assistant copies you. Stand back so the camera sees you from head to knees (or feet for leg moves).' : this.state === 'count' ? `Get ready… <b class="mo-count">${this.count}</b>` : `<span class="rec-dot"></span> Recording… ${this.left || this.len}s`}</div>
+      <div class="mo-top-row">${this.state === 'live' ? `<button class="chip accent" data-mo="rec"><i class="rec-dot"></i>Record ${this.len} seconds</button>` : ''}<button class="chip" data-mo="stop">Stop</button></div>`;
+  },
+  /** Capturing happens full screen: the camera big, the assistant beside it, the controls above. */
+  full(on) {
+    let f = $('#moFull');
+    if (!on) { if (f) { const c = this.inst?.canvas, box = $('#moAvatar'); if (this.inst) this.inst.fullBody = false; if (c && box) { box.replaceChildren(c); this.inst.size = ''; this.inst.resize(); } f.remove(); } return; }
+    if (!f) {
+      f = document.createElement('div'); f.id = 'moFull'; f.className = 'mo-full';
+      f.innerHTML = `<div class="mo-full-top"><div class="mo-full-title">Capture a motion</div><div id="moFullTop"></div></div>
+        <div class="mo-full-main"><div class="mo-camw camw on" data-fit="contain" id="moCamWrap"><video id="moCam" muted autoplay playsinline></video><canvas class="ppl"></canvas><div class="mo-parts" id="moParts"></div></div>
+          <div class="mo-full-av" id="moFullAv"></div></div>`;
+      document.body.appendChild(f);
+      if (this.inst?.canvas) { this.inst.fullBody = true; $('#moFullAv').replaceChildren(this.inst.canvas); setTimeout(() => { this.inst.size = ''; this.inst.resize(); }, 50); }
+    }
+    $('#moFullTop').innerHTML = this.top();
+  },
   side() {
-    if (this.state === 'live' || this.state === 'count' || this.state === 'rec') return `<div class="mo-status">${this.state === 'live' ? 'Move: the assistant copies you. Ready?' : this.state === 'count' ? `<b class="mo-count">${this.count}</b>` : `<span class="rec-dot"></span> Recording… ${this.left || this.len}s`}</div>
-      <div class="chip-row">${this.state === 'live' ? `<button class="chip accent" data-mo="rec"><i class="rec-dot"></i>Record ${this.len}s</button>` : ''}<button class="chip" data-mo="stop">Stop</button></div>`;
-    if (this.state === 'done') return `<div class="mo-status">Captured ${this.pending.keys.length} keyframes, ${this.pending.len}s.</div>
-      <label class="fld"><span>Name</span><input id="moName" value="My motion ${Object.keys(Mocap.saved()).length + 1}" autocomplete="off"></label>
-      <div class="chip-row"><button class="chip" data-mo="replay">${svg('play')}Play</button><button class="chip accent" data-mo="save">Save to the library</button><button class="chip" data-mo="discard">Discard</button></div>`;
     return `<p class="sui-note">Press ▶ on any motion to see it here. Or capture your own: stand in front of the camera (head to waist at least), and the assistant copies you; record a few seconds and save it.</p>
       <p class="sui-note">It captures your body, arms, hands and fingers, legs (when they're in the picture) and your face (brows, eyes, mouth).</p>
       <div class="sui-row"><label class="fld chk"><input type="checkbox" id="moMirror" ${Mocap.mirror ? 'checked' : ''}><span>Like a mirror (your right hand moves its left)</span></label>
@@ -150,8 +209,8 @@ const MotionUI = {
   },
   paint() {
     const el = $('#moSide'); if (el) el.innerHTML = this.side();
-    const on = this.state !== 'idle' && this.state !== 'done', w = $('#moCamWrap'); if (w) { w.hidden = !on; w.classList.toggle('mirror', !!Camera.mirrored); }
-    if (on) this.cam();
+    this.full(this.state !== 'idle');
+    if (this.state !== 'idle' && this.state !== 'done') this.cam();
   },
   /** What the camera can follow right now: chips over the picture (body, arms, legs, hands, face). */
   seen(s) {
@@ -183,7 +242,7 @@ const MotionUI = {
       this.state = 'count'; this.count = 3; this.paint();
       const tick = () => { if (this.state !== 'count') return; if (--this.count > 0) { this.paint(); return setTimeout(tick, 1000); }
         this.state = 'rec'; this.left = this.len; this.paint();
-        const t = setInterval(() => { if (this.state !== 'rec') return clearInterval(t); this.left = Math.max(0, this.left - 1); const s = $('.mo-status'); if (s) s.innerHTML = `<span class="rec-dot"></span> Recording… ${this.left}s`; }, 1000);
+        const t = setInterval(() => { if (this.state !== 'rec') return clearInterval(t); this.left = Math.max(0, this.left - 1); const s = $('#moFull .mo-status'); if (s) s.innerHTML = `<span class="rec-dot"></span> Recording… ${this.left}s`; }, 1000);
         Mocap.record(this.len, m => { clearInterval(t); Mocap.stop(); if (!m) { toast('Nobody was seen: stand in front of the camera'); this.state = 'idle'; return this.paint(); }
           this.pending = m; this.state = 'done'; this.paint(); this.replay(); });
       };
@@ -192,10 +251,11 @@ const MotionUI = {
     if (a === 'stop') return this.stop();
     if (a === 'replay') return this.replay();
     if (a === 'discard') { this.pending = null; this.state = 'idle'; return this.paint(); }
+    if (a === 'again') { this.pending = null; Mocap.start(this.inst, { mirror: Mocap.mirror }); this.state = 'live'; return this.paint(); }
     if (a === 'save') {
       const name = ($('#moName')?.value || '').trim().replace(/[^\w\s-]/g, '').replace(/\s+(\w)/g, (_, c) => c.toUpperCase()).replace(/\s/g, '') || `Captured${Date.now() % 10000}`;
       if (MOTIONS[name] && !Mocap.saved()[name]) return toast('That name is taken by a built-in motion');
-      Mocap.save(name, { ...this.pending, name: ($('#moName')?.value || name).trim() }); this.pending = null; this.state = 'idle';
+      Mocap.save(name, { ...this.pending, name: ($('#moName')?.value || name).trim() }); this.pending = null; this.state = 'idle'; this.full(false);
       toast(`Saved “${name}”: it’s in the motion lists now`); return ScriptUI.render();
     }
     if (a === 'del') return sheet('Delete this motion?', `<p>${esc(k)}</p>`, [['Delete', () => { Mocap.remove(k); ScriptUI.render(); }], ['Cancel']]);
@@ -211,3 +271,5 @@ document.addEventListener('change', e => {
   Wcfg.set('model~stage', { builtin: e.target.value, url: '', file: null }); Log.i('mocap', `Assistant: ${e.target.value}`);
   VrmAvatar.all.get('preview')?.dispose(); VrmAvatar.all.delete('preview'); MotionUI.inst = null; MotionUI.toggled(true);
 });
+// Esc leaves the full-screen capture view.
+addEventListener('keydown', e => { if (e.key !== 'Escape' || !$('#moFull')) return; e.preventDefault(); MotionUI.cmd(MotionUI.state === 'done' ? 'discard' : 'stop'); MotionUI.cmd('discard'); }, true);

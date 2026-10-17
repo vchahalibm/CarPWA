@@ -191,8 +191,9 @@ class AvatarInstance {
     const p = new this.L.Vector3(); head.getWorldPosition(p); this.headY = p.y;
     // From just above the hair to the waist (about 0.9 m tall, 0.75 m wide), fitted to the widget's shape.
     const aspect = Math.max(0.3, this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight) || 1), t = Math.tan(this.L.MathUtils.degToRad(this.camera.fov / 2));
-    const top = p.y + 0.24, bottom = p.y - 0.66, cy = (top + bottom) / 2;
-    const dist = Math.max((top - bottom) / 2 / t, 0.75 / 2 / (t * aspect)) * 1.05;
+    // fullBody (capturing a motion): head to feet, so leg moves show.
+    const top = p.y + 0.24, bottom = this.fullBody ? 0 : p.y - 0.66, cy = (top + bottom) / 2;
+    const dist = Math.max((top - bottom) / 2 / t, (this.fullBody ? 1.1 : 0.75) / 2 / (t * aspect)) * 1.05;
     this.cam = { y: cy + 0.05, dist, cy }; this.placeCamera();
   }
   /** The camera pulls back a little for wide movements (a motion's zoom), and comes back after. */

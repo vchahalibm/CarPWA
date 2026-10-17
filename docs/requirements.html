@@ -168,6 +168,7 @@
   <p class="mut">Capture control without walking back to the screen: start with a countdown, stop by voice (“stop”, “cut”) or a hand sign (both palms up, or the claim gesture), or a fixed length; the take is trimmed to where you started and stopped moving, with a trim bar in the review.</p>
 
   <h2 id="questions">7. Open questions</h2>
+  <div class="card"><b>Decided (17 Oct 2026)</b>: Q1 Mac first, Windows-ready design · Q2 same Wi-Fi now, Tailscale next · Q3 a shortlist of anime VRMs with Vita in it, to choose from · Q4 the matcher now with an optional cloud model (your key), a local model later. Still open: Q5, Q6.</div>
   <div class="card q"><b>Q1 · Windows</b>: the roadmap dropped the Windows build. Build StudioGen for Windows (PowerShell tasks) now, or Mac first with the task design ready for Windows?</div>
   <div class="card q"><b>Q2 · Reaching the Mac from the car</b>: same Wi-Fi only at first, Tailscale, or a relay server we host?</div>
   <div class="card q"><b>Q3 · The core avatar</b>: Vita (CC0, today's default), Ren (CC0), Seed-san (credit required), or a new one to pick from a short list?</div>
@@ -189,7 +190,7 @@ const REQS = [
   ['P-06','P','Small download; big files on first use','DMG 118 MB (from 175); avatars, camera models and WASM download when first needed, checked by SHA-256.','SG','built'],
   ['P-07','P','Download everything for offline use','One button fetches every on-demand file before an offline show.','SG','built'],
   ['P-08','P','The user can move/drag the app window','The hidden title bar left no area to drag the window by.','SG','bug','R1'],
-  ['P-09','P','Windows build of StudioGen','Dropped in the roadmap; needed for PowerShell tasks if Windows matters.','SG','ask','R3'],
+  ['P-09','P','Windows build of StudioGen','Decided: Mac first; the task design leaves room for PowerShell when a Windows build is added later.','SG','plan','R3'],
   ['D-01','D','Dashboard with Cluster, Map and Widgets layouts','Swipe or pill to switch; eight cluster styles; accent colours; seamless or card widgets.','DP DT','built'],
   ['D-02','D','Widgets you add, size, stack, float','Pages of widgets, resize in half cells down to a sliver, widgets beside and inside the cluster, floating camera and 3D widgets.','ALL','built'],
   ['D-03','D','Real readings only','GPS, route, clock, weather, motion sensors; no fake car data.','DP DT','built'],
@@ -215,7 +216,7 @@ const REQS = [
   ['S-07','S','Point and pinch to click','','DT SG','built'],
   ['A-01','A','VRM avatars that talk, blink, look, gesture','Lip-sync, springs, idle and talking layers, about 45 motions.','ALL','built'],
   ['A-02','A','Built-in choices: Vita, Ren, Maya, Leo, Seed-san','Maya and Leo (Rocketbox) have ARKit face shapes but look stiff.','ALL','built'],
-  ['A-03','A','One core anime avatar by default; others on request','Only the core avatar downloads on install; the rest from Settings › Avatars; Rocketbox kept but not default.','ALL','new','R5'],
+  ['A-03','A','One core anime avatar by default; others on request','Only the core avatar downloads on install; the rest from Settings › Avatars; Rocketbox kept but not default. The core avatar: chosen from a shortlist of freely licensed anime VRMs, Vita included (to prepare).','ALL','new','R5'],
   ['A-04','A','Avatar gallery: download more from Settings','Previews, licences, size; downloaded and checked like the lazy files.','ALL','new','R5'],
   ['A-05','A','Upload an avatar with a bone and expression check','Report missing bones/expressions, VRM version, size, licence; refuse when core bones are missing.','ALL','new','R5'],
   ['A-06','A','VRChat / VTuber avatars','VRM directly; Unity/VRChat via UniVRM or Blender VRM add-on; GLB/FBX with a bone-mapping screen.','ALL','ask','R5'],
@@ -229,13 +230,13 @@ const REQS = [
   ['C-04','C','Loops, conditions and variables in scripts','Repeat until, for each, if; values from what was heard and from tasks.','ALL','new','R7'],
   ['C-05','C','Interactive (agent) scripts driven by the user','Intents from speech and gestures map to steps; waits for the next interaction; loops; ends on the user\'s word or sign.','ALL','new','R7'],
   ['C-06','C','Background steps (jobs)','A step runs in the background while the assistant talks; wait for it or react when it finishes; job list.','ALL','new','R3'],
-  ['C-07','C','Understand free-form requests','Local model on the Mac (or another choice) maps what you say to intents and values.','SG','ask','R3'],
+  ['C-07','C','Understand free-form requests','Decided: the phrase/intent matcher now, plus an optional cloud model with your own key; a local model on the Mac later.','ALL','new','R3'],
   ['W-01','W','Record and replay web steps','Own pages in the web app (bridge), any site in StudioGen; real input; pointer and pulse dots.','ALL','built'],
   ['W-02','W','Record and replay app steps','Clicks, typing, keys, scrolls and drags anywhere in the app.','ALL','built'],
   ['W-03','W','Find things on screen by description','Florence-2 on the device; your own detector from the Trainer.','SG','built'],
   ['W-04','W','Site helpers','Your CSS/JS per site, with examples.','SG','built'],
   ['W-05','W','Run AppleScript / JXA from scripts','Inputs from variables, output back; approval on first run; time limit and Stop.','SG','new','R3'],
-  ['W-06','W','Run PowerShell from scripts (Windows)','Depends on P-09.','SG','ask','R3'],
+  ['W-06','W','Run PowerShell from scripts (Windows)','Later, with the Windows build (P-09).','SG','plan','R3'],
   ['W-07','W','Ready-made OS task library','Open apps/files, Finder, Mail drafts, Calendar, Numbers/Excel export, run a macOS Shortcut.','SG','new','R3'],
   ['W-08','W','Data steward / analyst tasks','Read and check data files or sources, summarise, show a table/chart widget, talk about results.','SG','ask','R3'],
   ['B-01','B','Export and import bundles','A script with its motions, helpers and recordings in one file.','ALL','built'],
@@ -246,7 +247,7 @@ const REQS = [
   ['G-04','G','Debug mode and logs','Hidden tab with a key; diagnostics, memory, log export.','ALL','built'],
   ['L-01','L','Pair DriveGen with StudioGen (QR code)','Roadmap Phase D; revoke and re-pair.','ALL','plan','R3'],
   ['L-02','L','Run a task on StudioGen from DriveGen and get results','Listed tasks marked available to paired devices; progress and results spoken/shown.','DP DT','new','R3'],
-  ['L-03','L','Reach the Mac from the car','Same Wi-Fi, Tailscale or a relay.','DP','ask','R3'],
+  ['L-03','L','Reach the Mac from the car','Decided: pair on the same Wi-Fi first, then Tailscale for anywhere; no relay server.','DP','new','R3'],
   ['L-04','L','The Mac\'s models for an iPad on Stage','Roadmap Phase C/D; falls back to on-device.','DT','plan'],
   ['X-01','X','Never record passwords, payment or one-time codes','','ALL','built'],
   ['X-02','X','Code that runs on your behalf needs your approval','Site helpers and OS tasks from imports are flagged; OS tasks ask on first run.','SG','part','R3'],

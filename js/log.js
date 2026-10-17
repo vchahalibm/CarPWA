@@ -10,7 +10,7 @@
    ============================================================ */
 // The app's name: StudioGen in the desktop app, DriveGen on the web (the code and stored data keep the old internal names).
 const APP_NAME = /Electron\//.test(navigator.userAgent) ? 'StudioGen' : 'DriveGen';
-if (APP_NAME !== 'DriveGen') document.title = document.title.replace(/DriveGen/g, APP_NAME);
+if (APP_NAME !== 'DriveGen') { document.title = document.title.replace(/DriveGen/g, APP_NAME); document.documentElement.classList.add('desktop-app'); }
 const DEBUG_KEY_SHA256 = '248e61e1904edf1421dfa3905d12511a46dd3b0878f5be978b01bbb4c3e839eb';
 const Log = (() => {
   const FLAG = 'dd.debug', BUF = 'dd.logbuf', MAX = 2500, t0 = performance.now();

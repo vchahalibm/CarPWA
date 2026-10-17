@@ -124,7 +124,7 @@ const settings = Object.assign({
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
   arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
-  convo: false, convoGap: '1', convoStt: 'auto', appMode: 'drive', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
+  convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
@@ -1258,8 +1258,9 @@ function renderSettings() {
       ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
+      ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() + btn('offlineAll', 'Download everything for offline use', 'Avatars and camera models download the first time they’re needed; this fetches them all now') : ''}
-      <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : 'web app'}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
+      <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : `version ${webVer || '…'}${swReg?.waiting ? ' · update ready' : ''}`}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
 }
 
@@ -1402,7 +1403,7 @@ const CLICK = {
   panel: v => { if (v === 'back') { panel.mode = 'home'; renderMapPanel(); } else { panel.collapsed = !panel.collapsed; renderMapPanel(); } },
   dest: v => startNav(panelItems[+v]),
   set: v => { const [k, val] = v.split(':'); settings[k] = val; applySettings(); renderSettings(); if (k === 'units') { wx = null; renderDashTiles(); } },
-  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); if (v === 'seamless' && typeof Dash !== 'undefined') requestAnimationFrame(() => Dash.fitGrid()); },
+  toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); if (v === 'seamless' && typeof Dash !== 'undefined') requestAnimationFrame(() => Dash.fitGrid()); if (v === 'driveTabs' && typeof Dash !== 'undefined') Dash.render(); },
   mode: v => setMode(v),
   sheet: v => { const fn = sheetFns[+v]; closeSheet(); fn?.(); },
   save: v => { const d = panelItems[+v]; if (!d) return;
@@ -1440,11 +1441,13 @@ tick(); setInterval(tick, 1000);
 emit();
 
 // Resume the last location source; auto-start GPS if permission was already granted.
+// StudioGen is for presenting and tasks: no demo drive, sample message or location prompt unless it's also used for driving.
+const forDriving = () => APP_NAME !== 'StudioGen' || settings.driveTabs;
 const lastSrc = store.get('locSource', 'none');
-if (lastSrc === 'demo') startDemo();
+if (lastSrc === 'demo' && forDriving()) startDemo();
 else navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted' || lastSrc === 'gps') startGPS(); }).catch(() => {});
 loadWeather();
-setTimeout(simulateIncomingMessage, 25000);
+if (forDriving()) setTimeout(simulateIncomingMessage, 25000);
 
 // Review hooks, e.g. prototype.html?demo=1&nav=1 or ?view=music&theme=light
 const qs = new URLSearchParams(location.search);
@@ -1456,7 +1459,7 @@ if (qs.has('play')) { player.playing = true; updatePlayerUI(); }
 $('#installTip').hidden = isStandalone() || store.get('installTipOff') || !(isIOS || /Android/i.test(navigator.userAgent));
 
 // First run: ask for location with a tap (iPhone only shows its permission prompt in response to one).
-if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has('view')) {
+if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has('view') && forDriving()) {
   const tip = isIOS && !isStandalone() ? '<p class="hint">Tip: install it for full screen with no browser bars: in Safari tap <b>Share › Add to Home Screen</b>.</p>' : '';
   const done = fn => () => { store.set('onboarded', true); fn?.(); };
   sheet(`Welcome to ${APP_NAME}`, `<p>Turn on location for live position, speed and turn-by-turn directions. Your location stays on this device.</p>${tip}`,
@@ -1468,6 +1471,7 @@ if ('serviceWorker' in navigator) addEventListener('load', async () => {
   let reg;
   try { reg = await navigator.serviceWorker.register('sw.js'); } catch { return; }
   if (!reg) return;
+  swReg = reg;
   // A waiting worker means new code is downloaded; only offer it when an older version is running.
   // The desktop app serves its files itself and updates through DesktopUpdates (below), not the service worker.
   const offer = w => { if (w && navigator.serviceWorker.controller && !window.DriveDeckDesktop?.updates) showUpdate(w); };
@@ -1483,6 +1487,18 @@ if ('serviceWorker' in navigator) addEventListener('load', async () => {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
 });
 let updating = false;
+/* The web app's version: the service worker's VERSION (its cache is dd-shell-v<n>). Settings › System shows it. */
+let swReg = null, webVer = null;
+(async () => {
+  try { const v = (await caches.keys()).filter(x => /^dd-shell-v\d+$/.test(x)).map(x => +x.slice(10)); if (v.length) return webVer = Math.max(...v); } catch {}
+  try { webVer = +(/VERSION = 'v(\d+)'/.exec(await (await fetch('sw.js')).text())?.[1]) || null; } catch {} // first visit: nothing cached yet
+})();
+ACTIONS.webUpdate = async () => {
+  if (!swReg) return toast('Updates need the installed or online app');
+  toast('Checking for updates…');
+  try { await swReg.update(); } catch { return toast('Couldn’t check: offline?'); }
+  setTimeout(() => { if (swReg.waiting || swReg.installing) { if (swReg.waiting) showUpdate(swReg.waiting); toast('An update is ready'); } else toast(`${APP_NAME} is up to date`); }, 1500);
+};
 /* StudioGen (desktop) updates: the app downloads and verifies them (desktop/updater.js); this offers a restart when one is
    ready: the app's web files (a reload) or a new version of the app itself (installed on restart or when you quit). */
 var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may draw before this line runs

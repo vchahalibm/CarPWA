@@ -321,8 +321,8 @@ const DEFAULT_WIDGETS = ['chat', 'trip', 'weather', 'calendar', 'clock', 'nowPla
 
 /* ---------- Layouts & rendering ---------- */
 const LAYOUTS = [['cluster', 'Cluster', 'gauge'], ['map', 'Map', 'maps'], ['widgets', 'Widgets', 'grid'], ['stage', 'Stage', 'stage']];
-/** Layouts offered: Stage only in Stage mode (Settings › Mode). */
-const layouts = () => LAYOUTS.filter(l => l[0] !== 'stage' || settings.appMode === 'stage');
+/** Layouts offered: Stage only in Stage mode (Settings › Mode); on Stage the driving layouts only with Settings › Mode › driving tabs. */
+const layouts = () => settings.appMode === 'stage' && !settings.driveTabs ? LAYOUTS.filter(l => l[0] === 'stage') : LAYOUTS.filter(l => l[0] !== 'stage' || settings.appMode === 'stage');
 /* Stage layout (big screens): the main content, the presenter column (the avatar first), captions along the bottom. */
 const STAGE_ZONES = ['stage.main', 'stage.side'];
 const STAGE_DEFAULTS = { 'stage.main': ['doc~stage'], 'stage.side': ['model~stage', 'clock'] };
@@ -330,7 +330,7 @@ const ACCENTS = { cyan: '#35c8ff', magenta: '#d63cff', red: '#ff3b30', orange: '
 
 const Dash = {
   editing: false, bound: [], wrap: $('#dashMapWrap'),
-  get layout() { return settings.dashLayout || 'cluster'; },
+  get layout() { const l = settings.dashLayout || 'cluster', L = layouts(); return L.some(x => x[0] === l) ? l : L[0][0]; }, // only a layout on offer (Stage alone on Stage without the driving tabs)
   get style() { return CLUSTERS[settings.cluster] ? settings.cluster : 'twin'; },
 
   /* Every place a widget can live is a list, keyed by `where`:

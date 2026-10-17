@@ -1465,3 +1465,8 @@ table.bench small{color:var(--text-2)}
 .mo-full-av{border-radius:16px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,var(--panel-2),var(--panel) 70%);min-height:0}
 .mo-full-av canvas{width:100%!important;height:100%!important;display:block}
 @media (orientation:portrait){ .mo-full-main{grid-template-columns:1fr;grid-template-rows:minmax(0,3fr) minmax(0,2fr)} }
+
+/* Desktop app: the window has no title bar, so the dock and a thin strip along the top move it. */
+.desktop-app .dock{-webkit-app-region:drag}
+.desktop-app .dock button,.desktop-app .dock a,.desktop-app .dock [data-action]{-webkit-app-region:no-drag}
+.desktop-app body::before{content:'';position:fixed;left:0;right:0;top:0;height:10px;z-index:9999;-webkit-app-region:drag}

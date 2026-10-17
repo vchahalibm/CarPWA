@@ -57,6 +57,7 @@ const Stage = {
       <div class="row"><div class="main"><div class="t">${APP_NAME} is used for</div><div class="s">${this.chosen
         ? `Stage: presenting on a big screen. The assistant gestures and moves; the Stage layout shows your content, the presenter and captions${this.moving ? '. Moving now, so Drive rules apply until you stop' : ''}`
         : 'Driving: the assistant only changes its expression, nothing moving to catch your eye'}</div></div>${seg('appMode', [['drive', 'Drive'], ['stage', 'Stage']])}</div>
+      ${tog('driveTabs', APP_NAME === 'StudioGen' ? 'Also use for driving' : 'Driving tabs on Stage', 'Shows the Cluster, Map and Widgets tabs in Stage mode too' + (APP_NAME === 'StudioGen' ? ', and the demo drive and location' : ''))}
       ${this.chosen ? tog('captions', 'Captions', 'Shows what you said and the reply along the bottom of the Stage layout') : ''}
       ${this.chosen && typeof People !== 'undefined' ? `${tog('peopleOn', 'Follow the presenter', 'The Stage camera watches who is in front of the screen: whoever shows the claim gesture becomes the presenter. The assistant looks at them and acts on their hand gestures. On this device only; nothing is kept')}
         ${settings.peopleOn ? `${btn('claimSeq', 'Claim gesture', esc(CLAIM_SEQS[settings.claimSeq]?.[1] || ''))}

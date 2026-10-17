@@ -210,6 +210,7 @@ const BUILTINS = {
   showWidget: { group: 'Dashboard', name: 'Show a widget', ok: v => !!widgetId(v.widget || v.q), run: (v, say) => showWidget(widgetId(v.widget || v.q), say) },
   dockHide: { group: 'Dashboard', name: 'Hide the dock (full screen)', run: (v, say) => { setDock(true); say('Dock hidden. Tap the left edge to bring it back.'); } },
   dockShow: { group: 'Dashboard', name: 'Show the dock', run: (v, say) => { setDock(false); say('Dock shown.'); } },
+  macRun: { group: 'Your Mac', name: 'Run something on your Mac (StudioGen)', run: (v, say) => typeof Link !== 'undefined' ? Link.command(v.q || v.text || '', say) : say('That needs the link to your Mac.') },
   appMode: { group: 'Dashboard', name: 'Drive or Stage mode', run(v, say) {
     const m = /stage|present/i.test(v.text || '') ? 'stage' : 'drive'; Stage.set(m);
     say(m === 'stage' ? 'Stage mode. I’ll present with gestures.' : 'Drive mode. Expressions only while you drive.'); } },
@@ -317,6 +318,7 @@ const DEFAULT_COMMANDS = [
   { id: 'dash.widget', name: 'Show a widget', say: ['(show|open|add|go to) [me] [the|my] {widget} widget'], do: { type: 'builtin', fn: 'showWidget' } },
   { id: 'dash.dockhide', name: 'Hide the dock', say: ['hide [the] (dock|sidebar|side bar)', '[go|enter|turn on] full screen', 'fullscreen'], do: { type: 'builtin', fn: 'dockHide' } },
   { id: 'dash.dockshow', name: 'Show the dock', say: ['show [the] (dock|sidebar|side bar)', '(exit|leave|turn off) full screen'], do: { type: 'builtin', fn: 'dockShow' } },
+  { id: 'mac.run', name: 'Run something on my Mac', say: ['[please] run [the] {q} on my (mac|computer|laptop|studiogen)', 'ask my (mac|computer|laptop) [to] {q}', 'tell my (mac|computer|laptop) [to] {q}', 'on my (mac|computer|laptop) {q}'], do: { type: 'builtin', fn: 'macRun' } },
   { id: 'dash.stage', name: 'Stage mode (presenting)', say: ['[switch to|use|turn on|go to|enter|start] [the] (stage|presentation|presenter|presenting) mode', 'start presenting'], do: { type: 'builtin', fn: 'appMode' } },
   { id: 'dash.drive', name: 'Drive mode', say: ['[switch to|use|turn on|go to|enter|back to] [the] (drive|driving|car) mode', 'stop presenting'], do: { type: 'builtin', fn: 'appMode' } },
   { id: 'dash.theme', name: 'Dark or light theme', say: ['[switch to|use|turn on|go] [the] {theme} (mode|theme)', 'make it {theme}'], do: { type: 'builtin', fn: 'theme' } },

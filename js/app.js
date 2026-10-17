@@ -1186,6 +1186,7 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
+      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
       ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
     </div>

@@ -132,6 +132,7 @@ const Script = {
     if (x.mood) Avatar.face(x.mood, 2600);
     if (x.gesture) Avatar.gesture(x.gesture);
     const text = this.fill(x.say); if (!text) return;
+    this.remote?.push(text); // run for a paired device (js/link.js): its lines go back too
     const said = Voice.respond(text);
     await Promise.race([said, new Promise(r => setTimeout(r, Math.max(4000, text.length * 90)))]); // never stuck on a silent voice
   },

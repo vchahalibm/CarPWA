@@ -19,6 +19,14 @@ const BUNDLED = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.
 const Updates = require('./updater')({ app, net, bundled: BUNDLED });
 const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
 const Data = require('./data')({ app, dialog, getWindow: () => mainWin }); // SQLite (read-only) and data files for the data widget
+// The link to DriveGen on a phone or iPad (desktop/link.js): its requests are done by the page (js/link.js), asked here.
+const linkWaits = new Map();
+const linkAsk = (kind, payload) => new Promise((res, rej) => {
+  if (!mainWin) return rej(new Error('StudioGen’s window is closed'));
+  const id = Math.random().toString(36).slice(2), t = setTimeout(() => { linkWaits.delete(id); rej(new Error('No answer from StudioGen')); }, kind === 'run' || kind === 'say' ? 600000 : 15000);
+  linkWaits.set(id, { res, rej, t }); mainWin.webContents.send('dd:link-ask', { id, kind, payload });
+});
+const Link = require('./link')({ app, ask: linkAsk });
 let WEB = BUNDLED, VENDOR = path.join(BUNDLED, 'vendor');
 function useWeb() { const a = app.isPackaged ? Updates.active() : { app: BUNDLED, vendor: path.join(BUNDLED, 'vendor'), version: 0 }; WEB = a.app; VENDOR = a.vendor; Updates.served(a.version); bridgeSrc = null; return a; }
 
@@ -201,6 +209,13 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:data-query', own(o => Data.query(o)));
   ipcMain.handle('dd:data-read', own(o => Data.read(o)));
   ipcMain.handle('dd:data-pick', own(o => Data.pick(o)));
+  // The link to DriveGen (desktop/link.js): status, sharing on the tailnet, pairing, revoking; and the page's answers.
+  ipcMain.handle('dd:link-status', own(() => Link.status()));
+  ipcMain.handle('dd:link-share', own(on => Link.share(on)));
+  ipcMain.handle('dd:link-pair', own(() => Link.pair()));
+  ipcMain.handle('dd:link-revoke', own(id => Link.revoke(id)));
+  ipcMain.handle('dd:link-reply', own(({ id, result, error }) => { const w = linkWaits.get(id); if (!w) return; clearTimeout(w.t); linkWaits.delete(id); error ? w.rej(new Error(error)) : w.res(result); }));
+  Link.start();
   // Script steps (js/appsteps.js): real mouse and keyboard input in the app's own window, as a person would, so anything on
   // screen reacts (canvases, maps, web widgets). Only the app's own page can ask, and only for its own window.
   const INPUT = new Set(['mouseMove', 'mouseDown', 'mouseUp', 'mouseWheel', 'keyDown', 'keyUp', 'char']);

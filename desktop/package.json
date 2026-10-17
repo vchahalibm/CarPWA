@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -29,6 +29,7 @@
       "updater.js",
       "tasks.js",
       "data.js",
+      "link.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"

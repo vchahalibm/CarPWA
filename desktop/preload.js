@@ -46,6 +46,19 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     read: o => ipcRenderer.invoke('dd:data-read', o),
     pick: o => ipcRenderer.invoke('dd:data-pick', o),
   },
+  /** The link to DriveGen (desktop/link.js): status() → { listening, tailscale, signedIn, url, sharing, devices, pairing },
+      share(on) on the tailnet, pair() → { code, until }, revoke(id); onAsk(f): f(kind, payload) answers DriveGen's requests
+      ('offers', 'run', 'say', 'paired'). */
+  link: {
+    status: () => ipcRenderer.invoke('dd:link-status'),
+    share: on => ipcRenderer.invoke('dd:link-share', on),
+    pair: () => ipcRenderer.invoke('dd:link-pair'),
+    revoke: id => ipcRenderer.invoke('dd:link-revoke', id),
+    onAsk: f => ipcRenderer.on('dd:link-ask', async (e, m) => {
+      try { ipcRenderer.invoke('dd:link-reply', { id: m.id, result: await f(m.kind, m.payload) }); }
+      catch (err) { ipcRenderer.invoke('dd:link-reply', { id: m.id, error: err?.message || String(err) }); }
+    }),
+  },
   /** The menu bar asks the page for something (e.g. 'settings'). */
   onMenu: f => ipcRenderer.on('dd:menu', (e, what) => f(what)),
 });

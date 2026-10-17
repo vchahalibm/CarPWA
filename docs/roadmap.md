@@ -48,6 +48,8 @@ A PWA can't be a background service: a service worker only wakes briefly for eve
 
 ## Phase D: iPad joins the Mac
 
+Started with Tailscale (decided 17 Oct 2026): StudioGen's API shared with `tailscale serve`, pairing by code, scripts run on the Mac from DriveGen (js/link.js, desktop/link.js). The Mac's models for an iPad on Stage come next.
+
 1. **Pairing by QR code** from the menu-bar app. First time, the iPad installs the Mac's own certificate (a profile, trusted once in Settings), so after that it reconnects by itself over secure WebSocket signaling and WebRTC (microphone up, replies and results back, camera frames when the Mac tracks people for the iPad).
 2. **Revoke and re-pair**: the menu-bar app lists paired devices; **Revoke** ends a device's access at once (its token stops working). **Reset certificate** makes a new one, so every device has to scan again. On the iPad, **Forget this Mac** clears the pairing (and Settings says how to remove the old profile). Scanning again pairs from scratch.
 3. **Tailscale option**: use the Mac's Tailscale name and certificate instead (works away from home, nothing to install on the iPad).

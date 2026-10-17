@@ -41,3 +41,9 @@ Not part of the app: downloaded on request from Settings › Assistant › Avata
 
 ## thumbs/
 Pictures of the avatars above, rendered in the app.
+
+## elle.vrm (the core avatar)
+"Elle Duval (Casual Outfit)" by **NorthrnPoakr**, from VRoid Hub
+(https://hub.vroid.com/en/characters/1900369427009350078/models/3546657704829426498). VRM 0.x. The author's
+conditions of use: avatar use by everyone, modification allowed, redistribution allowed, corporate and personal commercial
+use allowed, **credit required**: Elle Duval by NorthrnPoakr (credited in the app's avatar list and here).

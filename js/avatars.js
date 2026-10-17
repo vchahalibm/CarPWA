@@ -13,7 +13,7 @@
      BUILTIN_MODELS entries with `mine`.
    Loaded after avatar.js.
    ============================================================ */
-const AVATAR_CORE = 'vita';
+const AVATAR_CORE = 'elle';
 // VRM humanoid bones (VRM 1.0 names; three-vrm maps VRM 0 files to them).
 const VRM_REQUIRED = ['hips', 'spine', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand', 'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot'];
 const VRM_NICE = { chest: 'chest', neck: 'neck', leftShoulder: 'left shoulder', rightShoulder: 'right shoulder', leftEye: 'left eye', rightEye: 'right eye', leftIndexProximal: 'left fingers', rightIndexProximal: 'right fingers', leftThumbProximal: 'left thumb', rightThumbProximal: 'right thumb', leftToes: 'left toes', rightToes: 'right toes' };
@@ -169,6 +169,8 @@ const Avatars = {
 };
 Avatars.register();
 Avatars.prefetch();
+// Elle became the core avatar (Oct 2026): installs that showed Vita, the old core, switch to her once.
+if (!store.get('coreElle')) { store.set('coreElle', true); const c = Wcfg.get('model~stage'); if (!c.url && !c.file && (!c.builtin || c.builtin === 'vita') && !Avatars.have.has('vita')) Wcfg.set('model~stage', { builtin: AVATAR_CORE }); }
 ACTIONS.avatars = () => Avatars.gallery();
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-av]'); if (b) { e.stopPropagation(); return Avatars.cmd(b.dataset.av); }

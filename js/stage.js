@@ -118,7 +118,7 @@ Bus.on('voice.reply', d => Stage.caption('ai', d.value || ''));
 // The Stage layout's default content: the sample deck and Vita, until you choose your own.
 { const fresh = !Wcfg.all()['doc~stage'] || !Wcfg.all()['model~stage'];
   if (!Wcfg.all()['doc~stage']) Wcfg.set('doc~stage', { url: 'samples/drivedeck-demo.pptx', title: 'Demo deck' });
-  if (!Wcfg.all()['model~stage']) Wcfg.set('model~stage', { builtin: 'vita' });
+  if (!Wcfg.all()['model~stage']) Wcfg.set('model~stage', { builtin: typeof AVATAR_CORE !== 'undefined' ? AVATAR_CORE : 'elle' });
   if (fresh && Dash.layout === 'stage' && current === 'dashboard') Dash.render(); } // already drawn without them
 
 Actions.define('mode.set', { group: 'Dashboard', name: 'Switch Drive / Stage mode', arg: 'drive or stage', run(v, say) {

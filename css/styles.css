@@ -1480,3 +1480,4 @@ table.bench small{color:var(--text-2)}
 .av-tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:99px;background:var(--accent);color:#fff;opacity:1!important}
 .av-b{display:flex;gap:6px;align-items:center}.av-cur{font-size:13px;color:var(--accent);font-weight:600}
 .av-report{list-style:none;padding:0;margin:8px 0;display:flex;flex-direction:column;gap:6px}.av-report .warn{color:var(--warn,#e0a84a)}
+.mo-trim{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0;font-size:14px}.mo-trim label{display:flex;gap:6px;align-items:center}.mo-trim input{width:180px}

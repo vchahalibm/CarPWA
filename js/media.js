@@ -433,5 +433,7 @@ document.addEventListener('click', e => { if (e.target.closest?.('model-viewer[d
 Actions.define('avatar.gesture', { group: 'Documents & media', name: '3D assistant: motion', arg: 'A motion: Wave, PointLeft, PresentLeft, Explain, ThumbsUp, Bow… (see the list)', run: v => Avatar.gesture(v.trim() || 'Wave') });
 Actions.define('avatar.pointAt', { group: 'Documents & media', name: '3D assistant: point at a widget', arg: 'Widget (doc, web, doc~stage…) or left / right / up / down', run(v, say) {
   if (typeof VrmAvatar === 'undefined' || !VrmAvatar.pointAt(v || 'doc')) say?.('I can’t see that to point at.'); } });
+Actions.define('avatar.stance', { group: 'Documents & media', name: '3D assistant: stance (legs)', arg: 'stand, sway, hip, presenter, step, rooted or energetic', run(v) {
+  const k = Object.keys(STANCES).find(s => s === v.trim() || STANCES[s].name.toLowerCase() === v.trim().toLowerCase()) || 'sway'; settings.stance = k; store.set('settings', settings); } });
 Actions.define('avatar.face', { group: 'Documents & media', name: '3D assistant: expression', arg: 'Surprised, Sad or Angry', run: v => Avatar.face(cap(v.trim()) || 'Surprised') });
 if (current === 'dashboard') Dash.render(); // the widget types now exist

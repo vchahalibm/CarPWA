@@ -161,6 +161,35 @@ function arkitToVrm(a) {
 }
 /* The idle body: arms down and relaxed (VRMs are made in a T-pose), hands softly curled. */
 const AVATAR_REST = { leftUpperArm: [0, 0, 1.3], rightUpperArm: [0, 0, -1.3], leftLowerArm: [0, 0.25, 0], rightLowerArm: [0, -0.25, 0], ...handPose('relaxed'), ...handPose('relaxed', 'left') };
+/* What the legs and hips do under everything else (Settings › Assistant › Stance, the action avatar.stance; captured motions
+   leave the legs to it). Each returns bone turns (VRM 0 convention) and where the hips are [x, y, z] in metres, at time t. */
+const ease = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+const knee = (side, k) => ({ [`${side}UpperLeg`]: [k * 0.5, 0, 0], [`${side}LowerLeg`]: [-k, 0, 0], [`${side}Foot`]: [k * 0.5, 0, 0] });
+const STANCES = {
+  stand: { name: 'Stand', note: 'still, a little breathing sway', at(t) { const s = Math.sin(t * 0.42); return { b: { hips: [0, 0, s * 0.018], spine: [0, 0, -s * 0.014] }, p: [s * 0.008, 0, 0] }; } },
+  sway: { name: 'Relaxed sway', note: 'slow shifts from foot to foot', at(t) {
+    const s = Math.sin(t * 0.55); return { b: { hips: [0, 0, s * 0.05], spine: [0, 0, -s * 0.035], chest: [0, 0, -s * 0.015], ...knee(s > 0 ? 'left' : 'right', Math.abs(s) * 0.18) }, p: [s * 0.03, -Math.abs(s) * 0.006, 0] }; } },
+  hip: { name: 'Lean on one hip', note: 'casual, changes sides now and then', at(t) {
+    const c = Math.tanh(Math.sin(t * Math.PI / 14) * 4), s = Math.sin(t * 0.5) * 0.15;
+    return { b: { hips: [0, -c * 0.08, c * 0.07 + s * 0.01], spine: [0, c * 0.05, -c * 0.05], chest: [0, c * 0.03, -c * 0.025], ...knee(c > 0 ? 'left' : 'right', Math.abs(c) * 0.3) }, p: [c * 0.035, -Math.abs(c) * 0.01, 0] }; } },
+  presenter: { name: 'Presenter walk', note: 'a few steps left and right, facing you', at(t) {
+    // 16 s: centre, walk left, stay, back to the centre, walk right, stay. Steps while moving; the upper body keeps facing you.
+    const T = t % 16, xs = [[0, 0], [2, 0], [3.4, -0.16], [6, -0.16], [7.4, 0], [9, 0], [10.4, 0.16], [13.6, 0.16], [15, 0], [16, 0]];
+    let x = 0, v = 0; for (let i = 1; i < xs.length; i++) if (T <= xs[i][0]) { const [t0, a] = xs[i - 1], [t1, b] = xs[i], k = (T - t0) / (t1 - t0); x = a + (b - a) * ease(k); v = b === a ? 0 : Math.sin(Math.PI * k); break; }
+    const ph = T * 2 * Math.PI * 0.9, sw = Math.sin(ph) * v, dir = Math.sign(xs.find(q => q[0] >= T)?.[1] - x) || 0;
+    return { b: { hips: [0, dir * v * 0.22 - x * 0.6, 0], spine: [0, -dir * v * 0.14 + x * 0.35, 0], chest: [0, -dir * v * 0.08 + x * 0.25, 0],
+      rightUpperLeg: [sw * 0.35, 0, 0], leftUpperLeg: [-sw * 0.35, 0, 0], rightLowerLeg: [-Math.max(0, sw) * 0.5, 0, 0], leftLowerLeg: [-Math.max(0, -sw) * 0.5, 0, 0] },
+      p: [x, -Math.abs(Math.sin(ph)) * 0.012 * v, 0] }; } },
+  step: { name: 'Step in and back', note: 'now and then a step towards you, for emphasis', at(t) {
+    const T = t % 14, k = T < 6 ? 0 : T < 7 ? ease(T - 6) : T < 10 ? 1 : T < 11 ? 1 - ease(T - 10) : 0, mv = T >= 6 && T < 7 || T >= 10 && T < 11 ? Math.sin(Math.PI * (T % 1)) : 0;
+    const s = Math.sin(t * 0.5); return { b: { hips: [0, 0, s * 0.02], spine: [0.04 * k, 0, -s * 0.015], rightUpperLeg: [mv * 0.4, 0, 0], rightLowerLeg: [-mv * 0.5, 0, 0], ...(k > 0.9 ? knee('left', 0.08) : {}) }, p: [s * 0.01, -mv * 0.01, k * 0.14] }; } },
+  rooted: { name: 'Feet planted, hips follow', note: 'the hips turn and lean a little with the upper body', at(t) {
+    const L = VrmAvatar.live || {}, sp = L.spine || [0, 0, 0], s = Math.sin(t * 0.42);
+    return { b: { hips: [sp[0] * 0.3, sp[1] * 0.5, sp[2] * 0.3 + s * 0.015], rightUpperLeg: [0, -sp[1] * 0.5, 0], leftUpperLeg: [0, -sp[1] * 0.5, 0] }, p: [s * 0.008, 0, 0] }; } },
+  energetic: { name: 'Energetic', note: 'a small bounce, as if to music', at(t) {
+    const b = Math.abs(Math.sin(t * Math.PI * 1.8)), s = Math.sin(t * Math.PI * 0.9);
+    return { b: { hips: [0, s * 0.05, s * 0.035], spine: [0, -s * 0.03, -s * 0.02], ...knee('left', b * 0.22), ...knee('right', b * 0.22) }, p: [s * 0.02, -b * 0.03, 0] }; } },
+};
 /* While the assistant talks: forearms a little forward, the hands moving with the voice. */
 const AVATAR_TALK = { ...bothSides({ rightUpperArm: [0, 0.35, -1.18], rightLowerArm: [0, 0.55, 0.45] }), ...handPose('soft'), ...handPose('soft', 'left') };
 /* How quickly each part follows where it's meant to be (higher is quicker): hands trail the arms, the body is slowest. */
@@ -174,7 +203,7 @@ class AvatarInstance {
   /** Arms down and relaxed, set at once (no spring): before the first frame. */
   rest() {
     for (const [n, v] of Object.entries(AVATAR_REST)) this.bone(n)?.rotation.set(...this.nat(v));
-    const hips = this.bone('hips'); if (hips) { this.hipsY ??= hips.position.y; this.hipsX ??= hips.position.x; }
+    const hips = this.bone('hips'); if (hips) { this.hipsY ??= hips.position.y; this.hipsX ??= hips.position.x; this.hipsZ ??= hips.position.z; }
   }
   /** Which way a head turn goes on screen differs between VRM 0 and 1 models: find out once, from the eyes. */
   calibrate() {
@@ -223,10 +252,12 @@ class AvatarInstance {
     // 1. The idle body: rest, breathing, a slow shift of weight, the head drifting a little.
     for (const [n, r] of Object.entries(AVATAR_REST)) T[n] = [...r];
     add('chest', [Math.sin(time * 1.6) * 0.022, 0, 0]);
-    const shift = Math.sin(time * 0.42); add('hips', [0, 0, shift * 0.018]); add('spine', [0, 0, -shift * 0.014]);
+    // The stance: the legs and hips (Drive mode: standing still, nothing to catch the driver's eye).
+    const st = (typeof Stage !== 'undefined' && !Stage.on ? STANCES.stand : STANCES[this.stance || settings.stance] || STANCES.sway).at(time);
+    for (const [n, d] of Object.entries(st.b)) add(n, d);
     add('rightShoulder', [0, 0, Math.sin(time * 1.6) * 0.012]); add('leftShoulder', [0, 0, -Math.sin(time * 1.6) * 0.012]);
     add('head', [Math.sin(time * 0.53) * 0.03, Math.sin(time * 0.37) * 0.06, Math.sin(time * 0.29) * 0.02]);
-    let hips = [shift * 0.008, 0], look = null, lookW = 0, zoom = 1, fW = 0;
+    let hips = [st.p[0], st.p[1], st.p[2]], look = null, lookW = 0, zoom = 1, fW = 0;
     if (this.listening > 0) { this.listening -= dt; add('head', [0, 0, 0.12]); add('chest', [-0.05, 0, 0]); }
     // 2. Talking: hands come up and move with the voice; the head nods on the louder syllables.
     const g = this.gest, talking = Lips.speaking(), level = Lips.level(time);
@@ -246,7 +277,7 @@ class AvatarInstance {
       for (let [n, { v: val, w }] of Object.entries(mp0)) {
         if (n === '$look') { look = mirror ? [-val[0], val[1]] : val; lookW = w; continue; }
         if (n.startsWith('$a:')) { this.faceM = this.faceM || {}; this.faceM[n.slice(3)] = val[0] * w; continue; }
-        if (n === '$hips') { hips = [hips[0] + val[0] * w, hips[1] + val[1] * w]; continue; }
+        if (n === '$hips') { hips = [hips[0] + val[0] * w, hips[1] + val[1] * w, hips[2]]; continue; }
         if (!g.body && !/^(head|neck)$/.test(n)) continue;
         if (mirror) { const mp = mirrorPose({ [n]: val }); [n] = Object.keys(mp); val = mp[n]; }
         blend(n, val, w);
@@ -279,7 +310,8 @@ class AvatarInstance {
       b.rotation.set(...this.nat(s.p));
     }
     for (const n of Object.keys(this.sp)) if (!T[n]) { const s = this.sp[n]; for (let i = 0; i < 3; i++) { s.p[i] *= Math.exp(-6 * dt); s.v[i] = 0; } this.bone(n)?.rotation.set(...this.nat(s.p)); }
-    const hb = this.bone('hips'); if (hb) { const hs = this.hsp ||= [0, 0]; hs[0] += (hips[0] - hs[0]) * Math.min(1, dt * 6); hs[1] += (hips[1] - hs[1]) * Math.min(1, dt * 7); hb.position.x = this.hipsX + hs[0]; hb.position.y = this.hipsY + hs[1]; }
+    const hb = this.bone('hips'); if (hb) { const hs = this.hsp ||= [0, 0, 0]; hs[0] += (hips[0] - hs[0]) * Math.min(1, dt * 6); hs[1] += (hips[1] - hs[1]) * Math.min(1, dt * 7); hs[2] += ((hips[2] || 0) - (hs[2] || 0)) * Math.min(1, dt * 6);
+      hb.position.x = this.hipsX + hs[0]; hb.position.y = this.hipsY + hs[1]; hb.position.z = this.hipsZ + hs[2] * (this.v1 ? 1 : -1); }
     this.zoom += (zoom - this.zoom) * Math.min(1, dt * 3); this.placeCamera();
     const cp = this.camera.position; this.eye?.position.set(cp.x + gz.x * 1.6, cp.y + gz.y * 0.6, cp.z);
     // 6. Expressions: the motion's face, a mood, blinking, the mouth.

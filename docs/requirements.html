@@ -168,7 +168,7 @@
   <p class="mut">Capture control without walking back to the screen: start with a countdown, stop by voice (“stop”, “cut”) or a hand sign (both palms up, or the claim gesture), or a fixed length; the take is trimmed to where you started and stopped moving, with a trim bar in the review.</p>
 
   <h2 id="questions">7. Open questions</h2>
-  <div class="card"><b>Decided (17 Oct 2026)</b>: Q1 Mac first, Windows-ready design · Q2 same Wi-Fi now, Tailscale next · Q3 a shortlist of anime VRMs with Vita in it, to choose from · Q4 the matcher now with an optional cloud model (your key), a local model later. Still open: Q5, Q6.</div>
+  <div class="card"><b>Decided (17 Oct 2026)</b>: Q1 Mac first, Windows-ready design · Q2 same Wi-Fi now, Tailscale next · Q3 a shortlist of anime VRMs with Vita in it, to choose from · Q4 the matcher now with an optional cloud model (your key), a local model later. Q5 yes: imported scripts may run OS tasks after you approve their code · Q6 CSV and databases first, shown as tables and charts in a data visualization widget.</div>
   <div class="card q"><b>Q1 · Windows</b>: the roadmap dropped the Windows build. Build StudioGen for Windows (PowerShell tasks) now, or Mac first with the task design ready for Windows?</div>
   <div class="card q"><b>Q2 · Reaching the Mac from the car</b>: same Wi-Fi only at first, Tailscale, or a relay server we host?</div>
   <div class="card q"><b>Q3 · The core avatar</b>: Vita (CC0, today's default), Ren (CC0), Seed-san (credit required), or a new one to pick from a short list?</div>
@@ -189,7 +189,7 @@ const REQS = [
   ['P-05','P','Restart now really restarts the app and the bar goes away','Fixed in 0.6.2.','SG','built'],
   ['P-06','P','Small download; big files on first use','DMG 118 MB (from 175); avatars, camera models and WASM download when first needed, checked by SHA-256.','SG','built'],
   ['P-07','P','Download everything for offline use','One button fetches every on-demand file before an offline show.','SG','built'],
-  ['P-08','P','The user can move/drag the app window','The hidden title bar left no area to drag the window by.','SG','bug','R1'],
+  ['P-08','P','The user can move/drag the app window','Fixed: the dock and a thin strip along the top move the window.','SG','built','R1'],
   ['P-09','P','Windows build of StudioGen','Decided: Mac first; the task design leaves room for PowerShell when a Windows build is added later.','SG','plan','R3'],
   ['D-01','D','Dashboard with Cluster, Map and Widgets layouts','Swipe or pill to switch; eight cluster styles; accent colours; seamless or card widgets.','DP DT','built'],
   ['D-02','D','Widgets you add, size, stack, float','Pages of widgets, resize in half cells down to a sliver, widgets beside and inside the cluster, floating camera and 3D widgets.','ALL','built'],
@@ -197,7 +197,7 @@ const REQS = [
   ['D-04','D','Maps, search and turn-by-turn navigation','MapLibre + OpenFreeMap, Valhalla/OSRM/TomTom routing, spoken prompts, rerouting, speed limits.','DP DT','built'],
   ['D-05','D','Map, 3D, AR and HUD driving views','AR ribbon on the rear camera with calibration; mirrored HUD.','DP DT','built'],
   ['D-06','D','Demo drive for testing','Simulated drive in Bengaluru.','DP DT','built'],
-  ['D-07','D','The demo drive does not start in StudioGen','StudioGen is not for driving: no demo drive, no location prompt by default.','SG','new','R2'],
+  ['D-07','D','The demo drive does not start in StudioGen','StudioGen starts in Stage mode, with no demo drive, sample message or location prompt unless “Also use for driving” is on.','SG','built','R2'],
   ['D-08','D','Radio, music hand-off, calls, messages, WhatsApp','Radio Browser stations; hand-off to the phone\'s apps; messages read aloud.','DP DT','built'],
   ['D-09','D','Camera object recognition and spoken alerts','YOLOv10 / D-FINE on the device; “what do you see?”.','DP DT','built'],
   ['D-10','D','Car safety','56 px+ tap targets, text hidden while moving, Drive rules apply on Stage when the car moves.','DP DT','built'],
@@ -208,7 +208,7 @@ const REQS = [
   ['V-04','V','Conversation mode (full duplex, barge-in)','Beta; Stage default on the Mac is planned.','ALL','part'],
   ['V-05','V','Assistant widget: the conversation by day','','ALL','built'],
   ['S-01','S','Stage mode with the Stage layout','Content, presenter column with the avatar, captions; 16:9, 4:3, portrait.','DT SG','built'],
-  ['S-02','S','Stage hides the Cluster, Map and Widgets tabs','Shown only when Settings has “Also use for driving” (StudioGen) checked.','DT SG','new','R2'],
+  ['S-02','S','Stage hides the Cluster, Map and Widgets tabs','Shown only when Settings has “Also use for driving” (StudioGen) checked.','DT SG','built','R2'],
   ['S-03','S','Documents, video, web pages, 3D in widgets','PDF, PowerPoint with speaker notes, YouTube, video files, web pages, GLB.','ALL','built'],
   ['S-04','S','Real browser widgets for any site','Sign-ins kept; sites that refuse frames still show.','SG','built'],
   ['S-05','S','Presenter view and Present on another screen','Notes, timer, next, controls, live preview.','DT SG','built'],
@@ -238,19 +238,20 @@ const REQS = [
   ['W-05','W','Run AppleScript / JXA from scripts','Inputs from variables, output back; approval on first run; time limit and Stop.','SG','new','R3'],
   ['W-06','W','Run PowerShell from scripts (Windows)','Later, with the Windows build (P-09).','SG','plan','R3'],
   ['W-07','W','Ready-made OS task library','Open apps/files, Finder, Mail drafts, Calendar, Numbers/Excel export, run a macOS Shortcut.','SG','new','R3'],
-  ['W-08','W','Data steward / analyst tasks','Read and check data files or sources, summarise, show a table/chart widget, talk about results.','SG','ask','R3'],
+  ['W-08','W','Data steward / analyst tasks','Decided: CSV files and databases first; results as tables and charts in a data visualization widget.','SG','new','R3'],
+  ['W-09','W','Data visualization widget','A widget that shows a table and charts (bar, line, pie, scatter) from CSV, a database query or a task\'s result; scripts and the assistant fill and change it.','ALL','new','R3'],
   ['B-01','B','Export and import bundles','A script with its motions, helpers and recordings in one file.','ALL','built'],
   ['B-02','B','Library of bundles at a configurable address','Default this project\'s library/ on GitHub Pages; changed from Settings › Scripts.','ALL','built'],
-  ['G-01','G','Version shown in DriveGen','Settings shows the web version, date and what\'s new, like StudioGen.','DP DT','new','R4'],
+  ['G-01','G','Version shown in DriveGen','Settings › System shows the version (the web app\'s release number) and Check for updates.','DP DT','built','R4'],
   ['G-02','G','Settings designed per app and use','Groups: General, Assistant, Drive, Stage, Scripts & tasks, Connections, Advanced; Drive groups hidden in StudioGen unless used for driving.','ALL','new','R4'],
-  ['G-03','G','“StudioGen is used for” with “Also for driving”','A checkbox next to the mode that brings back the Drive tabs and settings.','SG','new','R2'],
+  ['G-03','G','“StudioGen is used for” with “Also for driving”','A checkbox next to the mode that brings back the Drive tabs and settings.','SG','built','R2'],
   ['G-04','G','Debug mode and logs','Hidden tab with a key; diagnostics, memory, log export.','ALL','built'],
   ['L-01','L','Pair DriveGen with StudioGen (QR code)','Roadmap Phase D; revoke and re-pair.','ALL','plan','R3'],
   ['L-02','L','Run a task on StudioGen from DriveGen and get results','Listed tasks marked available to paired devices; progress and results spoken/shown.','DP DT','new','R3'],
   ['L-03','L','Reach the Mac from the car','Decided: pair on the same Wi-Fi first, then Tailscale for anywhere; no relay server.','DP','new','R3'],
   ['L-04','L','The Mac\'s models for an iPad on Stage','Roadmap Phase C/D; falls back to on-device.','DT','plan'],
   ['X-01','X','Never record passwords, payment or one-time codes','','ALL','built'],
-  ['X-02','X','Code that runs on your behalf needs your approval','Site helpers and OS tasks from imports are flagged; OS tasks ask on first run.','SG','part','R3'],
+  ['X-02','X','Code that runs on your behalf needs your approval','Site helpers and OS tasks from imports are flagged and run only after you approve their code (decided: imported scripts may run OS tasks once approved).','SG','new','R3'],
   ['X-03','X','Private by default','Recordings, motions, helpers and logs stay on the device; no proxies.','ALL','built'],
 ];
 const ST = { built: 'Built', part: 'Partly built', plan: 'Planned', new: 'New', bug: 'Bug', ask: 'Discuss' };

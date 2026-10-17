@@ -1169,6 +1169,34 @@ listeners.push(updateDrive);
    ============================================================ */
 let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
+/* Settings in tabs, by what the app is used for: the mode on top, then Assistant · Stage · Drive · Scripts & tasks · System.
+   Drive is there in DriveGen, and in StudioGen only when it's also used for driving. Groups go to tabs by their title. */
+const SETTINGS_TABS = [['assistant', 'Assistant'], ['stage', 'Stage'], ['drive', 'Drive'], ['scripts', 'Scripts & tasks'], ['system', 'System']];
+const SETTINGS_TAB_OF = { Assistant: 'assistant', Voice: 'assistant', Cameras: 'stage', 'Scripts & tasks': 'scripts', Display: 'system', System: 'system',
+  Dashboard: 'drive', 'Camera & objects': 'drive', Driving: 'drive', Navigation: 'drive', 'Phone & apps': 'drive', Location: 'drive' };
+function settingsTabs() {
+  const body = $('#settingsBody'), titles = $$(':scope > .group-title', body); if (!titles.length || $('.set-tabs', body)) return;
+  const drive = APP_NAME !== 'StudioGen' || settings.driveTabs, tabs = SETTINGS_TABS.filter(([k]) => k !== 'drive' || drive);
+  let cur = store.get('setTab', null); if (!tabs.some(t => t[0] === cur)) cur = settings.appMode === 'stage' ? 'stage' : APP_NAME === 'StudioGen' ? 'stage' : 'drive';
+  let mode = null;
+  for (const t of titles) {
+    const k = t.textContent.trim() === 'Mode' ? 'mode' : SETTINGS_TAB_OF[t.textContent.trim()] || 'system', g = t.nextElementSibling;
+    for (const el of [t, g?.classList.contains('group') ? g : null]) if (el) el.dataset.tab = k;
+    if (k === 'mode') mode = g;
+  }
+  // The mode group keeps the two switches that decide the rest; its Stage options go to the Stage tab.
+  const rows = mode ? [...mode.children] : [];
+  if (rows.length > 2) {
+    const t = document.createElement('div'), g = document.createElement('div'); t.className = 'group-title'; t.textContent = 'Presenting'; g.className = 'group'; t.dataset.tab = g.dataset.tab = 'stage';
+    g.append(...rows.slice(2)); mode.after(t, g);
+  }
+  const bar = document.createElement('div'); bar.className = 'set-tabs seg'; bar.setAttribute('role', 'tablist');
+  bar.innerHTML = tabs.map(([k, l]) => `<button role="tab" data-settab="${k}" class="${k === cur ? 'on' : ''}" aria-selected="${k === cur}">${esc(l)}</button>`).join('');
+  (mode ? mode.after(bar) : body.prepend(bar));
+  const show = k => { $$('[data-tab]', body).forEach(el => { el.hidden = el.dataset.tab !== 'mode' && el.dataset.tab !== k; }); $$('[data-settab]', bar).forEach(b => { b.classList.toggle('on', b.dataset.settab === k); b.setAttribute('aria-selected', b.dataset.settab === k); }); };
+  show(cur);
+  bar.addEventListener('click', e => { const b = e.target.closest('[data-settab]'); if (!b) return; store.set('setTab', b.dataset.settab); show(b.dataset.settab); body.scrollTop = 0; });
+}
 function renderSettings() {
   if (typeof CmdUI !== 'undefined' && CmdUI.shown) return CmdUI.render();
   if (typeof LinkUI !== 'undefined' && LinkUI.shown) return LinkUI.render();
@@ -1186,9 +1214,14 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
-      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
-      ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
+    </div>
+    <div class="group-title">Scripts &amp; tasks</div>
+    <div class="group">
+      ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations, demos and interactive sessions`) : ''}
+      ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
+      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
+      ${typeof OsTasks !== 'undefined' && OsTasks.can() ? btn('osApprovals', 'Tasks you always allow', 'AppleScript, Shortcuts and shell code from scripts') : ''}
     </div>
     <div class="group-title">Display</div>
     <div class="group">
@@ -1265,10 +1298,10 @@ function renderSettings() {
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
-      ${typeof OsTasks !== 'undefined' && OsTasks.can() ? btn('osApprovals', 'Tasks you always allow', 'AppleScript, Shortcuts and shell code from scripts') : ''}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() + btn('offlineAll', 'Download everything for offline use', 'Avatars and camera models download the first time they’re needed; this fetches them all now') : ''}
       <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : `version ${webVer || '…'}${swReg?.waiting ? ' · update ready' : ''}`}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
+  settingsTabs();
 }
 
 /* ============================================================

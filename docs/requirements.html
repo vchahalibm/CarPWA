@@ -46,7 +46,7 @@
 <body>
 <main>
   <h1>DriveGen &amp; StudioGen: requirements baseline</h1>
-  <p class="mut">What the two apps do, or are to do, from the user's point of view: one row per requirement, with its status. Updated as features are built. Baseline of 17 October 2026 (web files 33, desktop app 0.6.2).</p>
+  <p class="mut">What the two apps do, or are to do, from the user's point of view: one row per requirement, with its status. Updated as features are built. Baseline of 17 October 2026 (web files 33, desktop app 0.6.2); updated the same day as features landed (desktop app 0.8.0).</p>
 
   <ul class="toc">
     <li><a href="#vision">1. Vision: two apps, one code base</a></li>
@@ -78,12 +78,18 @@
     <figure><img src="req/drive-map.jpg" alt="Map layout"><figcaption>Drive: Map layout</figcaption></figure>
     <figure><img src="req/drive-widgets.jpg" alt="Widgets page"><figcaption>Drive: Widgets page</figcaption></figure>
     <figure><img src="req/stage.jpg" alt="Stage layout"><figcaption>Stage: a real browser widget (goindigo.in) beside the assistant</figcaption></figure>
-    <figure><img src="req/settings.jpg" alt="Settings"><figcaption>Settings: Mode, Cameras, Display… (one long list today)</figcaption></figure>
+    <figure><img src="req/settings.jpg" alt="Settings"><figcaption>Settings: the mode on top, then tabs by use (Assistant · Stage · Drive · Scripts &amp; tasks · System)</figcaption></figure>
     <figure><img src="req/scripts.jpg" alt="Scripts"><figcaption>Settings › Scripts: scripts, library address, sections</figcaption></figure>
     <figure><img src="req/editor.jpg" alt="Script editor"><figcaption>Script editor: storyboard cards with Show / Say / Next lanes</figcaption></figure>
     <figure><img src="req/library.jpg" alt="Library"><figcaption>Library: bundles to import, address, link</figcaption></figure>
     <figure><img src="req/motions.jpg" alt="Assistant motions"><figcaption>Assistant motions: preview, the assistant, capture</figcaption></figure>
     <figure><img src="req/capture.jpg" alt="Capture a motion"><figcaption>Capture a motion: full screen (test video as the camera)</figcaption></figure>
+    <figure><img src="req/capture-review.jpg" alt="Capture review"><figcaption>Capture review: trim bar; the legs keep the stance</figcaption></figure>
+    <figure><img src="req/avatars.jpg" alt="Avatars"><figcaption>Avatars: the core one, the others downloaded on request, add your own</figcaption></figure>
+    <figure><img src="req/interactive-editor.jpg" alt="Interactive script editor"><figcaption>Interactive script: intents with phrases, questions, steps (repeat, set…)</figcaption></figure>
+    <figure><img src="req/os-task.jpg" alt="Task on this computer"><figcaption>A task on this computer (JavaScript for Automation), its result kept as {front}</figcaption></figure>
+    <figure><img src="req/data-widget.jpg" alt="Data widget"><figcaption>Data widget on Stage: the Sales analyst sample, revenue by region</figcaption></figure>
+    <figure><img src="req/connections.jpg" alt="Connections"><figcaption>StudioGen › Connections: Tailscale, pairing code, devices, scripts offered</figcaption></figure>
     <figure class="tall"><img src="req/pwa-phone-portrait.jpg" alt="DriveGen phone"><figcaption>DriveGen on a phone (portrait, demo drive)</figcaption></figure>
     <figure><img src="req/pwa-phone-landscape.jpg" alt="DriveGen phone landscape"><figcaption>DriveGen on a phone in a car mount (landscape)</figcaption></figure>
     <figure><img src="req/pwa-ipad-stage.jpg" alt="DriveGen iPad stage"><figcaption>DriveGen on an iPad in Stage mode (sample deck)</figcaption></figure>
@@ -205,7 +211,7 @@ const REQS = [
   ['D-08','D','Radio, music hand-off, calls, messages, WhatsApp','Radio Browser stations; hand-off to the phone\'s apps; messages read aloud.','DP DT','built'],
   ['D-09','D','Camera object recognition and spoken alerts','YOLOv10 / D-FINE on the device; “what do you see?”.','DP DT','built'],
   ['D-10','D','Car safety','56 px+ tap targets, text hidden while moving, Drive rules apply on Stage when the car moves.','DP DT','built'],
-  ['D-11','D','Agentic in-car assistant','Converses with the driver, runs multi-step tasks (e.g. on a paired StudioGen), proactive updates.','DP','new','R3'],
+  ['D-11','D','Agentic in-car assistant','The pieces are in: interactive scripts (also in Drive mode, with the phone\'s voice), “run … on my Mac” over Tailscale, Understanding for free-form requests. Still to do: proactive updates while driving (traffic, messages, the Mac\'s jobs) and a ready-made in-car interactive script.','DP','part','R3'],
   ['V-01','V','Voice commands with forgiving matching','About 100 editable commands; exact, near-miss and loose matching with “Did you mean…?”.','ALL','built'],
   ['V-02','V','On-device listening (Whisper, Moonshine)','Phone recognizer in the car, on-device models on Stage and in StudioGen.','ALL','built'],
   ['V-03','V','Natural on-device reply voice (Kokoro)','Default in StudioGen; downloaded on first use on the web.','ALL','built'],
@@ -247,7 +253,7 @@ const REQS = [
   ['B-01','B','Export and import bundles','A script with its motions, helpers and recordings in one file.','ALL','built'],
   ['B-02','B','Library of bundles at a configurable address','Default this project\'s library/ on GitHub Pages; changed from Settings › Scripts.','ALL','built'],
   ['G-01','G','Version shown in DriveGen','Settings › System shows the version (the web app\'s release number) and Check for updates.','DP DT','built','R4'],
-  ['G-02','G','Settings designed per app and use','Groups: General, Assistant, Drive, Stage, Scripts & tasks, Connections, Advanced; Drive groups hidden in StudioGen unless used for driving.','ALL','new','R4'],
+  ['G-02','G','Settings designed per app and use','Settings in tabs by use: the mode on top (what it\'s used for, also for driving), then Assistant · Stage · Drive · Scripts & tasks · System; Drive only in DriveGen or when StudioGen is also used for driving; StudioGen opens on Stage, DriveGen in Drive mode on Drive.','ALL','built','R4'],
   ['G-03','G','“StudioGen is used for” with “Also for driving”','A checkbox next to the mode that brings back the Drive tabs and settings.','SG','built','R2'],
   ['G-04','G','Debug mode and logs','Hidden tab with a key; diagnostics, memory, log export.','ALL','built'],
   ['L-01','L','Pair DriveGen with StudioGen (QR code)','Decided: Tailscale. StudioGen › Settings › Connections: Tailscale status, Share on my tailnet (tailscale serve → https://<mac>.<tailnet>.ts.net, only your devices), Pair a device (one-time 6-digit code, 10 min, 5 tries), paired devices with Revoke.','ALL','built','R3'],

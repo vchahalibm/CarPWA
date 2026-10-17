@@ -33,14 +33,15 @@ const Direct = {
     return { type: j.t, sdp: j.s };
   },
   gathered(pc) { return new Promise(r => { if (pc.iceGatheringState === 'complete') return r(); const t = setTimeout(r, 4000); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); r(); } }); }); },
-  fresh() { this.close(true); const pc = this.pc = new RTCPeerConnection({ iceServers: [] }); pc.addEventListener('connectionstatechange', () => { if (['failed', 'closed'].includes(pc.connectionState) && this.pc === pc) this.lost(); }); return pc; },
+  // STUN only when set up through the relay (js/relay.js); the QR way stays on the local network.
+  fresh(ice = []) { this.close(true); const pc = this.pc = new RTCPeerConnection({ iceServers: ice }); pc.addEventListener('connectionstatechange', () => { if (['failed', 'closed'].includes(pc.connectionState) && this.pc === pc) this.lost(); }); return pc; },
   /* ---------- StudioGen: offer, then the phone's answer ---------- */
-  async offer() { const pc = this.fresh(); this.wire(pc.createDataChannel('studiogen', { ordered: true })); await pc.setLocalDescription(await pc.createOffer()); await this.gathered(pc); return this.pack(pc.localDescription); },
+  async offer(ice) { const pc = this.fresh(ice); this.wire(pc.createDataChannel('studiogen', { ordered: true })); await pc.setLocalDescription(await pc.createOffer()); await this.gathered(pc); return this.pack(pc.localDescription); },
   async accept(code) { const d = await this.unpack(code); if (d.type !== 'answer') throw new Error('Scan the code DriveGen shows after it scanned yours'); await this.pc.setRemoteDescription(d); },
   /* ---------- DriveGen: the Mac's offer → an answer to show ---------- */
-  async answer(code) {
+  async answer(code, ice) {
     const d = await this.unpack(code); if (d.type !== 'offer') throw new Error('Scan the code StudioGen shows (Settings › Connections › Connect a phone)');
-    const pc = this.fresh(); pc.addEventListener('datachannel', e => this.wire(e.channel));
+    const pc = this.fresh(ice); pc.addEventListener('datachannel', e => this.wire(e.channel));
     await pc.setRemoteDescription(d); await pc.setLocalDescription(await pc.createAnswer()); await this.gathered(pc); return this.pack(pc.localDescription);
   },
   /* ---------- The channel ---------- */
@@ -52,7 +53,7 @@ const Direct = {
   },
   send(m) { try { this.ch?.send(JSON.stringify(m)); } catch {} },
   async got(m) {
-    if (m.hello) { this.peer = m.hello.name || m.hello.app; Log.i('direct', `Connected: ${this.peer}`); toast(`Connected directly to ${this.peer}`); this.onchange?.(); Bus.emit('link.direct', { value: this.peer }); return; }
+    if (m.hello) { this.peer = m.hello.name || m.hello.app; Log.i('direct', `Connected: ${this.peer}`); if (!(typeof Relay !== 'undefined' && Relay.rooms().length)) toast(`Connected directly to ${this.peer}`); this.onchange?.(); Bus.emit('link.direct', { value: this.peer }); return; }
     if (m.ping) return;
     if (m.re) { const w = this.waits.get(m.re); if (w) { this.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
     if (m.ask) { // a request from the other side (StudioGen answers DriveGen's)
@@ -77,7 +78,7 @@ const Direct = {
   lost() {
     if (!this.pc && !this.ch) return;
     const was = this.peer; this.close(true);
-    if (was) { toast(`Direct link to ${was} ended: connect again in Settings`); Log.i('direct', 'Link ended'); }
+    if (was) { const relay = typeof Relay !== 'undefined' && Relay.rooms().length; if (!relay) toast(`Direct link to ${was} ended: connect again in Settings`); Log.i('direct', `Link ended${relay ? ': the relay carries on' : ''}`); }
     this.onchange?.();
   },
   close(quiet) {
@@ -97,7 +98,7 @@ const Direct = {
   done() { this.stopScan(); $('#dlFull')?.remove(); },
   async showCode(el, code) { await LinkHost.qr(el, code, 'L'); },
   /** Scan a StudioGen code with the camera (jsQR, vendor/jsqr): resolves with the text. */
-  async scan(el) {
+  async scan(el, prefix = 'SG1') {
     if (!window.jsQR) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/jsqr/jsQR.js'; s.onload = res; s.onerror = () => rej(new Error('The code reader didn’t load')); document.head.appendChild(s); });
     const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; el.replaceChildren(v);
     v.srcObject = await Camera.get('qr'); await v.play().catch(() => {});
@@ -109,7 +110,7 @@ const Direct = {
         if (v.videoWidth) {
           const k = Math.min(1, 900 / Math.max(v.videoWidth, v.videoHeight)); cv.width = v.videoWidth * k; cv.height = v.videoHeight * k;
           cx.drawImage(v, 0, 0, cv.width, cv.height); const q = jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height, { inversionAttempts: 'dontInvert' });
-          if (q?.data?.startsWith('SG1')) { this.stopScan(); return res(q.data); }
+          if (q?.data?.startsWith(prefix)) { this.stopScan(); return res(q.data); }
         }
         this.scanTimer = setTimeout(look, 180);
       };

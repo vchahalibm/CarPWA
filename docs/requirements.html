@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveGen &amp; StudioGen Requirements</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb;
+    --built:#0f8a4b; --part:#b7791f; --plan:#5b6472; --new:#7c3aed; --bug:#c2262e; --ask:#0e7490; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff;
+    --built:#34c47c; --part:#e0a84a; --plan:#9aa3b2; --new:#a78bfa; --bug:#f2646b; --ask:#3fc1d6; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff;
+    --built:#34c47c; --part:#e0a84a; --plan:#9aa3b2; --new:#a78bfa; --bug:#f2646b; --ask:#3fc1d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:21px; margin:40px 0 10px; padding-top:8px; border-top:1px solid var(--line); }
+  h3 { font-size:16px; margin:22px 0 6px; } p, li { color:var(--ink); } .mut { color:var(--mut); }
+  a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); }
+  figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  figure img { display:block; width:100%; height:auto; cursor:zoom-in; } figcaption { padding:8px 12px; font-size:13px; color:var(--mut); }
+  figure.tall img { max-height:420px; object-fit:contain; background:#000; }
+  .toc { columns:2 260px; padding-left:18px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+  .chip { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px; padding:5px 12px; font-size:13px; cursor:pointer; }
+  .chip.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  input.search { width:100%; padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:15px; }
+  .tbl { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .tbl th, .tbl td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+  .tbl th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  .tbl td.id { font:12px ui-monospace, Menlo, monospace; white-space:nowrap; color:var(--mut); }
+  .tbl .d { color:var(--mut); font-size:13px; margin-top:2px; }
+  .st { display:inline-block; font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; border:1px solid currentColor; }
+  .st.built { color:var(--built); } .st.part { color:var(--part); } .st.plan { color:var(--plan); } .st.new { color:var(--new); } .st.bug { color:var(--bug); } .st.ask { color:var(--ask); }
+  .apps { white-space:nowrap; font-size:12px; color:var(--mut); }
+  .count { font-size:13px; color:var(--mut); margin:6px 0; }
+  pre.diagram { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  .q { border-left:3px solid var(--ask); }
+  .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; padding:16px; z-index:9; cursor:zoom-out; }
+  .lightbox.on { display:flex; } .lightbox img { max-width:100%; max-height:100%; }
+  @media (max-width:640px) { .tbl th.apps-h, .tbl td.apps { display:none; } h1 { font-size:23px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>DriveGen &amp; StudioGen: requirements baseline</h1>
+  <p class="mut">What the two apps do, or are to do, from the user's point of view: one row per requirement, with its status. Updated as features are built. Baseline of 17 October 2026 (web files 33, desktop app 0.6.2).</p>
+
+  <ul class="toc">
+    <li><a href="#vision">1. Vision: two apps, one code base</a></li>
+    <li><a href="#screens">2. The app today (screenshots)</a></li>
+    <li><a href="#reqs">3. Requirements (filterable)</a></li>
+    <li><a href="#arch">4. Proposed architecture for the new requests</a></li>
+    <li><a href="#avatars">5. Avatars: choices to discuss</a></li>
+    <li><a href="#lower">6. Lower-body modes (mocap without legs)</a></li>
+    <li><a href="#questions">7. Open questions</a></li>
+  </ul>
+
+  <h2 id="vision">1. Vision: two apps, one code base</h2>
+  <div class="grid">
+    <div class="card"><h3>DriveGen (the web app, PWA)</h3>
+      <p><b>On a phone in the car</b>: an agentic system that talks with the driver, an alternative to CarPlay: dashboard, maps and navigation, voice, music and radio, calls and messages, camera alerts.</p>
+      <p><b>On an iPhone or iPad</b>: both the in-car assistant <i>and</i> agentic presentations and interactive tech demos (Stage mode).</p>
+      <p><b>Tasks</b>: connects to a StudioGen to run task scripts there and get the results back.</p></div>
+    <div class="card"><h3>StudioGen (the desktop app, Electron)</h3>
+      <p>Agentic presentations, interactive tech demonstrator, interactive desktop task agent, user-and-agent tandem tasks, interactive data steward and agentic data analyst, all through <b>scripts</b>.</p>
+      <p>Scripts drive the screen, web sites, the app and the <b>computer itself</b> (AppleScript on a Mac, PowerShell on Windows), partly <b>in the background</b> while the assistant keeps talking with you.</p>
+      <p>Hosts the heavy models and serves DriveGen devices.</p></div>
+  </div>
+  <p class="mut">Rules that apply everywhere: the same web code runs in both apps (feature checks only); everything works offline where it can; nothing personal leaves the device unless you send it; passwords, payment and one-time codes are never recorded; product names come from <code>APP_NAME</code>.</p>
+
+  <h2 id="screens">2. The app today</h2>
+  <p class="mut">StudioGen (desktop app) and DriveGen (web app on a phone and an iPad). Click a picture to enlarge it.</p>
+  <div class="grid">
+    <figure><img src="req/drive-cluster.jpg" alt="Cluster layout"><figcaption>Drive: Cluster layout (Twin Dials style, 3D map)</figcaption></figure>
+    <figure><img src="req/drive-map.jpg" alt="Map layout"><figcaption>Drive: Map layout</figcaption></figure>
+    <figure><img src="req/drive-widgets.jpg" alt="Widgets page"><figcaption>Drive: Widgets page</figcaption></figure>
+    <figure><img src="req/stage.jpg" alt="Stage layout"><figcaption>Stage: a real browser widget (goindigo.in) beside the assistant</figcaption></figure>
+    <figure><img src="req/settings.jpg" alt="Settings"><figcaption>Settings: Mode, Cameras, Display… (one long list today)</figcaption></figure>
+    <figure><img src="req/scripts.jpg" alt="Scripts"><figcaption>Settings › Scripts: scripts, library address, sections</figcaption></figure>
+    <figure><img src="req/editor.jpg" alt="Script editor"><figcaption>Script editor: storyboard cards with Show / Say / Next lanes</figcaption></figure>
+    <figure><img src="req/library.jpg" alt="Library"><figcaption>Library: bundles to import, address, link</figcaption></figure>
+    <figure><img src="req/motions.jpg" alt="Assistant motions"><figcaption>Assistant motions: preview, the assistant, capture</figcaption></figure>
+    <figure><img src="req/capture.jpg" alt="Capture a motion"><figcaption>Capture a motion: full screen (test video as the camera)</figcaption></figure>
+    <figure class="tall"><img src="req/pwa-phone-portrait.jpg" alt="DriveGen phone"><figcaption>DriveGen on a phone (portrait, demo drive)</figcaption></figure>
+    <figure><img src="req/pwa-phone-landscape.jpg" alt="DriveGen phone landscape"><figcaption>DriveGen on a phone in a car mount (landscape)</figcaption></figure>
+    <figure><img src="req/pwa-ipad-stage.jpg" alt="DriveGen iPad stage"><figcaption>DriveGen on an iPad in Stage mode (sample deck)</figcaption></figure>
+  </div>
+
+  <h2 id="reqs">3. Requirements</h2>
+  <p class="mut"><b>Apps</b>: DP = DriveGen on a phone, DT = DriveGen on an iPad/tablet, SG = StudioGen. <b>Status</b>: Built, Partly built, Planned (roadmap), New (requested, not started), Bug, Discuss (needs a decision first). <i>R</i> marks your requests of 17 Oct 2026 (numbered as in your message).</p>
+  <input class="search" id="q" placeholder="Search requirements…" aria-label="Search requirements">
+  <div class="chips" id="stF"></div>
+  <div class="chips" id="arF"></div>
+  <div class="count" id="count"></div>
+  <table class="tbl"><thead><tr><th>ID</th><th>Requirement</th><th class="apps-h">Apps</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table>
+
+  <h2 id="arch">4. Proposed architecture for the new requests</h2>
+  <p>A proposal to discuss before building (your items 3 and 7). It extends what exists: scripts are already lists of <code>Actions</code>, the runner already listens for phrases, gestures and app events, and the roadmap already plans pairing an iPad with the Mac (Phase D).</p>
+<pre class="diagram">
+ DriveGen (phone / iPad, PWA)                           StudioGen (Mac; Windows later?)
+ ───────────────────────────                            ─────────────────────────────────────────────
+ Voice, gestures, Stage, Drive                          Same web app (scripts, avatar, Stage)
+ Script runner (same engine)                            Script runner ── Jobs: background steps
+   │  "run the Q3 report task"                            │                 │
+   │                                                      ▼                 ▼
+   └──► Link (paired, encrypted) ───────────────────►  Task host (main process, not the page)
+        same Wi-Fi: WebSocket + Mac's certificate         ├─ AppleScript / JXA  (osascript)
+        away: Tailscale (or a relay)                      ├─ PowerShell (Windows build)
+   ◄── progress, results, files ◄──────────────────────   ├─ shell / Python (opt-in)
+                                                          ├─ web + app steps (exist today)
+                                                          └─ later: local LLM, data tools
+</pre>
+  <h3>4.1 Script engine: from a list of steps to a conversation</h3>
+  <ul>
+    <li><b>Steps stay cards</b>, but each step can also have: <b>conditions</b> (“if the task found errors”), <b>variables</b> (<code>{task.result}</code>, <code>{heard.place}</code>), and a <b>loop</b> (“repeat until the user says done”, “for each file”).</li>
+    <li><b>Background steps</b>: any action can be marked <i>in the background</i>. The script carries on (the assistant keeps talking or listening); a <b>job</b> list shows what runs; a step can <i>wait for</i> a job, and a job finishing is an event that can move the script on or branch (“when the export finishes, tell me”). The assistant can announce progress between other steps.</li>
+    <li><b>Interactive (agent) scripts</b>, a second kind of script: instead of a timeline, a set of <b>things it can do</b>, each started by phrases, gestures or events (intents). The assistant waits, listens (conversation mode), matches what you say or show to an intent with the existing forgiving matcher, runs its steps, reports, and waits again, looping until you end it (“that's all”, a gesture, a timeout). Intents can ask follow-up questions (“which month?”) and fill variables.</li>
+    <li><b>Later</b>: a local language model (roadmap Phase E) to understand free-form requests and pick the intent and its values; the same intents stay the guard-rails of what it may do.</li>
+  </ul>
+  <h3>4.2 OS tasks (AppleScript and the Windows equivalent)</h3>
+  <ul>
+    <li>A new step kind <b>Run on this computer</b>: AppleScript or JavaScript for Automation on a Mac (<code>osascript</code>), PowerShell on Windows, with inputs from script variables and its output (text or JSON) back into variables the assistant can speak or show (a table widget).</li>
+    <li>Runs in the desktop app's main process, never in web pages; time limit and a <b>Stop</b> button; its output is logged.</li>
+    <li><b>Safety</b>: the first run of each OS task shows its code and asks (“Allow always for this script?”); imported bundles that contain OS tasks are flagged like site helpers and need that approval again; macOS will ask once for Automation / Accessibility permission per app being controlled. DriveGen can only run tasks the StudioGen owner has marked <i>available to paired devices</i>.</li>
+    <li>A library of ready tasks to start from: open an app or file, read the frontmost window title, export from Numbers/Excel, read a folder, Finder actions, Mail drafts, Calendar events, Shortcuts (run a macOS Shortcut by name).</li>
+  </ul>
+  <h3>4.3 DriveGen ↔ StudioGen link</h3>
+  <ul>
+    <li>Pairing by QR code from StudioGen (roadmap Phase D); paired devices listed with <b>Revoke</b>.</li>
+    <li>DriveGen sees the tasks and scripts StudioGen offers, runs one (“run the sales summary on my Mac”), gets progress and the result spoken or shown; also the Mac's heavier models for an iPad on Stage.</li>
+    <li>On the same Wi-Fi it's direct. From a car on mobile data the Mac must be reachable: <b>Tailscale</b> (no server, free for personal use) or a small relay server (a cloud service to run and secure). See the questions.</li>
+  </ul>
+  <h3>4.4 Settings shaped by the app</h3>
+  <ul>
+    <li>Settings grouped by what you're doing: <b>General</b> (app, version, updates, storage and downloads, about), <b>Assistant</b> (avatar, voice, listening, conversation), <b>Drive</b> (DriveGen: dashboard, navigation, music, phone, camera alerts), <b>Stage</b> (layout, presenting, people tracking, cameras), <b>Scripts &amp; tasks</b>, <b>Connections</b> (paired devices / Macs), <b>Advanced</b> (models, memory, logs).</li>
+    <li>StudioGen opens on Stage and hides Drive groups unless “Also use for driving” is on; DriveGen on a phone opens on Drive.</li>
+  </ul>
+
+  <h2 id="avatars">5. Avatars: choices to discuss</h2>
+  <div class="card">
+    <p><b>Default</b>: one core anime avatar comes with the app (downloaded on first start); every other one is downloaded from Settings › Assistant › Avatars (a gallery with previews and licences) or added from a file. The Rocketbox people (Maya, Leo) stay supported but are not downloaded by default.</p>
+    <p><b>Where avatars come from</b>, best first:</p>
+    <ol>
+      <li><b>VRM files</b> (VRM 0 and 1; the VTuber standard): VRoid Studio exports, VRoid Hub downloads the author allows, BOOTH. Works today; only needs the upload check.</li>
+      <li><b>A gallery we curate</b>: CC0 or credit-only VRMs listed in the library index, downloaded on request and checked by SHA-256 (same as the lazy files).</li>
+      <li><b>VRChat / Unity avatars</b>: shipped as Unity packages (.unitypackage) with FBX and PhysBones; a browser can't import them directly. Path: the free UniVRM exporter in Unity (or the VRM add-on for Blender) turns them into VRM. We document the steps; optionally a converter in <code>tools/avatars</code>.</li>
+      <li><b>GLB / FBX humanoids</b> (Mixamo, Ready Player Me, MMD after conversion): load them with a <b>bone-mapping screen</b> that guesses the humanoid bones by name and lets you fix the rest; no expressions unless the file has blend shapes.</li>
+      <li><b>VRoid Hub in the app</b>: browse and download from inside the app needs a registered VRoid Hub app and sign-in, and their terms; possible later.</li>
+    </ol>
+    <p><b>Upload check</b>: on adding a file the app reads it and reports: humanoid bones found and missing (hips, spine, chest, neck, head, arms, hands, legs, feet, fingers), expressions present (blink, a/i/u/e/o, joy/sorrow…, ARKit 52), VRM version, size and polygon count (warns over a budget), licence fields from the VRM meta (commercial use, credit). Missing core bones: refused with the list; missing fingers or expressions: allowed with a note on what won't move.</p>
+  </div>
+
+  <h2 id="lower">6. Lower-body modes (mocap without legs)</h2>
+  <p>Proposal: capture follows the upper body, hands, face and lips only, so you can sit or stand close to the camera; legs come from a chosen <b>stance</b>, mixed under the captured upper body (also usable on any motion and in scripts):</p>
+  <div class="grid">
+    <div class="card"><b>Stand</b>: still, weight centred, tiny breathing sway. The default for capture.</div>
+    <div class="card"><b>Relaxed sway</b>: slow weight shifts from foot to foot, knees soft.</div>
+    <div class="card"><b>Presenter walk</b>: a few steps left or right and back, turning slightly toward the audience; a script can say “walk to the left side” (toward a widget).</div>
+    <div class="card"><b>Step in / step back</b>: one step toward the audience for emphasis, and back.</div>
+    <div class="card"><b>Lean on one hip</b>: casual contrapposto, swaps sides now and then.</div>
+    <div class="card"><b>Rooted with hips that follow</b>: feet planted, hips turn and lean a little with the captured torso, so a twist or a bow looks natural.</div>
+    <div class="card"><b>Seated</b>: for a desk scene (needs a chair or a cropped view).</div>
+    <div class="card"><b>Energetic</b>: small bounce on the beat (celebrate, the radio dancing).</div>
+  </div>
+  <p class="mut">Capture control without walking back to the screen: start with a countdown, stop by voice (“stop”, “cut”) or a hand sign (both palms up, or the claim gesture), or a fixed length; the take is trimmed to where you started and stopped moving, with a trim bar in the review.</p>
+
+  <h2 id="questions">7. Open questions</h2>
+  <div class="card q"><b>Q1 · Windows</b>: the roadmap dropped the Windows build. Build StudioGen for Windows (PowerShell tasks) now, or Mac first with the task design ready for Windows?</div>
+  <div class="card q"><b>Q2 · Reaching the Mac from the car</b>: same Wi-Fi only at first, Tailscale, or a relay server we host?</div>
+  <div class="card q"><b>Q3 · The core avatar</b>: Vita (CC0, today's default), Ren (CC0), Seed-san (credit required), or a new one to pick from a short list?</div>
+  <div class="card q"><b>Q4 · Understanding free-form requests</b> in interactive scripts: phrase/intent matching now and a local model later, a local model on the Mac now, or optionally a cloud model with your own key?</div>
+  <div class="card q"><b>Q5 · Who may run OS tasks</b>: only scripts you made on this computer, or also imported ones after you approve their code, and from paired DriveGen devices only when marked available?</div>
+  <div class="card q"><b>Q6 · Data steward / analyst</b>: which data first (Excel/CSV files, a database, a web dashboard), and should results show as a table/chart widget?</div>
+</main>
+<div class="lightbox" id="lb"><img alt=""></div>
+<script>
+// Requirements: [id, area, title, detail, apps, status]. Status: built | part | plan | new | bug | ask.
+const AREAS = { P: 'Platform & updates', D: 'Drive', V: 'Voice', S: 'Stage', A: 'Assistant avatar', M: 'Motion capture', C: 'Scripts', W: 'Web, app & OS steps', B: 'Sharing', G: 'Settings & app info', L: 'Connections', X: 'Safety & privacy' };
+const ALL = 'DP DT SG';
+const REQS = [
+  ['P-01','P','Installable web app that works offline','Install from Safari/Chrome; the app shell is cached; updates arrive in the background with Update now / Later.','DP DT','built'],
+  ['P-02','P','Desktop app (Mac) from the same web files','Electron wrapper; DMG for Apple silicon and Intel; menu bar app, start at login.','SG','built'],
+  ['P-03','P','Product names and icons per app','DriveGen (web) and StudioGen (desktop), robot-hand icons; names from APP_NAME.','ALL','built'],
+  ['P-04','P','Signed self-updates without a developer account','Web layer and app layer signed with Ed25519; checked before use; app layer swapped on quit/restart.','SG','built'],
+  ['P-05','P','Restart now really restarts the app and the bar goes away','Fixed in 0.6.2.','SG','built'],
+  ['P-06','P','Small download; big files on first use','DMG 118 MB (from 175); avatars, camera models and WASM download when first needed, checked by SHA-256.','SG','built'],
+  ['P-07','P','Download everything for offline use','One button fetches every on-demand file before an offline show.','SG','built'],
+  ['P-08','P','The user can move/drag the app window','The hidden title bar left no area to drag the window by.','SG','bug','R1'],
+  ['P-09','P','Windows build of StudioGen','Dropped in the roadmap; needed for PowerShell tasks if Windows matters.','SG','ask','R3'],
+  ['D-01','D','Dashboard with Cluster, Map and Widgets layouts','Swipe or pill to switch; eight cluster styles; accent colours; seamless or card widgets.','DP DT','built'],
+  ['D-02','D','Widgets you add, size, stack, float','Pages of widgets, resize in half cells down to a sliver, widgets beside and inside the cluster, floating camera and 3D widgets.','ALL','built'],
+  ['D-03','D','Real readings only','GPS, route, clock, weather, motion sensors; no fake car data.','DP DT','built'],
+  ['D-04','D','Maps, search and turn-by-turn navigation','MapLibre + OpenFreeMap, Valhalla/OSRM/TomTom routing, spoken prompts, rerouting, speed limits.','DP DT','built'],
+  ['D-05','D','Map, 3D, AR and HUD driving views','AR ribbon on the rear camera with calibration; mirrored HUD.','DP DT','built'],
+  ['D-06','D','Demo drive for testing','Simulated drive in Bengaluru.','DP DT','built'],
+  ['D-07','D','The demo drive does not start in StudioGen','StudioGen is not for driving: no demo drive, no location prompt by default.','SG','new','R2'],
+  ['D-08','D','Radio, music hand-off, calls, messages, WhatsApp','Radio Browser stations; hand-off to the phone\'s apps; messages read aloud.','DP DT','built'],
+  ['D-09','D','Camera object recognition and spoken alerts','YOLOv10 / D-FINE on the device; “what do you see?”.','DP DT','built'],
+  ['D-10','D','Car safety','56 px+ tap targets, text hidden while moving, Drive rules apply on Stage when the car moves.','DP DT','built'],
+  ['D-11','D','Agentic in-car assistant','Converses with the driver, runs multi-step tasks (e.g. on a paired StudioGen), proactive updates.','DP','new','R3'],
+  ['V-01','V','Voice commands with forgiving matching','About 100 editable commands; exact, near-miss and loose matching with “Did you mean…?”.','ALL','built'],
+  ['V-02','V','On-device listening (Whisper, Moonshine)','Phone recognizer in the car, on-device models on Stage and in StudioGen.','ALL','built'],
+  ['V-03','V','Natural on-device reply voice (Kokoro)','Default in StudioGen; downloaded on first use on the web.','ALL','built'],
+  ['V-04','V','Conversation mode (full duplex, barge-in)','Beta; Stage default on the Mac is planned.','ALL','part'],
+  ['V-05','V','Assistant widget: the conversation by day','','ALL','built'],
+  ['S-01','S','Stage mode with the Stage layout','Content, presenter column with the avatar, captions; 16:9, 4:3, portrait.','DT SG','built'],
+  ['S-02','S','Stage hides the Cluster, Map and Widgets tabs','Shown only when Settings has “Also use for driving” (StudioGen) checked.','DT SG','new','R2'],
+  ['S-03','S','Documents, video, web pages, 3D in widgets','PDF, PowerPoint with speaker notes, YouTube, video files, web pages, GLB.','ALL','built'],
+  ['S-04','S','Real browser widgets for any site','Sign-ins kept; sites that refuse frames still show.','SG','built'],
+  ['S-05','S','Presenter view and Present on another screen','Notes, timer, next, controls, live preview.','DT SG','built'],
+  ['S-06','S','People tracking: claim gesture, follow the presenter','Hands, pose, face mesh; only listen to the presenter; blur other faces.','DT SG','built'],
+  ['S-07','S','Point and pinch to click','','DT SG','built'],
+  ['A-01','A','VRM avatars that talk, blink, look, gesture','Lip-sync, springs, idle and talking layers, about 45 motions.','ALL','built'],
+  ['A-02','A','Built-in choices: Vita, Ren, Maya, Leo, Seed-san','Maya and Leo (Rocketbox) have ARKit face shapes but look stiff.','ALL','built'],
+  ['A-03','A','One core anime avatar by default; others on request','Only the core avatar downloads on install; the rest from Settings › Avatars; Rocketbox kept but not default.','ALL','new','R5'],
+  ['A-04','A','Avatar gallery: download more from Settings','Previews, licences, size; downloaded and checked like the lazy files.','ALL','new','R5'],
+  ['A-05','A','Upload an avatar with a bone and expression check','Report missing bones/expressions, VRM version, size, licence; refuse when core bones are missing.','ALL','new','R5'],
+  ['A-06','A','VRChat / VTuber avatars','VRM directly; Unity/VRChat via UniVRM or Blender VRM add-on; GLB/FBX with a bone-mapping screen.','ALL','ask','R5'],
+  ['A-07','A','Lower-body stances','Stand, sway, presenter walk, step in, lean, rooted hips, seated, energetic; mixed under any motion; script action.','ALL','new','R6'],
+  ['M-01','M','Capture a motion from the camera','Full screen, Kalidokit solver, hands and face (52 shapes), saved to the library.','DT SG','built'],
+  ['M-02','M','Capture the upper body, hands, face and lips only','Legs no longer follow the user (they tilted the avatar); a stance drives them.','DT SG','new','R6'],
+  ['M-03','M','Start and stop capture without walking to the screen','Countdown to start; stop by voice or a hand sign; auto-trim; trim bar.','DT SG','new','R6'],
+  ['C-01','C','Scripts: avatar-led presentations','Steps with on-screen actions, a line with mood and motion, and how it moves on.','ALL','built'],
+  ['C-02','C','Storyboard editor with wizard','Show / Say / Next lanes, pickers that explain each kind.','ALL','built'],
+  ['C-03','C','Move on by phrase, gesture, clicker, event or timer; jumps','Branches jump to other steps; back, start over, repeat.','ALL','built'],
+  ['C-04','C','Loops, conditions and variables in scripts','Repeat until, for each, if; values from what was heard and from tasks.','ALL','new','R7'],
+  ['C-05','C','Interactive (agent) scripts driven by the user','Intents from speech and gestures map to steps; waits for the next interaction; loops; ends on the user\'s word or sign.','ALL','new','R7'],
+  ['C-06','C','Background steps (jobs)','A step runs in the background while the assistant talks; wait for it or react when it finishes; job list.','ALL','new','R3'],
+  ['C-07','C','Understand free-form requests','Local model on the Mac (or another choice) maps what you say to intents and values.','SG','ask','R3'],
+  ['W-01','W','Record and replay web steps','Own pages in the web app (bridge), any site in StudioGen; real input; pointer and pulse dots.','ALL','built'],
+  ['W-02','W','Record and replay app steps','Clicks, typing, keys, scrolls and drags anywhere in the app.','ALL','built'],
+  ['W-03','W','Find things on screen by description','Florence-2 on the device; your own detector from the Trainer.','SG','built'],
+  ['W-04','W','Site helpers','Your CSS/JS per site, with examples.','SG','built'],
+  ['W-05','W','Run AppleScript / JXA from scripts','Inputs from variables, output back; approval on first run; time limit and Stop.','SG','new','R3'],
+  ['W-06','W','Run PowerShell from scripts (Windows)','Depends on P-09.','SG','ask','R3'],
+  ['W-07','W','Ready-made OS task library','Open apps/files, Finder, Mail drafts, Calendar, Numbers/Excel export, run a macOS Shortcut.','SG','new','R3'],
+  ['W-08','W','Data steward / analyst tasks','Read and check data files or sources, summarise, show a table/chart widget, talk about results.','SG','ask','R3'],
+  ['B-01','B','Export and import bundles','A script with its motions, helpers and recordings in one file.','ALL','built'],
+  ['B-02','B','Library of bundles at a configurable address','Default this project\'s library/ on GitHub Pages; changed from Settings › Scripts.','ALL','built'],
+  ['G-01','G','Version shown in DriveGen','Settings shows the web version, date and what\'s new, like StudioGen.','DP DT','new','R4'],
+  ['G-02','G','Settings designed per app and use','Groups: General, Assistant, Drive, Stage, Scripts & tasks, Connections, Advanced; Drive groups hidden in StudioGen unless used for driving.','ALL','new','R4'],
+  ['G-03','G','“StudioGen is used for” with “Also for driving”','A checkbox next to the mode that brings back the Drive tabs and settings.','SG','new','R2'],
+  ['G-04','G','Debug mode and logs','Hidden tab with a key; diagnostics, memory, log export.','ALL','built'],
+  ['L-01','L','Pair DriveGen with StudioGen (QR code)','Roadmap Phase D; revoke and re-pair.','ALL','plan','R3'],
+  ['L-02','L','Run a task on StudioGen from DriveGen and get results','Listed tasks marked available to paired devices; progress and results spoken/shown.','DP DT','new','R3'],
+  ['L-03','L','Reach the Mac from the car','Same Wi-Fi, Tailscale or a relay.','DP','ask','R3'],
+  ['L-04','L','The Mac\'s models for an iPad on Stage','Roadmap Phase C/D; falls back to on-device.','DT','plan'],
+  ['X-01','X','Never record passwords, payment or one-time codes','','ALL','built'],
+  ['X-02','X','Code that runs on your behalf needs your approval','Site helpers and OS tasks from imports are flagged; OS tasks ask on first run.','SG','part','R3'],
+  ['X-03','X','Private by default','Recordings, motions, helpers and logs stay on the device; no proxies.','ALL','built'],
+];
+const ST = { built: 'Built', part: 'Partly built', plan: 'Planned', new: 'New', bug: 'Bug', ask: 'Discuss' };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const f = { st: new Set(), ar: new Set(), q: '' };
+const chips = (el, map, key) => { el.innerHTML = Object.entries(map).map(([k, v]) => `<button class="chip" data-k="${key}" data-v="${k}">${esc(v)} <span class="mut">${REQS.filter(r => r[key === 'st' ? 5 : 1] === k).length}</span></button>`).join(''); };
+chips(document.getElementById('stF'), ST, 'st'); chips(document.getElementById('arF'), AREAS, 'ar');
+function render() {
+  const rows = REQS.filter(r => (!f.st.size || f.st.has(r[5])) && (!f.ar.size || f.ar.has(r[1])) && (!f.q || r.join(' ').toLowerCase().includes(f.q)));
+  document.getElementById('rows').innerHTML = rows.map(r => `<tr><td class="id">${r[0]}${r[6] ? `<br><i>${r[6]}</i>` : ''}</td><td><b>${esc(r[2])}</b>${r[3] ? `<div class="d">${esc(r[3])}</div>` : ''}</td><td class="apps">${(r[4] === 'ALL' ? ALL : r[4]).split(' ').join(' · ')}</td><td><span class="st ${r[5]}">${ST[r[5]]}</span></td></tr>`).join('');
+  document.getElementById('count').textContent = `${rows.length} of ${REQS.length} requirements`;
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('.chip[data-k]');
+  if (c) { const s = f[c.dataset.k]; s.has(c.dataset.v) ? s.delete(c.dataset.v) : s.add(c.dataset.v); c.classList.toggle('on'); render(); return; }
+  const img = e.target.closest('figure img'), lb = document.getElementById('lb');
+  if (img) { lb.querySelector('img').src = img.src; lb.classList.add('on'); } else if (e.target.closest('#lb')) lb.classList.remove('on');
+});
+document.getElementById('q').addEventListener('input', e => { f.q = e.target.value.trim().toLowerCase(); render(); });
+render();
+</script>
+</body>
+</html>

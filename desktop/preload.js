@@ -39,6 +39,13 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     approvals: () => ipcRenderer.invoke('dd:task-approvals'),
     forget: h => ipcRenderer.invoke('dd:task-forget', h),
   },
+  /** Data for the data widget (desktop/data.js): query({ file, sql, params }) → { ok, columns, rows, total } read-only SQLite;
+      read({ file }) → { ok, text } a CSV/JSON file; pick({ kind: 'db' | 'text' }) → a path the user chose. */
+  data: {
+    query: o => ipcRenderer.invoke('dd:data-query', o),
+    read: o => ipcRenderer.invoke('dd:data-read', o),
+    pick: o => ipcRenderer.invoke('dd:data-pick', o),
+  },
   /** The menu bar asks the page for something (e.g. 'settings'). */
   onMenu: f => ipcRenderer.on('dd:menu', (e, what) => f(what)),
 });

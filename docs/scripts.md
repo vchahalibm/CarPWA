@@ -131,3 +131,14 @@ leave the microphone to you), and when what you say matches an intent, does it, 
 - The output is text, or data when it prints JSON; a failure sets `{result_error}`. Mark it `background` to keep talking
   meanwhile. macOS asks once per app a task controls (Automation).
 - Ready-made tasks are in the editor's picker (This computer). DriveGen will run them through a paired StudioGen.
+
+## Data (the data widget)
+
+- `{ "do": "data.csv", "value": "samples/sales.csv", "as": "rows" }`: a CSV, TSV or JSON link, or a path on this computer
+  (StudioGen; the first read of each file asks). The rows go into the data widget (one is added when there's none) and `as`.
+- `{ "do": "data.sql", "value": "SELECT region, SUM(revenue) AS revenue FROM sales WHERE month = ? GROUP BY region", "args": ["~/data/sales.sqlite", "{month}"] }`:
+  SQLite in StudioGen, **read-only**; the query is used as written and the inputs after the file are bound to each `?`.
+- `{ "do": "data.show", "value": "{rows}" }`: rows from an earlier step (a task's JSON, the model's answer, CSV text).
+- `{ "do": "data.chart", "value": "bar of revenue by region" }` or `type=line x=month y=revenue,units agg=sum sort=desc top=5 view=chart`
+  (types bar, line, pie, doughnut, scatter, none; agg none, sum, avg, count, min, max; sort none, x, desc, asc; view both, chart, table).
+- `{ "do": "data.summary" }` says a few sentences about the data (rows, totals, averages, ranges, the top label); with `as` it's kept, not said.

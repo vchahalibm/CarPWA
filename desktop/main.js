@@ -18,6 +18,7 @@ try { const ud = app.getPath('userData'), old = path.join(path.dirname(ud), 'Dri
 const BUNDLED = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.join(__dirname, '..');
 const Updates = require('./updater')({ app, net, bundled: BUNDLED });
 const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
+const Data = require('./data')({ app, dialog, getWindow: () => mainWin }); // SQLite (read-only) and data files for the data widget
 let WEB = BUNDLED, VENDOR = path.join(BUNDLED, 'vendor');
 function useWeb() { const a = app.isPackaged ? Updates.active() : { app: BUNDLED, vendor: path.join(BUNDLED, 'vendor'), version: 0 }; WEB = a.app; VENDOR = a.vendor; Updates.served(a.version); bridgeSrc = null; return a; }
 
@@ -196,6 +197,10 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:task-stop', own(id => Tasks.stop(id)));
   ipcMain.handle('dd:task-approvals', own(() => Tasks.approvals()));
   ipcMain.handle('dd:task-forget', own(h => Tasks.forget(h)));
+  // Data (desktop/data.js): read-only SQLite queries, data files; each file needs the user's yes once.
+  ipcMain.handle('dd:data-query', own(o => Data.query(o)));
+  ipcMain.handle('dd:data-read', own(o => Data.read(o)));
+  ipcMain.handle('dd:data-pick', own(o => Data.pick(o)));
   // Script steps (js/appsteps.js): real mouse and keyboard input in the app's own window, as a person would, so anything on
   // screen reacts (canvases, maps, web widgets). Only the app's own page can ask, and only for its own window.
   const INPUT = new Set(['mouseMove', 'mouseDown', 'mouseUp', 'mouseWheel', 'keyDown', 'keyUp', 'char']);

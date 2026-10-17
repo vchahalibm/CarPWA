@@ -382,7 +382,7 @@ function updateSpeedUI() {
   $$('[data-speed-unit]').forEach(e => e.textContent = speedUnit());
   $$('[data-speed-pill]').forEach(e => e.classList.toggle('over', over));
   $('#gpsDot').className = 'gps-dot ' + (loc.source === 'none' ? '' : loc.source);
-  $('#locPrompt').hidden = loc.source !== 'none';
+  $('#locPrompt').hidden = loc.source !== 'none' || (APP_NAME === 'StudioGen' && !settings.driveTabs) || (typeof Stage !== 'undefined' && Stage.on); // not for presenting
   renderLimit();
 }
 let shownLimit = '';

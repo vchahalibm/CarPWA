@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v52';
+const VERSION = 'v53';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -30,7 +30,7 @@ const SHELL = [
   'js/radio.js',
   'js/media.js',
   'js/motions.js', 'js/avatar.js', 'js/avatars.js',
-  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/ostasks.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'bridge/drivedeck-bridge.js',
+  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/ostasks.js', 'js/dataviz.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'bridge/drivedeck-bridge.js',
   'js/debug.js',
   'vendor/fonts/inter-latin-wght.woff2',
   'manifest.webmanifest',

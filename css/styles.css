@@ -1488,3 +1488,13 @@ table.bench small{color:var(--text-2)}
 .se-wide{display:block;width:100%;margin-top:4px;box-sizing:border-box}
 .se-code{font:12.5px/1.45 ui-monospace,Menlo,monospace;white-space:pre;tab-size:2}
 .se textarea.se-code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+
+/* Data widget (js/dataviz.js) */
+.dw{display:flex;flex-direction:column;height:100%;min-height:0;padding:10px 12px;gap:8px;box-sizing:border-box}
+.dw-head{display:flex;align-items:baseline;gap:10px}.dw-head b{font-size:16px}.dw-meta{font-size:12px;opacity:.65}
+.dw-chart{position:relative;flex:1 1 55%;min-height:120px}
+.dw-table{flex:1 1 45%;min-height:0;overflow:auto;border-radius:10px}
+.dw-chart[hidden]+.dw-table{flex:1 1 100%}
+.dw-table table{width:100%;border-collapse:collapse;font-size:13px}.dw-table th,.dw-table td{padding:5px 8px;border-bottom:1px solid rgba(127,127,127,.18);text-align:left;white-space:nowrap}
+.dw-table th{position:sticky;top:0;background:var(--card,#1c1f26);cursor:pointer;font-weight:600}.dw-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.dw-cfg select[multiple]{min-width:160px}

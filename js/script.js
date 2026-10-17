@@ -194,7 +194,7 @@ const Script = {
       written, its values going in as arguments (`args`) so nothing heard can become code. */
   input(x, quiet = false, say = quietSay) {
     const raw = Actions.list[x.do]?.raw;
-    return [raw ? String(x.value ?? '') : this.fill(x.value), say, { quiet, args: (x.args || []).map(a => this.fill(a)), label: x.name || x.title || '', timeout: +x.timeout || 60 }];
+    return [raw ? String(x.value ?? '') : this.fill(x.value), say, { quiet, args: (x.args || []).map(a => this.fill(a)), label: x.name || x.title || '', timeout: +x.timeout || 60, keep: !!x.as }];
   },
   /** repeat: n times · until: a condition (checked after each round) · each: a list ({var}, an array, or comma-separated), as `as` (default item). */
   async loop(x, { quiet, tok, depth }) {
@@ -459,6 +459,24 @@ const AGENT_SAMPLE = {
   idle: { after: 90, steps: [{ say: 'I’m here if you need anything.' }] },
   end: { on: ['thats all', 'that is all', 'were done', 'we are done', 'goodbye', 'end the session'], steps: [{ say: 'Okay, talk soon!', gesture: 'Wave' }] },
 };
+/* An interactive data analyst: the sample sales CSV in the data widget, charts and summaries on request. */
+const ANALYST_SAMPLE = {
+  name: 'Sales analyst (interactive)', about: 'Loads a year of sample sales into the data widget; ask for charts, top months, a summary; with Understanding it explains', mode: 'interactive',
+  setup: [{ do: 'data.csv', value: 'samples/sales.csv', as: 'rows' }, { do: 'data.chart', value: 'type=line x=month y=revenue agg=sum sort=x top=0 view=both' }, { do: 'data.summary', as: 'sum' },
+    { say: 'I’ve loaded this year’s sales: {rows.length} rows. Ask me for sales by region, by product or by month, the top months, or a summary.', mood: 'Happy' }],
+  intents: [
+    { id: 'region', title: 'Sales by region', on: ['sales by region', 'by region', 'show the regions'], steps: [{ do: 'data.chart', value: 'type=bar x=region y=revenue agg=sum sort=desc top=0' }], say: 'Here’s revenue by region.', motion: 'PresentLeft' },
+    { id: 'product', title: 'Sales by product', on: ['sales by product', 'by product', 'which product'], steps: [{ do: 'data.chart', value: 'type=doughnut x=product y=revenue agg=sum sort=desc top=0' }], say: 'And by product.' },
+    { id: 'month', title: 'Sales by month', on: ['sales by month', 'by month', 'over the year', 'the trend'], steps: [{ do: 'data.chart', value: 'type=line x=month y=revenue,units agg=sum sort=x top=0' }], say: 'Revenue and units over the year.' },
+    { id: 'top', title: 'Top months', on: ['top {n} months', 'best {n} months', 'top months', 'best months'], ask: { n: 'How many months?' }, steps: [{ do: 'data.chart', value: 'type=bar x=month y=revenue agg=sum sort=desc top={n}' }], say: 'The top {n} months by revenue.' },
+    { id: 'table', title: 'Show the table', on: ['show the table', 'just the table', 'the numbers'], steps: [{ do: 'data.chart', value: 'view=table' }] },
+    { id: 'chart', title: 'Show the chart', on: ['show the chart', 'chart and table', 'both'], steps: [{ do: 'data.chart', value: 'view=both' }] },
+    { id: 'summary', title: 'Summarize', on: ['summarize', 'summary', 'give me a summary', 'what does it say'], steps: [{ do: 'data.summary' }] },
+    { id: 'explain', title: 'Explain (with Understanding)', on: ['why {q}', 'explain {q}', 'what explains {q}'], steps: [{ do: 'data.summary', as: 'sum' }, { do: 'brain.ask', value: 'Sales data summary: {sum} Question: {heard}', as: 'ans' },
+      { if: '{ans_error} is empty', then: [{ say: '{ans}' }], else: [{ say: 'For explanations, set up Understanding in Settings, Assistant. Meanwhile: {sum}' }] }] },
+  ],
+  end: { on: ['thats all', 'that is all', 'were done', 'goodbye'], steps: [{ say: 'Happy selling!', gesture: 'Wave' }] },
+};
 const INDIGO_DEMO = {
   "name": "IndiGo live booking demo",
   "about": "A complex sample on a live site (goindigo.in, desktop app): a site helper, recorded steps, text, a screen picture and the screen model, with the assistant speaking and moving.",
@@ -666,7 +684,7 @@ const INDIGO_DEMO = {
 };
 const Scripts = {
   mine: () => store.get('scripts', []),
-  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, { id: 'sample-agent', name: AGENT_SAMPLE.name, json: AGENT_SAMPLE, sample: true }, ...(window.DriveDeckDesktop?.browser ? [{ id: 'sample-indigo', name: INDIGO_DEMO.name, json: INDIGO_DEMO, sample: true }] : []), ...this.mine()]; },
+  all() { return [{ id: 'sample', name: SAMPLE_SCRIPT.name, json: SAMPLE_SCRIPT, sample: true }, { id: 'sample-agent', name: AGENT_SAMPLE.name, json: AGENT_SAMPLE, sample: true }, { id: 'sample-analyst', name: ANALYST_SAMPLE.name, json: ANALYST_SAMPLE, sample: true }, ...(window.DriveDeckDesktop?.browser ? [{ id: 'sample-indigo', name: INDIGO_DEMO.name, json: INDIGO_DEMO, sample: true }] : []), ...this.mine()]; },
   get(id) { return this.all().find(s => s.id === id); },
   find(name) { const q = plain(name); return this.all().find(s => plain(s.name) === q) || (q && this.all().find(s => plain(s.name).includes(q))) || (!q ? this.all()[0] : null); },
   put(s) { const l = this.mine(), i = l.findIndex(x => x.id === s.id); if (i >= 0) l[i] = s; else l.push(s); store.set('scripts', l); return s; },

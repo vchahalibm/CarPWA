@@ -47,6 +47,7 @@ const StepEditor = {
     if (x.intent != null) return ['🎯', `Do “${short(x.intent, 34)}”`];
     if (x.stop) return ['⏹', 'End the script'];
     if (x.background && x.do) { const [, t] = this.chip({ ...x, background: false }); return ['⏳', `${t} (in the background)`]; }
+    if (x.do === 'data.sql') return ['🗄', `Query ${short((x.args || [])[0]?.split('/').pop() || 'a database', 20)}: ${short(x.value, 30)}`];
     if (/^os\./.test(x.do || '')) return ['💻', `${x.name || OS_KINDS[x.do.slice(3)] || x.do}${(x.args || []).length ? `: ${short(x.args.join(', '), 28)}` : ''}`];
     if (x.say != null && !x.do) return [I.say, x.say ? `“${short(x.say)}”` : 'Say something…'];
     if (x.do === 'avatar.gesture') return [I.motion, MOTIONS[motionName(x.value)]?.name || x.value || 'A motion'];
@@ -152,6 +153,9 @@ const StepEditor = {
     else if (x.goto != null) body = `<label>Go to ${this.sel(`${path}.goto`, x.goto, ids)}</label>`;
     else if (x.intent != null) body = `<label>Do ${this.sel(`${path}.intent`, x.intent, (ScriptUI.draft.intents || []).map(i => [i.id, i.title]))}</label>`;
     else if (x.stop) body = '<div class="se-note">Ends the script here (an interactive script says its goodbye first).</div>';
+    else if (x.do === 'data.sql') body = `<label>Query (SQL, read-only; ? for values) <textarea class="se-wide se-code" data-sf="${path}.value" rows="4" spellcheck="false">${esc(x.value || '')}</textarea></label>
+      <label>Inputs, one per line: the database file first, then a value for each ? ({variables} fill in) <textarea class="se-wide" data-sfargs="${path}.args" rows="2">${esc((x.args || []).join('\n'))}</textarea></label>
+      <div class="se-note">Values are bound, never pasted into the query. The rows go into the data widget and {${esc(x.as || 'rows')}}.</div>`;
     else if (/^os\./.test(x.do || '')) body = `<div class="se-row"><label>Kind <select data-sf="${path}.do">${Object.entries(OS_KINDS).map(([k, n]) => this.opt(`os.${k}`, x.do, n)).join('')}</select></label><label>Name ${this.inp(`${path}.name`, x.name, 'What it does')}</label><label>Time limit (s) ${this.inp(`${path}.timeout`, x.timeout || 60, '60')}</label></div>
       <label>${x.do === 'os.shortcut' ? 'The Shortcut’s name' : 'Code (used as written)'} <textarea class="se-wide se-code" data-sf="${path}.value" rows="${x.do === 'os.shortcut' ? 1 : 6}" spellcheck="false">${esc(x.value || '')}</textarea></label>
       <label>Inputs, one per line ({variables} fill in; ${x.do === 'os.shell' ? '"$1", "$2"…' : x.do === 'os.shortcut' ? 'the first one is its input' : 'item 1 of argv… / argv[0]…'}) <textarea class="se-wide" data-sfargs="${path}.args" rows="2">${esc((x.args || []).join('\n'))}</textarea></label>
@@ -224,6 +228,8 @@ const StepEditor = {
         T('type', '⌨️', 'Type text', 'Into a field found by its text'), T('key', '⌨️', 'Press a key', 'Enter, Escape, arrows…'), T('scroll', '↕️', 'Scroll', 'A screenful, or to the top or bottom'), T('recapp', '⏺', 'Record what I do', 'Clicks, typing and scrolling anywhere')]],
       ['Timing and more', [T('wait', '⏱', 'Wait', 'A pause, in seconds'), T('action', '⚙️', 'Any widget action', 'Radio, video, maps, voice commands…')]],
       ['This computer (StudioGen on a Mac)', [...OS_TASKS.map(t => T(`os:${t.id}`, '💻', t.name, t.about || t.hint || OS_KINDS[t.kind])), T('os:applescript', '🍎', 'Your own AppleScript', 'Control apps; values come in as argv'), T('os:jxa', '📜', 'JavaScript for Automation', 'The same, in JavaScript'), T('os:shell', '⌨️', 'Shell command', 'zsh; values come in as $1, $2…')]],
+      ['Data', [T('dcsv', '📊', 'Load a CSV or JSON', 'Into the data widget: a link or a file on this computer'), T('dsql', '🗄', 'Query a database', 'SQLite, read-only (StudioGen)'), T('dshow', '📋', 'Show data', 'Rows from an earlier step ({rows})'),
+        T('dchart', '📈', 'Change the chart', '“bar of revenue by region”, top 5, table only…'), T('dsum', '🧮', 'Summarize the data', 'A few sentences to say, or keep with “as”')]],
       ['Logic', [T('set', '🏷', 'Set a value', 'Remember something as {name}'), T('if', '🔀', 'If…', 'Do one thing or another'), T('repeat', '🔁', 'Repeat', 'Some times, or until something is true'),
         T('each', '🔁', 'For each', 'Every row, file or item in a list'), T('await', '⏳', 'Wait for a background step', 'Steps marked “in the background” run while it carries on'),
         ...(ScriptUI.draft?.mode === 'interactive' ? [T('intent', '🎯', 'Do another intent', 'Run one of the things it can do')] : [T('goto', '↪️', 'Go to a step', 'Jump, also backwards: a loop')]), T('ask', '🧠', 'Ask the model', 'A question to the language model (Understanding)'), T('stop', '⏹', 'End the script', 'Stop here')]],
@@ -304,6 +310,8 @@ const StepEditor = {
       const logic = { set: { set: 'answer', value: '' }, if: { if: '{answer} is yes', then: [], else: [] }, repeat: { repeat: '3', steps: [] }, each: { each: '{rows}', as: 'item', steps: [] }, await: { await: 'all' },
         goto: { goto: d.beats?.[0]?.id || '' }, intent: { intent: d.intents?.[0]?.id || '' }, ask: { do: 'brain.ask', value: '', as: 'answer' }, stop: { stop: true } }[kind];
       if (logic) return push(logic);
+      const data = { dcsv: { do: 'data.csv', value: 'samples/sales.csv', as: 'rows' }, dsql: { do: 'data.sql', value: 'SELECT * FROM sales LIMIT 100', args: ['~/data.sqlite'], as: 'rows' }, dshow: { do: 'data.show', value: '{rows}' }, dchart: { do: 'data.chart', value: 'bar of revenue by region' }, dsum: { do: 'data.summary', value: '' } }[kind];
+      if (data) return push(data);
       if (kind.startsWith('os:')) { const t = OS_TASKS.find(o => o.id === kind.slice(3)); return push(t ? { do: `os.${t.kind}`, value: t.code, args: [...t.args], name: t.name, as: 'result' } : { do: `os.${kind.slice(3)}`, value: '', args: [], name: '', as: 'result' }); }
       if (kind === 'slide') return push({ do: 'doc.page', value: '1' });
       if (kind === 'nextslide') return push({ do: 'doc.next', value: '' });

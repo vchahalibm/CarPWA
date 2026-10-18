@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connection Test Plan</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb; --ok:#0f8a4b; --mid:#b7791f; --no:#c2262e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1080px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:27px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 10px; padding-top:8px; border-top:1px solid var(--line); } h3 { font-size:16px; margin:18px 0 6px; }
+  .mut { color:var(--mut); } a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13.5px; }
+  th, td { text-align:left; vertical-align:top; padding:7px 9px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  .d { color:var(--ok); font-weight:600; } .r { color:var(--mid); font-weight:600; } .f { color:var(--no); font-weight:600; }
+  .wrap { overflow-x:auto; } .toc { columns:2 260px; padding-left:18px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Connection test plan</h1>
+<p class="mut">How to test every way DriveGen and StudioGen connect, across the networks people really use, not only two apps on one Mac. 18 October 2026. Companion to <a href="connections.html">the connections design</a>.</p>
+<ul class="toc">
+  <li><a href="#dims">1. What varies</a></li>
+  <li><a href="#expect">2. Expected outcome per network pair</a></li>
+  <li><a href="#layers">3. Four layers of testing</a></li>
+  <li><a href="#diag">4. Layer 1: a Connection test screen in both apps</a></li>
+  <li><a href="#lab">5. Layer 2: a network lab on one Mac (automated)</a></li>
+  <li><a href="#cloud">6. Layer 3: real internet, every night (GitHub Actions)</a></li>
+  <li><a href="#field">7. Layer 4: field tests on real devices and networks</a></li>
+  <li><a href="#events">8. Events and failures to inject</a></li>
+  <li><a href="#pass">9. Pass criteria and reports</a></li>
+  <li><a href="#phases">10. Phases</a></li>
+</ul>
+
+<h2 id="dims">1. What varies</h2>
+<div class="wrap"><table><thead><tr><th>Dimension</th><th>Values</th></tr></thead><tbody>
+<tr><td><b>Apps / platforms</b></td><td>StudioGen (Mac, packaged app) · DriveGen on iPhone (Home Screen app and Safari tab) · iPad · Android Chrome · desktop Chrome</td></tr>
+<tr><td><b>Network of each side</b></td><td>
+  N1 same Wi-Fi as the other · N2 home router (port-preserving NAT, the common case) · N3 strict router (a different public port per destination: “symmetric” NAT) · N4 mobile data (carrier-grade NAT, often strict; IPv6 with NAT64 on some carriers) · N5 Mac on the phone’s hotspot · N6 office firewall: UDP blocked, only web ports (80/443) out · N7 office with a web proxy / TLS inspection · N8 hotel or café with a sign-in page and client isolation · N9 double NAT (router behind router) · N10 a VPN on one side · N11 IPv6-only</td></tr>
+<tr><td><b>Link settings</b></td><td>Direct: whenever possible / same network / never · data over relays when direct fails: on / off · TURN: none / configured · STUN providers: one / several</td></tr>
+<tr><td><b>Rendezvous</b></td><td>MQTT brokers (and, when added, Nostr relays, WebTorrent trackers) · list order · one broker down / blocked on one side / all down</td></tr>
+<tr><td><b>Links</b></td><td>Relay (pair once) · Direct by QR · Tailscale</td></tr>
+<tr><td><b>Events</b></td><td>pairing, revoke, list revision change, network switch (Wi-Fi ⇄ mobile), app to background and back (iOS), phone locked, Mac sleep and wake, StudioGen restart, long-running script (minutes), large result (200 rows)</td></tr>
+</tbody></table></div>
+<p class="mut">The full product is thousands of combinations; we test the network pairs exhaustively in the lab (cheap, automated), the most common real pairs every night, and the rest in field sessions.</p>
+
+<h2 id="expect">2. Expected outcome per network pair</h2>
+<p>With STUN, data over relays on, no TURN. <span class="d">Direct</span> = WebRTC peer to peer; <span class="r">Relay</span> = requests through the brokers (encrypted); <span class="f">Fail</span> = no link (with TURN configured these become <i>TURN</i>).</p>
+<div class="wrap"><table><thead><tr><th>StudioGen ↓ / DriveGen →</th><th>N1 same Wi-Fi</th><th>N2 home</th><th>N3 strict</th><th>N4 mobile</th><th>N6 UDP blocked</th><th>N8 hotel isolation</th></tr></thead><tbody>
+<tr><td><b>N1 same Wi-Fi</b></td><td class="d">Direct</td><td>–</td><td>–</td><td>–</td><td>–</td><td class="r">Relay (isolation blocks LAN)</td></tr>
+<tr><td><b>N2 home</b></td><td>–</td><td class="d">Direct</td><td class="d">Direct</td><td class="d">Direct (usually)</td><td class="r">Relay</td><td class="d">Direct / Relay</td></tr>
+<tr><td><b>N3 strict</b></td><td>–</td><td class="d">Direct</td><td class="r">Relay</td><td class="r">Relay (often)</td><td class="r">Relay</td><td class="r">Relay</td></tr>
+<tr><td><b>N5 phone hotspot</b></td><td class="d">Direct (local)</td><td>–</td><td>–</td><td class="d">Direct (local)</td><td>–</td><td>–</td></tr>
+<tr><td><b>N6 UDP blocked</b></td><td class="r">Relay*</td><td class="r">Relay</td><td class="r">Relay</td><td class="r">Relay</td><td class="r">Relay</td><td class="r">Relay</td></tr>
+<tr><td><b>N7 proxy / TLS inspection</b></td><td colspan="6">Relay works if the proxy allows WebSockets to the brokers (port 443 brokers help: itdata.nu; add more 443 ones); otherwise <span class="f">Fail</span> → Tailscale or a TURN/relay on 443.</td></tr>
+</tbody></table></div>
+<p class="mut">* same Wi-Fi with UDP blocked between clients. With “data over relays: off” every <span class="r">Relay</span> cell becomes <span class="f">Fail</span> (or <i>TURN</i>). With Direct “never”, every cell is Relay.</p>
+
+<h2 id="layers">3. Four layers of testing</h2>
+<pre>
+ Layer 1  Connection test screen (in both apps)   → anyone can run it anywhere; a report to share
+ Layer 2  Network lab on one Mac (Docker)         → every NAT/firewall pair, every setting, automated, minutes
+ Layer 3  Real internet, nightly (GitHub Actions) → cloud peers ↔ the Mac at home, across real networks
+ Layer 4  Field sessions on real devices          → carriers, hotels, offices, the car; a checklist
+</pre>
+
+<h2 id="diag">4. Layer 1: a Connection test screen in both apps</h2>
+<p>Settings › Connections › <b>Test the connection</b>, in DriveGen and StudioGen. It runs in about 20 seconds and shows, then copies as JSON (or shows as a QR for the other app to scan):</p>
+<ul>
+  <li><b>This network</b>: local addresses (IPv4/IPv6), public address and port from two STUN servers, and the <b>NAT type</b> estimate (same public port from both: port-preserving; different: strict/symmetric), UDP reachable or not, a captive portal detected or not.</li>
+  <li><b>Rendezvous</b>: each broker in the list: connects, echo time, blocked or not.</li>
+  <li><b>With the paired app</b> (when paired): seen online, direct link tried (candidate types gathered: host / srflx / relay; which pair won), result (direct / relay / failed), round trip, a 200-row request timed, the link now in use.</li>
+  <li><b>Verdict in plain words</b>: “Direct link works on this network”, “Your network blocks direct links: using the relays”, “The relays are blocked here: try Tailscale or a TURN server”.</li>
+</ul>
+<p>The same checks run headless through test hooks (<code>?linktest</code>) so Layers 2 and 3 use exactly the code users run.</p>
+
+<h2 id="lab">5. Layer 2: a network lab on one Mac (automated)</h2>
+<p>Docker (Colima or Docker Desktop) builds small virtual networks with a Linux “router” container in front of each app. The apps run as headless Chromium (Playwright): DriveGen as-is, StudioGen's link side through a test shim (the same js/relay.js, js/direct.js, js/link.js, with the desktop powers stubbed). The real public brokers and STUN servers are used through the routers' internet access, plus a local broker and TURN server for offline runs.</p>
+<pre>
+                         ┌──────── internet (real brokers, STUN) ────────┐
+                         │                                               │
+   ┌─ net A ──────────┐  │  ┌ router A ┐           ┌ router B ┐  │  ┌─ net B ───────────┐
+   │ StudioGen (shim) ├──┼──┤ NAT type ├───────────┤ NAT type ├──┼──┤ DriveGen (Chromium)│
+   └──────────────────┘  │  │ firewall │  "wan"    │ firewall │  │  └───────────────────┘
+                         │  │ netem    │  network  │ netem    │  │
+                         │  └──────────┘           └──────────┘  │
+                         │        local broker (Mosquitto), TURN (coturn), STUN (for offline runs)
+</pre>
+<h3>Router profiles (iptables + tc netem in the router container)</h3>
+<div class="wrap"><table><thead><tr><th>Profile</th><th>How it's made</th><th>Stands for</th></tr></thead><tbody>
+<tr><td>open</td><td>no NAT</td><td>public address</td></tr>
+<tr><td>home</td><td>MASQUERADE (port-preserving, endpoint-independent)</td><td>N2</td></tr>
+<tr><td>strict</td><td>MASQUERADE --random-fully (a new port per destination)</td><td>N3, many N4</td></tr>
+<tr><td>cgnat</td><td>two strict routers in a row, 100.64.0.0/10 inside</td><td>N4, N9</td></tr>
+<tr><td>no-udp</td><td>DROP outgoing UDP except DNS</td><td>N6</td></tr>
+<tr><td>web-only</td><td>only TCP 80/443 out</td><td>N6 strict</td></tr>
+<tr><td>proxy</td><td>only via an HTTP CONNECT proxy (squid), WebSockets allowed or not</td><td>N7</td></tr>
+<tr><td>isolated LAN</td><td>both apps behind one router, client-to-client traffic dropped</td><td>N8</td></tr>
+<tr><td>bad link</td><td>netem: 300 ms delay, 5 % loss, 1 Mbit/s</td><td>a weak mobile signal</td></tr>
+<tr><td>broker-blocked</td><td>DROP to one broker's address (one side or both)</td><td>failover</td></tr>
+</tbody></table></div>
+<h3>The run</h3>
+<ul>
+  <li>A test runner (Node + Playwright) loops over <b>router A × router B × settings × link</b> (about 10 × 10 × 6 for the relay link, plus the QR-direct and Tailscale-off cases), and for each: pair, wait online, try direct, send requests (small, 200 rows, a 2-minute script), inject the events of section 8, and record the results (time to online, link used, direct or not and why, round trips, failover time, errors).</li>
+  <li>About 600 cells at ~30 s each, run in parallel 6 at a time: under an hour; a “smoke” subset (20 cells) runs in about 5 minutes after every change to the link code.</li>
+  <li>Output: <code>tests/net/report.json</code> and an HTML matrix like section 2, with each cell green/amber/red against the expected outcome, and a diff to the last run.</li>
+</ul>
+
+<h2 id="cloud">6. Layer 3: real internet, every night (GitHub Actions)</h2>
+<ul>
+  <li>A scheduled workflow starts headless DriveGens on GitHub's runners (Linux, in Microsoft's cloud: a different network and NAT than the Mac's), pairs them with a <b>test StudioGen</b> (a packaged StudioGen on the Mac at home or a spare Mac, left running with a test profile and a test pairing), and runs the smoke set over the real internet: online time, direct or relay, round trips, failover with one broker blocked on the runner.</li>
+  <li>Also runner ↔ runner across two regions (two jobs) for the no-Mac case of the shim.</li>
+  <li>Results go to a GitHub issue or the run summary; a red result opens an issue. Public brokers' health is tracked over weeks (which ones fail, when), feeding the default list.</li>
+</ul>
+
+<h2 id="field">7. Layer 4: field tests on real devices and networks</h2>
+<p>Checklist sessions with the Connection test screen (Layer 1) on each side; results pasted into a shared table (one row per session).</p>
+<div class="wrap"><table><thead><tr><th>#</th><th>StudioGen on</th><th>DriveGen on</th><th>Try</th></tr></thead><tbody>
+<tr><td>F1</td><td>home Wi-Fi</td><td>iPhone, same Wi-Fi</td><td>pair, direct by QR, relay, run a script, background/foreground</td></tr>
+<tr><td>F2</td><td>home Wi-Fi</td><td>iPhone on mobile data (each carrier you can get: e.g. Jio, Airtel, Vi; AT&amp;T, Verizon, T-Mobile)</td><td>relay, direct upgrade, Wi-Fi ⇄ mobile switch while a script runs</td></tr>
+<tr><td>F3</td><td>the phone's hotspot</td><td>the same iPhone</td><td>“same network only” direct, no internet (airplane mode + hotspot), QR direct</td></tr>
+<tr><td>F4</td><td>office network</td><td>iPhone on mobile data</td><td>which brokers pass the firewall, relay, TURN if available, Tailscale</td></tr>
+<tr><td>F5</td><td>hotel or café Wi-Fi</td><td>iPad on the same Wi-Fi</td><td>client isolation (expect relay), sign-in page handling</td></tr>
+<tr><td>F6</td><td>home Wi-Fi</td><td>iPhone in a moving car</td><td>cell handovers, tunnels, “run … on my Mac” by voice, reconnect time</td></tr>
+<tr><td>F7</td><td>Mac asleep, then woken</td><td>iPhone</td><td>reconnect time after wake; requests during sleep</td></tr>
+<tr><td>F8</td><td>two StudioGens (when the mesh comes)</td><td>two phones</td><td>request by device and by capability; a synchronised show</td></tr>
+</tbody></table></div>
+
+<h2 id="events">8. Events and failures to inject</h2>
+<ul>
+  <li><b>Brokers</b>: the first broker down for both; down for one side only; all down then one back; a broker that accepts but drops messages; slow broker (2 s).</li>
+  <li><b>Network</b>: switch networks mid-request; 10 s outage; IP address change; loss and delay (bad link); UDP suddenly blocked after direct connected.</li>
+  <li><b>Apps</b>: StudioGen restart; Mac sleep/wake; DriveGen to background and back; phone locked for 1 and 10 minutes; two DriveGens at once; a request while the Mac is busy with a script.</li>
+  <li><b>Security</b>: a replayed message (must be dropped), a message under the wrong key (ignored), a revoked device trying (no answer), an old list revision (told to pair again), a tampered pairing code (rejected).</li>
+</ul>
+
+<h2 id="pass">9. Pass criteria and reports</h2>
+<div class="wrap"><table><thead><tr><th>Measure</th><th>Target</th></tr></thead><tbody>
+<tr><td>Outcome matches the expected matrix (section 2)</td><td>100 % in the lab; field mismatches investigated</td></tr>
+<tr><td>Time to “online” after start, relay</td><td>&lt; 5 s (p95)</td></tr>
+<tr><td>Direct upgrade when possible</td><td>&lt; 10 s; success ≥ 90 % on N2/N4 pairs in the field</td></tr>
+<tr><td>Broker failover (one down for both)</td><td>&lt; 30 s, no lost answers (resend covers it)</td></tr>
+<tr><td>Recovery after network switch / wake</td><td>&lt; 15 s</td></tr>
+<tr><td>Request round trip</td><td>direct &lt; 150 ms same city; relay &lt; 600 ms</td></tr>
+<tr><td>200-row result</td><td>intact, &lt; 2 s on the relay</td></tr>
+<tr><td>Security cases</td><td>all rejected</td></tr>
+</tbody></table></div>
+
+<h2 id="phases">10. Phases</h2>
+<ol>
+  <li><b>T1</b> The Connection test screen and the <code>?linktest</code> hooks (with a StudioGen link shim for headless runs). Usable right away for your own field tests.</li>
+  <li><b>T2</b> The Docker lab: router profiles, the runner, the smoke set after every link change, the full matrix weekly, the HTML report.</li>
+  <li><b>T3</b> The nightly GitHub Actions run against a test StudioGen; broker health history.</li>
+  <li><b>T4</b> Field sessions F1–F8 with the checklist; results feed the expected matrix and the default broker list.</li>
+</ol>
+</main>
+</body>
+</html>

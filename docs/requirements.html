@@ -57,6 +57,7 @@
     <li><a href="#lower">6. Lower-body modes (mocap without legs)</a></li>
     <li><a href="#questions">7. Open questions</a></li>
     <li><a href="connections.html">Connections design (relays, failover, mesh)</a></li>
+    <li><a href="connection-tests.html">Connection test plan (networks, lab, nightly, field)</a></li>
   </ul>
 
   <h2 id="vision">1. Vision: two apps, one code base</h2>
@@ -269,6 +270,7 @@ const REQS = [
   ['L-11','L','Mesh request mode','Run or ask on a chosen StudioGen or on whichever has the capability (Excel, a database, a model); StudioGen-to-StudioGen requests; permissions checked by the device doing the work.','ALL','new','R3'],
   ['L-12','L','Mesh mode: synchronised multi-screen shows','A conductor runs a script on each screen, in steps (all move together) or in tandem (own parts with cues), on a shared clock; screens report ready, done, failed.','ALL','new','R3'],
   ['L-13','L','Shared artifacts across the mesh, private when marked','Scripts, captured motions, recordings, data and other artifacts are shared with the mesh by default; the StudioGen where one was made can mark it private; fetched on demand, cached, versioned.','ALL','new','R3'],
+  ['L-14','L','Connection testing across real networks','A Connection test screen in both apps (NAT type, brokers, direct or relay, timings, a shareable report); a Docker network lab with router profiles (home, strict, carrier NAT, UDP blocked, web-only, proxy, isolated Wi-Fi, bad link, broker blocked) running every pair automatically; a nightly real-internet run on GitHub Actions; field checklists (docs/connection-tests.html).','ALL','plan','R3'],
   ['L-01','L','Pair DriveGen with StudioGen (QR code)','Decided: Tailscale. StudioGen › Settings › Connections: Tailscale status, Share on my tailnet (tailscale serve → https://<mac>.<tailnet>.ts.net, only your devices), Pair a device (one-time 6-digit code, 10 min, 5 tries), paired devices with Revoke.','ALL','built','R3'],
   ['L-02','L','Run a task on StudioGen from DriveGen and get results','DriveGen › Settings › Your Mac: pair with the address and code; scripts the Mac offers (ticked in StudioGen) run there and their lines, {result} and data rows come back (spoken, and shown in the data widget); “run … on my Mac” / “ask my Mac to …” by voice; actions mac.run and mac.say for scripts.','DP DT','built','R3'],
   ['L-03','L','Reach the Mac from the car','Pair once (L-06): from anywhere, also the car on mobile data, with no account, through encrypted public relays, direct when possible. Also: direct by QR each time (L-05, no internet) and Tailscale (with an account).','DP','built','R3'],

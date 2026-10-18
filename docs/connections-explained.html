@@ -42,10 +42,11 @@
   <li><a href="#pair">5. Pairing: sharing the key in person</a></li>
   <li><a href="#direct">6. Talking directly</a></li>
   <li><a href="#switch">7. When a meeting place closes</a></li>
-  <li><a href="#change">8. Changing the secret: you're in control</a></li>
-  <li><a href="#test">9. Checking that it works</a></li>
-  <li><a href="#files">10. Where this lives in the code</a></li>
-  <li><a href="#words">11. Word list</a></li>
+  <li><a href="#phrase">8. Your own secret phrase</a></li>
+  <li><a href="#change">9. Changing the secret: you're in control</a></li>
+  <li><a href="#test">10. Checking that it works</a></li>
+  <li><a href="#files">11. Where this lives in the code</a></li>
+  <li><a href="#words">12. Word list</a></li>
 </ul>
 
 <h2 id="what">1. What it does</h2>
@@ -88,7 +89,7 @@
 <h2 id="lock">4. Locked boxes (how messages are kept secret)</h2>
 <p>Before a message leaves your phone or Mac, the app puts it in a locked box. This is called <b>encryption</b>. Only your two devices have the key that opens it.</p>
 <ol class="steps">
-  <li><b>The key</b> is a secret number made by the computer at random. It's <b>256 bits</b> long, so there are more possible keys than grains of sand on all the beaches of Earth, many, many times over. Nobody can guess it.</li>
+  <li><b>The key</b> has two parts. The first is a secret number made by the computer at random. It's <b>256 bits</b> long, so there are more possible keys than grains of sand on all the beaches of Earth, many, many times over. Nobody can guess it. The second part is optional and comes from <b>you</b>: a secret phrase that only you know (section 8). The two are mixed together, and the result is the key that really locks your messages.</li>
   <li><b>The lock</b> is called <b>AES-GCM</b>. It's the same kind of lock banks and websites use. It does two jobs: it scrambles the message so it looks like noise, and it adds a <b>seal</b>. If anyone changes even one letter, the seal breaks and the app throws the message away.</li>
   <li><b>A label on the box</b> says which way it's going (Mac → phone, or phone → Mac), and that label is part of the seal too. A box can't be turned around and sent back the other way.</li>
   <li><b>A timestamp and a message number</b> go inside. Boxes older than 2 minutes, or ones the app has already seen, are thrown away. So nobody can copy a box today and send it again tomorrow to trick your Mac.</li>
@@ -107,7 +108,7 @@
   <li>On the phone: <b>DriveGen › Settings › Connections › Pair once</b>. Point the camera at the code.</li>
   <li>Done! The code held three things: a random room name (where to meet), the secret key, and the Mac's list of meeting places.</li>
 </ol>
-<div class="card tip">⚠️ Anyone who scans that QR code can pair, so only show it to your own devices, and close it when you're done.</div>
+<div class="card tip">⚠️ Without a secret phrase, anyone who scans that QR code can pair. So only show it to your own devices, and close it when you're done. <b>With a secret phrase</b> (next section), the code alone isn't enough: whoever scans it also has to know your phrase.</div>
 
 <h2 id="direct">6. Talking directly</h2>
 <p>Once they've met at a relay, the apps try to <b>talk directly</b>, like two friends who found each other's phone numbers. This uses a technology called <b>WebRTC</b>.</p>
@@ -144,8 +145,36 @@ Also: <b>“Let data go over the relays when there's no direct link.”</b> Turn
 </ul></div>
 <p>The Mac is the <b>boss of the list</b>. You can add your own meeting place, move places up or down, and test them all. If you change the list, pair your phone again so it gets the new list. Until then, it keeps using the old one.</p>
 
-<h2 id="change">8. Changing the secret: you're in control</h2>
-<p>Changing your secret key now and then is good practice, like changing a password. You don't have to type anything: the Mac makes a brand-new random key for you.</p>
+<h2 id="phrase">8. Your own secret phrase</h2>
+<p>The random key is very strong, but you didn't choose it, and it travels inside the QR code. So you can add a <b>secret phrase</b> of your own on top of it, like adding your own padlock to a box that already has one.</p>
+<div class="pic"><svg viewBox="0 0 640 170" role="img" aria-label="The random key and your phrase mixed into the real key">
+  <rect x="10" y="20" width="190" height="56" rx="14" fill="none" stroke="var(--blue)" stroke-width="3"/><text x="24" y="46" font-weight="700">🎲 Random key</text><text x="24" y="66" class="m" font-size="13">made by the Mac, in the QR</text>
+  <rect x="10" y="96" width="190" height="56" rx="14" fill="none" stroke="var(--acc)" stroke-width="3"/><text x="24" y="122" font-weight="700">🗝️ Your phrase</text><text x="24" y="142" class="m" font-size="13">typed by you, never sent</text>
+  <path d="M205 48 C 260 48, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5"/><path d="M205 124 C 260 124, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c)"/>
+  <rect x="300" y="60" width="120" height="52" rx="14" fill="none" stroke="var(--violet)" stroke-width="3"/><text x="324" y="92" font-weight="700">🌀 Mix</text>
+  <path d="M420 86 L 455 86" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c)"/>
+  <rect x="458" y="56" width="172" height="60" rx="14" fill="none" stroke="var(--green)" stroke-width="3"/><text x="472" y="82" font-weight="700">🔐 The real key</text><text x="472" y="102" class="m" font-size="13">locks every message</text>
+  <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
+</svg></div>
+<div class="card how"><b>How to use it</b>
+<ol class="steps">
+  <li>On the Mac: <b>Settings › Connections › Pair a phone or iPad</b>. Type your secret phrase (or leave it empty for none), then <b>Show the code</b>.</li>
+  <li>On the phone: scan the code. The phone then asks you to <b>type the same phrase</b>. If you make a typo, it tells you right away.</li>
+  <li>To <b>change</b> it later: on the Mac, tap <b>Change phrase</b> next to the device and type the new one. Then on the phone, go to <b>Settings › Connections › Secret phrase</b> and type the same new phrase. Messages keep working the whole time: the Mac switches only once the phone has the new phrase.</li>
+  <li>To <b>remove</b> it: change it to an empty phrase on both.</li>
+</ol></div>
+<h3>What happens to your phrase</h3>
+<ul>
+  <li>It is <b>never sent</b> over the internet and <b>never put in the QR code</b>. The code only holds a tiny “check” so the phone can tell you if you typed it wrong.</li>
+  <li>Each app turns your phrase into a big number using a <b>slow recipe</b> (it repeats a scrambling step 600,000 times). That's quick for you, but it makes guessing your phrase slow for anyone trying.</li>
+  <li>That number is mixed with the random key. Neither part is enough on its own: someone needs <b>both</b> the code and your phrase to read your messages.</li>
+  <li>The apps remember only the mixed-up number, not the words you typed.</li>
+</ul>
+<div class="card tip">💪 <b>Make it strong.</b> Use four or more random words (like “lamp river tiger maple”) or a long sentence only you know. Capital letters count. Don't use your name, birthday or a famous quote. Forgot it? Just pair again; no harm done.</div>
+<div class="card safe">✅ We tested it: the phrase is not in the code; a phone without the phrase can't read anything; a wrong phrase is caught; changing the phrase, changing the random key, and removing the phrase all kept messages working.</div>
+
+<h2 id="change">9. Changing the secret: you're in control</h2>
+<p>Changing your secret now and then is good practice, like changing a password. There are two parts you can change: the <b>random key</b> (the Mac makes a new one; you don't type anything) and <b>your phrase</b> (section 8). Your phrase stays the same when the random key changes.</p>
 <div class="card how"><b>How to change it</b> (on the Mac: StudioGen › Settings › Connections):
 <ul>
   <li><b>Change secret</b> next to a device: gives that device a new key now.</li>
@@ -153,6 +182,7 @@ Also: <b>“Let data go over the relays when there's no direct link.”</b> Turn
   <li><b>Change every secret automatically:</b> every day, every week, every month, or only when you ask.</li>
   <li><b>Revoke</b> a device: throws its key away for good. That device can't talk to your Mac any more, unless you pair it again.</li>
   <li><b>Pair again:</b> also makes a brand-new key (and gives the phone the newest list of meeting places).</li>
+  <li><b>Change phrase:</b> your own part (section 8).</li>
 </ul>
 On the phone, Settings › Connections shows when the secret last changed.</div>
 <h3>What happens when the secret changes</h3>
@@ -163,10 +193,10 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
   <li>Both keep the old key for <b>10 minutes</b>, only to open boxes that were already on their way. After that it's gone.</li>
   <li>If your phone was off, it gets the new key the next time it says hello.</li>
 </ol>
-<div class="card tip">🤔 <b>Why not let me type my own secret word?</b> Words people choose are much easier to guess than a random 256-bit number. A computer can try billions of common words and phrases very quickly. The random key is far stronger, and changing it often (with the button or the schedule) keeps you in control without remembering anything.</div>
+<div class="card tip">🤔 <b>Why keep the random key at all, if I have a phrase?</b> Words people choose are easier to guess than a random 256-bit number. Together, they're stronger than either alone: the random key makes guessing impossible for anyone without the code, and your phrase protects you even if someone gets the code.</div>
 <div class="card safe">✅ We tested it: after changing the secret twice, both apps used the same new key, messages still worked, and the very first key could no longer open new messages.</div>
 
-<h2 id="test">9. Checking that it works</h2>
+<h2 id="test">10. Checking that it works</h2>
 <p>Settings › Connections › <b>Test the connection</b> (on both apps) checks everything in about 20 seconds and tells you in plain words:</p>
 <ul>
   <li>What kind of front door your network has. <i>Friendly</i> doors keep the same address for everyone; <i>strict</i> ones give a new address for every place you talk to, which makes direct links harder.</li>
@@ -176,10 +206,10 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
 </ul>
 <p>The people who build the app also test it in a <b>pretend-network lab</b> with pretend front doors (friendly, strict, ones that block things), plus a test every night between computers in different places on the real internet.</p>
 
-<h2 id="files">10. Where this lives in the code</h2>
+<h2 id="files">11. Where this lives in the code</h2>
 <p class="mut">For the curious (and future programmers!). Each file is one piece of the puzzle.</p>
 <div class="wrap"><table><thead><tr><th>File</th><th>What it does (in simple words)</th></tr></thead><tbody>
-<tr><td><code>js/relay.js</code></td><td>The meeting places and the locked boxes: the list of relays (MQTT, Nostr, trackers), the rule for picking and switching places, locking and unlocking messages (AES-GCM), pairing codes, <b>changing the secret</b>, and the Relays and Direct link settings.</td></tr>
+<tr><td><code>js/relay.js</code></td><td>The meeting places and the locked boxes: the list of relays (MQTT, Nostr, trackers), the rule for picking and switching places, locking and unlocking messages (AES-GCM), mixing in <b>your secret phrase</b> (PBKDF2 and HKDF), pairing codes, <b>changing the secret</b> and the phrase, and the Relays and Direct link settings.</td></tr>
 <tr><td><code>js/direct.js</code></td><td>Talking directly with WebRTC: making and answering the direct link, the QR codes for “Connect directly”, and reading QR codes with the camera.</td></tr>
 <tr><td><code>js/link.js</code></td><td>The front desk: picks the best way to talk (direct, then relay, then Tailscale), “run … on my Mac” by voice, the Mac's side that answers phones, and the Connections screens.</td></tr>
 <tr><td><code>js/linktest.js</code></td><td>Test the connection: front-door type, every relay, the other app, and a plain-words result.</td></tr>
@@ -194,7 +224,7 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
 <tr><td><code>docs/connections.html</code>, <code>docs/connection-tests.html</code></td><td>The grown-up versions: the full design and the test plan.</td></tr>
 </tbody></table></div>
 
-<h2 id="words">11. Word list</h2>
+<h2 id="words">12. Word list</h2>
 <div class="wrap"><table><tbody>
 <tr><td><b>Router</b></td><td>The box that connects a building to the internet: its front door.</td></tr>
 <tr><td><b>Relay</b></td><td>A public meeting place on the internet where apps leave messages for each other.</td></tr>
@@ -206,6 +236,9 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
 <tr><td><b>STUN</b></td><td>A helper that tells your app its outside address.</td></tr>
 <tr><td><b>Hole punching</b></td><td>Both apps sending at the same moment so both front doors let the answers in.</td></tr>
 <tr><td><b>TURN</b></td><td>A delivery helper that carries locked traffic when direct links can't get through.</td></tr>
+<tr><td><b>Secret phrase</b></td><td>Words only you know, mixed into the random key. Typed on both devices, never sent.</td></tr>
+<tr><td><b>PBKDF2</b></td><td>The slow recipe that turns your phrase into a big number, so guessing it takes a long time.</td></tr>
+<tr><td><b>HKDF</b></td><td>The mixer that combines the random key and your phrase's number into the real key.</td></tr>
 <tr><td><b>Revoke</b></td><td>Throwing a device's key away so it can't connect any more.</td></tr>
 </tbody></table></div>
 <p class="mut" style="margin-top:28px">DriveGen &amp; StudioGen · Connections explained · 18 October 2026</p>

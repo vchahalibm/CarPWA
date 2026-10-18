@@ -159,7 +159,50 @@ const Relay = {
   anyUp() { return [...this.pool.values()].some(b => b.mq?.up); },
   /* ---------- Keys and topics ---------- */
   /** A pairing's key (or, while it is being changed, its next or previous one), ready for AES-GCM. */
-  async key(room, which = 'key') { const k = room[which]; if (!k) return null; if (!this.keys.has(k)) this.keys.set(k, await crypto.subtle.importKey('raw', b64u.dec(k), 'AES-GCM', false, ['encrypt', 'decrypt'])); return this.keys.get(k); },
+  /** The key that locks a pairing's messages: its random key (or, while that is being changed, the next or previous one), mixed
+      with your own secret phrase when you set one (HKDF-SHA256: the phrase's slow-made number as the salt). `pw`: which phrase
+      ('passKey' now, 'nextPass' being changed, 'oldPass' the previous one); 'none' or empty means no phrase. */
+  async key(room, which = 'key', pw = 'passKey') {
+    const k = room[which]; if (!k) return null;
+    if (pw !== 'passKey' && !room[pw]) return null; // no phrase change in progress
+    const p = room[pw] && room[pw] !== 'none' ? room[pw] : '', id = `${k}|${p}`;
+    if (!this.keys.has(id)) this.keys.set(id, await (async () => {
+      if (!p) return crypto.subtle.importKey('raw', b64u.dec(k), 'AES-GCM', false, ['encrypt', 'decrypt']);
+      const base = await crypto.subtle.importKey('raw', b64u.dec(k), 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: b64u.dec(p), info: new TextEncoder().encode('studiogen-relay-v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    })());
+    return this.keys.get(id);
+  },
+  /* ---------- Your own secret phrase, on top of the random key ----------
+     The phrase becomes a 256-bit number with PBKDF2-SHA256, 600,000 rounds (slow on purpose: guessing takes long), salted with
+     the pairing's room, and is mixed into the random key (above). It is never sent or shown: the pairing code carries only a
+     short check (so a typo is caught), and only the number made from it is kept. Change it on the Mac, then type the same new
+     phrase on the device: StudioGen switches when it sees the device use it (like a new random key). */
+  async passKey(phrase, room) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(phrase.normalize('NFKC').trim()), 'PBKDF2', false, ['deriveBits']);
+    return b64u.enc(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(`studiogen-phrase:${room}`), iterations: 600000 }, base, 256));
+  },
+  async passCheck(pk) { return pk === 'none' ? 'none' : b64u.enc(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`check:${pk}`))).slice(0, 8); },
+  /** StudioGen: a new phrase for a device (empty: no phrase). It is used once the device has the same one. */
+  async changePhrase(id, phrase) {
+    const p = this.peers().find(x => x.id === id); if (!p) return;
+    const pk = phrase.trim() ? await this.passKey(phrase, p.room) : 'none';
+    store.set('relayPeers', this.peers().map(x => x.id === id ? { ...x, nextPass: pk } : x));
+    this.post(this.fresh(p), 'pass-new', { c: await this.passCheck(pk) }); // the check only, so the device can catch a typo
+    Log.i('relay', `New secret phrase for ${p.name}: waiting for it on the device`); this.onchange?.();
+  },
+  commitPass(room) {
+    store.set('relayPeers', this.peers().map(x => x.room === room.room && x.nextPass ? { ...x, oldPass: x.passKey || 'none', passKey: x.nextPass === 'none' ? '' : x.nextPass, nextPass: null, passAt: new Date().toISOString(), oldPassUntil: Date.now() + 600000 } : x));
+    Log.i('relay', `New secret phrase in use: ${room.name}`); this.onchange?.();
+  },
+  /** DriveGen: the phrase typed here (after pairing, or a new one the Mac asked for). */
+  async setPhrase(phrase) {
+    const mac = this.mac(); if (!mac) throw new Error('Not paired');
+    const pk = phrase.trim() ? await this.passKey(phrase, mac.room) : 'none', want = mac.nextCheck || mac.needPass;
+    if (want && (await this.passCheck(pk)) !== want) throw new Error(want === 'none' ? 'Your Mac has no phrase now: leave it empty' : 'That isn’t the phrase set on your Mac (it’s case-sensitive)');
+    store.set('relayMac', { ...mac, oldPass: mac.passKey || 'none', passKey: pk === 'none' ? '' : pk, oldPassUntil: Date.now() + 600000, needPass: null, nextCheck: null, passAt: new Date().toISOString() });
+    this.hello(); this.onchange?.();
+  },
   /** The pairing as stored now (it changes when the secret does). */
   fresh(room) { return this.rooms().find(r => r.room === room.room) || room; },
   /* ---------- Changing the secret (StudioGen starts it: "Change the secret", or on a schedule) ----------
@@ -242,7 +285,7 @@ const Relay = {
     room = this.fresh(room);
     const t = await this.topic(room, this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
     const plain = new TextEncoder().encode(JSON.stringify({ id, ts: Date.now(), type, body }));
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room), plain));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room, 'key', 'passKey'), plain));
     const p = new Uint8Array(12 + ct.length); p.set(iv); p.set(ct, 12);
     const data = type === 'ask' || type === 're';
     if (data && !this.dataOk()) return false; // the relays only introduce (StudioGen's setting)
@@ -253,14 +296,18 @@ const Relay = {
   async got(topic, payload, b) {
     const room = this.topics[topic] && this.fresh(this.topics[topic]); if (!room || payload.length < 29) return;
     // The current key, else (while the secret is being changed) the next one (StudioGen) or the previous one (both, 10 minutes).
-    let m, used = null;
-    for (const which of ['key', 'nextKey', 'oldKey']) {
+    // …each with the current phrase, or one being changed (StudioGen) or the previous one (10 minutes).
+    let m, used = null, usedPw = null;
+    const tries = [['key', 'passKey'], ['nextKey', 'passKey'], ['key', 'nextPass'], ['nextKey', 'nextPass'], ['oldKey', 'passKey'], ['key', 'oldPass'], ['oldKey', 'oldPass']];
+    for (const [which, pw] of tries) {
       if (which === 'oldKey' && room.oldUntil && Date.now() > room.oldUntil) continue;
-      const k = await this.key(room, which); if (!k) continue;
-      try { const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: payload.slice(0, 12), additionalData: new TextEncoder().encode(topic) }, k, payload.slice(12)); m = JSON.parse(new TextDecoder().decode(pt)); used = which; break; } catch {}
+      if (pw === 'oldPass' && room.oldPassUntil && Date.now() > room.oldPassUntil) continue;
+      const k = await this.key(room, which, pw); if (!k) continue;
+      try { const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: payload.slice(0, 12), additionalData: new TextEncoder().encode(topic) }, k, payload.slice(12)); m = JSON.parse(new TextDecoder().decode(pt)); used = which; usedPw = pw; break; } catch {}
     }
-    if (!m) return; // not ours, or tampered
-    if (used === 'nextKey' && this.isMac()) this.commit(room); // the device has switched: so do we
+    if (!m) { if (!this.isMac() && Date.now() - (this.lastNoise || 0) > 30000) { this.lastNoise = Date.now(); this.unreadable = Date.now(); this.onchange?.(); } return; } // not ours, tampered, or a wrong phrase
+    if (this.isMac() && used === 'nextKey') this.commit(room); // the device has switched: so do we
+    if (this.isMac() && usedPw === 'nextPass') this.commitPass(room);
     const own = this.mine.get(m.id); if (own) { own.back.add(b.url); this.ok(b, Date.now() - own.at); return; } // our own message, back: this broker works
     if (Math.abs(Date.now() - m.ts) > 120000 || this.seen.has(m.id)) return; // old, or another broker's copy
     this.seen.set(m.id, Date.now()); if (this.seen.size > 500) for (const [k, t] of this.seen) if (Date.now() - t > 150000) this.seen.delete(k);
@@ -294,6 +341,7 @@ const Relay = {
       Log.i('relay', 'New secret from your Mac'); this.post(this.mac(), 'rekey-ok', {}); this.onchange?.(); return;
     }
     if (type === 'rekey-ok' && this.isMac()) return; // handled when the new key was first used (commit)
+    if (type === 'pass-new' && !this.isMac()) { store.set('relayMac', { ...this.mac(), nextCheck: b.c }); Log.i('relay', 'Your Mac has a new secret phrase: type it here'); toast('Your Mac has a new secret phrase: type it in Settings › Connections'); this.onchange?.(); return; }
     if (type === 'rtc-offer' && !this.isMac()) { if (store.get('directAllow', true) === false) return; try { const code = await Direct.answer(b.code, b.ice || []); this.post(room, 'rtc-answer', { code }); } catch (e) { Log.w('relay', 'Direct answer failed', e); } return; }
     if (type === 'rtc-answer' && this.isMac()) { try { await Direct.accept(b.code); this.directTries = 0; } catch (e) { Log.w('relay', 'Direct accept failed', e); } }
   },
@@ -322,15 +370,17 @@ const Relay = {
     });
   },
   /* ---------- Pairing (once per device; again when StudioGen's list changes) ---------- */
-  newPairing() {
+  async newPairing(phrase = '') {
     const L = this.list(), p = { id: Math.random().toString(36).slice(2, 8), room: b64u.enc(crypto.getRandomValues(new Uint8Array(16))), key: b64u.enc(crypto.getRandomValues(new Uint8Array(32))), name: 'A device (pairing…)', paired: new Date().toISOString(), keyAt: new Date().toISOString(), brokers: L.brokers.map(b => b.url), rev: L.rev };
+    if (phrase.trim()) { p.passKey = await this.passKey(phrase, p.room); p.passAt = p.paired; }
     store.set('relayPeers', [...this.peers(), p]); this.restart();
-    return 'SG3' + b64u.enc(new TextEncoder().encode(JSON.stringify({ r: p.room, k: p.key, b: p.brokers, v: p.rev })));
+    return 'SG3' + b64u.enc(new TextEncoder().encode(JSON.stringify({ r: p.room, k: p.key, b: p.brokers, v: p.rev, ...(p.passKey ? { c: await this.passCheck(p.passKey) } : {}) }))); // the phrase itself is never in the code
   },
   pairWith(code) {
     if (!/^SG[23][\w-]+$/.test(code)) throw new Error('That isn’t a StudioGen pairing code');
     const j = JSON.parse(new TextDecoder().decode(b64u.dec(code.slice(3))));
-    store.set('relayMac', { room: j.r, key: j.k, brokers: j.b || null, rev: j.v || 0, name: 'Your Mac', paired: new Date().toISOString() }); this.restart();
+    store.set('relayMac', { room: j.r, key: j.k, brokers: j.b || null, rev: j.v || 0, name: 'Your Mac', paired: new Date().toISOString(), needPass: j.c || null }); this.restart();
+    return { needPass: !!j.c };
   },
   revoke(id) { store.set('relayPeers', this.peers().filter(p => p.id !== id)); this.restart(); },
   forget() { store.set('relayMac', null); this.stop(); },
@@ -341,15 +391,26 @@ const Relay = {
       return `<li>${b?.health === 'down' ? '🔴' : inUse ? '🟢' : b?.health === 'up' ? '🟡' : '⚪️'} ${i + 1}. ${esc(this.label(u))} <span class="se-note">${b?.health === 'down' ? `down, retry in ${Math.max(0, Math.round((b.nextTry - Date.now()) / 1000))} s` : inUse ? `in use${b.rtt ? `, ${b.rtt} ms` : ''}` : 'spare'}${(this.peerUse[room.room] || []).includes(u) ? ' · the other side uses it' : ''}</span></li>`; }).join('');
   },
   label(u) { return (this.list().brokers.find(b => b.url === u) || RELAY_DEFAULTS.find(b => b.url === u))?.name || new URL(u).host; },
-  async hostPair() {
-    closeSheet(); const code = this.newPairing();
+  /** Pairing on the Mac: first an optional phrase of your own, then the code. */
+  hostPair() {
+    sheet('Pair a phone or iPad', `<p>Add your own secret phrase on top of the random key (optional). Then the code alone isn’t enough: the phone also needs your phrase, which you type there yourself. It is never shown in the code or sent anywhere.</p>
+      <label class="se-field"><span>Your secret phrase (leave empty for none)</span><input id="rlPhrase" class="se-wz-in" type="password" autocomplete="new-password" placeholder="e.g. four random words: lamp river tiger maple"></label>
+      <p class="se-note">Longer is stronger: four or more random words, or a long sentence only you know. Case matters. If you forget it, just pair again.</p>`,
+      [['Show the code', () => this.hostPairShow($('#rlPhrase').value)], ['Cancel']]);
+  },
+  async hostPairShow(phrase) {
+    closeSheet(); Direct.screen('Pair a phone or iPad (once)', '<div class="dl-step"><p>Making the code…</p></div>'); const code = await this.newPairing(phrase || '');
     Direct.screen('Pair a phone or iPad (once)', `<div class="dl-step"><div class="dl-qr" id="dlQr"></div><div><p>On the phone or iPad: <b>DriveGen › Settings › Connections › Pair once</b>, and point its camera at this code.</p>
-      <p>From then on they find each other by themselves, from anywhere (mobile data too), through the relays in this Mac’s list (${this.list().brokers.length}, revision ${this.list().rev}), which only ever see encrypted messages.</p><p class="se-note">Anyone who can scan this code can pair, so show it only to your own devices.</p></div></div>`);
+      <p>From then on they find each other by themselves, from anywhere (mobile data too), through the relays in this Mac’s list (${this.list().brokers.length}, revision ${this.list().rev}), which only ever see encrypted messages.</p><p class="se-note">${phrase?.trim() ? 'The phone will ask for your secret phrase after scanning.' : 'Anyone who can scan this code can pair, so show it only to your own devices (or add a secret phrase).'}</p></div></div>`);
     Direct.showCode($('#dlQr'), code);
   },
   async guestPair() {
     closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p></div></div>`);
-    try { const code = await Direct.scan($('#dlCam'), 'SG'); this.pairWith(code); $('#dlState').textContent = 'Paired: finding your Mac…'; setTimeout(() => { Direct.done(); toast('Paired with your Mac'); }, 1500); }
+    try {
+      const code = await Direct.scan($('#dlCam'), 'SG'), r = this.pairWith(code);
+      if (r.needPass) { $('#dlFull .dl-main').innerHTML = `<div class="dl-step"><div><p><b>Your Mac has a secret phrase.</b> Type it here (the same one you typed on the Mac):</p><input id="dlPhrase" class="se-wz-in" type="password" autocomplete="off"><div class="chip-row"><button class="chip accent" data-rl="phrase">Done</button></div><p class="se-note" id="dlState"></p></div></div>`; return; }
+      $('#dlState').textContent = 'Paired: finding your Mac…'; setTimeout(() => { Direct.done(); toast('Paired with your Mac'); }, 1500);
+    }
     catch (e) { if ($('#dlState')) $('#dlState').textContent = e.message; }
   },
   /** StudioGen › Connections › Relays: the list both sides use, in order. */
@@ -407,6 +468,11 @@ document.addEventListener('click', e => {
   if (k === 'guestpair') return Relay.guestPair();
   if (k === 'relays') return Relay.editor();
   if (k === 'direct') return Relay.directSheet();
+  if (k === 'phrase') { const el = $('#dlState'); if (el) el.textContent = 'Checking…'; Relay.setPhrase($('#dlPhrase').value).then(() => { Direct.done(); toast('Paired with your Mac, with your secret phrase'); }, e2 => { if ($('#dlState')) $('#dlState').textContent = e2.message; }); return; }
+  if (k === 'macphrase') return sheet('Change the secret phrase', `<p>Type a new phrase for ${esc(Relay.peers().find(p => p.id === id)?.name || 'this device')} (empty: no phrase). Then type the same phrase on that device (Settings › Connections › Secret phrase). Until then, the current one stays in use.</p><label class="se-field"><span>New secret phrase</span><input id="rlPhrase2" class="se-wz-in" type="password" autocomplete="new-password"></label>`,
+    [['Save', () => Relay.changePhrase(id, $('#rlPhrase2').value).then(() => { toast('Now type it on the device'); LinkHost.settings(); })], ['Cancel', () => LinkHost.settings()]]);
+  if (k === 'devphrase') return sheet('Secret phrase', `<p>${Relay.mac()?.nextCheck ? '<b>Your Mac has a new secret phrase.</b> ' : ''}Type the phrase set on your Mac (empty if it has none).</p><label class="se-field"><span>Secret phrase</span><input id="rlPhrase3" class="se-wz-in" type="password" autocomplete="off"></label>`,
+    [['Save', () => Relay.setPhrase($('#rlPhrase3').value).then(() => { toast('Saved'); Link.settings(); }, e2 => toast(e2.message))], ['Cancel', () => Link.settings()]]);
   if (k === 'rekey') { Relay.rekey(id); toast('New secret sent: it’s used once the device confirms'); return setTimeout(() => LinkHost.settings(), 300); }
   if (k === 'rekeyall') { Relay.peers().forEach(p => Relay.rekey(p.id)); toast('New secrets sent to every device'); return setTimeout(() => LinkHost.settings(), 300); }
   if (k === 'revoke') { Relay.revoke(id); toast('Revoked: that device can’t reach StudioGen any more'); return LinkHost.settings(); }

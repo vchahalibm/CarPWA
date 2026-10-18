@@ -154,6 +154,7 @@
 </tbody></table></div>
 
 <h2 id="phases">10. Phases</h2>
+<div class="card"><b>Status (18 Oct 2026)</b>: T1 built (Settings › Connections › Test the connection; <code>?linktest=host</code>). T2 built (<code>tests/net/lab.mjs</code>, images by <code>tests/net/build.sh</code>). T3 built (<code>.github/workflows/net-nightly.yml</code>; first runs: Linux guest ↔ host direct through both routers, 42 ms; the other guest fell back to the relays, 105 ms; 11–12 of 12 relays reachable from GitHub's networks). T4: your field sessions.</div>
 <ol>
   <li><b>T1</b> The Connection test screen and the <code>?linktest</code> hooks (with a StudioGen link shim for headless runs). Usable right away for your own field tests.</li>
   <li><b>T2</b> The Docker lab: router profiles, the runner, the smoke set after every link change, the full matrix weekly, the HTML report.</li>

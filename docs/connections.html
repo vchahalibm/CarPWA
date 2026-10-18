@@ -63,9 +63,12 @@
  each side, continuously:
    health(b)  = up      when its OWN messages come back through b (it subscribes to both directions;
                          every hello, every 25 s, is also the echo test, so no extra traffic)
-              = down    after 2 misses (no echo in 10 s, or the connection fails/closes twice)
+              = down    after 2 misses (no echo in 10 s, the connection fails/closes, or no answer to connecting in 8 s:
+                         a firewall that silently drops it)
               = unknown not tried yet / being retried
-   window     = the first 2 brokers of L that are not down for me
+   window     = the first 2 brokers of L that carry data and are not down for me (trackers only when none does);
+                while the other side hasn't been heard for a while: the first 4, then 6 (so two sides that ended up on
+                different relays still find one they share), back to 2 once heard
    hello      = { …, use: window }            (sent on every broker it uses, every 25 s and at once on any change)
    active     = window ∪ (the other side's use, if not down for me)        (at most 3 connections)
    send       = on every active broker;  receive = from any (duplicates dropped by id)
@@ -78,7 +81,7 @@
   <li><b>A broker down for everyone</b>: both sides see their echoes stop, both drop it, both take the next one in L: they converge within about 20 s, and the hello tells the other at once.</li>
   <li><b>A broker blocked only on one network</b> (the car's mobile operator blocks b2): the phone moves to [b1, b3]; its hello says so; the Mac adds b3 to what it sends on. They still share b1 and b3.</li>
   <li><b>Every broker down</b>: status says the relays can't be reached; retries continue; direct and Tailscale still work when available.</li>
-  <li><b>Tested</b>: a list starting with a non-existent broker (both skip it within 12 s), and the phone alone losing EMQX (it moved to HiveMQ + Mosquitto, the Mac joined Mosquitto, requests kept working).</li>
+  <li><b>Tested</b>: a list starting with a non-existent broker (both skip it within 12 s), the phone alone losing EMQX (it moved to HiveMQ + Mosquitto, the Mac joined Mosquitto, requests kept working), and in the network lab a side that can't reach EMQX or HiveMQ at all, and a web-only network that only reaches relays on port 443 (the widening window finds a shared relay; first request in about 2 s).</li>
 </ul>
 
 <h2 id="direct">4. Direct when possible</h2>

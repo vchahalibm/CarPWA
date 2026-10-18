@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-/* The network lab (docs/connection-tests.html, layer 2): StudioGen's link side and DriveGen, each in headless Chromium behind
-   its own Linux router container (home, strict, UDP blocked, web-only, brokers blocked), with a STUN/TURN server and the app's
-   web server on the lab's "internet"; the relays are the real public ones. Each scenario pairs the two, waits for them to see
+/* The network lab (docs/connection-tests.html, layer 2): StudioGen's link side and DriveGen, each in headless Chromium in its own
+   network namespace behind its own router namespace (home, restricted, strict, UDP blocked, web-only, brokers blocked), with a
+   STUN/TURN server and the app's web server on the lab's "internet" (tests/net/ns.sh, all inside one privileged container, so
+   no Docker networking gets in the way); the relays are the real public ones. Each scenario pairs the two, waits for them to see
    each other, lets a direct link form (or not), times a 200-row request, and compares the outcome with what it should be.
      node tests/net/lab.mjs [smoke|full] [--keep]      (Docker, e.g. OrbStack; builds the images first)
    Output: tests/net/out/report.json and report.html. */
@@ -14,13 +15,13 @@ const run = promisify(execFile), here = path.dirname(fileURLToPath(import.meta.u
 const docker = async (...a) => (await run('docker', a, { maxBuffer: 1e7 })).stdout.trim();
 const quiet = (...a) => docker(...a).catch(() => '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const WAN = 'sglab-wan', WAN_NET = '172.31.0.', WEB = `${WAN_NET}5`, STUN = `${WAN_NET}3`;
 
 /* ---------- Scenarios: router profiles of each side, StudioGen's link settings, and what should happen ---------- */
 const S = (name, a, b, cfg, expect, more = {}) => ({ name, a, b, cfg: { mode: 'auto', relayData: true, ...cfg }, expect, ...more });
 const SMOKE = [
   S('home ↔ home', 'home', 'home', {}, 'direct'),
-  S('home ↔ strict', 'home', 'strict', {}, 'relay'),
+  S('home ↔ strict', 'home', 'strict', {}, 'direct'),
+  S('restricted ↔ restricted', 'restricted', 'restricted', {}, 'direct|relay'),
   S('strict ↔ strict', 'strict', 'strict', {}, 'relay'),
   S('strict ↔ strict + TURN', 'strict', 'strict', { turn: true }, 'turn'),
   S('strict ↔ strict, data over relays off', 'strict', 'strict', { relayData: false }, 'fail'),
@@ -30,41 +31,38 @@ const SMOKE = [
   S('home ↔ home, same network only', 'home', 'home', { mode: 'local' }, 'relay'),
   S('StudioGen can’t reach EMQX or HiveMQ', 'home', 'home', { mode: 'off' }, 'relay', { blockA: 'broker.emqx.io,broker.hivemq.com' }),
 ];
-const PROFILES = ['home', 'strict', 'noudp', 'webonly'];
+const PROFILES = ['home', 'restricted', 'strict', 'noudp', 'webonly'];
 const FULL = [...SMOKE, ...PROFILES.flatMap(a => PROFILES.map(b => S(`${a} ↔ ${b} (matrix)`, a, b, {}, expectOf(a, b))))];
 function expectOf(a, b) { // with STUN, data over relays on, no TURN
-  if (a === 'home' && b === 'home') return 'direct';
-  return 'relay';
+  const udp = p => p !== 'noudp' && p !== 'webonly';
+  if (!udp(a) || !udp(b)) return 'relay';
+  if (a === 'home' || b === 'home') return 'direct';                  // an easy NAT on one side is enough
+  if (a === 'strict' || b === 'strict') return 'relay';                // strict against restricted/strict
+  return 'direct|relay';                                                // restricted ↔ restricted: timing decides
 }
 
-/* ---------- The lab ---------- */
+/* ---------- The lab: one privileged container, network namespaces inside (tests/net/ns.sh) ---------- */
+const LAB = 'sglab-netlab', WEB = '172.31.0.1', STUN = '172.31.0.1';
 async function images() { await run('/bin/sh', [path.join(here, 'build.sh')], { env: process.env, maxBuffer: 1e7 }); } // builds what's missing (see build.sh)
 async function setup() {
-  if (!(await quiet('network', 'ls', '-q', '-f', `name=^${WAN}$`))) await docker('network', 'create', '--subnet', `${WAN_NET}0/24`, '--gateway', `${WAN_NET}1`, WAN);
-  if (!(await quiet('ps', '-q', '-f', 'name=^sglab-web$'))) { await quiet('rm', '-f', 'sglab-web'); await docker('run', '-d', '--name', 'sglab-web', '--network', WAN, '--ip', WEB, '-v', `${repo}:/app:ro`, 'python:3.12-alpine', 'python', '-m', 'http.server', '8000', '-d', '/app'); }
-  if (!(await quiet('ps', '-q', '-f', 'name=^sglab-stun$'))) { await quiet('rm', '-f', 'sglab-stun'); await docker('run', '-d', '--name', 'sglab-stun', '--network', WAN, '--ip', STUN, 'sglab-stun'); }
+  if (!(await quiet('ps', '-q', '-f', `name=^${LAB}$`))) { await quiet('rm', '-f', LAB); await docker('run', '-d', '--init', '--name', LAB, '--privileged', '-v', `${repo}:/app:ro`, '--entrypoint', 'sleep', 'sglab-netlab', 'infinity'); }
+  await docker('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'init');
 }
-const ev = async (c, js) => { const out = await docker('exec', c, 'node', '/agent.mjs', 'eval', js); try { return JSON.parse(out.split('\n').pop()); } catch { return { error: out.slice(0, 200) }; } };
+const ev = async (ns, js) => { const out = await docker('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'peer', ns, 'eval', js); try { return JSON.parse(out.split('\n').pop()); } catch { return { error: out.slice(0, 200) }; } };
 
 async function scenario(s, i) {
-  const n = 60 + i, A = `sglab-a${i}`, B = `sglab-b${i}`, t0 = Date.now(), res = { ...s };
-  const side = async (k, lan, sub, profile, block) => {
-    await docker('network', 'create', '--internal', '--subnet', `${sub}.0/24`, lan);
-    await docker('run', '-d', '--name', `${lan}-r`, '--cap-add', 'NET_ADMIN', '--sysctl', 'net.ipv4.ip_forward=1', '--network', lan, '--ip', `${sub}.2`, '-e', `PROFILE=${profile}`, '-e', `BLOCK=${block || ''}`, '-e', `WAN_NET=${WAN_NET}`, 'sglab-router');
-    await docker('network', 'connect', WAN, `${lan}-r`);
-    await docker('run', '-d', '--name', `${lan}-p`, '--cap-add', 'NET_ADMIN', '--network', lan, '--ip', `${sub}.10`, '-e', `GW=${sub}.2`, 'sglab-peer');
-    for (let j = 0; j < 60 && !(await quiet('logs', `${lan}-r`)).includes('router ready'); j++) await sleep(500);
-  };
+  const A = `pa${i}`, B = `pb${i}`, t0 = Date.now(), res = { ...s };
   try {
-    await Promise.all([side('a', A, `10.${n}.1`, s.a, s.blockA), side('b', B, `10.${n}.2`, s.b, s.blockB)]);
-    await docker('exec', `${A}-p`, 'node', '/agent.mjs', 'start', `http://${WEB}:8000/index.html?linktest=host`);
-    await docker('exec', `${B}-p`, 'node', '/agent.mjs', 'start', `http://${WEB}:8000/index.html`);
-    for (const c of [`${A}-p`, `${B}-p`]) for (let j = 0; j < 120; j++) { if ((await ev(c, `typeof Relay !== 'undefined' && typeof Voice !== 'undefined' && typeof LinkTest !== 'undefined'`)) === true) break; await sleep(500); } // the app has loaded
+    await quiet('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'down', String(i));
+    await docker('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'up', String(i), s.a, s.b, s.blockA || '', s.blockB || '');
+    await docker('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'peer', A, 'start', `http://${WEB}:8000/index.html?linktest=host`);
+    await docker('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'peer', B, 'start', `http://${WEB}:8000/index.html`);
+    for (const c of [A, B]) for (let j = 0; j < 120; j++) { if ((await ev(c, `typeof Relay !== 'undefined' && typeof Voice !== 'undefined' && typeof LinkTest !== 'undefined'`)) === true) break; await sleep(500); } // the app has loaded
     const cfg = { mode: s.cfg.mode, relayData: s.cfg.relayData, stun: [`stun:${STUN}:3478`], turn: s.cfg.turn ? { url: `turn:${STUN}:3478`, user: 'lab', pass: 'lab' } : { url: '', user: '', pass: '' } };
-    const code = await ev(`${A}-p`, `(async()=>{ Voice.respond=async()=>{}; store.set('relayList', ${JSON.stringify(s.list || null)}); store.set('directCfg', ${JSON.stringify(cfg)}); store.set('relayPeers', []); return Relay.newPairing(); })()`);
+    const code = await ev(A, `(async()=>{ Voice.respond=async()=>{}; store.set('relayList', ${JSON.stringify(s.list || null)}); store.set('directCfg', ${JSON.stringify(cfg)}); store.set('relayPeers', []); return Relay.newPairing(); })()`);
     if (typeof code !== 'string') throw new Error(`pairing: ${JSON.stringify(code)}`);
-    const r = await ev(`${B}-p`, `(async()=>{ Voice.respond=async()=>{}; const w=ms=>new Promise(r=>setTimeout(r,ms)); Relay.pairWith(${JSON.stringify(code)});
-      const t0=Date.now(); for(let i=0;i<90&&!Relay.online.mac;i++) await w(500); const online=!!Relay.online.mac, onlineMs=Date.now()-t0;
+    const r = await ev(B, `(async()=>{ Voice.respond=async()=>{}; const w=ms=>new Promise(r=>setTimeout(r,ms)); Relay.pairWith(${JSON.stringify(code)});
+      const t0=Date.now(); for(let i=0;i<120&&!Relay.online.mac;i++) await w(500); const online=!!Relay.online.mac, onlineMs=Date.now()-t0;
       if (online && ${JSON.stringify(s.cfg.mode)} !== 'off') for(let i=0;i<50&&!Direct.connected;i++) await w(500);
       let rows=0, ms=null, err=null; const t=Date.now();
       try { const x = Link.direct() ? await Direct.call('echo',{n:200},30000) : Link.relay() ? await Relay.call('echo',{n:200},30000) : null; if (x) { rows=x.rows.length; ms=Date.now()-t; } else err='no link'; } catch(e) { err=e.message; }
@@ -72,8 +70,8 @@ async function scenario(s, i) {
     Object.assign(res, r);
     res.outcome = r.error ? 'error' : !r.online && !r.direct ? 'fail' : r.direct && r.rows === 200 ? (r.local === 'relay' || r.remote === 'relay' ? 'turn' : 'direct') : r.rows === 200 ? 'relay' : 'fail';
   } catch (e) { res.outcome = 'error'; res.error = e.message.split('\n')[0].slice(0, 300); }
-  res.pass = res.outcome === s.expect; res.secs = Math.round((Date.now() - t0) / 1000);
-  if (!process.argv.includes('--keep')) { await quiet('rm', '-f', `${A}-p`, `${B}-p`, `${A}-r`, `${B}-r`); await quiet('network', 'rm', A, B); }
+  res.pass = s.expect.split('|').includes(res.outcome); res.secs = Math.round((Date.now() - t0) / 1000);
+  if (!process.argv.includes('--keep')) await quiet('exec', LAB, 'sh', '/app/tests/net/ns.sh', 'down', String(i));
   console.log(`${res.pass ? 'PASS' : 'FAIL'}  ${s.name.padEnd(42)} expected ${s.expect.padEnd(6)} got ${String(res.outcome).padEnd(6)} ${res.ms != null ? `${res.ms} ms` : ''} ${res.local ? `(${res.local}↔${res.remote})` : ''} ${res.error || res.err || ''}`);
   return res;
 }
@@ -85,9 +83,10 @@ function html(results) {
 <table><tr><th>Scenario</th><th>Expected</th><th>Outcome</th><th>Online ms</th><th>200 rows ms</th><th>Direct pair</th><th>Relays used</th><th>Note</th></tr>${results.map(row).join('')}</table>`;
 }
 
-const set = process.argv[2] === 'full' ? FULL : SMOKE;
+const only = process.argv.find(a => a.startsWith('--only='))?.slice(7).split(',').map(Number);
+const set = (process.argv[2] === 'full' ? FULL : SMOKE).filter((_, i) => !only || only.includes(i)); // --only=0,3 runs some
 console.log(`Network lab: ${set.length} scenarios`); await images(); await setup();
-const results = [], par = 3; let next = 0;
+const results = [], par = +(process.env.LAB_PAR || 2); let next = 0;
 await Promise.all(Array.from({ length: par }, async () => { while (next < set.length) { const i = next++; results[i] = await scenario(set[i], i); } }));
 fs.mkdirSync(path.join(here, 'out'), { recursive: true });
 fs.writeFileSync(path.join(here, 'out/report.json'), JSON.stringify(results, null, 2)); fs.writeFileSync(path.join(here, 'out/report.html'), html(results));

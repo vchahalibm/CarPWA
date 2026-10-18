@@ -1,20 +1,18 @@
 #!/bin/sh
-# Builds the lab images by installing packages in a running container and committing it (BuildKit's RUN network can stall
-# on some Docker setups; plain containers don't). Same result as the Dockerfiles in router/, peer/, stun/.
-# APK_MIRROR=https://mirrors.aliyun.com/alpine ./build.sh   when the default Alpine mirror is slow from your network.
+# Builds the lab image sglab-netlab: a ready-made Alpine Chromium image (zenika/alpine-chrome:with-node), Node 22 copied in for
+# the agent (peer/agent.mjs), and iptables, iproute2 and coturn for the namespaces, routers and STUN/TURN of tests/net/ns.sh.
+# Done by installing in a running container and committing it (BuildKit's RUN network can stall on some Docker setups).
+#   tests/net/build.sh [-f]            APK_MIRROR=https://mirrors.aliyun.com/alpine when the default Alpine mirror is slow for you
 set -e
 cd "$(dirname "$0")"
-mk() { # name base packages entrypoint files...
-  name=$1 base=$2 pkgs=$3 entry=$4; shift 4
-  docker rm -f sglab-build >/dev/null 2>&1 || true
-  docker run -d --name sglab-build "$base" sleep 3600 >/dev/null
-  [ -n "$APK_MIRROR" ] && docker exec sglab-build sed -i "s#https\?://dl-cdn.alpinelinux.org/alpine#$APK_MIRROR#" /etc/apk/repositories
-  docker exec sglab-build sh -c "apk add --no-cache $pkgs >/dev/null"
-  for f in "$@"; do docker cp "$f" sglab-build:/; done
-  docker commit -c "ENTRYPOINT $entry" -c 'CMD []' sglab-build "sglab-$name" >/dev/null
-  docker rm -f sglab-build >/dev/null; echo "built sglab-$name"
-}
-[ "$1" = "-f" ] || [ -z "$(docker images -q sglab-router)" ] && mk router alpine:3.20 "iptables iproute2 bind-tools" '["/bin/sh","/router.sh"]' router/router.sh
-[ "$1" = "-f" ] || [ -z "$(docker images -q sglab-stun)" ] && mk stun alpine:3.20 "coturn" '["turnserver","-n","--listening-port=3478","--fingerprint","--lt-cred-mech","--user=lab:lab","--realm=lab","--no-tls","--no-dtls","--no-cli","--log-file=stdout","--allow-loopback-peers"]'
-[ "$1" = "-f" ] || [ -z "$(docker images -q sglab-peer)" ] && mk peer node:22-alpine "chromium font-noto iproute2" '["/bin/sh","/peer.sh"]' peer/agent.mjs peer/peer.sh
-true
+[ "$1" = "-f" ] || [ -z "$(docker images -q sglab-netlab)" ] || exit 0
+docker pull -q zenika/alpine-chrome:with-node >/dev/null 2>&1 || true; docker pull -q node:22-alpine >/dev/null 2>&1 || true
+docker rm -f sglab-build sglab-node >/dev/null 2>&1 || true
+docker create --name sglab-node node:22-alpine >/dev/null && docker cp sglab-node:/usr/local/bin/node /tmp/sglab-node22 && docker rm sglab-node >/dev/null
+docker run -d --name sglab-build --user root --entrypoint sleep zenika/alpine-chrome:with-node 3600 >/dev/null
+docker cp /tmp/sglab-node22 sglab-build:/usr/local/bin/node && rm -f /tmp/sglab-node22
+docker cp peer/agent.mjs sglab-build:/agent.mjs
+[ -n "$APK_MIRROR" ] && docker exec sglab-build sed -i "s#https\?://dl-cdn.alpinelinux.org/alpine#$APK_MIRROR#" /etc/apk/repositories
+docker exec sglab-build sh -c 'ln -sf /usr/local/bin/node /usr/bin/node; apk add --no-cache iptables iproute2 coturn >/dev/null; node -v'
+docker commit -c 'USER root' -c 'ENTRYPOINT ["sleep","infinity"]' -c 'CMD []' sglab-build sglab-netlab >/dev/null
+docker rm -f sglab-build >/dev/null; echo "built sglab-netlab"

@@ -24,7 +24,8 @@
      direction, as additional data), a timestamp (older than 2 minutes:
      dropped), an id (seen before: dropped).
    - Polite to the brokers: QoS 0, nothing retained, at most 3 connections,
-     a hello every 25 s, keep-alive 60 s, reconnects with growing pauses.
+     a hello every 15 s, keep-alive 60 s, reconnects with growing pauses; more relays (up to 6)
+     only while searching for the other side.
    - Over it: presence, the link requests (offers, run, say; answers kept 10
      minutes for resends), and the WebRTC handshake for a direct link when the
      direct settings (StudioGen's) allow it (js/direct.js).
@@ -163,9 +164,15 @@ const Relay = {
   /* ---------- Which brokers: the same rule on both sides ---------- */
   health(url) { return this.pool.get(url)?.health || 'unknown'; },
   /** Mine: the first two of the room's list that aren't down for me. */
-  window(room) { const L = this.brokersOf(room).filter(u => this.health(u) !== 'down'), d = L.filter(u => relayKind(u).data); return (d.length ? d : L).slice(0, 2); }, // trackers (introductions) only when nothing that carries data works
+  window(room) { const L = this.brokersOf(room).filter(u => this.health(u) !== 'down'), d = L.filter(u => relayKind(u).data); return (d.length ? d : L).slice(0, this.width(room)); }, // trackers (introductions) only when nothing that carries data works
+  /** How many to use: two, or, while the other side hasn't been heard for a while, more and more (2, 4, 6) so that two sides
+      that ended up on different relays (one can't reach the first ones) still find a relay they share; back to two once heard. */
+  width(room) {
+    const heard = this.isMac() ? this.online[room.room] : this.online.mac, since = Math.max(heard || 0, this.since || 0), quiet = Date.now() - since;
+    return heard && Date.now() - heard < 40000 ? 2 : Math.min(6, 2 + 2 * Math.floor(Math.max(0, quiet - 10000) / 15000));
+  },
   /** Where this room's messages go: my two, plus what the other side says it uses (if not down for me); at most 3. */
-  active(room) { const w = this.window(room), extra = (this.peerUse[room.room] || []).filter(u => this.brokersOf(room).includes(u) && !w.includes(u) && this.health(u) !== 'down'); return [...w, ...extra].slice(0, 3); },
+  active(room) { const w = this.window(room), extra = (this.peerUse[room.room] || []).filter(u => this.brokersOf(room).includes(u) && !w.includes(u) && this.health(u) !== 'down'); return [...w, ...extra].slice(0, Math.max(3, w.length)); },
   /** Open what's needed, close what isn't (after a grace period), subscribe both directions (our own messages coming back tell us the broker works). */
   async plan() {
     const need = new Map();
@@ -180,6 +187,8 @@ const Relay = {
     this.onchange?.();
   },
   connect(b) {
+    // A firewall that silently drops the connection would leave it hanging for a minute or more: 8 s to answer, then the next relay.
+    clearTimeout(b.timer); b.timer = setTimeout(() => { if (b.mq && !b.mq.up) { const m = b.mq; b.mq = null; m.close(); this.fail(b, 'no answer in 8 s'); } }, 8000);
     b.tried = Date.now(); b.mq = new (relayKind(b.url))(b.url, (t, p) => this.got(t, p, b), s => {
       if (s === 'up') { b.wait = 0; b.connected = Date.now(); if (!relayKind(b.url).echo) this.ok(b, Date.now() - b.tried); this.plan().then(() => this.hello()); return; }
       b.mq = null; this.fail(b, s === 'refused' ? 'refused the connection' : 'connection closed');
@@ -196,8 +205,8 @@ const Relay = {
   ok(b, rtt) { const was = b.health; b.health = 'up'; b.fails = 0; b.rtt = rtt; if (was !== 'up') { Log.i('relay', `Broker works: ${b.url} (${rtt} ms)`); this.plan(); } },
   /* ---------- Starting and stopping ---------- */
   start() {
-    if (this.started || !this.rooms().length) return; this.started = true;
-    this.plan(); clearInterval(this.beat); this.beat = setInterval(() => this.tick(), 25000); setTimeout(() => this.hello(), 1500);
+    if (this.started || !this.rooms().length) return; this.started = true; this.since = Date.now();
+    this.plan(); clearInterval(this.beat); this.beat = setInterval(() => this.tick(), 15000); setTimeout(() => this.hello(), 1500);
     Log.i('relay', 'Relay started', { rooms: this.rooms().length });
   },
   stop() { for (const b of this.pool.values()) try { b.mq?.close(); } catch {} this.pool.clear(); this.started = false; clearInterval(this.beat); this.online = {}; this.peerUse = {}; this.topics = {}; },
@@ -263,7 +272,7 @@ const Relay = {
     Direct.offer(ice).then(code => { Direct.peer = ''; this.post(room, 'rtc-offer', { code, ice }); }).catch(e => Log.w('relay', 'Direct offer failed', e));
   },
   rename(room, name, rev) { store.set('relayPeers', this.peers().map(p => p.room === room.room ? { ...p, name: name || p.name, seen: new Date().toISOString(), rev: rev || p.rev } : p)); },
-  /** DriveGen → the Mac: a request, resent every 15 s until answered (the Mac answers a resend from its kept answer). */
+  /** DriveGen → the Mac: a request, resent after 3 and 7 s, then every 15 s, until answered (the Mac answers a resend from its kept answer). */
   call(kind, payload = {}, ms = 600000) {
     const room = this.mac(); if (!room) return Promise.reject(new Error('Not paired with a Mac'));
     if (!this.dataOk()) return Promise.reject(new Error('Your Mac only takes requests over a direct link (data over the relays is off)'));
@@ -272,6 +281,7 @@ const Relay = {
       const send = () => this.post(room, 'ask', { id, kind, payload });
       const w = { res, rej, t: setTimeout(() => { this.waits.delete(id); clearInterval(w.again); rej(new Error('Your Mac didn’t answer: is StudioGen open?')); }, ms), again: setInterval(send, 15000) };
       this.waits.set(id, w); send();
+      for (const d of [3000, 7000]) setTimeout(() => { if (this.waits.has(id)) send(); }, d); // early resends: a request lost while the two settle on a shared relay
     });
   },
   /* ---------- Pairing (once per device; again when StudioGen's list changes) ---------- */

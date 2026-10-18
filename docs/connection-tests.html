@@ -82,7 +82,7 @@
 <p>The same checks run headless through test hooks (<code>?linktest</code>) so Layers 2 and 3 use exactly the code users run.</p>
 
 <h2 id="lab">5. Layer 2: a network lab on one Mac (automated)</h2>
-<p>Docker (Colima or Docker Desktop) builds small virtual networks with a Linux “router” container in front of each app. The apps run as headless Chromium (Playwright): DriveGen as-is, StudioGen's link side through a test shim (the same js/relay.js, js/direct.js, js/link.js, with the desktop powers stubbed). The real public brokers and STUN servers are used through the routers' internet access, plus a local broker and TURN server for offline runs.</p>
+<p>One privileged Docker container holds the whole lab as Linux network namespaces (<code>tests/net/ns.sh</code>): a router namespace in front of each app, the lab's “internet” in the container itself. (Separate Docker networks and router containers were tried first: on OrbStack, traffic slipped between them through the Docker host, so namespaces it is.) The apps run as headless Chromium (Playwright): DriveGen as-is, StudioGen's link side through a test shim (the same js/relay.js, js/direct.js, js/link.js, with the desktop powers stubbed). The real public brokers and STUN servers are used through the routers' internet access, plus a local broker and TURN server for offline runs.</p>
 <pre>
                          ┌──────── internet (real brokers, STUN) ────────┐
                          │                                               │
@@ -154,7 +154,7 @@
 </tbody></table></div>
 
 <h2 id="phases">10. Phases</h2>
-<div class="card"><b>Status (18 Oct 2026)</b>: T1 built (Settings › Connections › Test the connection; <code>?linktest=host</code>). T2 built (<code>tests/net/lab.mjs</code>, images by <code>tests/net/build.sh</code>). T3 built (<code>.github/workflows/net-nightly.yml</code>; first runs: Linux guest ↔ host direct through both routers, 42 ms; the other guest fell back to the relays, 105 ms; 11–12 of 12 relays reachable from GitHub's networks). T4: your field sessions.</div>
+<div class="card"><b>Status (18 Oct 2026)</b>: T1 built (Settings › Connections › Test the connection; <code>?linktest=host</code>). T2 built (<code>tests/net/lab.mjs</code> with network namespaces in one container, <code>tests/net/ns.sh</code>; the full matrix of 36 scenarios: all as expected after fixes it found: an 8 s connect timeout for relays a firewall silently drops, a widening relay window so two sides on different relays still meet, earlier request resends). T3 built (<code>.github/workflows/net-nightly.yml</code>; first runs: Linux guest ↔ host direct through both routers, 42 ms; the other guest fell back to the relays, 105 ms; 11–12 of 12 relays reachable from GitHub's networks). T4: your field sessions.</div>
 <ol>
   <li><b>T1</b> The Connection test screen and the <code>?linktest</code> hooks (with a StudioGen link shim for headless runs). Usable right away for your own field tests.</li>
   <li><b>T2</b> The Docker lab: router profiles, the runner, the smoke set after every link change, the full matrix weekly, the HTML report.</li>

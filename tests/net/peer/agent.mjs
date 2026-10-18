@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 const [cmd, arg] = process.argv.slice(2), sleep = ms => new Promise(r => setTimeout(r, ms));
 if (cmd === 'start') {
   const origin = new URL(arg).origin;
-  spawn('chromium-browser', ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--user-data-dir=/tmp/profile', `--unsafely-treat-insecure-origin-as-secure=${origin}`, '--window-size=1000,800', arg], { detached: true, stdio: 'ignore' }).unref();
+  spawn('chromium-browser', ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-port=9222', `--user-data-dir=${process.env.PROFILE_DIR || '/tmp/profile'}`, `--unsafely-treat-insecure-origin-as-secure=${origin}`, '--window-size=1000,800', arg], { detached: true, stdio: 'ignore' }).unref();
   for (let i = 0; i < 60; i++) { try { const l = await (await fetch('http://127.0.0.1:9222/json')).json(); if (l.some(x => x.type === 'page' && x.url.includes('index.html'))) { console.log('started'); process.exit(0); } } catch {} await sleep(500); }
   console.log('no page'); process.exit(1);
 }

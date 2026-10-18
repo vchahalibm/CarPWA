@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the Apps Talk</title>
+<style>
+  :root { --bg:#fffaf0; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#ead9bd; --acc:#e4572e; --blue:#2f6fde; --green:#1f9d61; --yellow:#f4b400; --violet:#7a4fd8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#14161c; --card:#1d2029; --ink:#eef0f4; --mut:#a3abb8; --line:#2f3442; --acc:#ff7a52; --blue:#6ea0ff; --green:#45c98a; --yellow:#ffcc4d; --violet:#a98bff; } }
+  :root[data-theme="dark"] { --bg:#14161c; --card:#1d2029; --ink:#eef0f4; --mut:#a3abb8; --line:#2f3442; --acc:#ff7a52; --blue:#6ea0ff; --green:#45c98a; --yellow:#ffcc4d; --violet:#a98bff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 "Trebuchet MS", -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:32px; margin:0 0 6px; } h2 { font-size:24px; margin:40px 0 10px; } h3 { font-size:19px; margin:18px 0 6px; }
+  p, li { max-width:70ch; } .mut { color:var(--mut); } a { color:var(--blue); }
+  .card { background:var(--card); border:2px solid var(--line); border-radius:18px; padding:16px 18px; margin:14px 0; }
+  .tip { border-left:6px solid var(--yellow); } .safe { border-left:6px solid var(--green); } .how { border-left:6px solid var(--blue); }
+  .big { font-size:42px; line-height:1; margin-right:8px; vertical-align:middle; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; } .row > .card { flex:1 1 240px; margin:0; }
+  .pic { background:var(--card); border:2px solid var(--line); border-radius:18px; padding:12px; margin:14px 0; overflow-x:auto; }
+  .pic svg { display:block; width:100%; height:auto; min-width:520px; }
+  svg text { font-family:inherit; fill:var(--ink); } svg .m { fill:var(--mut); }
+  ol.steps { padding-left:22px; } ol.steps li { margin:8px 0; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:2px solid var(--line); border-radius:14px; overflow:hidden; font-size:15px; }
+  th, td { text-align:left; vertical-align:top; padding:9px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  code { font:14px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 5px; border-radius:6px; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .badge { display:inline-block; background:var(--acc); color:#fff; border-radius:999px; padding:2px 10px; font-size:13px; font-weight:700; }
+</style>
+</head>
+<body>
+<main>
+<h1>How DriveGen and StudioGen talk to each other</h1>
+<p class="mut">A friendly guide to the Connections part of the apps: what it does, how it keeps your messages secret, and how you stay in control. Written so a 6th grader can follow it. (Grown-ups: the detailed design is in <a href="connections.html">connections.html</a>.)</p>
+
+<ul class="toc">
+  <li><a href="#what">1. What it does</a></li>
+  <li><a href="#doors">2. The front-door problem</a></li>
+  <li><a href="#meet">3. Meeting places (relays)</a></li>
+  <li><a href="#lock">4. Locked boxes (how messages are kept secret)</a></li>
+  <li><a href="#pair">5. Pairing: sharing the key in person</a></li>
+  <li><a href="#direct">6. Talking directly</a></li>
+  <li><a href="#switch">7. When a meeting place closes</a></li>
+  <li><a href="#change">8. Changing the secret: you're in control</a></li>
+  <li><a href="#test">9. Checking that it works</a></li>
+  <li><a href="#files">10. Where this lives in the code</a></li>
+  <li><a href="#words">11. Word list</a></li>
+</ul>
+
+<h2 id="what">1. What it does</h2>
+<div class="row">
+  <div class="card"><span class="big">📱</span><b>DriveGen</b> is the app on a phone or iPad. In a car, it's your talking assistant.</div>
+  <div class="card"><span class="big">💻</span><b>StudioGen</b> is the app on a Mac. It can run presentations, open apps, read data, and do jobs on the computer.</div>
+</div>
+<p>Connections lets them work as a team. From your phone you can say <b>“run the sales summary on my Mac”</b>, and the Mac does the job and sends the answer back to your phone, even if you're in a car far away from home.</p>
+
+<h2 id="doors">2. The front-door problem</h2>
+<p>Every home or school network has a <b>router</b>. Think of it as the <b>front door</b> of a building. It lets people inside go out, and it lets answers come back in. But if a stranger knocks from outside, the door stays shut. That's good for safety, but it means your phone (outside, on mobile data) can't just knock on your Mac's door.</p>
+<div class="pic"><svg viewBox="0 0 640 170" role="img" aria-label="A phone and a Mac each behind a closed door">
+  <rect x="10" y="20" width="250" height="130" rx="16" fill="none" stroke="var(--blue)" stroke-width="3"/><text x="24" y="44" font-weight="700">Your home</text>
+  <text x="40" y="105" font-size="40">💻</text><text x="92" y="100">StudioGen</text>
+  <rect x="236" y="60" width="24" height="60" rx="4" fill="var(--yellow)"/><text x="196" y="142" class="m" font-size="13">router = door</text>
+  <rect x="380" y="20" width="250" height="130" rx="16" fill="none" stroke="var(--green)" stroke-width="3"/><text x="394" y="44" font-weight="700">The car (mobile data)</text>
+  <text x="560" y="105" font-size="40">📱</text><text x="470" y="100">DriveGen</text>
+  <rect x="380" y="60" width="24" height="60" rx="4" fill="var(--yellow)"/>
+  <text x="292" y="95" font-size="34">🚪❓</text><text x="280" y="140" class="m" font-size="13">no way in…</text>
+</svg></div>
+
+<h2 id="meet">3. Meeting places (relays)</h2>
+<p>So the two apps meet somewhere both can reach: a <b>relay</b>. A relay is like a <b>public bulletin board</b> or a <b>post office locker</b> on the internet. Each app walks out its own front door (always allowed!), pins messages on the board, and reads the messages left for it.</p>
+<div class="pic"><svg viewBox="0 0 640 190" role="img" aria-label="Both apps going out to a relay in the middle">
+  <text x="30" y="110" font-size="40">💻</text><text x="20" y="150">StudioGen</text>
+  <text x="560" y="110" font-size="40">📱</text><text x="556" y="150">DriveGen</text>
+  <rect x="230" y="40" width="180" height="110" rx="18" fill="none" stroke="var(--violet)" stroke-width="3"/><text x="262" y="72" font-weight="700">Relay 📋</text><text x="250" y="100" class="m" font-size="14">a public message board</text><text x="262" y="126" font-size="22">📦 📦</text>
+  <path d="M85 95 C 150 60, 190 70, 228 90" fill="none" stroke="var(--blue)" stroke-width="3" marker-end="url(#a)"/>
+  <path d="M552 95 C 490 60, 450 70, 412 90" fill="none" stroke="var(--green)" stroke-width="3" marker-end="url(#a)"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
+</svg></div>
+<p>The apps use free, public relays that already exist. There are three kinds, and the apps can use all of them:</p>
+<div class="row">
+  <div class="card"><b>MQTT brokers</b> 📬<br>Message boards made for smart gadgets (lights, sensors). Fast and simple.</div>
+  <div class="card"><b>Nostr relays</b> 📡<br>Message boards run by many different people around the world.</div>
+  <div class="card"><b>WebTorrent trackers</b> 🤝<br>Only good for introductions (“here's how to reach me”), not for carrying your actual messages.</div>
+</div>
+<div class="card tip">💡 <b>Wait, it's public?</b> Yes, the board is public, but your messages are inside <b>locked boxes</b>. Anyone can see that a box is there, but nobody can open it. That's the next part.</div>
+
+<h2 id="lock">4. Locked boxes (how messages are kept secret)</h2>
+<p>Before a message leaves your phone or Mac, the app puts it in a locked box. This is called <b>encryption</b>. Only your two devices have the key that opens it.</p>
+<ol class="steps">
+  <li><b>The key</b> is a secret number made by the computer at random. It's <b>256 bits</b> long, so there are more possible keys than grains of sand on all the beaches of Earth, many, many times over. Nobody can guess it.</li>
+  <li><b>The lock</b> is called <b>AES-GCM</b>. It's the same kind of lock banks and websites use. It does two jobs: it scrambles the message so it looks like noise, and it adds a <b>seal</b>. If anyone changes even one letter, the seal breaks and the app throws the message away.</li>
+  <li><b>A label on the box</b> says which way it's going (Mac → phone, or phone → Mac), and that label is part of the seal too. A box can't be turned around and sent back the other way.</li>
+  <li><b>A timestamp and a message number</b> go inside. Boxes older than 2 minutes, or ones the app has already seen, are thrown away. So nobody can copy a box today and send it again tomorrow to trick your Mac.</li>
+</ol>
+<div class="card safe">🔒 <b>What the relay sees:</b> a random-looking name for the box (like “sg1/7f3a9c…”), a pile of scrambled noise, how big it is, and when it was sent. <b>What it can't see:</b> what you said, what your Mac did, or your data.</div>
+<p>There are two more locks for special cases:</p>
+<ul>
+  <li><b>Direct links</b> (section 6) use WebRTC's own built-in lock, called <b>DTLS</b>, on top of everything.</li>
+  <li><b>Nostr relays</b> need every message to carry a <b>signature</b>, like an autograph. The app makes its own autograph key, and it has nothing to do with your secret key.</li>
+</ul>
+
+<h2 id="pair">5. Pairing: sharing the key in person</h2>
+<p>How do two devices get the same secret key without anyone else seeing it? <b>In person, with a QR code.</b></p>
+<ol class="steps">
+  <li>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad (once)</b>. A big QR code appears.</li>
+  <li>On the phone: <b>DriveGen › Settings › Connections › Pair once</b>. Point the camera at the code.</li>
+  <li>Done! The code held three things: a random room name (where to meet), the secret key, and the Mac's list of meeting places.</li>
+</ol>
+<div class="card tip">⚠️ Anyone who scans that QR code can pair, so only show it to your own devices, and close it when you're done.</div>
+
+<h2 id="direct">6. Talking directly</h2>
+<p>Once they've met at a relay, the apps try to <b>talk directly</b>, like two friends who found each other's phone numbers. This uses a technology called <b>WebRTC</b>.</p>
+<ol class="steps">
+  <li>Each app asks a <b>STUN server</b>, “What's my address as seen from outside?” (It's like asking someone across the street to read your house number.)</li>
+  <li>They swap addresses through the relay, inside a locked box of course.</li>
+  <li>Both apps send a message to each other <b>at the same moment</b>. Each front door sees its own app sending something out, so it lets the answer back in. This trick is called <b>hole punching</b>.</li>
+</ol>
+<div class="pic"><svg viewBox="0 0 640 150" role="img" aria-label="Two apps sending to each other at once through their doors">
+  <text x="20" y="90" font-size="38">💻</text><rect x="80" y="45" width="18" height="60" rx="4" fill="var(--yellow)"/>
+  <text x="590" y="90" font-size="38">📱</text><rect x="545" y="45" width="18" height="60" rx="4" fill="var(--yellow)"/>
+  <path d="M105 70 L 538 70" stroke="var(--blue)" stroke-width="3" marker-end="url(#b)"/><path d="M538 92 L 105 92" stroke="var(--green)" stroke-width="3" marker-end="url(#b)"/>
+  <text x="230" y="58" class="m" font-size="14">both send at the same time…</text><text x="250" y="122" class="m" font-size="14">…and both doors open! 🎉</text>
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
+</svg></div>
+<p>This works most of the time, but some front doors are extra strict (some phone companies, offices and hotels). When that happens, the relay simply keeps carrying the locked boxes. You don't have to do anything.</p>
+<div class="card how"><b>You can choose</b> (on the Mac: Settings › Connections › Direct link):
+<ul>
+  <li><b>Whenever possible:</b> try to go direct, even between different networks.</li>
+  <li><b>Same network only:</b> go direct only when both are on the same Wi-Fi.</li>
+  <li><b>Never:</b> always use the relays.</li>
+</ul>
+Also: <b>“Let data go over the relays when there's no direct link.”</b> Turn it off and the relays only ever carry introductions. Then, if the doors are too strict, there's no connection, unless you add a <b>TURN</b> server. A TURN server is a delivery helper you set up yourself; it carries the locked traffic when nothing else can.</div>
+<p>There's also <b>Connect directly</b> (scan a code each time). It works on the same Wi-Fi with no internet at all, but it doesn't remember the pairing, so you scan again next time.</p>
+
+<h2 id="switch">7. When a meeting place closes</h2>
+<p>Public relays sometimes go offline. So the Mac keeps an <b>ordered list</b> of meeting places (Settings › Connections › Relays), and both apps follow the same rule:</p>
+<div class="card how"><b>The rule:</b> use the <b>first two</b> places on the list that are working for you.
+<ul>
+  <li>An app knows a place works because its <b>own</b> messages come back to it from there, like hearing your own echo.</li>
+  <li>Every “hello” (about every 15 seconds) says which places you're using, and each app also visits the other's places. That way they always meet.</li>
+  <li>If a place stops answering, both apps move down the list. When it comes back, they move back up.</li>
+  <li>If the two haven't heard each other for a while, they each check more places on the list (4, then 6) until they find each other.</li>
+</ul></div>
+<p>The Mac is the <b>boss of the list</b>. You can add your own meeting place, move places up or down, and test them all. If you change the list, pair your phone again so it gets the new list. Until then, it keeps using the old one.</p>
+
+<h2 id="change">8. Changing the secret: you're in control</h2>
+<p>Changing your secret key now and then is good practice, like changing a password. You don't have to type anything: the Mac makes a brand-new random key for you.</p>
+<div class="card how"><b>How to change it</b> (on the Mac: StudioGen › Settings › Connections):
+<ul>
+  <li><b>Change secret</b> next to a device: gives that device a new key now.</li>
+  <li><b>Change all secrets now:</b> every paired device gets a new key.</li>
+  <li><b>Change every secret automatically:</b> every day, every week, every month, or only when you ask.</li>
+  <li><b>Revoke</b> a device: throws its key away for good. That device can't talk to your Mac any more, unless you pair it again.</li>
+  <li><b>Pair again:</b> also makes a brand-new key (and gives the phone the newest list of meeting places).</li>
+</ul>
+On the phone, Settings › Connections shows when the secret last changed.</div>
+<h3>What happens when the secret changes</h3>
+<ol class="steps">
+  <li>The Mac makes a new random key and sends it to your phone, <b>locked with the current key</b>. So only your phone can open it.</li>
+  <li>Your phone switches to the new key and replies, using the new key.</li>
+  <li>When the Mac sees the new key working, it switches too.</li>
+  <li>Both keep the old key for <b>10 minutes</b>, only to open boxes that were already on their way. After that it's gone.</li>
+  <li>If your phone was off, it gets the new key the next time it says hello.</li>
+</ol>
+<div class="card tip">🤔 <b>Why not let me type my own secret word?</b> Words people choose are much easier to guess than a random 256-bit number. A computer can try billions of common words and phrases very quickly. The random key is far stronger, and changing it often (with the button or the schedule) keeps you in control without remembering anything.</div>
+<div class="card safe">✅ We tested it: after changing the secret twice, both apps used the same new key, messages still worked, and the very first key could no longer open new messages.</div>
+
+<h2 id="test">9. Checking that it works</h2>
+<p>Settings › Connections › <b>Test the connection</b> (on both apps) checks everything in about 20 seconds and tells you in plain words:</p>
+<ul>
+  <li>What kind of front door your network has. <i>Friendly</i> doors keep the same address for everyone; <i>strict</i> ones give a new address for every place you talk to, which makes direct links harder.</li>
+  <li>Which meeting places work from here, and how fast each one is.</li>
+  <li>Whether the other app can be reached, and whether it's direct or through a relay.</li>
+  <li>A report you can copy and share.</li>
+</ul>
+<p>The people who build the app also test it in a <b>pretend-network lab</b> with pretend front doors (friendly, strict, ones that block things), plus a test every night between computers in different places on the real internet.</p>
+
+<h2 id="files">10. Where this lives in the code</h2>
+<p class="mut">For the curious (and future programmers!). Each file is one piece of the puzzle.</p>
+<div class="wrap"><table><thead><tr><th>File</th><th>What it does (in simple words)</th></tr></thead><tbody>
+<tr><td><code>js/relay.js</code></td><td>The meeting places and the locked boxes: the list of relays (MQTT, Nostr, trackers), the rule for picking and switching places, locking and unlocking messages (AES-GCM), pairing codes, <b>changing the secret</b>, and the Relays and Direct link settings.</td></tr>
+<tr><td><code>js/direct.js</code></td><td>Talking directly with WebRTC: making and answering the direct link, the QR codes for “Connect directly”, and reading QR codes with the camera.</td></tr>
+<tr><td><code>js/link.js</code></td><td>The front desk: picks the best way to talk (direct, then relay, then Tailscale), “run … on my Mac” by voice, the Mac's side that answers phones, and the Connections screens.</td></tr>
+<tr><td><code>js/linktest.js</code></td><td>Test the connection: front-door type, every relay, the other app, and a plain-words result.</td></tr>
+<tr><td><code>js/app.js</code></td><td>The Settings page, including the Connections tab.</td></tr>
+<tr><td><code>js/commands.js</code></td><td>Understands the voice command “run … on my Mac”.</td></tr>
+<tr><td><code>desktop/link.js</code></td><td>Only for the optional Tailscale way: a little server on the Mac and its pairing code.</td></tr>
+<tr><td><code>desktop/main.js</code>, <code>desktop/preload.js</code></td><td>The Mac app's engine room: starts the Tailscale server and lets the page use it, and makes the Mac share its local address in direct-link codes.</td></tr>
+<tr><td><code>vendor/nostr/nostr.bundle.js</code></td><td>A helper library that signs Nostr messages (the autograph).</td></tr>
+<tr><td><code>vendor/qrcode/qrcode.js</code>, <code>vendor/jsqr/jsQR.js</code></td><td>Helper libraries to draw QR codes and read them with the camera.</td></tr>
+<tr><td><code>tests/net/lab.mjs</code>, <code>tests/net/ns.sh</code>, <code>tests/net/build.sh</code>, <code>tests/net/web.mjs</code>, <code>tests/net/peer/agent.mjs</code></td><td>The pretend-network lab: pretend front doors (friendly, strict, blocking), a pretend internet, and a robot that runs both apps and checks the results.</td></tr>
+<tr><td><code>tests/net/remote.mjs</code>, <code>.github/workflows/net-nightly.yml</code></td><td>The nightly test between computers in different places on the real internet.</td></tr>
+<tr><td><code>docs/connections.html</code>, <code>docs/connection-tests.html</code></td><td>The grown-up versions: the full design and the test plan.</td></tr>
+</tbody></table></div>
+
+<h2 id="words">11. Word list</h2>
+<div class="wrap"><table><tbody>
+<tr><td><b>Router</b></td><td>The box that connects a building to the internet: its front door.</td></tr>
+<tr><td><b>Relay</b></td><td>A public meeting place on the internet where apps leave messages for each other.</td></tr>
+<tr><td><b>Encryption</b></td><td>Locking a message so only someone with the key can read it.</td></tr>
+<tr><td><b>Key</b></td><td>The secret number that locks and unlocks messages. Ours is random and 256 bits long.</td></tr>
+<tr><td><b>AES-GCM</b></td><td>The kind of lock used. It scrambles the message and adds a seal that shows if anyone changed it.</td></tr>
+<tr><td><b>Pairing</b></td><td>Sharing the key between your phone and Mac in person, with a QR code.</td></tr>
+<tr><td><b>WebRTC</b></td><td>A way for two apps to talk directly, with its own lock (DTLS).</td></tr>
+<tr><td><b>STUN</b></td><td>A helper that tells your app its outside address.</td></tr>
+<tr><td><b>Hole punching</b></td><td>Both apps sending at the same moment so both front doors let the answers in.</td></tr>
+<tr><td><b>TURN</b></td><td>A delivery helper that carries locked traffic when direct links can't get through.</td></tr>
+<tr><td><b>Revoke</b></td><td>Throwing a device's key away so it can't connect any more.</td></tr>
+</tbody></table></div>
+<p class="mut" style="margin-top:28px">DriveGen &amp; StudioGen · Connections explained · 18 October 2026</p>
+</main>
+</body>
+</html>

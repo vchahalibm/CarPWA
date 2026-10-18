@@ -35,7 +35,7 @@
   <li><a href="#brokers">5. The default brokers</a></li>
   <li><a href="#catalogue">6. Other relays: a catalogue</a></li>
   <li><a href="#mesh">7. A mesh of StudioGens and DriveGens</a></li>
-  <li><a href="#questions">8. Questions for the mesh</a></li>
+  <li><a href="#decided">8. Decided: teams, invites, two modes, sharing</a></li>
 </ul>
 
 <h2 id="layers">1. The ways they connect</h2>
@@ -164,7 +164,37 @@
   <li><b>M4</b> Synchronised multi-screen scripts (a conductor); forwarding; Nostr as a second relay family.</li>
 </ol>
 
-<h2 id="questions">8. Questions for the mesh</h2>
+<h2 id="decided">8. Decided (18 Oct 2026)</h2>
+<div class="card">
+<ul>
+  <li><b>Teams from the start</b>: colleagues' StudioGens and DriveGens join a mesh; every device has its own identity and a role, with per-device permissions.</li>
+  <li><b>Any member with an invite admits</b>: a member creates an invite (a signed, single-use, expiring token, shown as a QR code or sent as a link); the newcomer pairs with that member; the inviter signs the roster entry; owners can set who may invite and remove anyone.</li>
+  <li><b>Changes</b>: broker-list and roster changes travel as <b>owner-signed updates</b> over the mesh (no re-pairing); <b>removing a member</b> rotates the group key and the remaining members take the new key (signed by an owner) or pair again. The simple one-to-one pairing keeps its rule: a new list means pairing again.</li>
+  <li><b>Two modes</b>:
+    <ul>
+      <li><b>Request mode</b>: run or ask by device or by capability (“run Export on the Office Mac”, “a Mac with Excel: …”); results come back.</li>
+      <li><b>Mesh mode</b>: synchronised multi-screen shows: a conductor runs a script on each screen, <i>in steps</i> (every screen moves to step n together) or <i>in tandem</i> (screens run their own parts, with cues between them).</li>
+    </ul></li>
+  <li><b>Sharing</b>: in both modes, scripts, captured motions, recordings, data and other artifacts are shared with the mesh <b>by default</b>; the StudioGen where one was made can mark it <b>private</b> (then it stays there).</li>
+</ul>
+</div>
+<h3>What this adds to the architecture</h3>
+<ul>
+  <li><b>Roster</b>: a signed, versioned list of members {device id, public keys, name, person, role (owner / member), may-invite, permissions}; each change signed by an owner (or, for joins, by the inviting member, countersigned by an owner when owners require it).</li>
+  <li><b>Invites</b>: {mesh, inviter, expiry, single use, role offered} signed by the inviter; the pairing code carries the invite plus the mesh's relay list.</li>
+  <li><b>Artifact catalogue</b>: each StudioGen announces its shared artifacts (id, kind, name, version, size, owner device); members fetch on demand over direct links or the relay (chunked), cache them, and see updates by version; private ones are never announced.</li>
+  <li><b>Conductor protocol</b> (mesh mode): the conductor sends “prepare script S” (each screen fetches S if missing), then “step n” cues (steps mode) or named cues (tandem mode), with a shared clock (the conductor's time, offsets measured from hello round trips) so screens move within a few tens of milliseconds; screens report ready / done / failed.</li>
+  <li><b>Permissions</b>: per device and per artifact or task kind (run scripts, run OS tasks, read data, drive the screen), checked by the device that would do the work.</li>
+</ul>
+<h3>Phases</h3>
+<ol>
+  <li><b>M1</b> Device identities (key pairs), mesh creation, invites, signed roster, presence; a DriveGen paired into a mesh sees every StudioGen by name.</li>
+  <li><b>M2</b> Request mode: by device and by capability; permissions; StudioGen-to-StudioGen requests.</li>
+  <li><b>M3</b> Shared artifacts: catalogue, fetch and cache, private flag, versions.</li>
+  <li><b>M4</b> Mesh mode: the conductor, steps and tandem, shared clock, multi-screen sample show.</li>
+  <li><b>M5</b> Owner-signed updates (relay list, roster), key rotation on removal, Nostr as a second relay family.</li>
+</ol>
+<h2 id="questions">9. Questions that were asked</h2>
 <ol>
   <li><b>Who's in it</b>: only your own devices, or colleagues' too (a team mesh)?</li>
   <li><b>Who admits members</b>: one owner StudioGen, any StudioGen, or any member with an invite?</li>

@@ -51,7 +51,7 @@ const Link = {
   spoken(j) { if (j.state === 'failed') return `It didn’t work on your Mac: ${j.error || 'no reason given'}.`; const r = j.result; return (j.said || []).join(' ') || (r != null && typeof r !== 'object' ? String(r) : '') || 'Done on your Mac.'; },
   /** The voice command “run … on my Mac”: a script it offers by name, else the words go to the Mac as said. */
   async command(q, say) {
-    if (!this.ready()) return say('Pair with your Mac first: Settings, Connections.');
+    if (!this.ready()) return say(typeof Relay !== 'undefined' && Relay.online.mac && !Relay.dataOk() ? 'Your Mac only takes requests over a direct link, and there isn’t one on this network right now.' : typeof Relay !== 'undefined' && Relay.mac() ? 'I can’t reach your Mac right now. Is StudioGen open, with the internet?' : 'Pair with your Mac first: Settings, Connections.');
     say('Asking your Mac…');
     try {
       const offers = (await this.offers()).scripts || [], p = plain(q), s = offers.find(o => plain(o.name) === p) || offers.find(o => plain(o.name).includes(p) || p.includes(plain(o.name)));

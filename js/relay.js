@@ -1,16 +1,21 @@
 'use strict';
 /* ============================================================
    The relay link: DriveGen ↔ StudioGen from anywhere, no account, no server
-   of ours. Messages go through public MQTT brokers (secure WebSockets) and
-   are end-to-end encrypted, so a broker only sees a random topic and noise.
+   of ours. Messages go through public relays and are end-to-end encrypted,
+   so a relay only sees a random topic and noise. Three kinds, in one list:
+     wss://…           an MQTT broker (QoS 0)                  carries everything
+     nostr+wss://…     a Nostr relay (signed ephemeral events)   carries everything
+     tracker+wss://…   a WebTorrent tracker (WebSocket)          introductions only: hellos and the
+                                                                direct-link handshake, never data
    docs/connections.html has the design.
    - StudioGen keeps THE relay list (ordered, with a revision; Settings ›
      Connections › Relays). Pairing (once per device) puts the list in the
      code ("SG3…": room, 256-bit key, the brokers, the revision). A changed
      list reaches a device only by pairing it again; until then it keeps
      using the list it paired with.
-   - Failover, the same rule on both sides: use the first two brokers of the
-     shared list that work for you (a broker works when your own messages
+   - Failover, the same rule on both sides: use the first two relays of the
+     shared list that work for you and carry data (trackers only when none
+     does) (a broker works when your own messages
      come back through it; two misses: down, retried later with backoff and
      taken back when it works again). Every hello says which brokers you use,
      and each side also joins the brokers the other uses, so when one side
@@ -25,16 +30,24 @@
      direct settings (StudioGen's) allow it (js/direct.js).
    Loaded after direct.js.
    ============================================================ */
-// Public brokers with secure WebSockets, checked by echo tests (Oct 2026); independent operators first.
+// Public relays, checked by echo tests (Oct 2026); operators and kinds mixed, so no single company or protocol is the only way.
 const RELAY_DEFAULTS = [
   { url: 'wss://broker.emqx.io:8084/mqtt', name: 'EMQX public broker (EMQ Technologies)' },
   { url: 'wss://broker.hivemq.com:8884/mqtt', name: 'HiveMQ public broker' },
+  { url: 'nostr+wss://relay.damus.io', name: 'Damus Nostr relay' },
   { url: 'wss://test.mosquitto.org:8081/mqtt', name: 'Eclipse Mosquitto test server' },
+  { url: 'nostr+wss://relay.primal.net', name: 'Primal Nostr relay' },
+  { url: 'nostr+wss://relay.snort.social', name: 'Snort Nostr relay' },
   { url: 'wss://broker.itdata.nu:443/mqtt', name: 'itdata.nu public broker' },
+  { url: 'nostr+wss://nostr-pub.wellorder.net', name: 'Wellorder Nostr relay' },
+  { url: 'tracker+wss://tracker.openwebtorrent.com', name: 'OpenWebTorrent tracker (introductions only)' },
+  { url: 'tracker+wss://tracker.webtorrent.dev', name: 'WebTorrent.dev tracker (introductions only)' },
   { url: 'wss://broker-cn.emqx.io:8084/mqtt', name: 'EMQX public broker, Asia (backup)' },
   { url: 'wss://mqtt-dashboard.com:8884/mqtt', name: 'HiveMQ dashboard broker (backup)' },
 ];
-const DIRECT_DEFAULTS = { mode: 'auto', stun: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'], turn: { url: '', user: '', pass: '' } };
+const DIRECT_DEFAULTS = { mode: 'auto', relayData: true, stun: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478', 'stun:global.stun.twilio.com:3478'], turn: { url: '', user: '', pass: '' } };
+// StudioGen in a plain browser for the network lab (?linktest=host): the link side only (docs/connection-tests.html).
+const LINK_HOST = !!window.DriveDeckDesktop || new URLSearchParams(location.search).get('linktest') === 'host';
 const b64u = { enc: b => { let s = ''; for (const x of new Uint8Array(b)) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
   dec: s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)) };
 
@@ -73,10 +86,63 @@ class Mqtt {
   publish(topic, payload) { return this.send(0x30, [...this.str(topic), ...payload]); }
   close() { this.closed = true; clearInterval(this.pinger); try { this.ws?.close(); } catch {} }
 }
+Mqtt.echo = true; Mqtt.data = true;
+
+/* ---------- Nostr: signed ephemeral events (kind 21059, not stored by relays), the topic as a "t" tag; nostr-tools signs (vendor/nostr) ---------- */
+const NOSTR_KIND = 21059;
+const nostrLib = () => window.NostrTools ? Promise.resolve() : (nostrLib.p ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/nostr/nostr.bundle.js'; s.onload = res; s.onerror = () => { nostrLib.p = null; rej(new Error('Nostr didn’t load')); }; document.head.appendChild(s); }));
+const nostrKey = () => { let k = store.get('nostrKey', ''); if (!k) { k = [...NostrTools.generateSecretKey()].map(x => x.toString(16).padStart(2, '0')).join(''); store.set('nostrKey', k); } return Uint8Array.from(k.match(/../g), h => parseInt(h, 16)); };
+class NostrT {
+  constructor(url, onMsg, onState) { this.url = url.replace(/^nostr\+/, ''); this.onMsg = onMsg; this.onState = onState; this.subs = new Set(); nostrLib().then(() => this.open(), () => onState?.('closed')); }
+  open() {
+    if (this.closed) return; this.sk = nostrKey();
+    let ws; try { ws = this.ws = new WebSocket(this.url); } catch { return this.onState?.('closed'); }
+    ws.onopen = () => { this.up = true; for (const t of this.subs) this.req(t); this.onState?.('up'); };
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; }
+      if (m[0] === 'EVENT' && m[2]?.kind === NOSTR_KIND) { const t = (m[2].tags || []).find(x => x[0] === 't')?.[1]; if (t && this.subs.has(t)) { try { this.onMsg(t, b64u.dec(m[2].content)); } catch {} } }
+      if (m[0] === 'OK' && m[2] === false) Log.w('relay', `Nostr refused: ${this.url}`, { why: m[3] }); };
+    ws.onclose = () => { this.up = false; if (!this.closed) this.onState?.('closed'); };
+    ws.onerror = () => {};
+  }
+  req(t) { if (this.ws?.readyState === 1) this.ws.send(JSON.stringify(['REQ', 's' + t.slice(-12), { kinds: [NOSTR_KIND], '#t': [t], since: Math.floor(Date.now() / 1000) - 10 }])); }
+  subscribe(t) { if (this.subs.has(t)) return; this.subs.add(t); if (this.up) this.req(t); }
+  publish(t, payload) {
+    if (this.ws?.readyState !== 1) return false;
+    const ev = NostrTools.finalizeEvent({ kind: NOSTR_KIND, created_at: Math.floor(Date.now() / 1000), tags: [['t', t]], content: b64u.enc(payload) }, this.sk);
+    this.ws.send(JSON.stringify(['EVENT', ev])); return true;
+  }
+  close() { this.closed = true; try { this.ws?.close(); } catch {} }
+}
+NostrT.echo = true; NostrT.data = true;
+
+/* ---------- WebTorrent tracker: introductions only. A topic is a swarm; a message is an "offer" the tracker hands to the
+   other peers in it (here: the other app). Trackers don't send our own back, so "works" means it answered our announce. ---------- */
+const binStr = b => String.fromCharCode(...b);
+class TrackerT {
+  constructor(url, onMsg, onState) { this.url = url.replace(/^tracker\+/, ''); this.onMsg = onMsg; this.onState = onState; this.subs = new Map(); this.peer = binStr(crypto.getRandomValues(new Uint8Array(20))); this.open(); }
+  async hash(t) { return binStr(new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(t)))); }
+  open() {
+    if (this.closed) return;
+    let ws; try { ws = this.ws = new WebSocket(this.url); } catch { return this.onState?.('closed'); }
+    ws.onopen = () => { if (!this.subs.size) this.announce('sg1/hello'); for (const t of this.subs.keys()) this.announce(t); clearInterval(this.re); this.re = setInterval(() => { for (const t of this.subs.keys()) this.announce(t); }, 60000); };
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; }
+      if (m.interval && !this.up) { this.up = true; this.onState?.('up'); }
+      if (m.offer?.sdp && m.info_hash) { const t = [...this.subs].find(([, h]) => h === m.info_hash)?.[0]; if (t) { try { this.onMsg(t, b64u.dec(m.offer.sdp)); } catch {} } }
+      if (m['failure reason']) Log.w('relay', `Tracker refused: ${this.url}`, { why: m['failure reason'] }); };
+    ws.onclose = () => { this.up = false; clearInterval(this.re); if (!this.closed) this.onState?.('closed'); };
+    ws.onerror = () => {};
+  }
+  async announce(t, offers = []) { const h = this.subs.get(t) || await this.hash(t); if (this.ws?.readyState === 1) this.ws.send(JSON.stringify({ action: 'announce', info_hash: h, peer_id: this.peer, numwant: offers.length ? 5 : 0, uploaded: 0, downloaded: 0, left: 1, offers })); }
+  async subscribe(t) { if (this.subs.has(t)) return; this.subs.set(t, await this.hash(t)); this.announce(t); }
+  publish(t, payload) { if (this.ws?.readyState !== 1 || !this.subs.has(t)) return false; this.announce(t, [{ offer: { type: 'offer', sdp: b64u.enc(payload) }, offer_id: binStr(crypto.getRandomValues(new Uint8Array(20))) }]); return true; }
+  close() { this.closed = true; clearInterval(this.re); try { this.ws?.close(); } catch {} }
+}
+TrackerT.echo = false; TrackerT.data = false;
+const relayKind = u => /^nostr\+/.test(u) ? NostrT : /^tracker\+/.test(u) ? TrackerT : Mqtt;
 
 const Relay = {
   pool: new Map(), seen: new Map(), mine: new Map(), waits: new Map(), answers: new Map(), online: {}, peerUse: {}, keys: new Map(), topics: {},
-  isMac: () => !!window.DriveDeckDesktop,
+  isMac: () => LINK_HOST,
   /* ---------- The list (StudioGen's), the pairings, the direct settings ---------- */
   list: () => store.get('relayList', null) || { rev: 1, brokers: RELAY_DEFAULTS },
   directCfg: () => ({ ...DIRECT_DEFAULTS, ...store.get('directCfg', {}) }),
@@ -84,7 +150,11 @@ const Relay = {
   mac: () => store.get('relayMac', null),
   rooms() { return this.isMac() ? this.peers() : this.mac() ? [this.mac()] : []; },
   brokersOf: room => room.brokers?.length ? room.brokers : RELAY_DEFAULTS.slice(0, 2).map(b => b.url), // pairings before the list (SG2): the first two defaults
-  ready() { return !this.isMac() && !!this.mac() && !!this.online.mac && this.anyUp(); },
+  ready() { return !this.isMac() && !!this.mac() && !!this.online.mac && this.dataUp(this.mac()) && this.dataOk(); },
+  /** Data (requests and answers) may go over the relays: StudioGen's setting, told to the device in every hello. */
+  dataOk() { return this.isMac() ? this.directCfg().relayData !== false : this.mac()?.relayData !== false; },
+  /** Up and able to carry data for this room (trackers only introduce). */
+  dataUp(room) { return this.active(room).some(u => relayKind(u).data && this.pool.get(u)?.mq?.up); },
   anyUp() { return [...this.pool.values()].some(b => b.mq?.up); },
   /* ---------- Keys and topics ---------- */
   async key(room) { if (!this.keys.has(room.room)) this.keys.set(room.room, await crypto.subtle.importKey('raw', b64u.dec(room.key), 'AES-GCM', false, ['encrypt', 'decrypt'])); return this.keys.get(room.room); },
@@ -93,7 +163,7 @@ const Relay = {
   /* ---------- Which brokers: the same rule on both sides ---------- */
   health(url) { return this.pool.get(url)?.health || 'unknown'; },
   /** Mine: the first two of the room's list that aren't down for me. */
-  window(room) { return this.brokersOf(room).filter(u => this.health(u) !== 'down').slice(0, 2); },
+  window(room) { const L = this.brokersOf(room).filter(u => this.health(u) !== 'down'), d = L.filter(u => relayKind(u).data); return (d.length ? d : L).slice(0, 2); }, // trackers (introductions) only when nothing that carries data works
   /** Where this room's messages go: my two, plus what the other side says it uses (if not down for me); at most 3. */
   active(room) { const w = this.window(room), extra = (this.peerUse[room.room] || []).filter(u => this.brokersOf(room).includes(u) && !w.includes(u) && this.health(u) !== 'down'); return [...w, ...extra].slice(0, 3); },
   /** Open what's needed, close what isn't (after a grace period), subscribe both directions (our own messages coming back tell us the broker works). */
@@ -110,8 +180,8 @@ const Relay = {
     this.onchange?.();
   },
   connect(b) {
-    b.mq = new Mqtt(b.url, (t, p) => this.got(t, p, b), s => {
-      if (s === 'up') { b.wait = 0; b.connected = Date.now(); this.plan().then(() => this.hello()); return; }
+    b.tried = Date.now(); b.mq = new (relayKind(b.url))(b.url, (t, p) => this.got(t, p, b), s => {
+      if (s === 'up') { b.wait = 0; b.connected = Date.now(); if (!relayKind(b.url).echo) this.ok(b, Date.now() - b.tried); this.plan().then(() => this.hello()); return; }
       b.mq = null; this.fail(b, s === 'refused' ? 'refused the connection' : 'connection closed');
     });
   },
@@ -145,8 +215,10 @@ const Relay = {
     const plain = new TextEncoder().encode(JSON.stringify({ id, ts: Date.now(), type, body }));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room), plain));
     const p = new Uint8Array(12 + ct.length); p.set(iv); p.set(ct, 12);
-    const urls = this.active(room).filter(u => this.pool.get(u)?.mq?.up), sent = urls.filter(u => this.pool.get(u).mq.publish(t, p));
-    this.mine.set(id, { at: Date.now(), urls: sent, back: new Set() });
+    const data = type === 'ask' || type === 're';
+    if (data && !this.dataOk()) return false; // the relays only introduce (StudioGen's setting)
+    const urls = this.active(room).filter(u => this.pool.get(u)?.mq?.up && (!data || relayKind(u).data)), sent = urls.filter(u => this.pool.get(u).mq.publish(t, p));
+    this.mine.set(id, { at: Date.now(), urls: sent.filter(u => relayKind(u).echo), back: new Set() }); // trackers don't echo: no misses counted for them
     return sent.length > 0;
   },
   async got(topic, payload, b) {
@@ -163,10 +235,11 @@ const Relay = {
       const use = (b.use || []).filter(u => typeof u === 'string'), changed = JSON.stringify(use) !== JSON.stringify(this.peerUse[room.room] || []);
       this.peerUse[room.room] = use; if (changed) this.plan();
       if (this.isMac()) { this.online[room.room] = Date.now(); this.rename(room, b.name, b.rev); if (!b.re) this.post(room, 'hello', this.helloBody(room, true)); this.maybeDirect(room); }
-      else { this.online.mac = Date.now(); store.set('relayMac', { ...this.mac(), name: b.name || this.mac().name, masterRev: b.master || 0 }); }
+      else { this.online.mac = Date.now(); store.set('relayMac', { ...this.mac(), name: b.name || this.mac().name, masterRev: b.master || 0, relayData: b.relayData !== false }); }
       if (!was) { Log.i('relay', `${this.isMac() ? room.name || 'A device' : 'Your Mac'} is online (relay)`); this.onchange?.(); }
       return;
     }
+    if (type === 'ask' && this.isMac() && !this.dataOk()) return this.post(room, 're', { id: b.id, error: 'Data over the relays is off on your Mac: it needs a direct link (or a TURN server)' });
     if (type === 'ask' && this.isMac()) { // DriveGen's request; the answer is kept so a resent request gets it again
       if (this.answers.has(b.id)) { const a = this.answers.get(b.id); if (a !== 'busy') this.post(room, 're', a); return; }
       this.answers.set(b.id, 'busy'); setTimeout(() => this.answers.delete(b.id), 600000);
@@ -178,7 +251,7 @@ const Relay = {
     if (type === 'rtc-offer' && !this.isMac()) { if (store.get('directAllow', true) === false) return; try { const code = await Direct.answer(b.code, b.ice || []); this.post(room, 'rtc-answer', { code }); } catch (e) { Log.w('relay', 'Direct answer failed', e); } return; }
     if (type === 'rtc-answer' && this.isMac()) { try { await Direct.accept(b.code); this.directTries = 0; } catch (e) { Log.w('relay', 'Direct accept failed', e); } }
   },
-  helloBody(room, re) { return { name: this.isMac() ? 'StudioGen' : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, re: re ? 1 : undefined }; },
+  helloBody(room, re) { return { name: this.isMac() ? 'StudioGen' : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, relayData: this.isMac() ? this.dataOk() : undefined, re: re ? 1 : undefined }; },
   hello() { for (const r of this.rooms()) this.post(r, 'hello', this.helloBody(r)); },
   /** Direct when possible: StudioGen starts the handshake (auto: across networks with STUN; local: same network only; off: never),
       again after a link ends or fails, with growing pauses (1, 2, 5, 10 minutes). */
@@ -193,6 +266,7 @@ const Relay = {
   /** DriveGen → the Mac: a request, resent every 15 s until answered (the Mac answers a resend from its kept answer). */
   call(kind, payload = {}, ms = 600000) {
     const room = this.mac(); if (!room) return Promise.reject(new Error('Not paired with a Mac'));
+    if (!this.dataOk()) return Promise.reject(new Error('Your Mac only takes requests over a direct link (data over the relays is off)'));
     const id = Math.random().toString(36).slice(2);
     return new Promise((res, rej) => {
       const send = () => this.post(room, 'ask', { id, kind, payload });
@@ -234,17 +308,17 @@ const Relay = {
   /** StudioGen › Connections › Relays: the list both sides use, in order. */
   editor(draft) {
     const L = draft || JSON.parse(JSON.stringify(this.list())); this.draft = L;
-    sheet('Relays (StudioGen’s list)', `<p class="se-note">Public MQTT brokers with secure WebSockets (wss://…), tried in this order: both apps use the first two that work and move down the list together when one stops. Your own broker works too (wss://user:password@host:port/path). Devices get the list when they pair: after a change, pair them again.</p>
+    sheet('Relays (StudioGen’s list)', `<p class="se-note">Public relays, tried in this order: both apps use the first two that work (MQTT brokers and Nostr relays carry everything; WebTorrent trackers only introduce the two apps, and are used when nothing else works), and move down the list together when one stops. Your own broker works too (wss://user:password@host:port/path). Devices get the list when they pair: after a change, pair them again.</p>
       <ol class="rl-list">${L.brokers.map((b, i) => `<li><div><b>${esc(b.name || new URL(b.url).host)}</b><span class="se-note">${esc(b.url.replace(/\/\/[^@/]*@/, '//•••@'))}</span><span class="se-note" id="rlT${i}"></span></div>
         <button class="icon-btn" data-rlx="up:${i}" ${i ? '' : 'disabled'} aria-label="Up">↑</button><button class="icon-btn" data-rlx="down:${i}" ${i < L.brokers.length - 1 ? '' : 'disabled'} aria-label="Down">↓</button><button class="icon-btn" data-rlx="del:${i}" aria-label="Remove">${svg('del')}</button></li>`).join('')}</ol>
-      <div class="se-row"><input id="rlUrl" class="se-wz-in" placeholder="wss://broker.example.com:8084/mqtt"><input id="rlName" class="se-wz-in" placeholder="Name (optional)"><button class="chip" data-rlx="add">Add</button></div>`,
+      <div class="se-row"><select id="rlKind"><option value="">MQTT broker</option><option value="nostr+">Nostr relay</option><option value="tracker+">WebTorrent tracker (introductions only)</option></select><input id="rlUrl" class="se-wz-in" placeholder="wss://broker.example.com:8084/mqtt"><input id="rlName" class="se-wz-in" placeholder="Name (optional)"><button class="chip" data-rlx="add">Add</button></div>`,
       [['Save', () => this.saveList()], ['Test them', () => { this.editor(L); this.testAll(L); }], ['Defaults', () => this.editor({ rev: L.rev, brokers: RELAY_DEFAULTS })], ['Cancel']]);
   },
   async testAll(L) {
     await Promise.all(L.brokers.map((b, i) => new Promise(res => {
       const el = () => $(`#rlT${i}`), t0 = Date.now(), topic = 'sgtest/' + Math.random().toString(36).slice(2); let done = false, sentAt = 0;
       const fin = msg => { if (done) return; done = true; try { mq.close(); } catch {} if (el()) el().textContent = msg; res(); };
-      const mq = new Mqtt(b.url, () => fin(`✓ works, ${Date.now() - sentAt} ms`), s => { if (s === 'up') { mq.subscribe(topic); setTimeout(() => { sentAt = Date.now(); mq.publish(topic, [1]); }, 300); } else fin(`✗ ${s}`); });
+      const K = relayKind(b.url), mq = new K(b.url, () => fin(`✓ works, ${Date.now() - sentAt} ms`), s => { if (s === 'up') { if (!K.echo) return fin(`✓ answers, ${Date.now() - t0} ms (introductions only)`); mq.subscribe(topic); setTimeout(() => { sentAt = Date.now(); mq.publish(topic, Uint8Array.from([1])); }, 600); } else fin(`✗ ${s}`); });
       if (el()) el().textContent = 'testing…'; setTimeout(() => fin('✗ no answer in 8 s'), 8000);
     })));
   },
@@ -258,10 +332,11 @@ const Relay = {
     const c = this.directCfg(), o = (v, l) => `<option value="${v}" ${c.mode === v ? 'selected' : ''}>${l}</option>`;
     sheet('Direct link', `<p class="se-note">Once a device is online through the relays, StudioGen offers it a direct, encrypted WebRTC link (the relays carry the handshake). When it connects, requests go straight between the two; if it can’t, or drops, they stay on the relays, and StudioGen tries again later (after 1, 2, 5, then every 10 minutes).</p>
       <label class="se-field"><span>Try a direct link</span><select id="dcMode">${o('auto', 'Whenever possible, also across networks (STUN)')}${o('local', 'Only on the same network (no outside servers)')}${o('off', 'Never: relays only')}</select></label>
+      <label class="se-check"><input type="checkbox" id="dcData" ${c.relayData !== false ? 'checked' : ''}> When there's no direct link, let requests and results go over the relays (encrypted). Off: the relays only introduce the two apps; without a direct link (or TURN) there's no connection.</label>
       <label class="se-field"><span>STUN servers (one per line): tell each side its public address, nothing passes through them</span><textarea id="dcStun" class="se-wide" rows="2">${esc(c.stun.join('\n'))}</textarea></label>
       <label class="se-field"><span>TURN server (optional; yours, for networks that block direct links: it relays the encrypted traffic)</span><input id="dcTurn" class="se-wz-in" value="${esc(c.turn.url)}" placeholder="turn:turn.example.com:3478"></label>
       <div class="se-row"><input id="dcUser" class="se-wz-in" value="${esc(c.turn.user)}" placeholder="TURN user"><input id="dcPass" class="se-wz-in" type="password" value="${esc(c.turn.pass)}" placeholder="TURN password"></div>`,
-      [['Save', () => { store.set('directCfg', { mode: $('#dcMode').value, stun: $('#dcStun').value.split('\n').map(s => s.trim()).filter(Boolean), turn: { url: $('#dcTurn').value.trim(), user: $('#dcUser').value.trim(), pass: $('#dcPass').value } }); this.directTries = 0; this.lastTry = 0; if ($('#dcMode').value === 'off') Direct.close(); toast('Saved'); LinkHost.settings(); }], ['Cancel', () => LinkHost.settings()]]);
+      [['Save', () => { store.set('directCfg', { mode: $('#dcMode').value, relayData: $('#dcData').checked, stun: $('#dcStun').value.split('\n').map(s => s.trim()).filter(Boolean), turn: { url: $('#dcTurn').value.trim(), user: $('#dcUser').value.trim(), pass: $('#dcPass').value } }); this.directTries = 0; this.lastTry = 0; if ($('#dcMode').value === 'off') Direct.close(); toast('Saved'); LinkHost.settings(); }], ['Cancel', () => LinkHost.settings()]]);
   },
 };
 ACTIONS.relays = () => Relay.editor();
@@ -276,7 +351,7 @@ document.addEventListener('click', e => {
     if (k === 'up') [L.brokers[i - 1], L.brokers[i]] = [L.brokers[i], L.brokers[i - 1]];
     if (k === 'down') [L.brokers[+i + 1], L.brokers[i]] = [L.brokers[i], L.brokers[+i + 1]];
     if (k === 'del') L.brokers.splice(+i, 1);
-    if (k === 'add') { const u = $('#rlUrl').value.trim(); try { if (!/^wss:\/\//.test(u)) throw 0; new URL(u); } catch { return toast('A wss:// address, please'); } L.brokers.push({ url: u, name: $('#rlName').value.trim() }); }
+    if (k === 'add') { const u = $('#rlUrl').value.trim().replace(/^(nostr|tracker)\+/, ''); try { if (!/^wss:\/\//.test(u)) throw 0; new URL(u); } catch { return toast('A wss:// address, please'); } L.brokers.push({ url: $('#rlKind').value + u, name: $('#rlName').value.trim() }); }
     return Relay.editor(L); }
   const b = e.target.closest('[data-rl]'); if (!b) return; e.stopPropagation();
   const [k, id] = b.dataset.rl.split(':');

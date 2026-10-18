@@ -1225,6 +1225,7 @@ function renderSettings() {
     <div class="group-title">Connections</div>
     <div class="group">
       ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
+      ${typeof LinkTest !== 'undefined' ? btn('linkTest', 'Test the connection', 'This network, the relays, the other app') : ''}
       ${typeof Relay !== 'undefined' && window.DriveDeckDesktop ? btn('relays', 'Relays (public MQTT brokers)', `${Relay.list().brokers.length} · revision ${Relay.list().rev}`) + btn('directLink', 'Direct link', ({ auto: 'Whenever possible', local: 'Same network only', off: 'Never' })[Relay.directCfg().mode]) : ''}
     </div>
     <div class="group-title">Display</div>

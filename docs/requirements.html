@@ -56,6 +56,7 @@
     <li><a href="#avatars">5. Avatars: choices to discuss</a></li>
     <li><a href="#lower">6. Lower-body modes (mocap without legs)</a></li>
     <li><a href="#questions">7. Open questions</a></li>
+    <li><a href="connections.html">Connections design (relays, failover, mesh)</a></li>
   </ul>
 
   <h2 id="vision">1. Vision: two apps, one code base</h2>
@@ -90,6 +91,7 @@
     <figure><img src="req/os-task.jpg" alt="Task on this computer"><figcaption>A task on this computer (JavaScript for Automation), its result kept as {front}</figcaption></figure>
     <figure><img src="req/data-widget.jpg" alt="Data widget"><figcaption>Data widget on Stage: the Sales analyst sample, revenue by region</figcaption></figure>
     <figure><img src="req/direct-link.jpg" alt="Direct link"><figcaption>Direct link: StudioGen’s code for the phone to scan (then the phone shows one back)</figcaption></figure>
+    <figure><img src="req/relays.jpg" alt="Relays"><figcaption>Relays: StudioGen’s ordered broker list, tested live</figcaption></figure>
     <figure><img src="req/connections.jpg" alt="Connections"><figcaption>StudioGen › Connections: Tailscale, pairing code, devices, scripts offered</figcaption></figure>
     <figure class="tall"><img src="req/pwa-phone-portrait.jpg" alt="DriveGen phone"><figcaption>DriveGen on a phone (portrait, demo drive)</figcaption></figure>
     <figure><img src="req/pwa-phone-landscape.jpg" alt="DriveGen phone landscape"><figcaption>DriveGen on a phone in a car mount (landscape)</figcaption></figure>
@@ -260,6 +262,10 @@ const REQS = [
   ['G-04','G','Debug mode and logs','Hidden tab with a key; diagnostics, memory, log export.','ALL','built'],
   ['L-05','L','Direct link without an account (WebRTC, QR codes)','StudioGen shows a code, the phone scans it and shows one back to the Mac’s camera; an encrypted direct link on the same Wi-Fi or with the Mac on the phone’s hotspot; no account or server; the same requests as over Tailscale (run, ask my Mac). Connect again after the network changes.','ALL','built','R3'],
   ['L-06','L','Pair once, reach from anywhere, no account (encrypted relay)','The phone scans StudioGen’s code once; then they find each other through public MQTT brokers (two at once) with every message end-to-end encrypted (AES-GCM, key from the code), and switch to a direct WebRTC link by themselves when the networks allow; works on mobile data; Revoke per device.','ALL','built','R3'],
+  ['L-07','L','Relay list owned by StudioGen, with failover both sides agree on','Settings › Connections › Relays: an ordered, tested list of brokers (own brokers with user/password too) with a revision; the list travels in the pairing code (SG3); a changed list needs pairing again (old pairings keep their list meanwhile); both use the first two that work for them, announce them in every hello and join each other’s, retry dead ones with backoff and move back when they recover. Defaults: six echo-tested public brokers.','ALL','built','R3'],
+  ['L-08','L','Direct when possible, configurable','StudioGen’s setting, sent with each offer: whenever possible (STUN, across networks), same network only, or never; STUN servers and an optional TURN server editable; retries after 1, 2, 5, 10 minutes; DriveGen can refuse direct links.','ALL','built','R3'],
+  ['L-09','L','A mesh of StudioGens and DriveGens','Device identities, a roster signed by an owner, group and pairwise encryption, presence and a capability directory, addressing by device/role/capability, cross-device script steps, synchronised multi-screen shows (docs/connections.html §7).','ALL','ask','R3'],
+  ['L-10','L','More relay families: Nostr; Web Push wake-ups','Nostr relays as a second, independent family in the same list; StudioGen sending Web Push to a Home Screen DriveGen for proactive updates (docs/connections.html §6).','ALL','plan','R3'],
   ['L-01','L','Pair DriveGen with StudioGen (QR code)','Decided: Tailscale. StudioGen › Settings › Connections: Tailscale status, Share on my tailnet (tailscale serve → https://<mac>.<tailnet>.ts.net, only your devices), Pair a device (one-time 6-digit code, 10 min, 5 tries), paired devices with Revoke.','ALL','built','R3'],
   ['L-02','L','Run a task on StudioGen from DriveGen and get results','DriveGen › Settings › Your Mac: pair with the address and code; scripts the Mac offers (ticked in StudioGen) run there and their lines, {result} and data rows come back (spoken, and shown in the data widget); “run … on my Mac” / “ask my Mac to …” by voice; actions mac.run and mac.say for scripts.','DP DT','built','R3'],
   ['L-03','L','Reach the Mac from the car','Pair once (L-06): from anywhere, also the car on mobile data, with no account, through encrypted public relays, direct when possible. Also: direct by QR each time (L-05, no internet) and Tailscale (with an account).','DP','built','R3'],

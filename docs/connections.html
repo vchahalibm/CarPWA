@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveGen StudioGen Connections</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb; --ok:#0f8a4b; --mid:#b7791f; --no:#c2262e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:27px; margin:0 0 4px; } h2 { font-size:20px; margin:38px 0 10px; padding-top:8px; border-top:1px solid var(--line); } h3 { font-size:16px; margin:20px 0 6px; }
+  .mut { color:var(--mut); } a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:14px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  .v { font-weight:600; white-space:nowrap; } .v.ok { color:var(--ok); } .v.mid { color:var(--mid); } .v.no { color:var(--no); }
+  .wrap { overflow-x:auto; } .toc { columns:2 260px; padding-left:18px; }
+  @media (max-width:640px) { h1 { font-size:22px; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Connections: how DriveGen and StudioGen talk</h1>
+<p class="mut">Design notes, 18 October 2026: what is built, how it fails over, other relays worth knowing, and a proposal for a mesh of apps.</p>
+<ul class="toc">
+  <li><a href="#layers">1. The ways they connect</a></li>
+  <li><a href="#relay">2. The relay link and its broker list</a></li>
+  <li><a href="#failover">3. The failover protocol</a></li>
+  <li><a href="#direct">4. Direct when possible</a></li>
+  <li><a href="#brokers">5. The default brokers</a></li>
+  <li><a href="#catalogue">6. Other relays: a catalogue</a></li>
+  <li><a href="#mesh">7. A mesh of StudioGens and DriveGens</a></li>
+  <li><a href="#questions">8. Questions for the mesh</a></li>
+</ul>
+
+<h2 id="layers">1. The ways they connect</h2>
+<table><thead><tr><th>Way</th><th>Account</th><th>Where it works</th><th>Pairing</th><th>Status</th></tr></thead><tbody>
+<tr><td><b>Relay</b>: encrypted messages through public MQTT brokers, upgrading to a direct link</td><td>None</td><td>Anywhere with internet (Wi-Fi, mobile data)</td><td>Once (scan StudioGen's code); again when StudioGen's broker list changes</td><td class="v ok">Built, the default</td></tr>
+<tr><td><b>Direct by QR</b>: WebRTC set up by scanning a code each way</td><td>None</td><td>Same Wi-Fi, or the Mac on the phone's hotspot; no internet needed</td><td>Each session</td><td class="v ok">Built</td></tr>
+<tr><td><b>Tailscale</b>: StudioGen's API on the user's tailnet</td><td>Tailscale on both</td><td>Anywhere</td><td>Once (a 6-digit code)</td><td class="v ok">Built, optional</td></tr>
+</tbody></table>
+<p>Requests (offers, run a script, say something) take the first that is up: <b>direct → relay → Tailscale</b>. Each link carries the same requests, so nothing else changes when one goes away.</p>
+
+<h2 id="relay">2. The relay link and its broker list</h2>
+<ul>
+  <li><b>StudioGen is the master of the list</b>: Settings › Connections › Relays: an ordered list of brokers (<code>wss://host:port/path</code>, optionally <code>wss://user:password@…</code> for your own), with a <b>revision</b> that goes up when the list changes. “Test them” connects to each and times an echo.</li>
+  <li><b>Pairing carries the list</b>: the code (<code>SG3…</code>) holds a random room, a 256-bit key, the brokers in order and the revision. DriveGen only consumes it.</li>
+  <li><b>A changed list needs pairing again</b>: StudioGen keeps each device's list (the one it paired with) and keeps talking to it on that list, so nothing breaks mid-show; both sides show “pair again to use the new relays” (StudioGen sends its current revision in every hello).</li>
+  <li><b>Encryption</b>: AES-GCM with the pairing key; the topic (which encodes the direction) is authenticated data; each message has a timestamp (older than 2 minutes: dropped) and an id (duplicates from the other broker or replays: dropped). Brokers see a random-looking topic, ciphertext, sizes, times and IP addresses, nothing else.</li>
+  <li><b>Revoke</b> deletes the device's room and key on StudioGen: it can no longer be understood or answered.</li>
+</ul>
+
+<h2 id="failover">3. The failover protocol</h2>
+<p>Both apps must agree on brokers without a coordinator. The rule is the same on both sides and needs no extra messages:</p>
+<pre>
+ shared ordered list (from pairing):   L = [ b1, b2, b3, b4, … ]
+
+ each side, continuously:
+   health(b)  = up      when its OWN messages come back through b (it subscribes to both directions;
+                         every hello, every 25 s, is also the echo test, so no extra traffic)
+              = down    after 2 misses (no echo in 10 s, or the connection fails/closes twice)
+              = unknown not tried yet / being retried
+   window     = the first 2 brokers of L that are not down for me
+   hello      = { …, use: window }            (sent on every broker it uses, every 25 s and at once on any change)
+   active     = window ∪ (the other side's use, if not down for me)        (at most 3 connections)
+   send       = on every active broker;  receive = from any (duplicates dropped by id)
+
+ recovery:    a down broker is retried after 30 s, 60 s, 2 min, 4 min, then every 5 min (with jitter);
+              when it echoes again it is "up" and, being earlier in L, comes back into the window:
+              both sides move back to the preferred broker on their own.
+</pre>
+<ul>
+  <li><b>A broker down for everyone</b>: both sides see their echoes stop, both drop it, both take the next one in L: they converge within about 20 s, and the hello tells the other at once.</li>
+  <li><b>A broker blocked only on one network</b> (the car's mobile operator blocks b2): the phone moves to [b1, b3]; its hello says so; the Mac adds b3 to what it sends on. They still share b1 and b3.</li>
+  <li><b>Every broker down</b>: status says the relays can't be reached; retries continue; direct and Tailscale still work when available.</li>
+  <li><b>Tested</b>: a list starting with a non-existent broker (both skip it within 12 s), and the phone alone losing EMQX (it moved to HiveMQ + Mosquitto, the Mac joined Mosquitto, requests kept working).</li>
+</ul>
+
+<h2 id="direct">4. Direct when possible</h2>
+<ol>
+  <li>When a paired device says hello, <b>StudioGen offers a direct link</b>: it creates a WebRTC connection with a data channel, gathers its network candidates (its local addresses; with STUN also its public address), and sends the offer through the encrypted relay.</li>
+  <li><b>DriveGen answers</b> the same way (unless its owner turned direct links off). Both try every pair of candidates (ICE): same Wi-Fi works almost always; across networks it works when at least one side's router allows it (most home routers and many mobile networks; not two strict/carrier-grade NATs).</li>
+  <li>The link is <b>DTLS-encrypted</b> by WebRTC itself; the requests then go straight between the two (lower latency, no broker involved). Keep-alive every 5 s; no sign of life for 20 s: closed.</li>
+  <li>When it can't connect or drops, requests stay on the relay, and StudioGen <b>tries again</b> after 1, 2, 5, then every 10 minutes (or right away when the network changes).</li>
+</ol>
+<p><b>Settings (StudioGen's, sent with each offer)</b>: <i>Whenever possible</i> (with STUN, across networks) · <i>Only on the same network</i> (no outside servers at all) · <i>Never</i> (relays only). STUN servers editable (defaults: Google, Cloudflare; they only tell each side its public address). An optional <b>TURN</b> server (yours) relays the encrypted traffic when nothing else connects. DriveGen can refuse direct links.</p>
+
+<h2 id="brokers">5. The default brokers</h2>
+<p>Echo-tested from this Mac on 18 Oct 2026 (connect, subscribe, publish, receive), twice. Independent operators first, so one company's outage doesn't take out the window.</p>
+<div class="wrap"><table><thead><tr><th>#</th><th>Broker</th><th>Operator</th><th>Echo</th><th>Notes</th></tr></thead><tbody>
+<tr><td>1</td><td><code>wss://broker.emqx.io:8084/mqtt</code></td><td>EMQ Technologies</td><td class="v ok">138–238 ms</td><td>Public cluster, long-running; “free for testing and learning”</td></tr>
+<tr><td>2</td><td><code>wss://broker.hivemq.com:8884/mqtt</code></td><td>HiveMQ</td><td class="v ok">140–390 ms</td><td>Public broker since 2013; for testing</td></tr>
+<tr><td>3</td><td><code>wss://test.mosquitto.org:8081/mqtt</code></td><td>Eclipse Mosquitto project</td><td class="v ok">135–138 ms</td><td>Test server since about 2010; sometimes busy</td></tr>
+<tr><td>4</td><td><code>wss://broker.itdata.nu:443/mqtt</code></td><td>itdata.nu</td><td class="v ok">199–498 ms</td><td>Smaller independent operator</td></tr>
+<tr><td>5</td><td><code>wss://broker-cn.emqx.io:8084/mqtt</code></td><td>EMQ (Asia)</td><td class="v ok">143–211 ms</td><td>Backup (same operator as 1)</td></tr>
+<tr><td>6</td><td><code>wss://mqtt-dashboard.com:8884/mqtt</code></td><td>HiveMQ</td><td class="v ok">141–214 ms</td><td>Backup (same operator as 2)</td></tr>
+<tr><td>–</td><td colspan="4" class="mut">Failed both rounds, not in the list: mqtt.eclipseprojects.io, public.mqtthq.com, broker.mqttgo.io, broker.mqtt.cool, public-mqtt-broker.bevywise.com.</td></tr>
+</tbody></table></div>
+<p><b>Staying a good citizen</b> (so the traffic looks like the ordinary low-volume IoT use these brokers are for, not abuse): QoS 0, nothing retained, no wildcard subscriptions, at most 3 connections per app, one small hello every 25 s, keep-alive 60 s, reconnects with growing, jittered pauses, messages of a few kilobytes (results capped at 200 rows). These public brokers are offered for testing and make no promises; for dependable use add your own broker (a free tier of HiveMQ Cloud or EMQX Serverless takes a user and password, which the list supports) at the top of the list.</p>
+<p class="mut">Sources consulted for candidates: <a href="https://github-wiki-see.page/m/mqtt/mqtt.org/wiki/public_brokers">mqtt.org public brokers wiki</a>, <a href="https://www.emqx.com/en/blog/popular-online-public-mqtt-brokers">EMQX: popular public brokers</a>, <a href="https://www.emqx.com/mqtt/public-mqtt5-broker">EMQX public broker</a>, <a href="https://www.lddgo.net/en/network/mqttlist">lddgo MQTT list</a>, <a href="https://bevywise.com/public-mqtt-broker">Bevywise</a>; the table is from our own tests.</p>
+
+<h2 id="catalogue">6. Other relays: a catalogue</h2>
+<p>Anything two apps can both <b>write and read</b> can carry encrypted messages. What matters: no account (or one the user already has), real time vs polling, size limits, whether the service's rules allow it, and whether its spam defences would flag it.</p>
+<div class="wrap"><table><thead><tr><th>Relay</th><th>Account</th><th>Speed</th><th>Fit</th><th>Notes</th></tr></thead><tbody>
+<tr><td><b>Public MQTT brokers</b></td><td>None</td><td>Real time</td><td class="v ok">In use</td><td>Many operators, simple protocol (our own 150-line client).</td></tr>
+<tr><td><b>Nostr relays</b></td><td>None (a key pair made on the device)</td><td>Real time (WebSocket)</td><td class="v ok">Best next</td><td>Hundreds of independent relays; ephemeral event kinds aren't stored. Needs Schnorr signatures (a small MIT library). A second, independent family next to MQTT.</td></tr>
+<tr><td><b>WebTorrent trackers</b> (WebSocket)</td><td>None</td><td>Real time</td><td class="v ok">Handshake only</td><td>Built to swap WebRTC offers between peers sharing a hash (what the Trystero and P2PT libraries use). Good for setting up direct links; not for messages.</td></tr>
+<tr><td><b>ntfy.sh</b> (or your own ntfy)</td><td>None</td><td>Real time (SSE/WebSocket)</td><td class="v mid">Small messages</td><td>Simple HTTP publish; 4 KB messages and daily limits on the public server: presence, wake-ups, short requests.</td></tr>
+<tr><td><b>PeerJS cloud server</b></td><td>None</td><td>Real time</td><td class="v mid">Handshake only</td><td>Free WebRTC signaling server.</td></tr>
+<tr><td><b>Web Push</b> to the installed DriveGen</td><td>None (the user allows notifications)</td><td>Seconds</td><td class="v ok">Mac → phone wake-ups</td><td>StudioGen can sign a push itself (VAPID) and send it, encrypted, through Apple's or Google's push service to a Home Screen DriveGen (iOS 16.4+), even when the app is closed: “your report is ready”. One way only. Great for proactive in-car updates.</td></tr>
+<tr><td><b>Sound</b> (data over audio, e.g. ggwave)</td><td>None</td><td>Seconds</td><td class="v mid">Pairing</td><td>The Mac plays the pairing code, the phone listens: pairing without a camera.</td></tr>
+<tr><td><b>Your own broker / realtime service</b>: HiveMQ Cloud, EMQX Serverless, Ably, Pusher, PubNub, Supabase Realtime, Firebase</td><td>Free tier, once, on StudioGen</td><td>Real time</td><td class="v ok">Dependable</td><td>Keys travel in the pairing code; MQTT ones work today through the list.</td></tr>
+<tr><td><b>Your own tiny relay</b> on Cloudflare Workers + Durable Objects, or Deno Deploy</td><td>Free tier, once</td><td>Real time</td><td class="v ok">Most control</td><td>A 50-line WebSocket relay we could ship; nothing to maintain.</td></tr>
+<tr><td><b>Matrix</b> (matrix.org or any homeserver)</td><td>Two accounts</td><td>Real time</td><td class="v mid">Possible</td><td>Federated, end-to-end encrypted rooms; heavy for this job.</td></tr>
+<tr><td><b>Telegram bot</b></td><td>A bot token</td><td>1–2 s (long polling)</td><td class="v mid">Possible</td><td>A private group as mailbox; allowed for bots.</td></tr>
+<tr><td><b>GitHub</b>: a secret Gist or a repo file as an encrypted mailbox</td><td>A GitHub token on both</td><td>Polling, 2–5 s</td><td class="v mid">Fallback only</td><td>Your “text on a page that only the apps can read” idea: a GitHub Pages site is static (it can't be written by a visitor), but a Gist or a file edited through the API can hold ciphertext that's gibberish to anyone else. Rate limit 5,000 calls an hour, and GitHub's terms frown on using it as a message bus; a write token on the phone is a risk.</td></tr>
+<tr><td><b>Google Apps Script</b> web app with a Sheet</td><td>The user's Google account</td><td>Polling</td><td class="v mid">Possible</td><td>A free personal “backend” the user owns.</td></tr>
+<tr><td><b>Pastebins</b> (dead drops)</td><td>None</td><td>One-off</td><td class="v no">Not ongoing</td><td>Write once, read by id: a handshake at most; spam filters and terms.</td></tr>
+<tr><td><b>Tweets / social posts</b> (X, Bluesky, Mastodon)</td><td>Accounts</td><td>Seconds–minutes</td><td class="v no">No</td><td>Public ciphertext posts look like spam and get flagged; X's API is paid and its rules forbid this; DMs are limited in the APIs.</td></tr>
+<tr><td><b>Bluetooth</b></td><td>None</td><td>–</td><td class="v no">No</td><td>iPhone Safari has no Web Bluetooth.</td></tr>
+</tbody></table></div>
+<p><b>Suggestion</b>: make relays pluggable families (MQTT now; Nostr next) so the list can mix families, e.g. [EMQX, a Nostr relay, HiveMQ, …], with the same failover rule; add Web Push for wake-ups; keep GitHub/Apps Script as “bring your own” fallbacks.</p>
+
+<h2 id="mesh">7. A mesh of StudioGens and DriveGens</h2>
+<h3>What it would enable</h3>
+<ul>
+  <li>One phone or iPad driving <b>several Stage screens</b> (demo room, booth, wall), or several presenters' phones driving one.</li>
+  <li>DriveGen asking <b>the right Mac</b>: “run the sales report on the office Mac”, “ask the home Mac to …”, or whichever Mac has the capability (Excel, a database, a model).</li>
+  <li><b>Distributed demos</b>: one script spanning devices (Mac A presents while Mac B crunches data and Mac C drives a browser), with results flowing back.</li>
+  <li><b>Team setups</b>: colleagues' StudioGens offering each other scripts, data and tasks, with permissions.</li>
+</ul>
+<h3>Architecture (proposal)</h3>
+<pre>
+            ┌──────────── mesh "Acme demo team" (id M, group key Kg, roster signed by owners) ────────────┐
+            │                                                                                            │
+   DriveGen (iPhone) ─┐        relay families (MQTT, Nostr…)  +  direct WebRTC links where possible        │
+   DriveGen (iPad) ───┼──────►  group topic  T(M)        : presence, capabilities, broadcasts (Kg)         │
+   DriveGen (car) ────┘         device topics T(M,dev)   : requests/answers to one device (pairwise keys)  │
+                                                                                                           │
+   StudioGen "Demo room"  (owner)    StudioGen "Office Mac"  (member)    StudioGen "Home Mac"  (member)    │
+   offers: Stage, scripts            offers: Excel tasks, SQLite          offers: Shortcuts, files         │
+            └────────────────────────────────────────────────────────────────────────────────────────────┘
+</pre>
+<ul>
+  <li><b>Identity</b>: every app makes a device key pair (signing + key agreement) on first start; its id is a hash of the public key. Names are labels, keys are identity.</li>
+  <li><b>The mesh</b>: an id, a group key, a broker list (owner-master, as today), and a <b>roster</b>: devices with role and permissions, signed by an owner StudioGen. Joining = pairing with an owner (or with any member an owner allowed to invite).</li>
+  <li><b>Messages</b>: broadcasts (presence, “what I offer”) encrypted with the group key on the mesh topic; requests to one device encrypted pairwise (keys from the two device keys) on that device's topic; everything signed by the sender, so members can't impersonate each other.</li>
+  <li><b>Directory</b>: each StudioGen announces its capabilities (scripts it offers, task kinds, data sources, models, screens, busy/free); every member keeps a live roster: who's online, where, what they can do.</li>
+  <li><b>Addressing</b>: by device (“Office Mac”), by role (“any Stage screen”), by capability (“a Mac with Excel”), or all (“every screen: next slide”).</li>
+  <li><b>Routing</b>: the relay families reach everyone; direct WebRTC links form between pairs that talk a lot; a StudioGen can forward for a device that can't reach another directly.</li>
+  <li><b>Scripts across devices</b>: a step gets a target (“on Office Mac: run Export”), results come back as variables; a “conductor” script can coordinate several Stage screens in sync.</li>
+  <li><b>Changes</b>: removing a member, or a new broker list, rotates the group key and needs the remaining members to take the new roster (pairing again, as you asked for brokers, or an owner-signed update; see the questions).</li>
+</ul>
+<h3>Phases</h3>
+<ol>
+  <li><b>M1</b> Device identities; a DriveGen paired with several StudioGens; pick the Mac by name (“run … on the office Mac”).</li>
+  <li><b>M2</b> Mesh with roster, group topic, presence and capability directory; addressing by role and capability.</li>
+  <li><b>M3</b> Cross-device script steps, results as variables, StudioGen-to-StudioGen requests; per-device permissions.</li>
+  <li><b>M4</b> Synchronised multi-screen scripts (a conductor); forwarding; Nostr as a second relay family.</li>
+</ol>
+
+<h2 id="questions">8. Questions for the mesh</h2>
+<ol>
+  <li><b>Who's in it</b>: only your own devices, or colleagues' too (a team mesh)?</li>
+  <li><b>Who admits members</b>: one owner StudioGen, any StudioGen, or any member with an invite?</li>
+  <li><b>How changes reach members</b> (new broker list, removed member): pair again in person (simplest, strongest), or an owner-signed update over the mesh (no re-pairing; you asked for re-pairing for broker changes)?</li>
+  <li><b>What should flow</b>: requests only (run, ask), or also shared things (scripts library, captured motions, data), and synchronised multi-screen shows?</li>
+  <li><b>Permissions</b>: per device (which scripts and tasks each DriveGen or StudioGen may run on which Mac)?</li>
+</ol>
+</main>
+</body>
+</html>

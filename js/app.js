@@ -1171,8 +1171,8 @@ let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 /* Settings in tabs, by what the app is used for: the mode on top, then Assistant · Stage · Drive · Scripts & tasks · System.
    Drive is there in DriveGen, and in StudioGen only when it's also used for driving. Groups go to tabs by their title. */
-const SETTINGS_TABS = [['assistant', 'Assistant'], ['stage', 'Stage'], ['drive', 'Drive'], ['scripts', 'Scripts & tasks'], ['system', 'System']];
-const SETTINGS_TAB_OF = { Assistant: 'assistant', Voice: 'assistant', Cameras: 'stage', 'Scripts & tasks': 'scripts', Display: 'system', System: 'system',
+const SETTINGS_TABS = [['assistant', 'Assistant'], ['stage', 'Stage'], ['drive', 'Drive'], ['scripts', 'Scripts & tasks'], ['connections', 'Connections'], ['system', 'System']];
+const SETTINGS_TAB_OF = { Assistant: 'assistant', Voice: 'assistant', Cameras: 'stage', 'Scripts & tasks': 'scripts', Connections: 'connections', Display: 'system', System: 'system',
   Dashboard: 'drive', 'Camera & objects': 'drive', Driving: 'drive', Navigation: 'drive', 'Phone & apps': 'drive', Location: 'drive' };
 function settingsTabs() {
   const body = $('#settingsBody'), titles = $$(':scope > .group-title', body); if (!titles.length || $('.set-tabs', body)) return;
@@ -1220,8 +1220,12 @@ function renderSettings() {
     <div class="group">
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations, demos and interactive sessions`) : ''}
       ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
-      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
       ${typeof OsTasks !== 'undefined' && OsTasks.can() ? btn('osApprovals', 'Tasks you always allow', 'AppleScript, Shortcuts and shell code from scripts') : ''}
+    </div>
+    <div class="group-title">Connections</div>
+    <div class="group">
+      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
+      ${typeof Relay !== 'undefined' && window.DriveDeckDesktop ? btn('relays', 'Relays (public MQTT brokers)', `${Relay.list().brokers.length} · revision ${Relay.list().rev}`) + btn('directLink', 'Direct link', ({ auto: 'Whenever possible', local: 'Same network only', off: 'Never' })[Relay.directCfg().mode]) : ''}
     </div>
     <div class="group-title">Display</div>
     <div class="group">

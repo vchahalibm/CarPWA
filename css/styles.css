@@ -1515,3 +1515,4 @@ table.bench small{color:var(--text-2)}
 .dl-qr{width:min(70vw,62vh,520px);aspect-ratio:1;background:#fff;border-radius:16px;padding:14px;box-sizing:border-box}.dl-qr svg{width:100%;height:100%;display:block}
 .dl-cam{width:min(80vw,56vh,560px);aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:#000}.dl-cam video{width:100%;height:100%;object-fit:cover}
 .dl-n{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;align-items:center;justify-content:center;font-weight:700;margin:6px 0 2px}
+.rl-list{padding-left:20px;margin:8px 0}.rl-list li{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid rgba(127,127,127,.15)}.rl-list li>div{flex:1;display:flex;flex-direction:column;min-width:0}.rl-list .se-note{overflow:hidden;text-overflow:ellipsis}

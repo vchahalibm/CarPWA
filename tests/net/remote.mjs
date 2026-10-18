@@ -24,7 +24,8 @@ const ev = (wsUrl, expr, ms = 600000) => new Promise((res, rej) => { const ws = 
 // The pairing both sides derive from the seed: a room and a key (as StudioGen's pairing code would carry), the default relay list.
 const derived = seed => { const h = k => crypto.createHash('sha256').update(`${k}:${seed}`).digest('base64url'); return { room: h('room').slice(0, 22), key: h('key').slice(0, 43) }; };
 
-const b = await browser(); await sleep(5000);
+const b = await browser();
+for (let i = 0; i < 120; i++) { try { if (await ev(b.ws, `typeof Relay !== 'undefined' && typeof Voice !== 'undefined' && typeof LinkTest !== 'undefined'`, 5000)) break; } catch {} await sleep(500); } // the app has loaded
 let out;
 try {
   if (role === 'host') {

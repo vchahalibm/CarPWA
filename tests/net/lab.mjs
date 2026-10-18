@@ -59,7 +59,7 @@ async function scenario(s, i) {
     await Promise.all([side('a', A, `10.${n}.1`, s.a, s.blockA), side('b', B, `10.${n}.2`, s.b, s.blockB)]);
     await docker('exec', `${A}-p`, 'node', '/agent.mjs', 'start', `http://${WEB}:8000/index.html?linktest=host`);
     await docker('exec', `${B}-p`, 'node', '/agent.mjs', 'start', `http://${WEB}:8000/index.html`);
-    await sleep(5000);
+    for (const c of [`${A}-p`, `${B}-p`]) for (let j = 0; j < 120; j++) { if ((await ev(c, `typeof Relay !== 'undefined' && typeof Voice !== 'undefined' && typeof LinkTest !== 'undefined'`)) === true) break; await sleep(500); } // the app has loaded
     const cfg = { mode: s.cfg.mode, relayData: s.cfg.relayData, stun: [`stun:${STUN}:3478`], turn: s.cfg.turn ? { url: `turn:${STUN}:3478`, user: 'lab', pass: 'lab' } : { url: '', user: '', pass: '' } };
     const code = await ev(`${A}-p`, `(async()=>{ Voice.respond=async()=>{}; store.set('relayList', ${JSON.stringify(s.list || null)}); store.set('directCfg', ${JSON.stringify(cfg)}); store.set('relayPeers', []); return Relay.newPairing(); })()`);
     if (typeof code !== 'string') throw new Error(`pairing: ${JSON.stringify(code)}`);

@@ -158,7 +158,26 @@ const Relay = {
   dataUp(room) { return this.active(room).some(u => relayKind(u).data && this.pool.get(u)?.mq?.up); },
   anyUp() { return [...this.pool.values()].some(b => b.mq?.up); },
   /* ---------- Keys and topics ---------- */
-  async key(room) { if (!this.keys.has(room.room)) this.keys.set(room.room, await crypto.subtle.importKey('raw', b64u.dec(room.key), 'AES-GCM', false, ['encrypt', 'decrypt'])); return this.keys.get(room.room); },
+  /** A pairing's key (or, while it is being changed, its next or previous one), ready for AES-GCM. */
+  async key(room, which = 'key') { const k = room[which]; if (!k) return null; if (!this.keys.has(k)) this.keys.set(k, await crypto.subtle.importKey('raw', b64u.dec(k), 'AES-GCM', false, ['encrypt', 'decrypt'])); return this.keys.get(k); },
+  /** The pairing as stored now (it changes when the secret does). */
+  fresh(room) { return this.rooms().find(r => r.room === room.room) || room; },
+  /* ---------- Changing the secret (StudioGen starts it: "Change the secret", or on a schedule) ----------
+     1. StudioGen makes a new random 256-bit key and sends it, locked with the current key ("rekey"); it keeps sending with the
+        current key until the device confirms. 2. The device switches to the new key, keeps the old one 10 minutes for messages
+        still on their way, and confirms with the new key ("rekey-ok"). 3. StudioGen, seeing the new key used, switches too and
+        keeps the old one 10 minutes. A device that's offline gets the new key when it next says hello. */
+  rekey(id) {
+    const p = this.peers().find(x => x.id === id); if (!p) return;
+    const next = p.nextKey || b64u.enc(crypto.getRandomValues(new Uint8Array(32)));
+    store.set('relayPeers', this.peers().map(x => x.id === id ? { ...x, nextKey: next, rekeySent: Date.now() } : x));
+    this.post(this.fresh(p), 'rekey', { key: next }); Log.i('relay', `New secret for ${p.name}: sent`);
+  },
+  commit(room) { // StudioGen: the device uses the new key now
+    store.set('relayPeers', this.peers().map(x => x.room === room.room && x.nextKey ? { ...x, oldKey: x.key, key: x.nextKey, nextKey: null, keyAt: new Date().toISOString(), oldUntil: Date.now() + 600000 } : x));
+    Log.i('relay', `New secret in use: ${room.name}`); this.onchange?.();
+  },
+  rekeyEvery: () => +(store.get('rekeyEvery', 0)) || 0, // days; 0: only when asked
   async topic(room, dir) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`studiogen-relay:${room.room}:${dir}`))); return `sg1/${[...h.slice(0, 16)].map(x => x.toString(16).padStart(2, '0')).join('')}`; },
   inDir() { return this.isMac() ? 'to-mac' : 'to-dev'; }, outDir() { return this.isMac() ? 'to-dev' : 'to-mac'; },
   /* ---------- Which brokers: the same rule on both sides ---------- */
@@ -220,6 +239,7 @@ const Relay = {
   },
   /* ---------- Sending and receiving ---------- */
   async post(room, type, body) {
+    room = this.fresh(room);
     const t = await this.topic(room, this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
     const plain = new TextEncoder().encode(JSON.stringify({ id, ts: Date.now(), type, body }));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room), plain));
@@ -231,8 +251,16 @@ const Relay = {
     return sent.length > 0;
   },
   async got(topic, payload, b) {
-    const room = this.topics[topic]; if (!room || payload.length < 29) return;
-    let m; try { const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: payload.slice(0, 12), additionalData: new TextEncoder().encode(topic) }, await this.key(room), payload.slice(12)); m = JSON.parse(new TextDecoder().decode(pt)); } catch { return; } // not ours, or tampered
+    const room = this.topics[topic] && this.fresh(this.topics[topic]); if (!room || payload.length < 29) return;
+    // The current key, else (while the secret is being changed) the next one (StudioGen) or the previous one (both, 10 minutes).
+    let m, used = null;
+    for (const which of ['key', 'nextKey', 'oldKey']) {
+      if (which === 'oldKey' && room.oldUntil && Date.now() > room.oldUntil) continue;
+      const k = await this.key(room, which); if (!k) continue;
+      try { const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: payload.slice(0, 12), additionalData: new TextEncoder().encode(topic) }, k, payload.slice(12)); m = JSON.parse(new TextDecoder().decode(pt)); used = which; break; } catch {}
+    }
+    if (!m) return; // not ours, or tampered
+    if (used === 'nextKey' && this.isMac()) this.commit(room); // the device has switched: so do we
     const own = this.mine.get(m.id); if (own) { own.back.add(b.url); this.ok(b, Date.now() - own.at); return; } // our own message, back: this broker works
     if (Math.abs(Date.now() - m.ts) > 120000 || this.seen.has(m.id)) return; // old, or another broker's copy
     this.seen.set(m.id, Date.now()); if (this.seen.size > 500) for (const [k, t] of this.seen) if (Date.now() - t > 150000) this.seen.delete(k);
@@ -243,7 +271,11 @@ const Relay = {
       const was = this.isMac() ? this.online[room.room] : this.online.mac;
       const use = (b.use || []).filter(u => typeof u === 'string'), changed = JSON.stringify(use) !== JSON.stringify(this.peerUse[room.room] || []);
       this.peerUse[room.room] = use; if (changed) this.plan();
-      if (this.isMac()) { this.online[room.room] = Date.now(); this.rename(room, b.name, b.rev); if (!b.re) this.post(room, 'hello', this.helloBody(room, true)); this.maybeDirect(room); }
+      if (this.isMac()) { this.online[room.room] = Date.now(); this.rename(room, b.name, b.rev); if (!b.re) this.post(room, 'hello', this.helloBody(room, true)); this.maybeDirect(room);
+        const p = this.fresh(room), days = this.rekeyEvery();
+        if (p.nextKey && Date.now() - (p.rekeySent || 0) > 10000) this.rekey(p.id); // a device that was away gets its new secret now
+        else if (!p.nextKey && days && Date.now() - Date.parse(p.keyAt || p.paired) > days * 86400000) this.rekey(p.id); // on schedule
+      }
       else { this.online.mac = Date.now(); store.set('relayMac', { ...this.mac(), name: b.name || this.mac().name, masterRev: b.master || 0, relayData: b.relayData !== false }); }
       if (!was) { Log.i('relay', `${this.isMac() ? room.name || 'A device' : 'Your Mac'} is online (relay)`); this.onchange?.(); }
       return;
@@ -257,6 +289,11 @@ const Relay = {
     }
     if (type === 're') { const w = this.waits.get(b.id); if (w) { this.waits.delete(b.id); clearTimeout(w.t); clearInterval(w.again); b.error ? w.rej(new Error(b.error)) : w.res(b.result); } return; }
     // The WebRTC handshake (StudioGen's direct settings: how, and which STUN/TURN servers).
+    if (type === 'rekey' && !this.isMac() && b.key) { // a new secret from StudioGen (locked with the current one)
+      const mac = this.mac(); if (b.key !== mac.key) store.set('relayMac', { ...mac, oldKey: mac.key, key: b.key, keyAt: new Date().toISOString(), oldUntil: Date.now() + 600000 });
+      Log.i('relay', 'New secret from your Mac'); this.post(this.mac(), 'rekey-ok', {}); this.onchange?.(); return;
+    }
+    if (type === 'rekey-ok' && this.isMac()) return; // handled when the new key was first used (commit)
     if (type === 'rtc-offer' && !this.isMac()) { if (store.get('directAllow', true) === false) return; try { const code = await Direct.answer(b.code, b.ice || []); this.post(room, 'rtc-answer', { code }); } catch (e) { Log.w('relay', 'Direct answer failed', e); } return; }
     if (type === 'rtc-answer' && this.isMac()) { try { await Direct.accept(b.code); this.directTries = 0; } catch (e) { Log.w('relay', 'Direct accept failed', e); } }
   },
@@ -271,7 +308,7 @@ const Relay = {
     const ice = c.mode === 'local' ? [] : [{ urls: c.stun.filter(Boolean) }, ...(c.turn?.url ? [{ urls: c.turn.url, username: c.turn.user, credential: c.turn.pass }] : [])];
     Direct.offer(ice).then(code => { Direct.peer = ''; this.post(room, 'rtc-offer', { code, ice }); }).catch(e => Log.w('relay', 'Direct offer failed', e));
   },
-  rename(room, name, rev) { store.set('relayPeers', this.peers().map(p => p.room === room.room ? { ...p, name: name || p.name, seen: new Date().toISOString(), rev: rev || p.rev } : p)); },
+  rename(room, name, rev) { const p = this.fresh(room); if (p.name === (name || p.name) && p.rev === (rev || p.rev) && Date.now() - Date.parse(p.seen || 0) < 60000) return; store.set('relayPeers', this.peers().map(x => x.room === room.room ? { ...x, name: name || x.name, seen: new Date().toISOString(), rev: rev || x.rev } : x)); },
   /** DriveGen → the Mac: a request, resent after 3 and 7 s, then every 15 s, until answered (the Mac answers a resend from its kept answer). */
   call(kind, payload = {}, ms = 600000) {
     const room = this.mac(); if (!room) return Promise.reject(new Error('Not paired with a Mac'));
@@ -286,7 +323,7 @@ const Relay = {
   },
   /* ---------- Pairing (once per device; again when StudioGen's list changes) ---------- */
   newPairing() {
-    const L = this.list(), p = { id: Math.random().toString(36).slice(2, 8), room: b64u.enc(crypto.getRandomValues(new Uint8Array(16))), key: b64u.enc(crypto.getRandomValues(new Uint8Array(32))), name: 'A device (pairing…)', paired: new Date().toISOString(), brokers: L.brokers.map(b => b.url), rev: L.rev };
+    const L = this.list(), p = { id: Math.random().toString(36).slice(2, 8), room: b64u.enc(crypto.getRandomValues(new Uint8Array(16))), key: b64u.enc(crypto.getRandomValues(new Uint8Array(32))), name: 'A device (pairing…)', paired: new Date().toISOString(), keyAt: new Date().toISOString(), brokers: L.brokers.map(b => b.url), rev: L.rev };
     store.set('relayPeers', [...this.peers(), p]); this.restart();
     return 'SG3' + b64u.enc(new TextEncoder().encode(JSON.stringify({ r: p.room, k: p.key, b: p.brokers, v: p.rev })));
   },
@@ -355,6 +392,7 @@ Relay.onchange = () => { clearTimeout(Relay.redraw); Relay.redraw = setTimeout((
 // Paired: always on while the app runs (the Mac answers; the phone can ask any time).
 setTimeout(() => Relay.start(), 2000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Relay.rooms().length && !Relay.anyUp()) Relay.restart(); });
+document.addEventListener('change', e => { const s = e.target.closest?.('[data-rlsched]'); if (s) { store.set('rekeyEvery', +s.value); toast(+s.value ? 'Secrets will change on schedule' : 'Secrets change only when you ask'); } });
 addEventListener('online', () => { if (Relay.rooms().length) Relay.restart(); });
 document.addEventListener('click', e => {
   const x = e.target.closest('[data-rlx]'); if (x) { e.stopPropagation(); const [k, i] = x.dataset.rlx.split(':'), L = Relay.draft;
@@ -369,6 +407,8 @@ document.addEventListener('click', e => {
   if (k === 'guestpair') return Relay.guestPair();
   if (k === 'relays') return Relay.editor();
   if (k === 'direct') return Relay.directSheet();
+  if (k === 'rekey') { Relay.rekey(id); toast('New secret sent: it’s used once the device confirms'); return setTimeout(() => LinkHost.settings(), 300); }
+  if (k === 'rekeyall') { Relay.peers().forEach(p => Relay.rekey(p.id)); toast('New secrets sent to every device'); return setTimeout(() => LinkHost.settings(), 300); }
   if (k === 'revoke') { Relay.revoke(id); toast('Revoked: that device can’t reach StudioGen any more'); return LinkHost.settings(); }
   if (k === 'forget') { Relay.forget(); toast('Forgotten'); closeSheet(); }
   if (k === 'allow') { store.set('directAllow', !store.get('directAllow', true)); if (!store.get('directAllow', true)) Direct.close(); Link.settings(); }

@@ -1,0 +1,41 @@
+# Real-internet connection test (docs/connection-tests.html, layer 3): StudioGen's link side on one cloud machine, DriveGen on
+# others (Linux and macOS runners: different networks), pairing through a seed both derive; they meet through the public relays,
+# try a direct link, time requests, and write a summary. Optionally also against your own StudioGen: put a pairing code made for
+# it (Settings › Connections › Pair a phone or iPad, copy the SG3… text from the QR) in the HOME_PAIR_CODE secret.
+name: Network nightly
+on:
+  schedule: [{ cron: '30 21 * * *' }]
+  workflow_dispatch:
+permissions: { contents: read }
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: (python3 -m http.server 8811 >/dev/null 2>&1 &) && sleep 1
+      - run: node tests/net/remote.mjs host "${{ github.run_id }}-${{ secrets.NET_SEED }}" 9
+  guest:
+    strategy:
+      fail-fast: false
+      matrix: { os: [ubuntu-latest, macos-latest] }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: (python3 -m http.server 8811 >/dev/null 2>&1 &) && sleep 1
+      - run: sleep 30 && node tests/net/remote.mjs guest "${{ github.run_id }}-${{ secrets.NET_SEED }}"
+  home:
+    runs-on: ubuntu-latest
+    steps:
+      - id: check
+        run: echo "has=${{ secrets.HOME_PAIR_CODE != '' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.has == 'true'
+        uses: actions/checkout@v4
+      - if: steps.check.outputs.has == 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - if: steps.check.outputs.has == 'true'
+        run: (python3 -m http.server 8811 >/dev/null 2>&1 &) && sleep 1 && node tests/net/remote.mjs guest-code "${{ secrets.HOME_PAIR_CODE }}"

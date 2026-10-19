@@ -78,7 +78,10 @@ function simPhone(id, label, n) {
       const phones = Object.entries(list).filter(([rt]) => /iOS/.test(rt)).flatMap(([, ds]) => ds).filter(x => /iPhone/.test(x.name));
       if (!phones[n]) throw new Error('No iPhone simulator: install one in Xcode › Settings › Components');
       this.udid = phones[n].udid; sims.push(this.udid);
-      try { execFileSync('xcrun', ['simctl', 'boot', this.udid]); } catch {} execFileSync('open', ['-a', 'Simulator']);
+      try { execFileSync('xcrun', ['simctl', 'boot', this.udid]); } catch {}
+      // the window: Simulator.app (Xcode 26 and before) or DeviceHub (Xcode 27)
+      const xc = path.resolve(execFileSync('xcode-select', ['-p']).toString().trim(), '..');
+      for (const app of ['Developer/Applications/Simulator.app', 'Applications/DeviceHub.app']) if (fs.existsSync(path.join(xc, app))) { try { execFileSync('open', [path.join(xc, app)]); } catch {} break; }
       execFileSync('xcrun', ['simctl', 'bootstatus', this.udid, '-b']);
       execFileSync('xcrun', ['simctl', 'openurl', this.udid, `${BASE}?tandem=${id}`]);
       for (let i = 0; i < 120 && !reports[id]; i++) await sleep(500);

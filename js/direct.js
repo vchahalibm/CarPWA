@@ -58,7 +58,8 @@ const Direct = {
     if (m.ping) return;
     if (m.re) { const w = this.waits.get(m.re); if (w) { this.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
     if (m.ask) { // a request from the other side (StudioGen answers DriveGen's)
-      try { const r = await Direct.handle(m.ask, m.payload || {}); this.send({ re: m.id, result: r }); }
+      const t0 = Date.now();
+      try { const r = await Direct.handle(m.ask, m.payload || {}); this.send({ re: m.id, result: r }); if (typeof Mesh !== 'undefined') Mesh.pairedRequest(m.ask, m.payload || {}, r, Date.now() - t0, this.peerMeshId, this.peer); }
       catch (e) { this.send({ re: m.id, error: e.message }); }
     }
   },

@@ -95,7 +95,7 @@ const LinkTest = {
   },
   async show() {
     closeSheet(); sheet('Test the connection', '<p id="ltStep" class="se-note">Starting…</p>', [['Close']]);
-    const r = await this.run(s => { const el = $('#ltStep'); if (el) el.textContent = s; });
+    const r = this.last = await this.run(s => { const el = $('#ltStep'); if (el) el.textContent = s; });
     const relay = x => `<li class="${x.ok ? '' : 'warn'}">${x.ok ? '✓' : '✗'} ${esc(Relay.label(x.url))} <span class="se-note">${x.kind}${x.ok ? `, ${x.ms} ms${x.note ? `, ${x.note}` : ''}` : `, ${esc(x.err)}`}</span></li>`;
     sheet('Connection test', `<div class="lt"><ul class="av-report">${r.verdict.map(v => `<li>${esc(v)}</li>`).join('')}</ul>
       <p class="se-note"><b>This network</b>: router ${({ preserving: 'keeps ports (good for direct links)', strict: 'strict (a new port per server)', none: 'no UDP / no STUN answer', unknown: 'unknown' })[r.network.nat]}${r.network.publicAddr ? ` · public ${esc(r.network.publicAddr)}` : ''}${r.network.ipv6 ? ' · IPv6' : ''} · ${r.network.stun.map(s => `${esc(s.server.replace(/^stun:/, ''))}: ${s.addr ? `${s.port}, ${s.ms} ms` : '✗'}`).join(' · ')}</p>
@@ -111,26 +111,40 @@ ACTIONS.linkTest = () => LinkTest.show();
    iOS Simulator's Safari, which the runner can't drive directly), a report every 2 s
    to the runner's tandem/report, which answers with steps from a fixed list (STEPS). */
 const Tandem = {
-  state() {
+  async state() {
     const M = typeof Mesh !== 'undefined' ? Mesh : null, m = M?.m, me = M?._me?.id;
+    const hist = LINK_HOST && m && typeof MeshStore !== 'undefined' ? await MeshStore.range(Date.now() - 86400000).catch(() => []) : [];
     return { app: typeof meshApp === 'function' ? meshApp() : APP_NAME, name: store.get('meshName', ''), view: document.querySelector('.view.active')?.id || '',
       paired: Relay.isMac() ? Relay.peers().map(p => ({ id: p.id, name: p.name, online: !!Relay.online[p.room], key: (p.key || '').slice(0, 6), pass: !!p.passKey })) : Relay.mac() ? [{ name: 'mac', online: !!Relay.online.mac, key: (Relay.mac().key || '').slice(0, 6), pass: !!Relay.mac().passKey }] : [],
       direct: Direct.ch?.readyState === 'open',
       mesh: m ? { id: m.id, name: m.name, me, member: !!M.member(me), owner: !!M.amOwner?.(), members: M.members().map(x => x.id), online: Object.keys(M.presence).filter(id => Date.now() - (M.presence[id].at || 0) < 45000), show: M.myShow || null, key: (m.key || '').slice(0, 6),
-        events: M.events.slice(-30).map(e => ({ ts: e.ts, dev: e.dev, kind: e.kind, text: e.data?.text || e.data?.name || '' })) } : null };
+        events: M.events.slice(-40).map(e => ({ ts: e.ts, dev: e.dev, kind: e.kind, what: e.data?.what || e.data?.kind || '', text: e.data?.text || e.data?.name || e.data?.script || '' })),
+        names: Object.fromEntries(M.members().map(x => [x.id, x.name])), perms: Object.fromEntries(M.members().map(x => [x.id, x.perms?.run !== false])),
+        shared: Object.entries(M.catalogs).flatMap(([id, c]) => (c || []).map(x => `${M.member(id)?.name || id}:${x.k}:${x.n}`)), mine: M.catalog?.().map(x => `${x.k}:${x.n}`) || [],
+        shows: Object.values(M.shows).map(x => ({ id: x.id, script: x.script, conductor: x.conductor, step: x.step, ended: !!x.ended, lanes: Object.fromEntries(Object.entries(x.lanes || {}).map(([k, l]) => [k, { step: l.step, state: l.state, drift: l.drift }])) })),
+        conducting: M.conducting || null, history: hist.length, histKinds: [...new Set(hist.map(e => e.kind))] } : null,
+      scripts: typeof Scripts !== 'undefined' ? Scripts.mine().map(x => x.name) : [], directCfg: Relay.directCfg().mode, relays: (Relay.isMac() ? Relay.list().brokers : Relay.mac()?.brokers || []).length, meshRelays: M?.m?.brokers || [],
+      script: typeof Script !== 'undefined' && Script.running ? { name: Script.cur?.name, i: Script.i } : null,
+      test: LinkTest.last ? { verdict: LinkTest.last.verdict?.[0] || '', relaysOk: (LinkTest.last.relays || []).filter(x => x.ok).length } : null,
+      said: typeof VoiceLog !== 'undefined' ? VoiceLog.items.slice(-16).map(e => `${e.who}: ${e.text}`) : [], saidAt: typeof VoiceLog !== 'undefined' ? VoiceLog.items.slice(-16).map(e => e.at) : [] };
   },
   STEPS: {
     name: n => { store.set('meshName', String(n).slice(0, 40)); return true; },
     pair: code => { const r = Relay.pairWith(String(code)); return { needPass: !!r?.needPass }; },
     join: inv => Mesh.join(String(inv)).then(() => true),
-    open: v => { closeSheet(); openView(String(v).replace(/[^a-z]/g, '')); return true; },
+    open: v => { closeSheet(); Direct.done(); openView(String(v).replace(/[^a-z]/g, '')); return true; },
+    // what you'd say or type: through the command matcher, like the Assistant's typing box
+    // a test phone: no location or install prompts over the dashboard
+    tidy: () => { store.set('onboarded', true); closeSheet(); $('#locPrompt')?.setAttribute('hidden', ''); if (typeof ACTIONS !== 'undefined') ACTIONS.dismissInstall?.(); return true; },
+    phrase: t => Relay.setPhrase(String(t)).then(() => true),
+    command: t => { handleCommand(String(t).slice(0, 200)); return true; },
   },
   local: /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname),
   start(name) {
     if (!this.local) return;
     const post = (path, body) => fetch(`tandem/${path}?dev=${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : null).catch(() => null);
     setInterval(async () => {
-      const steps = await post('report', this.state()); if (!Array.isArray(steps)) return;
+      const steps = await post('report', await this.state()); if (!Array.isArray(steps)) return;
       for (const s of steps) { let out = null, err; try { if (!Object.hasOwn(this.STEPS, s.step)) throw new Error('unknown step'); out = await this.STEPS[s.step](s.arg); } catch (e) { err = e.message; } post('result', { id: s.id, out, err }); }
     }, 2000);
   },

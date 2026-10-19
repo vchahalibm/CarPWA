@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v65';
+const VERSION = 'v66';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -49,6 +49,8 @@ const SHELL = [
 // The desktop app serves its own files from app://, which the Cache API can't hold (and doesn't need): there this
 // worker only caches the voice runtime from the CDN.
 const WEB = /^https?:$/.test(self.location.protocol);
+// Served from this computer (python3 -m http.server, the tandem tests): the files as they are now, the cache only when offline
+const DEV = /^(localhost|127\.0\.0\.1)$/.test(self.location.hostname);
 self.addEventListener('install', e => {
   if (WEB) e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
 });
@@ -96,6 +98,7 @@ async function shell(req) {
   const hit = await c.match(req, { ignoreSearch: req.mode === 'navigate' }) ||
     (req.mode === 'navigate' ? await c.match('index.html') : undefined);
   const net = fetch(req).then(res => { if (res.ok && !req.url.includes('?')) c.put(req, res.clone()); return res; });
+  if (DEV) return net.catch(() => hit || Response.error());
   if (hit) { net.catch(() => {}); return hit; }
   return net;
 }

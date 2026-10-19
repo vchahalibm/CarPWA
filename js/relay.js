@@ -283,7 +283,8 @@ const Relay = {
     this.plan().then(() => this.hello());
   },
   /* ---------- Sending and receiving ---------- */
-  async post(room, type, body) {
+  /** again: send the same message again after 1.5 s and 4 s (a relay can drop one; the other side drops repeats by id). */
+  async post(room, type, body, again = false) {
     room = this.fresh(room);
     // Mesh rooms: two StudioGens may talk, so the direction comes from their ids.
     const t = await this.topic(room, room.mesh ? Mesh.dirOut(room) : this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
@@ -294,6 +295,7 @@ const Relay = {
     if (data && !this.dataOk()) return false; // the relays only introduce (StudioGen's setting)
     const urls = this.active(room).filter(u => this.pool.get(u)?.mq?.up && (!data || relayKind(u).data)), sent = urls.filter(u => this.pool.get(u).mq.publish(t, p));
     this.mine.set(id, { at: Date.now(), urls: sent.filter(u => relayKind(u).echo), back: new Set() }); // trackers don't echo: no misses counted for them
+    if (again) for (const ms of [1500, 4000]) setTimeout(() => { for (const u of this.active(room)) if (this.pool.get(u)?.mq?.up && (!data || relayKind(u).data)) this.pool.get(u).mq.publish(t, p); }, ms);
     return sent.length > 0;
   },
   async got(topic, payload, b) {
@@ -345,7 +347,8 @@ const Relay = {
     if (type === 'ask' && this.isMac()) { // DriveGen's request; the answer is kept so a resent request gets it again
       if (this.answers.has(b.id)) { const a = this.answers.get(b.id); if (a !== 'busy') this.post(room, 're', a); return; }
       this.answers.set(b.id, 'busy'); setTimeout(() => this.answers.delete(b.id), 600000);
-      let a; try { Direct.peer ||= room.name; a = { id: b.id, result: await Direct.handle(b.kind, { ...(b.payload || {}) }) }; } catch (e) { a = { id: b.id, error: e.message }; }
+      let a; const t0 = Date.now(); try { Direct.peer ||= room.name; a = { id: b.id, result: await Direct.handle(b.kind, { ...(b.payload || {}) }) }; } catch (e) { a = { id: b.id, error: e.message }; }
+      if (typeof Mesh !== 'undefined') Mesh.pairedRequest(b.kind, b.payload || {}, a.result, Date.now() - t0, room.meshId, room.name);
       this.answers.set(b.id, a); this.post(room, 're', a); return;
     }
     if (type === 're') { const w = this.waits.get(b.id); if (w) { this.waits.delete(b.id); clearTimeout(w.t); clearInterval(w.again); b.error ? w.rej(new Error(b.error)) : w.res(b.result); } return; }
@@ -422,7 +425,9 @@ const Relay = {
     closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p>
       <details class="se-note"><summary>No camera? Paste the code</summary><textarea id="dlPaste" class="se-wide" rows="3" placeholder="SG3…"></textarea><div class="chip-row"><button class="chip accent" data-rl="paste">Use this code</button></div></details></div></div>`);
     try { this.guestPaired(await Direct.scan($('#dlCam'), 'SG')); }
-    catch (e) { if ($('#dlState')) $('#dlState').textContent = e.message; }
+    catch (e) { // no camera (a simulator, a desktop) or not allowed: pasting is the way
+      Log.w('relay', 'Pairing camera unavailable', e); const d = $('#dlFull details'); if (d) d.open = true;
+      if ($('#dlState')) $('#dlState').textContent = `The camera isn’t available${e.name === 'NotAllowedError' ? ' (not allowed)' : ''}: paste the code instead.`; }
   },
   /** The code from the camera or pasted (a code sent in a message; the iOS Simulator has no camera). */
   guestPaired(code) {

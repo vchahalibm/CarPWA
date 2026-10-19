@@ -926,6 +926,7 @@ svg{display:block;flex:none}
 .chat-head b{font-size:16px}
 .chat-mic{min-height:56px;padding:0 18px;border-radius:999px;background:var(--acc);color:#000;font-weight:800;display:flex;align-items:center;gap:8px}
 .chat-mic svg{width:20px;height:20px}
+.chat-type{display:flex;gap:8px}.chat-type input{flex:1;min-width:0;min-height:56px;padding:0 16px;border-radius:999px;border:1px solid var(--line,rgba(127,127,127,.3));background:var(--card2,rgba(127,127,127,.12));color:inherit;font:inherit}.chat-send{min-height:56px;padding:0 20px;border-radius:999px;background:var(--acc);color:#000;font-weight:800}
 .chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;
   -webkit-mask-image:linear-gradient(transparent,#000 18px);mask-image:linear-gradient(transparent,#000 18px)}
 .chat-log::-webkit-scrollbar{display:none}

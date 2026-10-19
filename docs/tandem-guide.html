@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo Day Tests</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --cmd:#7a4fd8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --cmd:#b59bff; } }
+  :root[data-theme="dark"] { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --cmd:#b59bff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  q.cmd { quotes:"“" "”"; color:var(--cmd); font-weight:600; }
+  figure { margin:12px 0; } figure img { width:100%; height:auto; border-radius:10px; border:1px solid var(--line); display:block; }
+  figcaption { color:var(--mut); font-size:14px; margin-top:4px; }
+  .shots { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+  .shots figure.phone img { max-width:260px; margin:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .who { display:inline-block; font-size:12px; font-weight:700; padding:1px 8px; border-radius:999px; background:var(--line); }
+  .act { counter-reset:step; } .act li { margin:8px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Demo Day: testing the apps together</h1>
+<p class="mut">A guide for running the Demo Day journey: two StudioGens and a DriveGen on one Mac, you doing the steps a real user would do, the runner checking each one. No experience with the tests needed.</p>
+
+<ul class="toc">
+  <li><a href="#need">1. What you need (once)</a></li>
+  <li><a href="#start">2. Start the run</a></li>
+  <li><a href="#panel">3. The control panel</a></li>
+  <li><a href="#talk">4. Doing a step: tap, talk or type</a></li>
+  <li><a href="#journey">5. The journey, act by act</a></li>
+  <li><a href="#results">6. Results</a></li>
+  <li><a href="#commands">7. Commands you can say or type</a></li>
+  <li><a href="#sims">8. iPhone simulators by hand</a></li>
+  <li><a href="#trouble">9. If something goes wrong</a></li>
+</ul>
+
+<h2 id="need">1. What you need (once)</h2>
+<ol>
+  <li><b>Xcode</b> from the App Store, opened once (it asks to install components), and its iPhone simulator. In Terminal:
+    <pre>sudo xcodebuild -license accept
+xcodebuild -runFirstLaunch
+xcodebuild -downloadPlatform iOS</pre></li>
+  <li><b>Google Chrome</b> (for the control panel; also a stand-in phone if there's no simulator).</li>
+  <li><b>The desktop app's files</b>, once, in the project folder:
+    <pre>cd desktop &amp;&amp; npm install &amp;&amp; cd ..</pre></li>
+  <li><b>Node.js 22</b> or newer (<code>node -v</code>).</li>
+</ol>
+<div class="card tip">The test StudioGens use their own empty profiles, created for each run and thrown away afterwards. Your own StudioGen, its pairings and scripts are never touched, and it can stay open.</div>
+
+<h2 id="start">2. Start the run</h2>
+<p>In Terminal, in the project folder:</p>
+<pre>node tests/tandem/run.mjs</pre>
+<p>That opens, by itself:</p>
+<ul>
+  <li><b>Studio A</b> and <b>Studio B</b>: two StudioGen windows (Studio A is the Demo-room Mac, the owner; Studio B is the Lobby screen).</li>
+  <li><b>Test iPhone</b>: DriveGen in Safari on an iPhone simulator. One you already have running is used and left running; the runner restarts its Safari and gives DriveGen a fresh address, so it starts as a new phone each run.</li>
+  <li><b>The control panel</b> in your browser, at <code>http://localhost:8822/tandem/</code>.</li>
+</ul>
+<p>Place the windows so you can see the panel, both StudioGens and the iPhone. Starting takes about half a minute.</p>
+<div class="wrap"><table>
+  <tr><th>To run…</th><th>Type</th></tr>
+  <tr><td>The whole Demo Day, you doing the marked steps</td><td><code>node tests/tandem/run.mjs</code></td></tr>
+  <tr><td>Everything automatically (no clicking; about 6 minutes)</td><td><code>node tests/tandem/run.mjs --auto</code></td></tr>
+  <tr><td>Only some acts</td><td><code>node tests/tandem/run.mjs --only setup,pair,mesh,show</code></td></tr>
+  <tr><td>And keep the apps open afterwards to look around</td><td>add <code>--hold</code> (Ctrl-C ends)</td></tr>
+  <tr><td>With a phone-sized Chrome window instead of the simulator</td><td>add <code>--phone chrome</code></td></tr>
+  <tr><td>The first, shorter journey</td><td><code>node tests/tandem/run.mjs --journey basic</code></td></tr>
+</table></div>
+
+<h2 id="panel">3. The control panel</h2>
+<figure><img src="req/tandem/01-panel.jpg" alt="The tandem control panel"><figcaption>The panel: the step now and what to do (buttons to press in bold, words to say in purple), what the runner is still waiting for, each device's state, and the results so far.</figcaption></figure>
+<ul>
+  <li>The panel moves on <b>by itself</b> as soon as it sees the step happen in the apps. There's no “Done” button.</li>
+  <li><b>Skip this step</b>: when something can't be done right now. <b>Mark failed</b>: when you can see it went wrong.</li>
+  <li>Steps marked “The runner does this one” or “Nothing to do: watching for it” need nothing from you.</li>
+  <li>The device table shows, live: who each one is paired with (green dot = online), the mesh and how many members each sees online, the show step, and whether a direct link is up.</li>
+</ul>
+
+<h2 id="talk">4. Doing a step: tap, talk or type</h2>
+<p>Most steps can be done three ways; pick whichever you're testing:</p>
+<ol>
+  <li><b>Tap</b> through the screens, as the panel describes (for example Mesh › Devices › Studio B › Remove).</li>
+  <li><b>Talk</b>: tap the mic (or Talk on the Assistant widget) and say the words in purple.</li>
+  <li><b>Type</b> the same words in the Assistant widget's new box and press Send. It goes through exactly the same commands as speech.</li>
+</ol>
+<div class="shots">
+  <figure class="phone"><img src="req/tandem/05-p-assistant.jpg" alt="A typed command and its answer"><figcaption>Test iPhone: <q class="cmd">run the sales summary on studio b</q>, typed, and Studio B's answer.</figcaption></figure>
+  <figure><img src="req/tandem/02-a-assistant.jpg" alt="The Assistant widget on StudioGen"><figcaption>Studio A: the Assistant widget (top right) with its box. In tandem runs the runner puts it in each StudioGen's Stage column; in your own StudioGen add it with Edit.</figcaption></figure>
+</div>
+<div class="card tip">On the iPhone the Assistant is a small tile on the widgets page (<q class="cmd">show the assistant widget</q>); what you type and the answer also show in the panel at the bottom. Typing is turned off while the car is moving (when “hide while driving” is on); talking always works.</div>
+
+<h2 id="journey">5. The journey, act by act</h2>
+<p class="mut"><span class="who">You</span> marks what you do; the rest the runner does or just watches. Times are for an automatic run.</p>
+
+<h3>Setup <span class="mut">(the runner, a few seconds)</span></h3>
+<p>Studio A gets the scripts <b>Daily brief</b> (offered to paired phones) and <b>Keynote</b> (three steps: it moves on by itself after the first, waits for a cue after the second). Studio B gets <b>Sales summary</b> (offered), <b>Welcome tour</b> (shared) and <b>Draft pitch</b> (private).</p>
+
+<h3>Act 1 · Pair at the desk</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Studio A: Settings › Connections › <b>Pair a phone or iPad (once)</b>, secret phrase <q class="cmd">blue harbour</q>. Or say <q class="cmd">pair a phone</q>.</li>
+  <li><span class="who">You</span> On Test iPhone: Settings › Connections › <b>Pair once</b> › <b>No camera? Paste the code</b>. The runner has put the code on the iPhone's clipboard: tap the box, Paste, <b>Use this code</b>, then type the phrase.</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">test the connection</q>. Checked: at least one relay works.</li>
+  <li>The direct link comes up by itself (everything is on one Mac).</li>
+</ol>
+<div class="shots">
+  <figure><img src="req/tandem/03-a-pair.jpg" alt="Studio A shows a pairing code"><figcaption>Studio A: the pairing code.</figcaption></figure>
+  <figure class="phone"><img src="req/tandem/04-p-paste.jpg" alt="The phone's pairing screen with the paste box"><figcaption>Test iPhone: <b>No camera? Paste the code</b>.</figcaption></figure>
+</div>
+
+<h3>Act 2 · Build the mesh</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Studio A: Mesh › <b>Create a mesh</b>, “Demo day”. Or <q class="cmd">create a mesh called Demo day</q>.</li>
+  <li>The phone joins by itself, because it's paired with Studio A.</li>
+  <li><span class="who">You</span> On Studio A: Mesh › <b>Invite</b> (<q class="cmd">invite to the mesh</q>), copy the text; on Studio B: Mesh › <b>Join with an invite</b> (<q class="cmd">join the mesh</q>), paste, Join.</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">who's around</q>. Checked: all three see each other online.</li>
+</ol>
+<div class="shots">
+  <figure><img src="req/tandem/07-a-invite.jpg" alt="The invite on Studio A"><figcaption>Studio A: the invite (QR and text).</figcaption></figure>
+  <figure><img src="req/tandem/06-a-live.jpg" alt="The live mesh"><figcaption>Studio A › Mesh: who is connected to whom, and how.</figcaption></figure>
+  <figure class="phone"><img src="req/tandem/10-p-who.jpg" alt="Who's around on the phone"><figcaption>Test iPhone: who's around.</figcaption></figure>
+</div>
+
+<h3>Act 3 · Shared things</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Studio A: Mesh › <b>Shared</b> (<q class="cmd">what's shared</q>). Checked: Studio B's Welcome tour is listed, its private Draft pitch is not.</li>
+  <li><span class="who">You</span> On Studio A: <q class="cmd">get the welcome tour from the mesh</q> (or Get in the list). Checked: it's now in Studio A's scripts.</li>
+  <li><span class="who">You</span> On Studio B: <q class="cmd">share the draft pitch with the mesh</q>. Checked: Studio A now sees it.</li>
+</ol>
+<figure><img src="req/tandem/09-a-shared.jpg" alt="Shared things"><figcaption>Studio A › Mesh › Shared: from the mesh, and yours (with the private switch).</figcaption></figure>
+
+<h3>Act 4 · On the road (1:1 with the paired Mac)</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">turn off the direct link</q>. Everything now goes through the relays, as on mobile data.</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">run the daily brief on my mac</q>. Checked: Studio A's answer (“Three meetings today…”) comes back to the phone.</li>
+  <li>Checked: Studio A's Mesh › Activity shows the request.</li>
+</ol>
+
+<h3>Act 5 · Ask the other Mac</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">run the sales summary on studio b</q> (or Mesh › Who's around › Studio B › ▶ Sales summary). Checked: “Sales are up 12 percent.” Studio B isn't paired with the phone: this goes through the mesh.</li>
+  <li><span class="who">You</span> On Studio A: <q class="cmd">don't let test iphone run scripts</q> (or Mesh › Devices › untick scripts).</li>
+  <li><span class="who">You</span> On Test iPhone: the same request again. Checked: refused, with a clear reason.</li>
+  <li><span class="who">You</span> On Studio A: <q class="cmd">allow test iphone to run scripts</q>.</li>
+</ol>
+<figure><img src="req/tandem/12-a-devices.jpg" alt="Devices"><figcaption>Studio A › Mesh › Devices: roles, status, links, and what each may run.</figcaption></figure>
+
+<h3>Act 6 · The show, from the phone</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">start the keynote on all screens</q>. Studio A conducts; Studio B follows.</li>
+  <li>Studio A moves on by itself after the welcome. Checked: Studio B moves at the same moment (drift under 100 ms; usually a few).</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">next slide everywhere</q>, then <q class="cmd">stop the show</q>.</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">start the keynote in tandem</q> (each screen runs its own copy), then <q class="cmd">send the cue</q>: Studio B, waiting at step two, moves on. Then <q class="cmd">stop the show</q>.</li>
+</ol>
+<figure><img src="req/tandem/11-a-shows.jpg" alt="The show on Studio A"><figcaption>Studio A › Mesh › Shows during the show: each screen's step, its drift from the conductor, and the controls.</figcaption></figure>
+
+<h3>Act 7 · Things go wrong</h3>
+<ol class="act">
+  <li>The runner puts a dead relay at the top of Studio A's list.</li>
+  <li><span class="who">You</span> On Studio A: <q class="cmd">share the relay list with the mesh</q> (Mesh › ⚙). Checked: Studio B and the phone get the new list.</li>
+  <li><span class="who">You</span> On Test iPhone: <q class="cmd">run the sales summary on studio b</q>. Checked: still answered, with the dead relay first.</li>
+  <li><span class="who">You</span> Quit Studio B (⌘Q in its window). Checked: Studio A notices it's gone (within 90 seconds).</li>
+  <li>The runner opens Studio B again. Checked: it's back in the mesh and online.</li>
+</ol>
+
+<h3>Act 8 · Housekeeping</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Studio A: <q class="cmd">change the secret for test iphone</q>. Checked: a new key, no break.</li>
+  <li><span class="who">You</span> On Studio A: <q class="cmd">remove studio b from the mesh</q>. Checked: two members left; the phone carries on with the new mesh key, Studio B doesn't have it.</li>
+</ol>
+
+<h3>Act 9 · Review</h3>
+<ol class="act">
+  <li><span class="who">You</span> On Studio A: <q class="cmd">show me the mesh</q> › History (and Activity: search “may not”). Checked: the history holds the run's requests, shows and shared things. <q class="cmd">export the mesh history</q> saves it as CSV.</li>
+</ol>
+<figure><img src="req/tandem/13-a-history.jpg" alt="History"><figcaption>Studio A › Mesh › History: kept a week by default; charts, replay, export.</figcaption></figure>
+
+<h2 id="results">6. Results</h2>
+<p>At the end the panel shows how many steps passed, failed or were skipped. Everything is saved in <code>tests/tandem/out/&lt;date-time&gt;/</code>:</p>
+<ul>
+  <li><code>report.json</code>: every step, passed / failed / skipped, how long it took, and for a failure what the runner was still waiting for.</li>
+  <li>A screenshot of every device after every step, named <code>act-step-device.jpg</code> (a = Studio A, b = Studio B, p = Test iPhone).</li>
+</ul>
+
+<h2 id="commands">7. Commands you can say or type</h2>
+<p>These work in both apps, by voice or in the Assistant's box, in the journey or any time. Settings › Voice commands lists them all (group Mesh and Your Mac) and lets you add your own words.</p>
+<div class="wrap"><table>
+  <tr><th>What</th><th>Say or type, for example</th><th>Where</th></tr>
+  <tr><td>Who's in the mesh, online, doing what</td><td><q class="cmd">who's around</q>, <q class="cmd">show me the mesh</q></td><td>both</td></tr>
+  <tr><td>Create / invite / join / leave</td><td><q class="cmd">create a mesh called Demo day</q>, <q class="cmd">invite to the mesh</q>, <q class="cmd">join the mesh</q>, <q class="cmd">leave the mesh</q></td><td>create: StudioGen</td></tr>
+  <tr><td>Remove a device (owner)</td><td><q class="cmd">remove studio b from the mesh</q></td><td>StudioGen</td></tr>
+  <tr><td>Permissions (owner)</td><td><q class="cmd">don't let test iphone run scripts</q>, <q class="cmd">allow test iphone to run scripts</q></td><td>StudioGen</td></tr>
+  <tr><td>Run on the paired Mac</td><td><q class="cmd">run the daily brief on my mac</q></td><td>DriveGen</td></tr>
+  <tr><td>Run on any device in the mesh</td><td><q class="cmd">run the sales summary on studio b</q></td><td>both</td></tr>
+  <tr><td>Shared things</td><td><q class="cmd">what's shared</q>, <q class="cmd">get the welcome tour from the mesh</q>, <q class="cmd">share the draft with the mesh</q>, <q class="cmd">make the draft private</q></td><td>share: StudioGen</td></tr>
+  <tr><td>Shows</td><td><q class="cmd">start the keynote on all screens</q>, <q class="cmd">start the keynote in tandem</q>, <q class="cmd">next slide everywhere</q>, <q class="cmd">previous slide everywhere</q>, <q class="cmd">send the cue</q>, <q class="cmd">stop the show</q></td><td>both</td></tr>
+  <tr><td>Relay list (owner)</td><td><q class="cmd">share the relay list with the mesh</q></td><td>StudioGen</td></tr>
+  <tr><td>History</td><td><q class="cmd">export the mesh history</q></td><td>StudioGen</td></tr>
+  <tr><td>Pairing and the link</td><td><q class="cmd">pair a phone</q> / <q class="cmd">pair with my mac</q>, <q class="cmd">test the connection</q>, <q class="cmd">turn off the direct link</q>, <q class="cmd">turn on the direct link</q></td><td>both</td></tr>
+  <tr><td>Secrets</td><td><q class="cmd">change the secret for test iphone</q>, <q class="cmd">change all the secrets</q></td><td>StudioGen</td></tr>
+</table></div>
+
+<h2 id="sims">8. iPhone simulators by hand</h2>
+<p>For trying DriveGen on iPhones yourself (the runner doesn't need this; it starts one when needed):</p>
+<pre>tests/tandem/sims.sh start 2          # two iPhones, shown in DeviceHub, opening DriveGen online
+tests/tandem/sims.sh start 1 http://localhost:8000/index.html   # your local copy instead
+tests/tandem/sims.sh open https://vchahalibm.github.io/CarPWA/   # a page on every running iPhone
+tests/tandem/sims.sh paste "SG3…"     # put a code on every iPhone's clipboard
+tests/tandem/sims.sh shot ~/Desktop   # screenshots of every iPhone
+tests/tandem/sims.sh list             # which iPhones are installed and running
+tests/tandem/sims.sh stop             # shut them all down</pre>
+<p>Without the script: <code>open -a DeviceHub</code> (in Xcode 27; earlier Xcodes: <code>open -a Simulator</code>), then <code>xcrun simctl boot "iPhone 18 Pro"</code> and <code>xcrun simctl openurl booted https://vchahalibm.github.io/CarPWA/</code>.</p>
+
+<h2 id="trouble">9. If something goes wrong</h2>
+<div class="wrap"><table>
+  <tr><th>What you see</th><th>What to do</th></tr>
+  <tr><td>A step waits for ever</td><td>Read the yellow “Waiting:” line: it says what the runner hasn't seen yet. Do the step again, or Skip.</td></tr>
+  <tr><td>“Address already in use” at the start</td><td>A run is still going (or was killed). <code>pkill -f tests/tandem/run.mjs; pkill -f sg-tandem-</code>, then start again.</td></tr>
+  <tr><td>The iPhone shows an old version of DriveGen</td><td>The runner reloads it once by itself. If not: <code>tests/tandem/sims.sh open http://localhost:8822/index.html?tandem=p</code>.</td></tr>
+  <tr><td>No simulator window</td><td>Open it yourself: <code>open -a DeviceHub</code>. The test still works without it, but you can't tap the iPhone.</td></tr>
+  <tr><td>The StudioGens speak out loud</td><td>They do in tandem runs (so you hear the show); <code>--auto</code> keeps them quiet.</td></tr>
+</table></div>
+<p class="mut">For developers: the journey's steps are in <code>tests/tandem/journeys.mjs</code> (add acts as features land); the runner is <code>tests/tandem/run.mjs</code>; the commands are <code>MeshCmd</code> in <code>js/mesh.js</code>, wired up in <code>js/commands.js</code>.</p>
+</main>
+</body>
+</html>

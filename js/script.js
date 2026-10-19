@@ -689,7 +689,7 @@ const Scripts = {
   get(id) { return this.all().find(s => s.id === id); },
   find(name) { const q = plain(name); return this.all().find(s => plain(s.name) === q) || (q && this.all().find(s => plain(s.name).includes(q))) || (!q ? this.all()[0] : null); },
   put(s) { const l = this.mine(), i = l.findIndex(x => x.id === s.id); if (i >= 0) l[i] = s; else l.push(s); store.set('scripts', l); return s; },
-  add(json) { return this.put({ id: 's' + Date.now().toString(36), name: json.name || 'Untitled script', json }); },
+  add(json) { return this.put({ id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: json.name || 'Untitled script', json }); },
   del(id) { store.set('scripts', this.mine().filter(s => s.id !== id)); },
   download(json) {
     const a = document.createElement('a'), b = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });

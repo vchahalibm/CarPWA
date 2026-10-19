@@ -149,7 +149,7 @@ const Relay = {
   directCfg: () => ({ ...DIRECT_DEFAULTS, ...store.get('directCfg', {}) }),
   peers: () => store.get('relayPeers', []),
   mac: () => store.get('relayMac', null),
-  rooms() { return this.isMac() ? this.peers() : this.mac() ? [this.mac()] : []; },
+  rooms() { const base = this.isMac() ? this.peers() : this.mac() ? [this.mac()] : []; return typeof Mesh !== 'undefined' ? [...base, ...Mesh.rooms()] : base; }, // + the mesh's group channel and pairwise rooms (js/mesh.js)
   brokersOf: room => room.brokers?.length ? room.brokers : RELAY_DEFAULTS.slice(0, 2).map(b => b.url), // pairings before the list (SG2): the first two defaults
   ready() { return !this.isMac() && !!this.mac() && !!this.online.mac && this.dataUp(this.mac()) && this.dataOk(); },
   /** Data (requests and answers) may go over the relays: StudioGen's setting, told to the device in every hello. */
@@ -221,7 +221,8 @@ const Relay = {
     Log.i('relay', `New secret in use: ${room.name}`); this.onchange?.();
   },
   rekeyEvery: () => +(store.get('rekeyEvery', 0)) || 0, // days; 0: only when asked
-  async topic(room, dir) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`studiogen-relay:${room.room}:${dir}`))); return `sg1/${[...h.slice(0, 16)].map(x => x.toString(16).padStart(2, '0')).join('')}`; },
+  async topic(room, dir) { if (room.group) return room.topic; // the mesh's group channel: one topic both ways
+ const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`studiogen-relay:${room.room}:${dir}`))); return `sg1/${[...h.slice(0, 16)].map(x => x.toString(16).padStart(2, '0')).join('')}`; },
   inDir() { return this.isMac() ? 'to-mac' : 'to-dev'; }, outDir() { return this.isMac() ? 'to-dev' : 'to-mac'; },
   /* ---------- Which brokers: the same rule on both sides ---------- */
   health(url) { return this.pool.get(url)?.health || 'unknown'; },
@@ -230,7 +231,8 @@ const Relay = {
   /** How many to use: two, or, while the other side hasn't been heard for a while, more and more (2, 4, 6) so that two sides
       that ended up on different relays (one can't reach the first ones) still find a relay they share; back to two once heard. */
   width(room) {
-    const heard = this.isMac() ? this.online[room.room] : this.online.mac, since = Math.max(heard || 0, this.since || 0), quiet = Date.now() - since;
+    if (room.mesh) return 2; // pairwise mesh rooms: the group channel finds the relays
+    const heard = room.group ? Mesh.heard() : this.isMac() ? this.online[room.room] : this.online.mac, since = Math.max(heard || 0, this.since || 0), quiet = Date.now() - since;
     return heard && Date.now() - heard < 40000 ? 2 : Math.min(6, 2 + 2 * Math.floor(Math.max(0, quiet - 10000) / 15000));
   },
   /** Where this room's messages go: my two, plus what the other side says it uses (if not down for me); at most 3. */
@@ -243,7 +245,7 @@ const Relay = {
       let b = this.pool.get(u); if (!b) { b = { url: u, health: 'unknown', fails: 0, misses: 0, wait: 0 }; this.pool.set(u, b); }
       b.idleSince = 0;
       if (!b.mq && Date.now() >= (b.nextTry || 0)) this.connect(b);
-      for (const r of rs) for (const d of ['to-mac', 'to-dev']) { const t = await this.topic(r, d); this.topics[t] = r; b.mq?.subscribe(t); }
+      for (const r of rs) for (const d of (r.mesh ? ['m-a', 'm-b'] : ['to-mac', 'to-dev'])) { const t = await this.topic(r, d); this.topics[t] = r; b.mq?.subscribe(t); }
     }
     for (const [u, b] of this.pool) if (!need.has(u) && b.mq) { b.idleSince ||= Date.now(); if (Date.now() - b.idleSince > 60000) { b.mq.close(); b.mq = null; } }
     this.onchange?.();
@@ -283,7 +285,8 @@ const Relay = {
   /* ---------- Sending and receiving ---------- */
   async post(room, type, body) {
     room = this.fresh(room);
-    const t = await this.topic(room, this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
+    // Mesh rooms: two StudioGens may talk, so the direction comes from their ids.
+    const t = await this.topic(room, room.mesh ? Mesh.dirOut(room) : this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
     const plain = new TextEncoder().encode(JSON.stringify({ id, ts: Date.now(), type, body }));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room, 'key', 'passKey'), plain));
     const p = new Uint8Array(12 + ct.length); p.set(iv); p.set(ct, 12);
@@ -314,6 +317,15 @@ const Relay = {
     this.ok(b, b.rtt || 0); this.handle(room, m.type, m.body || {});
   },
   async handle(room, type, b) {
+    if (room.group) return Mesh.onGroup(room, type, b); // the mesh's group channel (signed messages)
+    if (type === 'mesh-invite' && !this.isMac() && b.code) { if (store.get('meshAutoJoin', true)) Mesh.join(b.code).catch(e => Log.w('mesh', 'Join failed', e)); return; } // paired with a StudioGen in a mesh: join it
+    if (type === 'mesh-key' && room.mesh && Mesh.isOwner(room.peerId) && b.key) { const m = Mesh.m; if (m && b.key !== m.key) Mesh.save({ ...m, oldKey: m.key, key: b.key, oldUntil: Date.now() + 600000 }); return; } // the group key changed (someone was removed)
+    if (type === 'ask' && room.mesh) { // a mesh member's request: its permissions decide (js/mesh.js)
+      if (this.answers.has(b.id)) { const a = this.answers.get(b.id); if (a !== 'busy') this.post(room, 're', a); return; }
+      this.answers.set(b.id, 'busy'); setTimeout(() => this.answers.delete(b.id), 600000);
+      let a; try { a = { id: b.id, result: await Mesh.answer(room, b.kind, b.payload || {}) }; } catch (e) { a = { id: b.id, error: e.message }; }
+      this.answers.set(b.id, a); this.post(room, 're', a); return;
+    }
     if (type === 'hello') {
       const was = this.isMac() ? this.online[room.room] : this.online.mac;
       const use = (b.use || []).filter(u => typeof u === 'string'), changed = JSON.stringify(use) !== JSON.stringify(this.peerUse[room.room] || []);
@@ -323,7 +335,9 @@ const Relay = {
         if (p.nextKey && Date.now() - (p.rekeySent || 0) > 10000) this.rekey(p.id); // a device that was away gets its new secret now
         else if (!p.nextKey && days && Date.now() - Date.parse(p.keyAt || p.paired) > days * 86400000) this.rekey(p.id); // on schedule
       }
-      else { this.online.mac = Date.now(); store.set('relayMac', { ...this.mac(), name: b.name || this.mac().name, masterRev: b.master || 0, relayData: b.relayData !== false }); }
+      else { this.online.mac = Date.now(); store.set('relayMac', { ...this.mac(), name: b.name || this.mac().name, masterRev: b.master || 0, relayData: b.relayData !== false, meshId: b.meshId || this.mac().meshId }); }
+      if (this.isMac() && b.meshId && this.fresh(room).meshId !== b.meshId) store.set('relayPeers', this.peers().map(x => x.room === room.room ? { ...x, meshId: b.meshId } : x));
+      if (this.isMac() && typeof Mesh !== 'undefined') Mesh.maybeInvite({ ...this.fresh(room), meshId: b.meshId });
       if (!was) { Log.i('relay', `${this.isMac() ? room.name || 'A device' : 'Your Mac'} is online (relay)`); this.onchange?.(); }
       return;
     }
@@ -345,8 +359,8 @@ const Relay = {
     if (type === 'rtc-offer' && !this.isMac()) { if (store.get('directAllow', true) === false) return; try { const code = await Direct.answer(b.code, b.ice || []); this.post(room, 'rtc-answer', { code }); } catch (e) { Log.w('relay', 'Direct answer failed', e); } return; }
     if (type === 'rtc-answer' && this.isMac()) { try { await Direct.accept(b.code); this.directTries = 0; } catch (e) { Log.w('relay', 'Direct accept failed', e); } }
   },
-  helloBody(room, re) { return { name: this.isMac() ? 'StudioGen' : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, relayData: this.isMac() ? this.dataOk() : undefined, re: re ? 1 : undefined }; },
-  hello() { for (const r of this.rooms()) this.post(r, 'hello', this.helloBody(r)); },
+  helloBody(room, re) { return { name: this.isMac() ? 'StudioGen' : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, relayData: this.isMac() ? this.dataOk() : undefined, meshId: typeof Mesh !== 'undefined' ? Mesh._me?.id : undefined, re: re ? 1 : undefined }; },
+  hello() { for (const r of this.rooms()) if (!r.quiet) this.post(r, 'hello', this.helloBody(r)); }, // mesh rooms are quiet: presence goes once, on the group channel
   /** Direct when possible: StudioGen starts the handshake (auto: across networks with STUN; local: same network only; off: never),
       again after a link ends or fails, with growing pauses (1, 2, 5, 10 minutes). */
   maybeDirect(room) {
@@ -358,8 +372,8 @@ const Relay = {
   },
   rename(room, name, rev) { const p = this.fresh(room); if (p.name === (name || p.name) && p.rev === (rev || p.rev) && Date.now() - Date.parse(p.seen || 0) < 60000) return; store.set('relayPeers', this.peers().map(x => x.room === room.room ? { ...x, name: name || x.name, seen: new Date().toISOString(), rev: rev || x.rev } : x)); },
   /** DriveGen → the Mac: a request, resent after 3 and 7 s, then every 15 s, until answered (the Mac answers a resend from its kept answer). */
-  call(kind, payload = {}, ms = 600000) {
-    const room = this.mac(); if (!room) return Promise.reject(new Error('Not paired with a Mac'));
+  call(kind, payload = {}, ms = 600000, room = this.mac()) {
+    if (!room) return Promise.reject(new Error('Not paired with a Mac'));
     if (!this.dataOk()) return Promise.reject(new Error('Your Mac only takes requests over a direct link (data over the relays is off)'));
     const id = Math.random().toString(36).slice(2);
     return new Promise((res, rej) => {

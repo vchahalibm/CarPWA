@@ -171,6 +171,7 @@ const APPS = [
   { id: 'drive', name: 'Drive', icon: 'gauge', bg: 'linear-gradient(160deg,#ffb340,#ff6a00)' },
   { id: 'calendar', name: 'Calendar', icon: 'calendar', bg: 'linear-gradient(160deg,#ff6b6b,#d0213f)' },
   { id: 'settings', name: 'Settings', icon: 'settings', bg: 'linear-gradient(160deg,#a1a1a8,#5b5b62)' },
+  { id: 'mesh', name: 'Mesh', icon: 'grid', bg: 'linear-gradient(160deg,#6ea0ff,#7c3aed)' },
   { id: 'podcasts', name: 'Podcasts', icon: 'podcasts', bg: 'linear-gradient(160deg,#d68bff,#8a2be2)', view: 'music', source: 'podcasts' },
   { id: 'radio', name: 'Radio', icon: 'radio', bg: 'linear-gradient(160deg,#ff8a5c,#e5383b)', run: () => typeof Radio !== 'undefined' && Radio.browse() },
   { id: 'parking', name: 'Parking', icon: 'parking', bg: 'linear-gradient(160deg,#6ad4ff,#0070c9)', view: 'maps', category: 'Parking' },
@@ -1487,7 +1488,7 @@ emit();
 
 // Resume the last location source; auto-start GPS if permission was already granted.
 // StudioGen is for presenting and tasks: no demo drive, sample message or location prompt unless it's also used for driving.
-const forDriving = () => APP_NAME !== 'StudioGen' || settings.driveTabs;
+const forDriving = () => (APP_NAME !== 'StudioGen' && new URLSearchParams(location.search).get('linktest') !== 'host') || settings.driveTabs; // the network lab's StudioGen side counts as StudioGen
 const lastSrc = store.get('locSource', 'none');
 if (lastSrc === 'demo' && forDriving()) startDemo();
 else if (forDriving()) navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted' || lastSrc === 'gps') startGPS(); }).catch(() => {});

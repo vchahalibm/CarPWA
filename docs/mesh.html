@@ -38,7 +38,8 @@
 <body>
 <main>
 <h1>The Mesh view: seeing and understanding the network of apps</h1>
-<p class="mut">A proposal to discuss before building, 18 October 2026. Builds on the connections already in place (relays, direct links, pairing, secrets: <a href="connections.html">connections.html</a>) and the mesh decisions (teams, invites, request mode and mesh mode, shared artifacts).</p>
+<p><b>Status, 19 October 2026: built (V1–V5 in one go)</b>, with the decisions in <a href="#decided">section 8</a>. Screens: <a href="req/mesh-live.jpg">live</a>, <a href="req/mesh-devices.jpg">devices</a>, <a href="req/mesh-history.jpg">history</a>, <a href="req/mesh-card.jpg">DriveGen card</a>.</p>
+<p class="mut">First written as a proposal to discuss before building, 18 October 2026. Builds on the connections already in place (relays, direct links, pairing, secrets: <a href="connections.html">connections.html</a>) and the mesh decisions (teams, invites, request mode and mesh mode, shared artifacts).</p>
 <ul class="toc">
   <li><a href="#see">1. What you see (mockup)</a></li>
   <li><a href="#views">2. The views in detail</a></li>
@@ -47,6 +48,7 @@
   <li><a href="#privacy">5. Privacy and control</a></li>
   <li><a href="#phases">6. Phases</a></li>
   <li><a href="#questions">7. Questions for you</a></li>
+  <li><a href="#decided">8. Decided and built</a></li>
 </ul>
 
 <h2 id="see">1. What you see</h2>
@@ -156,6 +158,17 @@
   <li>How long should StudioGen keep the history: a day, a week, a month, or until you clear it?</li>
   <li>The first build: V1 + V2 (live graph, devices, activity) as proposed, or something else first?</li>
 </ol>
+
+<h2 id="decided">8. Decided and built</h2>
+<ul>
+  <li><b>Where:</b> a new top-level Mesh screen in StudioGen (app list, menu-bar item “Mesh…”, the Mesh widget). Files: <code>js/mesh.js</code> (the mesh: identities, roster, invites, rooms, telemetry, journal, shows, sharing, requests, history store) and <code>js/meshview.js</code> (the screen).</li>
+  <li><b>DriveGen:</b> a small who's-around card (its Mesh screen and the top of the Your-Mac sheet): devices, what they're doing, the scripts you may run on them.</li>
+  <li><b>Contents:</b> short contents for debugging (cut to 80 characters over relays), never secrets.</li>
+  <li><b>History:</b> kept a week by default; 1, 7, 30 or 90 days in Mesh › History (IndexedDB <code>dd-mesh</code> on StudioGen).</li>
+  <li><b>Not overloading the relays:</b> what a device reports depends on the path. Over a direct link: everything as it happens. Over relays: presence in one message every 15 seconds, activity batched every 30 seconds, at most 2 KB a minute per device, contents cut short, show progress only when the step changes. Every device keeps its own journal; StudioGen fetches the details only when you open a device (“Fetch details”).</li>
+  <li><b>Security:</b> each device has its own signing key (ECDSA P-256) and a key pair for pairwise keys with each member (ECDH); the owner signs the roster; invites are signed by the member who made them; removing a member changes the group key, sent to the others through their own pairwise rooms.</li>
+  <li><b>Tested:</b> three devices in the lab (two StudioGens, one DriveGen): joining by invite and by pairing, a request from DriveGen run on the second StudioGen, sharing a script, a show in steps (drift 2–3 ms), removal.</li>
+</ul>
 </main>
 </body>
 </html>

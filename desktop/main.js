@@ -138,6 +138,7 @@ function menu() {
     { label: 'Presenter view', click: () => { showMain(); openPresenter(); } },
     { label: 'Stop presenting', enabled: presenting || !!presWin, click: stopPresenting },
     { type: 'separator' },
+    { label: 'Mesh…', click: () => showMain().webContents.send('dd:menu', 'mesh') },
     { label: 'Settings…', click: () => showMain().webContents.send('dd:menu', 'settings') },
     { label: 'Start at login', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: i => loginItem(i.checked) },
     { type: 'separator' },

@@ -47,13 +47,14 @@ const Direct = {
   /* ---------- The channel ---------- */
   wire(ch) {
     this.ch = ch;
-    ch.onopen = () => { this.last = Date.now(); this.send({ hello: { app: APP_NAME, name: this.myName() } }); clearInterval(this.ping); this.ping = setInterval(() => { if (!this.connected) return; this.send({ ping: 1 }); if (Date.now() - this.last > 20000) this.lost(); }, 5000); };
+    ch.onopen = () => { this.last = Date.now(); this.send({ hello: { app: APP_NAME, name: this.myName(), meshId: typeof Mesh !== 'undefined' ? Mesh._me?.id : undefined } }); clearInterval(this.ping); this.ping = setInterval(() => { if (!this.connected) return; this.send({ ping: 1 }); if (Date.now() - this.last > 20000) this.lost(); }, 5000); };
     ch.onmessage = e => { this.last = Date.now(); let m; try { m = JSON.parse(e.data); } catch { return; } this.got(m); };
     ch.onclose = () => { if (this.ch === ch) this.lost(); };
   },
   send(m) { try { this.ch?.send(JSON.stringify(m)); } catch {} },
   async got(m) {
-    if (m.hello) { this.peer = m.hello.name || m.hello.app; Log.i('direct', `Connected: ${this.peer}`); if (!(typeof Relay !== 'undefined' && Relay.rooms().length)) toast(`Connected directly to ${this.peer}`); this.onchange?.(); Bus.emit('link.direct', { value: this.peer }); return; }
+    if (m.mev) { if (typeof Mesh !== 'undefined') Mesh.ingest(m.mev, this.peerMeshId, 'direct'); return; } // a device's events, full detail over the direct link
+    if (m.hello) { this.peer = m.hello.name || m.hello.app; this.peerMeshId = m.hello.meshId || null; this.peerIsStudio = m.hello.app === 'StudioGen'; Log.i('direct', `Connected: ${this.peer}`); if (!(typeof Relay !== 'undefined' && Relay.rooms().length)) toast(`Connected directly to ${this.peer}`); this.onchange?.(); Bus.emit('link.direct', { value: this.peer }); return; }
     if (m.ping) return;
     if (m.re) { const w = this.waits.get(m.re); if (w) { this.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
     if (m.ask) { // a request from the other side (StudioGen answers DriveGen's)

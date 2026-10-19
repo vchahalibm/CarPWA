@@ -105,3 +105,34 @@ const LinkTest = {
   },
 };
 ACTIONS.linkTest = () => LinkTest.show();
+
+/* Tandem tests (tests/tandem/run.mjs): what this device looks like to the runner, and,
+   with ?tandem=<name> on a page served from this computer or the local network (the
+   iOS Simulator's Safari, which the runner can't drive directly), a report every 2 s
+   to the runner's tandem/report, which answers with steps from a fixed list (STEPS). */
+const Tandem = {
+  state() {
+    const M = typeof Mesh !== 'undefined' ? Mesh : null, m = M?.m, me = M?._me?.id;
+    return { app: typeof meshApp === 'function' ? meshApp() : APP_NAME, name: store.get('meshName', ''), view: document.querySelector('.view.active')?.id || '',
+      paired: Relay.isMac() ? Relay.peers().map(p => ({ id: p.id, name: p.name, online: !!Relay.online[p.room], key: (p.key || '').slice(0, 6), pass: !!p.passKey })) : Relay.mac() ? [{ name: 'mac', online: !!Relay.online.mac, key: (Relay.mac().key || '').slice(0, 6), pass: !!Relay.mac().passKey }] : [],
+      direct: Direct.ch?.readyState === 'open',
+      mesh: m ? { id: m.id, name: m.name, me, member: !!M.member(me), owner: !!M.amOwner?.(), members: M.members().map(x => x.id), online: Object.keys(M.presence).filter(id => Date.now() - (M.presence[id].at || 0) < 45000), show: M.myShow || null, key: (m.key || '').slice(0, 6),
+        events: M.events.slice(-30).map(e => ({ ts: e.ts, dev: e.dev, kind: e.kind, text: e.data?.text || e.data?.name || '' })) } : null };
+  },
+  STEPS: {
+    name: n => { store.set('meshName', String(n).slice(0, 40)); return true; },
+    pair: code => { const r = Relay.pairWith(String(code)); return { needPass: !!r?.needPass }; },
+    join: inv => Mesh.join(String(inv)).then(() => true),
+    open: v => { closeSheet(); openView(String(v).replace(/[^a-z]/g, '')); return true; },
+  },
+  local: /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname),
+  start(name) {
+    if (!this.local) return;
+    const post = (path, body) => fetch(`tandem/${path}?dev=${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : null).catch(() => null);
+    setInterval(async () => {
+      const steps = await post('report', this.state()); if (!Array.isArray(steps)) return;
+      for (const s of steps) { let out = null, err; try { if (!Object.hasOwn(this.STEPS, s.step)) throw new Error('unknown step'); out = await this.STEPS[s.step](s.arg); } catch (e) { err = e.message; } post('result', { id: s.id, out, err }); }
+    }, 2000);
+  },
+};
+{ const t = new URLSearchParams(location.search).get('tandem'); if (t) Tandem.start(t); }

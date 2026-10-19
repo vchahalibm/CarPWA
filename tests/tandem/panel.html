@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tandem tests</title>
+<style>
+:root{--bg:#0d1016;--card:#161b25;--fg:#e8eaee;--mut:#8f99ab;--ok:#34c47c;--bad:#ef5f5f;--warn:#e0a84a;--acc:#6ea0ff}
+@media (prefers-color-scheme:light){:root{--bg:#f4f5f8;--card:#fff;--fg:#14171d;--mut:#5d6675}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui,sans-serif;padding:16px}
+main{max-width:1100px;margin:auto;display:grid;gap:14px}h1{font-size:20px;margin:0}.card{background:var(--card);border-radius:12px;padding:16px}
+.now h2{margin:0 0 6px;font-size:22px}.you{font-size:18px;padding:12px;border-left:4px solid var(--acc);background:rgba(110,160,255,.1);border-radius:6px;margin:10px 0}
+.st{color:var(--warn)}.mut{color:var(--mut)}button{font:inherit;padding:10px 18px;border-radius:999px;border:0;background:#2a3140;color:var(--fg);cursor:pointer;margin-right:8px}
+button.bad{background:var(--bad);color:#fff}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid rgba(127,127,127,.2);vertical-align:top}th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
+.log div{padding:3px 0}.pass{color:var(--ok)}.fail{color:var(--bad)}.skip{color:var(--mut)}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+@media (max-width:700px){table{font-size:13px}}
+</style></head><body><main>
+<h1>Tandem tests <span class="mut" id="mode"></span></h1>
+<section class="card now"><div class="mut" id="where"></div><h2 id="title">Connecting…</h2><div id="you"></div><div class="st" id="status"></div>
+  <p><button id="skip">Skip this step</button><button class="bad" id="fail">Mark failed</button></p></section>
+<section class="card"><table><thead><tr><th>Device</th><th>Runs as</th><th>Paired</th><th>Mesh</th><th>Now</th></tr></thead><tbody id="devs"></tbody></table></section>
+<section class="card log" id="log"></section>
+</main><script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const act = a => fetch('/tandem/act', { method: 'POST', body: JSON.stringify({ act: a }) });
+$('#skip').onclick = () => act('skip'); $('#fail').onclick = () => act('fail');
+async function tick() {
+  try {
+    const d = await (await fetch('/tandem/state')).json(), s = d.step || {};
+    $('#mode').textContent = d.auto ? '· automatic' : '· you do the marked steps';
+    $('#where').textContent = s.scenario ? `${s.scenario} · step ${s.n}` : '';
+    $('#title').textContent = s.title || '';
+    // the step texts come from the runner's own scenarios (tests/tandem/run.mjs), with <b> for the buttons to press
+    $('#you').innerHTML = s.you ? `<div class="you">${s.you}</div>` : s.auto ? '<p class="mut">The runner does this one.</p>' : s.status === 'done' ? '' : '<p class="mut">Nothing to do: watching for it.</p>';
+    $('#status').textContent = s.status && s.status !== 'waiting' && s.status !== 'done' ? `Waiting: ${s.status}${s.note ? ` (${s.note})` : ''}` : s.note || '';
+    $('#devs').innerHTML = d.devices.map(x => { const v = x.s, m = v?.mesh;
+      return `<tr><td><b>${esc(x.label)}</b></td><td>${esc(x.kind)}</td><td>${v ? (v.paired.length ? v.paired.map(p => `<span class="dot" style="background:${p.online ? 'var(--ok)' : 'var(--mut)'}"></span>${esc(p.name || 'paired')}`).join('<br>') : '–') : '<span class="fail">no answer</span>'}</td>
+        <td>${m ? `${esc(m.name)}${m.owner ? ' (owner)' : ''}<br><span class="mut">${m.members.length} members, ${m.online.length} seen online</span>` : '–'}</td><td>${m?.show ? `show step ${m.show.step + 1} (${esc(m.show.state)})` : esc(v?.view?.replace('view-', '') || '')}${v?.direct ? ' · direct link' : ''}</td></tr>`; }).join('');
+    $('#log').innerHTML = d.log.slice().reverse().map(l => `<div class="${l.kind}">${l.kind === 'pass' ? '✓' : l.kind === 'fail' ? '✗' : l.kind === 'skip' ? '–' : '·'} ${esc(l.msg)}</div>`).join('');
+  } catch { $('#title').textContent = 'The runner has stopped.'; }
+}
+setInterval(tick, 1000); tick();
+</script></body></html>

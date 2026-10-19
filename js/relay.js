@@ -419,9 +419,16 @@ const Relay = {
     Direct.showCode($('#dlQr'), code);
   },
   async guestPair() {
-    closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p></div></div>`);
+    closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p>
+      <details class="se-note"><summary>No camera? Paste the code</summary><textarea id="dlPaste" class="se-wide" rows="3" placeholder="SG3…"></textarea><div class="chip-row"><button class="chip accent" data-rl="paste">Use this code</button></div></details></div></div>`);
+    try { this.guestPaired(await Direct.scan($('#dlCam'), 'SG')); }
+    catch (e) { if ($('#dlState')) $('#dlState').textContent = e.message; }
+  },
+  /** The code from the camera or pasted (a code sent in a message; the iOS Simulator has no camera). */
+  guestPaired(code) {
+    Direct.stopScan();
     try {
-      const code = await Direct.scan($('#dlCam'), 'SG'), r = this.pairWith(code);
+      const r = this.pairWith(code.trim());
       if (r.needPass) { $('#dlFull .dl-main').innerHTML = `<div class="dl-step"><div><p><b>Your Mac has a secret phrase.</b> Type it here (the same one you typed on the Mac):</p><input id="dlPhrase" class="se-wz-in" type="password" autocomplete="off"><div class="chip-row"><button class="chip accent" data-rl="phrase">Done</button></div><p class="se-note" id="dlState"></p></div></div>`; return; }
       $('#dlState').textContent = 'Paired: finding your Mac…'; setTimeout(() => { Direct.done(); toast('Paired with your Mac'); }, 1500);
     }
@@ -482,6 +489,7 @@ document.addEventListener('click', e => {
   if (k === 'guestpair') return Relay.guestPair();
   if (k === 'relays') return Relay.editor();
   if (k === 'direct') return Relay.directSheet();
+  if (k === 'paste') return Relay.guestPaired($('#dlPaste').value);
   if (k === 'phrase') { const el = $('#dlState'); if (el) el.textContent = 'Checking…'; Relay.setPhrase($('#dlPhrase').value).then(() => { Direct.done(); toast('Paired with your Mac, with your secret phrase'); }, e2 => { if ($('#dlState')) $('#dlState').textContent = e2.message; }); return; }
   if (k === 'macphrase') return sheet('Change the secret phrase', `<p>Type a new phrase for ${esc(Relay.peers().find(p => p.id === id)?.name || 'this device')} (empty: no phrase). Then type the same phrase on that device (Settings › Connections › Secret phrase). Until then, the current one stays in use.</p><label class="se-field"><span>New secret phrase</span><input id="rlPhrase2" class="se-wz-in" type="password" autocomplete="new-password"></label>`,
     [['Save', () => Relay.changePhrase(id, $('#rlPhrase2').value).then(() => { toast('Now type it on the device'); LinkHost.settings(); })], ['Cancel', () => LinkHost.settings()]]);

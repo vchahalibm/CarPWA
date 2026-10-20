@@ -6,4 +6,4 @@ update-out/
 vendor/models/_cand/
 tests/net/out/
 tests/tandem/out/
-speech/bin/
+desktop/speech/bin/

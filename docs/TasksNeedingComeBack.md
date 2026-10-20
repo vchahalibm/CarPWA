@@ -12,6 +12,9 @@ Things started or decided but not finished, and things to perform together later
 
 ## Code features
 
+- [ ] **Commands by intent, not by phrase lists** (proposed 20 Oct): utterance → intent → action. A small on-device sentence-embedding model classifies what was said against a few examples per intent (no permutations to list); slots (script, device, person) filled from what the app knows; “No, I meant…” teaches it. Plus a “What can I say” screen per mode (1:1, mesh, show), showing only what works right now.
+- [ ] **Native speech recognition in StudioGen** (proposed 20 Oct): Electron has no Web Speech, so StudioGen uses Whisper, which misses words with an Indian accent. A small macOS helper with Apple's speech recognizer (en-IN, on-device, biased to script and device names) and Apple's echo cancellation, feeding conversation mode like the phone's recognizer does. Needs a desktop version bump.
+- [ ] **Pairing on the iPhone**: StudioGen keeps its pairings across updates (checked 20 Oct). On iOS, Safari and the Home Screen app have separate storage, so a phone paired in one isn't paired in the other; the app now asks to keep its storage. Show this in DriveGen's pairing screen.
 - [ ] **Multi-peer direct links**: `Direct` holds one WebRTC connection, so in a mesh only one pair gets full telemetry over a direct link; the rest go through the relays (budgeted).
 - [ ] **A visible “in a show” state on each screen** (step, conductor), not only in StudioGen › Mesh › Shows.
 - [ ] **Typing on the phone**: the Assistant is a small tile on the iPhone's widgets page; a bigger typing view (or typing in the listening panel).

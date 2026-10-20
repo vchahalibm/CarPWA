@@ -409,6 +409,19 @@ const Voice = {
     let generating = true, playing = false, started = false, fail = null, finish, n = 0;
     const done = new Promise(r => (finish = r)); this.stopNeural = () => finish();
     Log.i('tts', 'On-device voice', { text, voice, out: cfg.out, session: cfg.session, unlocked: !!this.unlocked });
+    // Smooth speech: on a device that makes speech slower than it plays it (an iPhone on the CPU), starting with the first
+    // sentence leaves a pause before each next one. Wait until the audio ready covers the rest (B ≥ R·(r−1): B ready,
+    // R still to make, r = time to make ÷ time to play), up to 3 s after the first sentence is ready and never past 7 s
+    // (the watchdog switches to the phone voice at 8 s); both rates are learned on this device.
+    const sp = this.ttsSpeed ||= store.get('ttsSpeed', { r: 1, cps: 14 }), chars = text.length;
+    let made = 0, startT = 0, firstAt = 0;
+    const until = () => Math.min(firstAt + 3000, t0 + 7000);
+    const ready = () => {
+      if (!generating || sp.r <= 1.05 || performance.now() >= until()) return true;
+      const B = queue.reduce((t, q) => t + q.f32.length / q.rate, 0), R = Math.max(0, chars - made) / sp.cps;
+      return B >= R * (sp.r - 1);
+    };
+    const go = () => { clearTimeout(startT); if (!playing && queue.length && (started || ready())) next(); };
     const next = async () => {
       if (id !== this.sayId) return finish();
       const item = queue.shift();
@@ -436,11 +449,13 @@ const Voice = {
         for await (const { text: sentence, f32, rate } of this.tts.sentences(text, voice, () => { if (!started && !n) arm(); })) {
           if (id !== this.sayId || fail) return; // leaving the loop cancels the rest of the reply
           const item = { n: ++n, f32, rate }; this.ttsStalls = 0; this.ttsBroken = '';
-          Log.i('tts', `Sentence ${n} generated in ${Math.round(performance.now() - g)} ms`, { sentence, seconds: +(item.f32.length / item.rate).toFixed(2), rate: item.rate });
+          const ms = performance.now() - g, sec = item.f32.length / item.rate; made += sentence.length;
+          if (sec > 0.3) { sp.r = sp.r * 0.6 + (ms / 1000 / sec) * 0.4; sp.cps = sp.cps * 0.6 + (sentence.length / sec) * 0.4; store.set('ttsSpeed', sp); }
+          Log.i('tts', `Sentence ${n} generated in ${Math.round(ms)} ms`, { sentence, seconds: +sec.toFixed(2), rate: item.rate, speed: +sp.r.toFixed(2) });
           g = performance.now();
-          queue.push(item); if (!playing) next();
+          firstAt ||= performance.now(); queue.push(item); go(); if (!started && !playing) { clearTimeout(startT); startT = setTimeout(go, Math.max(0, until() - performance.now())); }
         }
-      } catch (e) { fail ||= e; Log.e('tts', 'Generation failed', e); } finally { generating = false; if (!playing && !queue.length) finish(); }
+      } catch (e) { fail ||= e; Log.e('tts', 'Generation failed', e); } finally { generating = false; if (!playing && !queue.length) finish(); else go(); }
     })();
     await done; clearTimeout(watchdog);
     if (id === this.sayId) this.session('auto');

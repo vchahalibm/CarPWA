@@ -48,13 +48,14 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   },
   /** Apple's speech recognizer (desktop/speech.js), when this build has it: start({ lang, continuous, onDevice, context, pause }),
       stop() (finish what was heard), abort(); on(f): f({ ev: 'ready'|'start'|'result'|'error'|'end', … }). js/voice.js wraps it
-      as a Web Speech API recognizer. */
-  speech: ipcRenderer.sendSync('dd:speech-available') ? {
+      as a Web Speech API recognizer. local: the languages it recognises on this Mac (it never uses Apple's servers). */
+  speech: (speechLocal => speechLocal ? {
+    local: speechLocal,
     start: o => ipcRenderer.invoke('dd:speech-start', o),
     stop: () => ipcRenderer.invoke('dd:speech-stop'),
     abort: () => ipcRenderer.invoke('dd:speech-abort'),
     on: f => { const h = (e, m) => f(m); ipcRenderer.on('dd:speech', h); return () => ipcRenderer.removeListener('dd:speech', h); },
-  } : null,
+  } : null)(ipcRenderer.sendSync('dd:speech-available')),
   /** The link to DriveGen (desktop/link.js): status() → { listening, tailscale, signedIn, url, sharing, devices, pairing },
       share(on) on the tailnet, pair() → { code, until }, revoke(id); onAsk(f): f(kind, payload) answers DriveGen's requests
       ('offers', 'run', 'say', 'paired'). */

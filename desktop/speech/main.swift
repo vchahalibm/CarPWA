@@ -4,17 +4,25 @@
 // en-IN and the other Indian languages, works on the device where the Mac can, and can be told the words to expect.
 //
 // Protocol: one JSON object per line.
-//   stdin:  {"cmd":"start","id":7,"lang":"en-IN","continuous":true,"onDevice":true,"context":["Sales summary"],"pause":0.9}
+//   stdin:  {"cmd":"start","id":7,"lang":"en-IN","continuous":true,"context":["Sales summary"],"pause":0.9}
 //           {"cmd":"stop"}   finish what was heard, then end      {"cmd":"abort"}   end now
 //   stdout: {"ev":"ready","auth":"authorized"|"denied"|"restricted"|"notDetermined","mic":true}
 //           {"ev":"start"}   {"ev":"result","final":false,"text":"…","alts":["…"]}   {"ev":"error","error":"…","message":"…"}
 //           {"ev":"end"}
 // One utterance is final after `pause` seconds without new words; with "continuous" it then listens for the next.
+// Always on this Mac: recognition is required to run on the device, and a language the Mac can't do offline is refused
+// ("language-not-supported"), never sent to Apple's servers. `sg-speech --probe en-IN hi-IN` prints which can.
 import AVFoundation
 import Foundation
 import Speech
 
 setvbuf(stdout, nil, _IOLBF, 0)
+if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--probe" {
+  var m: [String: Bool] = [:]
+  for l in CommandLine.arguments.dropFirst(2) { m[l] = SFSpeechRecognizer(locale: Locale(identifier: l))?.supportsOnDeviceRecognition ?? false }
+  if let d = try? JSONSerialization.data(withJSONObject: m), let s = String(data: d, encoding: .utf8) { print(s) }
+  exit(0)
+}
 var session = 0 // the page's id for the current start, sent back with every event
 func emit(_ o: [String: Any]) {
   var o = o; o["id"] = session
@@ -38,7 +46,8 @@ final class Listener {
     guard let r = SFSpeechRecognizer(locale: Locale(identifier: lang)) ?? SFSpeechRecognizer() else {
       return fail("language-not-supported", "No recognizer for \(lang)")
     }
-    guard r.isAvailable else { return fail("network", "The recognizer isn't available right now") }
+    guard r.supportsOnDeviceRecognition else { return fail("language-not-supported", "\(lang) can't be recognised on this Mac without sending audio to Apple") }
+    guard r.isAvailable else { return fail("audio-capture", "The recognizer isn't available right now") }
     recognizer = r
     let input = engine.inputNode, format = input.outputFormat(forBus: 0)
     guard format.sampleRate > 0 else { return fail("audio-capture", "No microphone") }
@@ -63,7 +72,7 @@ final class Listener {
     q.taskHint = .dictation
     if #available(macOS 13, *) { q.addsPunctuation = false }
     if let c = opts["context"] as? [String] { q.contextualStrings = Array(c.prefix(100)) }
-    if (opts["onDevice"] as? Bool ?? true) && r.supportsOnDeviceRecognition { q.requiresOnDeviceRecognition = true }
+    q.requiresOnDeviceRecognition = true // never Apple's servers
     request = q; lastText = ""; lastChange = Date()
     task = r.recognitionTask(with: q) { [weak self] res, err in
       guard let self = self, q === self.request || res?.isFinal == true else { return }

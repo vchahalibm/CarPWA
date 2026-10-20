@@ -215,7 +215,7 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:data-read', own(o => Data.read(o)));
   ipcMain.handle('dd:data-pick', own(o => Data.pick(o)));
   // Speech (desktop/speech.js): Apple's recognizer, which Electron lacks; the page wraps it as a Web Speech API recognizer.
-  ipcMain.on('dd:speech-available', e => { e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) && Speech.available(); });
+  ipcMain.on('dd:speech-available', e => { e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) && Speech.available() ? Speech.local() : null; });
   ipcMain.handle('dd:speech-start', own(o => Speech.start(o)));
   ipcMain.handle('dd:speech-stop', own(() => Speech.stop()));
   ipcMain.handle('dd:speech-abort', own(() => Speech.abort()));

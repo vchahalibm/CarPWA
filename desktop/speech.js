@@ -3,7 +3,7 @@
    recognizer). The helper desktop/speech/bin/sg-speech (built by speech/build.sh, packaged as Resources/sg-speech) is
    started on the first use and kept running; it speaks JSON lines (see speech/main.swift). Only the main window gets
    its events. */
-const path = require('path'), fs = require('fs'), { spawn } = require('child_process');
+const path = require('path'), fs = require('fs'), { spawn, execFileSync } = require('child_process');
 
 module.exports = ({ app, getWindow }) => {
   const bin = app.isPackaged ? path.join(process.resourcesPath, 'sg-speech') : path.join(__dirname, 'speech', 'bin', 'sg-speech');
@@ -21,10 +21,15 @@ module.exports = ({ app, getWindow }) => {
     proc.on('error', e => { proc = null; send({ ev: 'error', error: 'service-not-allowed', message: e.message }); });
     return proc;
   }
+  // Which languages this Mac recognises on the device (no permission needed to ask); only those are used.
+  const LANGS = ['en-IN', 'en-US', 'en-GB', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'mr-IN'];
+  let local = null;
+  const probe = () => { if (local) return local; try { const m = JSON.parse(execFileSync(bin, ['--probe', ...LANGS], { timeout: 5000 }).toString()); local = Object.keys(m).filter(k => m[k]); } catch { local = []; } return local; };
   const cmd = o => { try { helper().stdin.write(JSON.stringify(o) + '\n'); return true; } catch (e) { return false; } };
   return {
     available: () => process.platform === 'darwin' && fs.existsSync(bin),
-    start: o => cmd({ cmd: 'start', id: +o?.id || 0, lang: String(o?.lang || 'en-IN'), continuous: !!o?.continuous, onDevice: o?.onDevice !== false,
+    local: () => (process.platform === 'darwin' && fs.existsSync(bin) ? probe() : []),
+    start: o => cmd({ cmd: 'start', id: +o?.id || 0, lang: String(o?.lang || 'en-IN'), continuous: !!o?.continuous,
       context: Array.isArray(o?.context) ? o.context.map(String).slice(0, 100) : [], pause: Math.min(3, Math.max(0.4, +o?.pause || 0.9)) }),
     stop: () => proc ? cmd({ cmd: 'stop' }) : false,
     abort: () => proc ? cmd({ cmd: 'abort' }) : false,

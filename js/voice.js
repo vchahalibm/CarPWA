@@ -298,6 +298,12 @@ function kokoroWorker() {
 class MacSpeech {
   constructor() { this.lang = 'en-IN'; this.continuous = false; this.interimResults = false; this.maxAlternatives = 1; }
   static seq = 0;
+  /** Only languages this Mac recognises on the device: speech never leaves the Mac (else Whisper, also on the Mac). */
+  static pick(lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]) {
+    const local = window.DriveDeckDesktop?.speech?.local || [], base = String(lang).split('-')[0];
+    return local.includes(lang) ? lang : base === 'en' ? ['en-IN', 'en-US', 'en-GB'].find(l => local.includes(l)) || null : null; // any English: a local one, Indian first
+  }
+  static ok(lang) { return !!MacSpeech.pick(lang); }
   static context() {
     const w = ['StudioGen', 'DriveGen', 'mesh', 'Stage', 'keynote'];
     try { w.push(...Scripts.all().map(x => x.name)); } catch {}
@@ -307,7 +313,7 @@ class MacSpeech {
   start() {
     const S = window.DriveDeckDesktop.speech; this.id = ++MacSpeech.seq; this.results = []; this.i = 0;
     this.off?.(); this.off = S.on(m => this.ev(m));
-    S.start({ id: this.id, lang: this.lang || 'en-IN', continuous: this.continuous, context: MacSpeech.context() });
+    S.start({ id: this.id, lang: MacSpeech.pick(this.lang || 'en-IN') || this.lang, continuous: this.continuous, context: MacSpeech.context() });
   }
   ev(m) {
     if (m.id !== this.id) return; // an earlier start's late events
@@ -632,7 +638,7 @@ const Voice = {
     $('#vProg span').textContent = `Downloading ${what} · ${Math.round(l / 1e6)} of ${Math.round(t / 1e6)} MB`;
   },
   level(rms) { $('#vOrb').style.setProperty('--lv', Math.min(1, rms * 12).toFixed(2)); },
-  engine() { return settings.stt === 'browser' && SR ? 'browser' : settings.stt === 'whisper' ? 'whisper' : SR ? 'browser' : 'whisper'; },
+  engine() { const sr = SR && (SR !== MacSpeech || MacSpeech.ok()); return settings.stt === 'browser' && sr ? 'browser' : settings.stt === 'whisper' ? 'whisper' : sr ? 'browser' : 'whisper'; },
 
   async start() {
     if (settings.convo && typeof Convo !== 'undefined') return Convo.toggle();

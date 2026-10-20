@@ -56,7 +56,7 @@ const MeshView = {
       <p class="se-note">Devices already paired with this Mac join automatically once the mesh exists.</p></div>`; return; }
     const md = this.model(), on = md.nodes.filter(n => n.online).length, shows = Object.values(Mesh.shows).filter(s => !s.ended).length;
     const tabs = [['live', 'Live'], ['devices', 'Devices'], ['activity', 'Activity'], ['shows', 'Shows'], ['shared', 'Shared'], ['history', 'History']];
-    el.innerHTML = `<div class="mv-top"><b>🕸 ${esc(m.name)}</b>${tabs.map(([k, l]) => `<button class="mv-tab ${this.tab === k ? 'on' : ''}" data-mv="tab:${k}">${l}</button>`).join('')}
+    el.innerHTML = `<div class="mv-top"><b>${svg('mesh')} ${esc(m.name)}</b>${tabs.map(([k, l]) => `<button class="mv-tab ${this.tab === k ? 'on' : ''}" data-mv="tab:${k}">${l}</button>`).join('')}
       <span class="mv-sum">${md.nodes.length} devices · ${on} online${shows ? ` · ${shows} show${shows > 1 ? 's' : ''}` : ''}</span><button class="chip" data-mv="invite">Invite</button><button class="chip" data-mv="settings">⚙</button></div>
       <div class="mv-main" id="mvMain">${this[this.tab](md)}</div>`;
   },

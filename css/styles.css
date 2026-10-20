@@ -1532,3 +1532,5 @@ table.bench small{color:var(--text-2)}
 .mv-charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}.mv-charts>div{height:240px;padding-bottom:28px}
 .mv-widget{padding:10px 12px;overflow:auto;height:100%;font-size:14px}.mv-widget h3{margin:0 0 6px;font-size:15px}
 @media (max-width:900px){.mv-live{grid-template-columns:1fr}.mv-graph{border-right:0}}
+
+.mv-top b svg{width:22px;height:22px;vertical-align:-4px;color:var(--acc)}

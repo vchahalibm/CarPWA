@@ -32,6 +32,7 @@ const fmtDur = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3
    Icons (24×24 stroke glyphs)
    ============================================================ */
 const I = {
+  mesh: '<path d="M4.5 9L11 4M11 4l8 3.5M4.5 9L7 19M11 4l4.5 9.5M19 7.5l-3.5 6M7 19l8.5-5.5M15.5 13.5L19.5 20M7 19l12.5 1M4.5 9l11 4.5" stroke-width="1.5"/><circle cx="4.5" cy="9" r="2.3" fill="currentColor" stroke="none"/><circle cx="11" cy="4" r="2.3" fill="currentColor" stroke="none"/><circle cx="19" cy="7.5" r="2.3" fill="currentColor" stroke="none"/><circle cx="7" cy="19" r="2.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="2.8" fill="currentColor" stroke="none"/><circle cx="19.5" cy="20" r="2.3" fill="currentColor" stroke="none"/>', // a network: devices and the links between them
   doc: '<path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5z"/><path d="M14 2.5v5h5M8.5 13h7M8.5 17h5"/>',
   globe: '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.8 6 3.8 9.5S14.6 18.7 12 21.5C9.4 18.7 8.2 15.5 8.2 12S9.4 5.3 12 2.5z"/>',
   alert: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="1" fill="currentColor" stroke="none"/>',
@@ -171,7 +172,7 @@ const APPS = [
   { id: 'drive', name: 'Drive', icon: 'gauge', bg: 'linear-gradient(160deg,#ffb340,#ff6a00)' },
   { id: 'calendar', name: 'Calendar', icon: 'calendar', bg: 'linear-gradient(160deg,#ff6b6b,#d0213f)' },
   { id: 'settings', name: 'Settings', icon: 'settings', bg: 'linear-gradient(160deg,#a1a1a8,#5b5b62)' },
-  { id: 'mesh', name: 'Mesh', icon: 'grid', bg: 'linear-gradient(160deg,#6ea0ff,#7c3aed)' },
+  { id: 'mesh', name: 'Mesh', icon: 'mesh', bg: 'linear-gradient(160deg,#6ea0ff,#7c3aed)' },
   { id: 'podcasts', name: 'Podcasts', icon: 'podcasts', bg: 'linear-gradient(160deg,#d68bff,#8a2be2)', view: 'music', source: 'podcasts' },
   { id: 'radio', name: 'Radio', icon: 'radio', bg: 'linear-gradient(160deg,#ff8a5c,#e5383b)', run: () => typeof Radio !== 'undefined' && Radio.browse() },
   { id: 'parking', name: 'Parking', icon: 'parking', bg: 'linear-gradient(160deg,#6ad4ff,#0070c9)', view: 'maps', category: 'Parking' },

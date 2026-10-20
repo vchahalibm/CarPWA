@@ -1534,3 +1534,9 @@ table.bench small{color:var(--text-2)}
 @media (max-width:900px){.mv-live{grid-template-columns:1fr}.mv-graph{border-right:0}}
 
 .mv-top b svg{width:22px;height:22px;vertical-align:-4px;color:var(--acc)}
+
+/* See-through widgets on Stage (wclear in js/dash.js): no card, so what's behind shows; text keeps a shadow to stay readable */
+.wg.clear,.wfloats > .wg.float.clear{background:transparent;border-color:transparent;box-shadow:none}
+.wg.clear .chat-head b,.wg.clear .chat-day,.wg.clear .meta{text-shadow:0 1px 3px rgba(0,0,0,.85)}
+.wg.clear .chat-row.app .bub{background:color-mix(in srgb,var(--surface-3) 78%,transparent)}
+.wg.clear .chat-type input{background:color-mix(in srgb,var(--panel-2) 70%,transparent)}

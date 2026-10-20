@@ -308,6 +308,14 @@ const Wcfg = {
   set(id, v) { const a = this.all(); a[id] = { ...a[id], ...v }; store.set('wcfg', a); },
   del(id) { const a = this.all(); delete a[id]; store.set('wcfg', a); },
 };
+/** See-through background (widget types with `clear: true`, e.g. the Assistant and the Camera): on Stage, laid over other
+    widgets, what's behind shows through. On by default there; the ⚙ settings switch it (Wcfg 'clear'). */
+const wclear = id => Dash.layout === 'stage' && W[wtype(id)]?.clear && Wcfg.get(id).clear !== false ? ' clear' : '';
+function clearSheet(id, extra = []) {
+  const name = W[wtype(id)].name, on = Wcfg.get(id).clear !== false;
+  sheet(`${name} widget`, `<label class="se-check"><input type="checkbox" id="wcClear" ${on ? 'checked' : ''}> See-through background on Stage</label><p class="se-note">Lay the widget over others (Edit › float) and what's behind it stays visible.</p>`,
+    [['Save', () => { Wcfg.set(id, { clear: $('#wcClear').checked }); Dash.render(); }], ...extra, ['Cancel']]);
+}
 /** Every widget instance currently on the dashboard (any page, column or pane). */
 function widgetIds() {
   const ids = new Set(Dash.pages().flat());
@@ -399,7 +407,7 @@ const Dash = {
         <button class="x" data-dash="frm::${id}" aria-label="Remove ${name}">${svg('close')}</button>
         ${def.config ? `<button data-dash="cfg::${id}" aria-label="${name} settings">${svg('sliders')}</button>` : ''}</div>
       <div class="wg-rs" data-frs="${id}" role="button" aria-label="Drag to resize ${name}">${svg('resize')}</div>` : '';
-    return `<div class="wg w-${t} float" data-wid="${id}" style="left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;height:${h * 100}%">${def.html(id)}${edit}</div>`;
+    return `<div class="wg w-${t} float${wclear(id)}" data-wid="${id}" style="left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;height:${h * 100}%">${def.html(id)}${edit}</div>`;
   },
 
   /** One widget card. Edit mode adds move/remove buttons and a corner resize handle. */
@@ -420,7 +428,7 @@ const Dash = {
     }
     // Grid spans are in half cells, so a widget can be as small as a quarter of a cell.
     const style = grid ? `grid-column:span ${Math.round(w * 2)};grid-row:span ${Math.round(h * 2)}` : `flex-grow:${h}`;
-    return `<div class="wg w-${t}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${def.html(id)}${edit}</div>`;
+    return `<div class="wg w-${t}${wclear(id)}" data-wid="${id}" data-cw="${w}" data-ch="${h}" style="${style}">${def.html(id)}${edit}</div>`;
   },
   addTile(where, label = 'Add') { return `<button class="wg add" data-cw="1" data-ch="1" data-dash="add:${where}">${svg('plus')}<span>${label}</span></button>`; },
 

@@ -947,7 +947,7 @@ W.chat = { name: 'Assistant', html: () => `<div class="chatw">
     <div class="chat-head"><b>Assistant</b><button class="chat-mic" data-action="assistant" aria-label="Talk">${svg('mic')}<span>Talk</span></button></div>
     <div class="chat-log" data-html="chat" data-scroll></div>
     <div class="chat-quick" data-html="chatQuick"></div>
-    <form class="chat-type" data-chattype><input name="t" placeholder="Type a command, e.g. who’s around" autocomplete="off" enterkeyhint="send" aria-label="Type a command"><button class="chat-send">Send</button></form></div>` };
+    <form class="chat-type" data-chattype><input name="t" placeholder="Type a command, e.g. who’s around" autocomplete="off" enterkeyhint="send" aria-label="Type a command"><button class="chat-send">Send</button></form></div>`, config: id => clearSheet(id), float: true, clear: true };
 // Typing instead of talking (not while driving, when hiding is on): the same commands as speech
 document.addEventListener('submit', e => {
   const f = e.target.closest?.('[data-chattype]'); if (!f) return; e.preventDefault();

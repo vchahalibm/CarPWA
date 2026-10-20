@@ -93,6 +93,8 @@ const Convo = {
   model() {
     // The phone's own recognizer (experimental), unless it failed in this conversation: then the on-device one below.
     if (settings.convoStt === 'native' && SR && !this.nativeFailed) return 'native';
+    // StudioGen with Apple's recognizer: accurate for Indian English and the Indian languages, on the device; on Stage too.
+    if ((settings.convoStt || 'auto') === 'auto' && SR && IS_DESKTOP_APP && !this.nativeFailed) return 'native';
     if (!['auto', 'en'].includes(settings.voiceLang || 'auto')) return 'whisper';
     // In the car, Automatic uses the phone's recognizer too: it's the most accurate, and commands are matched loosely
     // anyway, so no listening model takes memory from the reply voice. Stage uses the on-device models below.

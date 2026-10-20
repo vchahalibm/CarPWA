@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -9,7 +9,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dmg zip --arm64 --x64",
+    "speech": "sh speech/build.sh",
+    "dist": "sh speech/build.sh && electron-builder --mac dmg zip --arm64 --x64",
     "dist:dir": "electron-builder --dir"
   },
   "devDependencies": {
@@ -29,12 +30,17 @@
       "updater.js",
       "tasks.js",
       "data.js",
+      "speech.js",
       "link.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "speech/bin/sg-speech",
+        "to": "sg-speech"
+      },
       {
         "from": "..",
         "to": "web",
@@ -63,6 +69,7 @@
       "hardenedRuntime": false,
       "extendInfo": {
         "NSMicrophoneUsageDescription": "StudioGen listens for your voice commands.",
+        "NSSpeechRecognitionUsageDescription": "StudioGen turns what you say into commands and conversation.",
         "NSCameraUsageDescription": "StudioGen uses the camera to follow the presenter and recognise objects.",
         "NSAppleEventsUsageDescription": "StudioGen runs the tasks in your scripts that control other apps.",
         "NSLocationUsageDescription": "StudioGen shows where you are and guides you.",

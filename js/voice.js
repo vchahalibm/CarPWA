@@ -291,7 +291,40 @@ function kokoroWorker() {
     terminate() { w.terminate(); for (const h of [...pending.values()]) h({ type: 'error', message: 'Voice worker stopped' }); pending.clear(); },
   };
 }
-const SR = IS_DESKTOP_APP ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
+/* StudioGen: Apple's speech recognizer through the desktop app (desktop/speech.js), shaped like the Web Speech API that
+   Electron lacks (lang, continuous, interimResults, maxAlternatives; onstart/onresult/onerror/onend; start/stop/abort),
+   so listening and conversations use it as they use the phone's recognizer. It's told the words to expect: script names,
+   the mesh's devices, the app's own words. */
+class MacSpeech {
+  constructor() { this.lang = 'en-IN'; this.continuous = false; this.interimResults = false; this.maxAlternatives = 1; }
+  static seq = 0;
+  static context() {
+    const w = ['StudioGen', 'DriveGen', 'mesh', 'Stage', 'keynote'];
+    try { w.push(...Scripts.all().map(x => x.name)); } catch {}
+    try { if (typeof Mesh !== 'undefined' && Mesh.m) w.push(Mesh.m.name, ...Mesh.members().map(x => x.name)); } catch {}
+    return [...new Set(w.filter(Boolean))].slice(0, 100);
+  }
+  start() {
+    const S = window.DriveDeckDesktop.speech; this.id = ++MacSpeech.seq; this.results = []; this.i = 0;
+    this.off?.(); this.off = S.on(m => this.ev(m));
+    S.start({ id: this.id, lang: this.lang || 'en-IN', continuous: this.continuous, context: MacSpeech.context() });
+  }
+  ev(m) {
+    if (m.id !== this.id) return; // an earlier start's late events
+    if (m.ev === 'start') this.onstart?.();
+    else if (m.ev === 'result') {
+      if (!m.final && !this.interimResults) return;
+      const alts = (m.alts?.length ? m.alts : [m.text]).slice(0, Math.max(1, this.maxAlternatives)).map(t => ({ transcript: t, confidence: 0.9 }));
+      this.results[this.i] = Object.assign(alts, { isFinal: !!m.final });
+      const e = { resultIndex: this.i, results: this.results }; if (m.final) this.i++;
+      this.onresult?.(e);
+    } else if (m.ev === 'error') { Log.w('stt', `Mac recognizer: ${m.error}`, { message: m.message }); this.onerror?.({ error: m.error, message: m.message }); }
+    else if (m.ev === 'end') { this.off?.(); this.off = null; this.onend?.(); }
+  }
+  stop() { window.DriveDeckDesktop.speech.stop(); }
+  abort() { window.DriveDeckDesktop.speech.abort(); }
+}
+const SR = IS_DESKTOP_APP ? (window.DriveDeckDesktop?.speech ? MacSpeech : null) : window.SpeechRecognition || window.webkitSpeechRecognition;
 const LANGS = { auto: ['Auto-detect', null, navigator.language || 'en-IN'], en: ['English', 'en', 'en-IN'], hi: ['हिन्दी Hindi', 'hi', 'hi-IN'],
   kn: ['ಕನ್ನಡ Kannada', 'kn', 'kn-IN'], ta: ['தமிழ் Tamil', 'ta', 'ta-IN'], te: ['తెలుగు Telugu', 'te', 'te-IN'], mr: ['मराठी Marathi', 'mr', 'mr-IN'], multi: ['Several languages (Whisper)', null, navigator.language || 'en-IN'] };
 // Which app a reply belongs to, so the log can show where the action went.
@@ -629,7 +662,7 @@ const Voice = {
         [['Download both', () => { store.set('ttsAsked', true); settings.tts = 'neural'; store.set('settings', settings);
           this.open(); this.loadModel().then(() => { this.listenWhisper(); this.loadTTS().catch(() => {}); }).catch(e => this.fail(e)); }],
           ['Listening only', () => { store.set('ttsAsked', true); this.open(); this.loadModel().then(() => this.listenWhisper()).catch(e => this.fail(e)); }],
-          ...(SR ? [['Use phone recognition instead', () => { settings.stt = 'browser'; applySettings(); this.start(); }]] : []), ['Not now']]);
+          ...(SR ? [[`Use ${IS_DESKTOP_APP ? 'the Mac’s' : 'phone'} recognition instead`, () => { settings.stt = 'browser'; applySettings(); this.start(); }]] : []), ['Not now']]);
     }
     const tok = this.startTok;
     try {

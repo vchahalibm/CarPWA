@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>io.github.vchahalibm.studiogen.speech</string>
+  <key>CFBundleName</key><string>StudioGen speech</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>StudioGen turns what you say into commands and conversation.</string>
+  <key>NSMicrophoneUsageDescription</key><string>StudioGen listens for your voice commands.</string>
+</dict>
+</plist>

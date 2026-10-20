@@ -48,9 +48,9 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   },
   /** Apple's speech recognizer (desktop/speech.js), when this build has it: start({ lang, continuous, onDevice, context, pause }),
       stop() (finish what was heard), abort(); on(f): f({ ev: 'ready'|'start'|'result'|'error'|'end', … }). js/voice.js wraps it
-      as a Web Speech API recognizer. local: the languages it recognises on this Mac (it never uses Apple's servers). */
-  speech: (speechLocal => speechLocal ? {
-    local: speechLocal,
+      as a Web Speech API recognizer. local: languages it recognises on this Mac; server: only through Apple's servers. */
+  speech: (langs => langs ? {
+    local: langs.local, server: langs.server,
     start: o => ipcRenderer.invoke('dd:speech-start', o),
     stop: () => ipcRenderer.invoke('dd:speech-stop'),
     abort: () => ipcRenderer.invoke('dd:speech-abort'),

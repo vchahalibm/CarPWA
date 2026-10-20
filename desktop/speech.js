@@ -21,15 +21,15 @@ module.exports = ({ app, getWindow }) => {
     proc.on('error', e => { proc = null; send({ ev: 'error', error: 'service-not-allowed', message: e.message }); });
     return proc;
   }
-  // Which languages this Mac recognises on the device (no permission needed to ask); only those are used.
+  // Which languages this Mac recognises on the device, and which only through Apple's servers (no permission needed to ask).
   const LANGS = ['en-IN', 'en-US', 'en-GB', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'mr-IN'];
-  let local = null;
-  const probe = () => { if (local) return local; try { const m = JSON.parse(execFileSync(bin, ['--probe', ...LANGS], { timeout: 5000 }).toString()); local = Object.keys(m).filter(k => m[k]); } catch { local = []; } return local; };
+  let langs = null;
+  const probe = () => { if (langs) return langs; try { const m = JSON.parse(execFileSync(bin, ['--probe', ...LANGS], { timeout: 5000 }).toString()); langs = { local: Object.keys(m).filter(k => m[k] === 'local'), server: Object.keys(m).filter(k => m[k] === 'server') }; } catch { langs = { local: [], server: [] }; } return langs; };
   const cmd = o => { try { helper().stdin.write(JSON.stringify(o) + '\n'); return true; } catch (e) { return false; } };
   return {
     available: () => process.platform === 'darwin' && fs.existsSync(bin),
-    local: () => (process.platform === 'darwin' && fs.existsSync(bin) ? probe() : []),
-    start: o => cmd({ cmd: 'start', id: +o?.id || 0, lang: String(o?.lang || 'en-IN'), continuous: !!o?.continuous,
+    langs: () => (process.platform === 'darwin' && fs.existsSync(bin) ? probe() : { local: [], server: [] }),
+    start: o => cmd({ cmd: 'start', id: +o?.id || 0, lang: String(o?.lang || 'en-IN'), continuous: !!o?.continuous, localOnly: !!o?.localOnly,
       context: Array.isArray(o?.context) ? o.context.map(String).slice(0, 100) : [], pause: Math.min(3, Math.max(0.4, +o?.pause || 0.9)) }),
     stop: () => proc ? cmd({ cmd: 'stop' }) : false,
     abort: () => proc ? cmd({ cmd: 'abort' }) : false,

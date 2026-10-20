@@ -4,7 +4,7 @@ Things started or decided but not finished, and things to perform together later
 
 ## To perform (with you)
 
-- [ ] **Try Apple's recognizer in StudioGen 0.9.1** (only on the Mac: en-IN/en-US; Hindi goes to Whisper): Settings › Voice › Speech recognition: Mac; say a few commands with script and device names; a conversation (Kokoro replying) on Stage. Note what it misses.
+- [ ] **Try Apple's recognizer in StudioGen 0.9.2** (English on the Mac, Hindi via Apple's servers; “Keep speech on this device” forces local): Settings › Voice › Speech recognition: Mac; say a few commands with script and device names; a conversation (Kokoro replying) on Stage. Note what it misses.
 - [ ] **Reply-voice pauses on the iPhone**: after the update, a multi-sentence reply; send the debug log lines “Sentence n generated in … ms … speed …” and “On-device voice … engine”. If speed is above 2 (generation much slower than playback), try the GPU voice (Settings › Logs › Reply voice device) or the phone voice for long replies.
 - [ ] **Debug DriveGen hanging / going blank on the iPhone** (mobile data, paired with StudioGen on this Mac, 20 Oct 2026). Needs the phone's own logs: Safari Web Inspector over USB, or DriveGen's debug log (Settings › Logs). A Chrome phone paired the same way stays stable (no errors, memory flat), so it's iPhone-specific. Steps in the reply of 20 Oct; findings go here.
 - [ ] **Real-device journey: DriveGen on the iPhone runs a script on StudioGen, and the mesh forms.** StudioGen › Mesh › Create a mesh; the paired iPhone joins by itself; run a script by voice/typing/tap; look at Mesh › Live, Activity, History.

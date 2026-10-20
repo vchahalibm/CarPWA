@@ -151,7 +151,7 @@ if (window.DriveDeckDesktop?.link) DriveDeckDesktop.link.onAsk(async (kind, p) =
   if (kind === 'offers') return { name: APP_NAME, scripts: LinkHost.scripts().map(s => ({ id: s.id, name: s.name, about: s.json.about || '' })) };
   if (kind === 'run') return LinkHost.run(p);
   if (kind === 'say') return LinkHost.say(p);
-  if (kind === 'paired') { toast(`${p.name} is paired`); if ($('.lk')) LinkHost.settings(); return true; }
+  if (kind === 'paired') { toast(`${p.name} is paired`); if (!$('#sheet').hidden && $('#sheet .lk')) LinkHost.settings(); return true; }
   throw new Error(`Unknown request ${kind}`);
 });
 ACTIONS.connections = () => Link.settings();

@@ -89,7 +89,7 @@ const Direct = {
     try { this.ch?.close(); } catch {} try { this.pc?.close(); } catch {}
     this.ch = this.pc = null; if (!quiet) this.peer = ''; else this.peer = '';
   },
-  myName() { return LINK_HOST ? 'StudioGen' : `${APP_NAME} on ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent) ? 'iPad' : isIOS ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'a computer'}`; },
+  myName() { return LINK_HOST ? 'StudioGen' : `${APP_NAME} on ${/iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent) ? 'iPad' : isIOS ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'a computer'}`; },
 
   /* ---------- Full-screen steps: a big code to show, the camera to scan one ---------- */
   screen(title, html, onCancel) {

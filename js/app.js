@@ -179,7 +179,9 @@ const APPS = [
 ];
 const appById = id => APPS.find(a => a.id === id);
 let current = 'dashboard';
-let recents = store.get('recents', ['maps', 'music', 'phone']).filter(appById);
+// StudioGen: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
+if (APP_NAME === 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1));
+let recents = store.get('recents', APP_NAME === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
 
 function appIcon(a, withBadge) {
   return `<div class="app-icon" style="background:${a.bg}">${svg(a.icon)}${withBadge && a.id === 'messages' ? '<span class="badge" data-badge hidden></span>' : ''}</div>`;

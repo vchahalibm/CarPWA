@@ -475,7 +475,8 @@ const Relay = {
 };
 ACTIONS.relays = () => Relay.editor();
 ACTIONS.directLink = () => Relay.directSheet();
-Relay.onchange = () => { clearTimeout(Relay.redraw); Relay.redraw = setTimeout(() => { if ($('.lk') && !$('.rl-list')) Link.settings(); }, 300); };
+// redraw the Connections sheet only while it's open (a closed sheet keeps its content, hidden)
+Relay.onchange = () => { clearTimeout(Relay.redraw); Relay.redraw = setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .lk') && !$('.rl-list')) Link.settings(); }, 300); };
 // Paired: always on while the app runs (the Mac answers; the phone can ask any time).
 setTimeout(() => Relay.start(), 2000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Relay.rooms().length && !Relay.anyUp()) Relay.restart(); });

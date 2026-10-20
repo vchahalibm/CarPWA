@@ -1515,6 +1515,10 @@ if (!store.get('onboarded') && lastSrc === 'none' && !qs.has('demo') && !qs.has(
     [['Use my location', done(startGPS)], ['Try demo drive', done(() => ACTIONS.demo())], ['Not now', done()]]);
 }
 
+// Pairings, the mesh identity and scripts live in this site's storage: ask the browser to keep it
+// (Safari otherwise may clear a site's data after weeks unused, or when the phone is short of space).
+navigator.storage?.persist?.().then(ok => Log.i('app', `Storage kept: ${ok}`)).catch(() => {});
+
 // Offline support and installability. Relative URL so the app works from any sub-path.
 if ('serviceWorker' in navigator) addEventListener('load', async () => {
   let reg;

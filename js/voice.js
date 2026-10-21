@@ -300,6 +300,17 @@ const VOICE_NAMES = {
 };
 /** Words that already are a whole command with nothing left to fill in (“what can I say”, “next slide”): listening can end sooner. */
 const quickCmd = t => { if (typeof Commands === 'undefined') return false; const m = Commands.match(t); return m.how === 'phrase' && !Object.entries(m.vars || {}).some(([k, v]) => k !== 'text' && v); };
+/** On a device where Kokoro is slower than real time, a long sentence would keep you waiting (12 s for “Try take me home,
+    play music…, call Mom or what's my ETA” on an iPhone): make it in pieces at commas, semicolons and “and/or/but”, so
+    the first sound comes after its first few words. Kokoro splits at sentence ends, so pieces end with a full stop. */
+function kokoroChunks(text) {
+  return String(text).split(/(?<=[.!?])\s+/).map(sen => {
+    if (sen.length <= 48) return sen;
+    const parts = sen.split(/(?<=[,;:])\s+|\s+(?=(?:and|or|but)\s)/i), out = [];
+    for (const p of parts) { if (out.length && (out[out.length - 1].length < 14 || p.length < 8)) out[out.length - 1] += ' ' + p; else out.push(p); }
+    return out.map(p => p.trim().replace(/[,;:]$/, '')).map(p => /[.!?]$/.test(p) ? p : p + '.').join(' ');
+  }).join(' ');
+}
 const PhoneVoices = {
   /** Each voice once: iOS lists a voice in several qualities (super-compact, compact, enhanced/premium): keep the best. */
   list() {
@@ -559,7 +570,7 @@ const Voice = {
     let made = 0, startT = 0, firstAt = 0;
     const until = () => Math.min(firstAt + 3000, t0 + 7000);
     const ready = () => {
-      if (!generating || sp.r <= 1.05 || performance.now() >= until()) return true;
+      if (!generating || sp.r <= 1.05 || sp.r >= 1.8 || performance.now() >= until()) return true; // much slower: waiting can't avoid pauses, it only delays
       const B = queue.reduce((t, q) => t + q.f32.length / q.rate, 0), R = Math.max(0, chars - made) / sp.cps;
       return B >= R * (sp.r - 1);
     };
@@ -574,21 +585,21 @@ const Voice = {
       catch (e) { Log.e('tts', `Sentence ${item.n} could not play`, e); this.blocked = true; queue.length = 0; generating = false; return finish(); }
       next();
     };
-    // A stuck or very slow model must not leave you in silence: after 8 s without sound, the phone's voice takes over.
-    let watchdog = 0;
+    // A stuck model must not leave you in silence: without sound after 8 s (20 s when you chose the natural voice, which is
+    // slow on some phones), the device's voice takes over. Only a real stall (nothing at all in 20 s) marks it as broken.
+    let watchdog = 0; const limit = settings.tts === 'neural' ? 20000 : 8000;
     const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(() => {
       if (started) return;
-      fail = new Error('The reply voice took too long'); Log.w('tts', 'Watchdog: no sound after 8 s', { sentences: n });
-      // Twice in a row with nothing generated at all: the voice is broken here; stop making every reply wait 8 s.
-      if (!n && ++this.ttsStalls >= 2) { this.ttsBroken = 'No sentence generated twice in a row'; Log.e('tts', 'On-device voice marked as not working: replies use the phone voice'); }
+      fail = new Error('The reply voice took too long'); Log.w('tts', `Watchdog: no sound after ${limit / 1000} s`, { sentences: n });
+      if (!n && limit >= 20000 && ++this.ttsStalls >= 2) { this.ttsBroken = 'No sentence generated twice in a row'; Log.e('tts', 'On-device voice marked as not working: replies use the phone voice'); }
       finish();
-    }, 8000); };
+    }, limit); };
     // The timer starts when the worker begins this reply: a sentence of the previous reply may still be finishing.
     arm();
     (async () => {
       try {
         let g = performance.now();
-        for await (const { text: sentence, f32, rate } of this.tts.sentences(text, voice, () => { if (!started && !n) arm(); })) {
+        for await (const { text: sentence, f32, rate } of this.tts.sentences(sp.r > 1.2 ? kokoroChunks(text) : text, voice, () => { if (!started && !n) arm(); })) {
           if (id !== this.sayId || fail) return; // leaving the loop cancels the rest of the reply
           const item = { n: ++n, f32, rate }; this.ttsStalls = 0; this.ttsBroken = '';
           const ms = performance.now() - g, sec = item.f32.length / item.rate; made += sentence.length;

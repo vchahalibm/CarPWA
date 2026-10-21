@@ -167,7 +167,7 @@ const Mesh = {
     if (type === 'roster') return this.onRoster(d.roster);
     if (type === 'brokers') { if (this.isOwner(from) && d.rev > (this.m.brokersRev || 1) && await this.verifyStr(this.member(from).sigPub, `brokers|${d.rev}|${d.brokers.join(',')}`, d.s)) { this.save({ ...this.m, brokers: d.brokers, brokersRev: d.rev }); this.event('mesh', { what: 'new relay list', rev: d.rev }); } return; }
     if (type === 'bye') { delete this.presence[from]; this.event('mesh', { what: 'left', who: from }, from); return; }
-    if (type === 'pres') { if (!this.presence[from]) { this.lastCat = null; clearTimeout(this.catT); this.catT = setTimeout(() => this.pres(), 500 + Math.random() * 1500); } /* someone new or back: they need our catalog */ this.presence[from] = { ...d, at: Date.now(), clock: b.ts - Date.now() }; if (d.cat) this.catalogs[from] = d.cat; this.onchange?.(); if (this.m.pendingInvite && !this.member(me.id) && this.isOwner(from)) this.sendJoin(); return; }
+    if (type === 'pres') { if (!this.presence[from]) { this.lastCat = null; clearTimeout(this.catT); this.catT = setTimeout(() => this.pres(), 500 + Math.random() * 1500); if (typeof MeshDirect !== 'undefined') setTimeout(() => MeshDirect.tick(), 3000); } /* someone new or back: they need our catalog */ this.presence[from] = { ...d, at: Date.now(), clock: b.ts - Date.now() }; if (d.cat) this.catalogs[from] = d.cat; this.onchange?.(); if (this.m.pendingInvite && !this.member(me.id) && this.isOwner(from)) this.sendJoin(); return; }
     if (type === 'ev') { this.ingest(d.e || [], from, 'relay'); return; }
     if (type === 'cat') { this.catalogs[from] = d.cat; this.onchange?.(); return; }
     if (type.startsWith('show-')) return this.onShow(type, d, from, b.ts);
@@ -206,6 +206,7 @@ const Mesh = {
     if (Direct.connected) links.push({ to: Direct.peerMeshId || null, name: Direct.peer, kind: 'direct', rtt: (await LinkTest.directStats().catch(() => ({}))).rtt ?? null });
     for (const r of Relay.rooms().filter(x => !x.group && !x.mesh)) { const on = LINK_HOST ? Relay.online[r.room] : Relay.online.mac; if (on && Date.now() - on < 60000) links.push({ to: r.meshId || null, name: r.name, kind: Direct.connected && Direct.peer === r.name ? 'direct' : 'relay' }); }
     if (Link.mac()?.token) links.push({ to: null, name: Link.mac().name, kind: 'tailscale' });
+    if (typeof MeshDirect !== 'undefined') for (const l of MeshDirect.list()) if (!links.some(x => x.to === l.to && x.kind === 'direct')) links.push(l);
     this.myLinks = links;
     const now = Script.running ? { script: Script.cur?.name, step: Script.i + 1, of: Script.cur?.beats?.length || 0, mode: Script.cur?.mode, jobs: (Script.jobs || []).filter(j => j.state === 'running').map(j => j.name) } : null;
     const d = { name: this.myName(), app: meshApp(), ver: typeof webVer !== 'undefined' ? webVer : null, shell: window.DriveDeckDesktop?.updates ? DesktopUpdates?.s?.shell || null : null,
@@ -221,13 +222,14 @@ const Mesh = {
     clearTimeout(this.jt); this.jt = setTimeout(() => store.set('meshJournal', this.journal), 2000);
     if (!dev) { this.ingest([e], e.dev, 'self'); this.outbox.push(e); this.flushSoon(); }
   },
-  flushSoon() { if (this.ft) return; this.ft = setTimeout(() => { this.ft = 0; this.flush(); }, Direct.connected ? 1000 : 30000); },
+  flushSoon() { if (this.ft) return; this.ft = setTimeout(() => { this.ft = 0; this.flush(); }, Direct.connected || (typeof MeshDirect !== 'undefined' && MeshDirect.list().length) ? 1000 : 30000); },
   cut: (v, n) => { const s = typeof v === 'string' ? v : JSON.stringify(v ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; },
   /** Send the outbox: everything over a direct link (contents up to 300 characters); over relays within the budget (contents 80). */
   async flush() {
     if (!this.outbox.length || !this.groupRoom) return;
     const box = this.outbox.splice(0), slim = (e, n) => ({ ...e, data: Object.fromEntries(Object.entries(e.data || {}).map(([k, v]) => [k, typeof v === 'string' || typeof v === 'object' ? this.cut(v, n) : v])) });
     if (Direct.connected && Direct.peerIsStudio) { Direct.send({ mev: box.map(e => slim(e, 300)) }); }
+    if (typeof MeshDirect !== 'undefined') for (const [id, x] of Object.entries(this.presence)) if (x.app === 'StudioGen' && !MeshDirect.viaDirect(id)) MeshDirect.send(id, { mev: box.map(e => slim(e, 300)) });
     const now = Date.now(); this.sent = this.sent.filter(s => now - s.at < 60000);
     let used = this.sent.reduce((a, s) => a + s.n, 0); const out = [];
     for (const e of box) { const s = slim(e, 80), n = JSON.stringify(s).length; if (used + n > MESH_RELAY_BUDGET) { out.push({ id: e.id, ts: e.ts, dev: e.dev, kind: 'more', data: { n: box.length - out.length } }); break; } out.push(s); used += n; }
@@ -242,7 +244,7 @@ const Mesh = {
   /** StudioGen: the full journal of a device since a time (over its pairwise room or the pairing). */
   async details(id, since = Date.now() - 3600000) {
     const room = this.pairRoom(id); if (!room) throw new Error('No room to that device');
-    const r = await Relay.call('mesh-journal', { since }, 30000, room); this.ingest(r.events || [], id, 'journal'); return (r.events || []).length;
+    const r = await this.call(id, 'mesh-journal', { since }, 30000); this.ingest(r.events || [], id, 'journal'); return (r.events || []).length;
   },
   /** A request over the pairing (relay or direct link, not a mesh room): in the activity too. */
   pairedRequest(kind, p, r, ms, fromId, fromName) {
@@ -261,36 +263,44 @@ const Mesh = {
     return r;
   },
 
+  /** A request to a member: over a direct link between the two when there is one, else through their pair room. */
+  async call(id, kind, payload, ms) {
+    if (typeof MeshDirect !== 'undefined' && MeshDirect.open(id)) { try { return await MeshDirect.call(id, kind, payload, ms); } catch (e) { if (!/no direct link|closed/.test(e.message)) throw e; } }
+    const room = this.pairRoom(id); if (!room) throw new Error('That device isn’t reachable in the mesh');
+    return Relay.call(kind, payload, ms, room);
+  },
   /* ---------- Shows (mesh mode) ---------- */
   /** Conductor: start a show on chosen screens; steps mode (all together) or tandem (cues). */
   async showStart(scriptId, screens, mode = 'steps') {
     const s = Scripts.get(scriptId); if (!s) throw new Error('No such script');
     const id = Math.random().toString(36).slice(2, 8), me = await this.me();
-    this.shows[id] = { id, script: s.name, conductor: me.id, screens, mode, step: 0, lanes: {}, started: Date.now() };
+    this.shows[id] = { id, script: s.name, conductor: me.id, screens, mode, step: 0, of: s.json?.beats?.length || 0, lanes: {}, started: Date.now() };
     this.group('show-prepare', { id, mode, screens, json: s.json, name: s.name });
     this.event('show', { what: 'started', show: id, script: s.name, screens: screens.length, mode });
-    setTimeout(async () => { this.conducting = id; await Script.start({ ...s.json, listen: false }); this.showStep(id, 0); }, 1500);
+    setTimeout(async () => { this.conducting = id; await Script.start({ ...s.json, listen: false }); this.showStep(id, 0); this.presSoon(); }, 1500);
     return id;
   },
+  /** A show changed here: presence goes out now (not in up to 15 s), so every Who's around and badge follows. */
+  presSoon() { clearTimeout(this.pst); this.pst = setTimeout(() => this.pres(), 800); },
   showStep(id, n) {
-    const sh = this.shows[id]; if (!sh) return; sh.step = n;
+    const sh = this.shows[id]; if (!sh) return; sh.step = n; this.presSoon();
     const lead = 900; this.group('show-step', { id, n, at: Date.now() + lead }); // screens move at the same moment
     this.event('show', { what: 'step', show: id, step: n + 1 });
   },
   showCue(id, name) { this.group('show-cue', { id, name }); this.event('show', { what: 'cue', show: id, cue: name }); },
-  showStop(id) { this.group('show-stop', { id }); if (this.conducting === id) { this.conducting = null; Script.stop(); } const sh = this.shows[id]; if (sh) sh.ended = Date.now(); this.event('show', { what: 'stopped', show: id }); },
+  showStop(id) { this.group('show-stop', { id }); if (this.conducting === id) { this.conducting = null; Script.stop(); } const sh = this.shows[id]; if (sh) sh.ended = Date.now(); this.event('show', { what: 'stopped', show: id }); this.presSoon(); },
   async onShow(type, d, from, ts) {
     const me = await this.me(), offset = this.presence[from]?.clock || 0;
     if (type === 'show-sync') { const sh = this.shows[d.id]; if (sh) { sh.lanes[from] = { ...d, at: Date.now() }; this.onchange?.(); } return; }
-    if (type === 'show-prepare') { this.shows[d.id] = { id: d.id, script: d.name, conductor: from, screens: d.screens, mode: d.mode, step: 0, lanes: {}, started: Date.now() };
+    if (type === 'show-prepare') { this.shows[d.id] = { id: d.id, script: d.name, conductor: from, screens: d.screens, mode: d.mode, step: 0, of: d.json?.beats?.length || 0, lanes: {}, started: Date.now() };
       if (!d.screens.includes(me.id)) return; this.myShow = { id: d.id, step: 0, state: 'loading' };
       await Script.start({ ...d.json, listen: false }); this.myShow.state = 'ready'; this.group('show-sync', { id: d.id, step: 0, state: 'ready' }); return; }
     const sh = this.shows[d.id]; if (!sh) return;
     if (type === 'show-step') { sh.step = d.n; if (!this.myShow || this.myShow.id !== d.id) return;
       const wait = Math.max(0, d.at - (Date.now() + offset)); // the conductor's moment, on our clock
-      setTimeout(() => { const late = Math.round(Date.now() + offset - d.at); if (sh.mode === 'steps') Script.jump(d.n); this.myShow = { id: d.id, step: d.n, state: 'on', drift: late }; this.group('show-sync', { id: d.id, step: d.n, state: 'on', drift: late }); }, wait); return; }
+      setTimeout(() => { const late = Math.round(Date.now() + offset - d.at); if (sh.mode === 'steps') Script.jump(d.n); this.myShow = { id: d.id, step: d.n, state: 'on', drift: late }; this.group('show-sync', { id: d.id, step: d.n, state: 'on', drift: late }); this.presSoon(); }, wait); return; }
     if (type === 'show-cue') { if (this.myShow?.id === d.id) Bus.emit('mesh.cue', { value: d.name }); return; }
-    if (type === 'show-stop') { sh.ended = Date.now(); if (this.myShow?.id === d.id) { this.myShow = null; Script.stop(true); } this.onchange?.(); }
+    if (type === 'show-stop') { sh.ended = Date.now(); if (this.myShow?.id === d.id) { this.myShow = null; Script.stop(true); this.presSoon(); } this.onchange?.(); }
   },
 
   /* ---------- Shared artifacts ---------- */
@@ -312,7 +322,7 @@ const Mesh = {
   /** Fetch a shared artifact from its owner and keep it here (names that exist get “(2)”, like an imported bundle). */
   async fetch(owner, k, n) {
     const room = this.pairRoom(owner); if (!room) throw new Error('No room to that device');
-    const a = await Relay.call('mesh-art', { k, n }, 60000, room);
+    const a = await this.call(owner, 'mesh-art', { k, n }, 60000);
     if (k === 'script') Scripts.add({ ...a.v, name: Scripts.all().some(s => s.name === a.v.name) ? `${a.v.name} (from ${this.member(owner)?.name || 'the mesh'})` : a.v.name });
     if (k === 'motion') Mocap.save(MOTIONS[n] ? `${n}2` : n, a.v);
     if (k === 'webrec') WebDrive.saveRec({ ...a.v, name: `${a.v.name} (mesh)` });
@@ -321,7 +331,7 @@ const Mesh = {
   },
   /** Request mode: which StudioGen offers a script (by name), online now. */
   whoOffers(script) { const p = plain(script); return Object.entries(this.presence).filter(([id, x]) => Date.now() - x.at < 60000 && x.app === 'StudioGen' && (x.caps?.scripts || []).some(n => plain(n) === p || plain(n).includes(p))).map(([id]) => id); },
-  async runOn(id, script, vars = {}) { const room = this.pairRoom(id); if (!room) throw new Error('That device isn’t reachable in the mesh'); this.event('request', { to: id, kind: 'run', script }); return Relay.call('run', { script, vars }, 600000, room); },
+  async runOn(id, script, vars = {}) { const room = this.pairRoom(id); if (!room) throw new Error('That device isn’t reachable in the mesh'); this.event('request', { to: id, kind: 'run', script }); return this.call(id, 'run', { script, vars }, 600000); },
   /** DriveGen's “who's around”: the StudioGens online and what they do. */
   around() { return Object.entries(this.presence).filter(([, x]) => Date.now() - x.at < 60000).map(([id, x]) => ({ id, ...x })); },
 
@@ -424,7 +434,7 @@ const MeshCmd = {
   cue(v, say) { return this.step('cue', v, say); },
   stop(v, say) { return this.step('stop', v, say); },
   async ask(to, p, say) {
-    const r = to === this.me() ? await this.showOp(p) : await Relay.call('mesh-show', p, 30000, Mesh.pairRoom(to));
+    const r = to === this.me() ? await this.showOp(p) : await Mesh.call(to, 'mesh-show', p, 30000);
     say([].concat(r?.said || 'Done.').join(' '));
   },
   /** On the conductor: what a show request does. */
@@ -444,7 +454,7 @@ const MeshCmd = {
   /* ---------- the link (both apps) ---------- */
   async pair(v, say) { if (LINK_HOST) { Relay.hostPair(); say('Add a secret phrase if you like, then show the code to DriveGen.'); } else { Relay.guestPair(); say('Point the camera at the code on your Mac, or paste it.'); } },
   async test(v, say) { LinkTest.show(); say('Testing the connection…'); },
-  async direct(v, say) { const on = v.on !== false; store.set('directCfg', { ...store.get('directCfg', {}), mode: on ? 'auto' : 'off' }); if (!on) Direct.close(); say(on ? 'The direct link is on: used whenever the networks allow.' : 'The direct link is off: everything goes through the relays.'); },
+  async direct(v, say) { const on = v.on !== false; store.set('directCfg', { ...store.get('directCfg', {}), mode: on ? 'auto' : 'off' }); if (!on) { Direct.close(); if (typeof MeshDirect !== 'undefined') for (const id of [...MeshDirect.links.keys()]) MeshDirect.close(id); } say(on ? 'The direct link is on: used whenever the networks allow.' : 'The direct link is off: everything goes through the relays.'); },
   async rekey(v, say) {
     if (!LINK_HOST) return say('Change the secret on your Mac: StudioGen, Settings, Connections.');
     const w = plain(v.who || '').replace(/^(the|my) /, ''), ps = Relay.peers(), nm = x => plain(Mesh.member(x.meshId)?.name || x.name || ''), p = w ? ps.find(x => nm(x) === w) || ps.find(x => nm(x).includes(w) || plain(x.name || '').includes(w)) : null;

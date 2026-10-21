@@ -104,6 +104,8 @@ function simPhone(id, label, n) {
       // a copy of the app from an earlier run (Safari's offline cache): open it again, now with the new files
       if (!('saidAt' in reports[id])) { delete reports[id]; await sleep(3000); execFileSync('xcrun', ['simctl', 'openurl', this.udid, `${SIM_BASE}?tandem=${id}&fresh=${Date.now()}`]); for (let i = 0; i < 120 && !reports[id]; i++) await sleep(500); if (!reports[id]) throw new Error(`${label}: Safari didn't load the page`); }
       await this.step('name', label); await this.step('tidy');
+      // the name must stick before the phone joins anything (it once didn't on a fresh simulator page): check, set again
+      for (let i = 0; i < 10 && (await this.state())?.name !== label; i++) { await sleep(1000); await this.step('name', label); }
     },
     async state() { const r = reports[id]; return r && Date.now() - r.at < 10000 ? r : null; },
     async step(name, a) { const sid = `${id}-${++seq}`; (queue[id] ||= []).push({ id: sid, step: name, arg: a }); for (let i = 0; i < 1200; i++) { if (results[sid]) { if (results[sid].err) throw new Error(results[sid].err); return results[sid].out; } await sleep(250); } throw new Error('no answer'); },

@@ -48,6 +48,7 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: 'Studio B joins with an invite', you: 'On <b>Studio A</b>: Mesh › <b>Invite</b> (or say <q class="cmd">invite to the mesh</q>) › copy the text. On <b>Studio B</b>: Mesh › <b>Join with an invite</b> (or say <q class="cmd">join the mesh</q>) › paste › Join.',
         auto: async () => B.step('join', await A.eval('Mesh.invite()')),
         check: async () => { const s = await Promise.all(devs.map(st)); return s.every(x => x.mesh?.members?.length === 3) || `member lists ${s.map(x => x.mesh?.members?.length ?? '–').join('/')}`; }, wait: 120 },
+      { title: 'Direct links form between the members (not only the paired phone and Mac)', check: async () => { const [a, b, p] = await Promise.all([st(A), st(B), st(P)]); return b.meshDirect?.length >= 2 && a.meshDirect?.includes('Studio B') || `direct links: A ${a.meshDirect?.join(', ') || 'none'} · B ${b.meshDirect?.join(', ') || 'none'}`; }, wait: 120 },
       { title: 'Everyone sees everyone online', ...say(P, 'who’s around'), check: async () => { const s = await Promise.all(devs.map(st)); return s.every(x => x.mesh?.online?.length >= 2) || `online seen ${s.map(x => x.mesh?.online?.length ?? '–').join('/')}`; }, wait: 90 },
     ],
     shared: [
@@ -58,7 +59,7 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => (await st(A)).mesh?.shared?.some(x => /Draft pitch/.test(x)) || 'Studio A doesn’t see it yet', wait: 60 },
     ],
     road: [
-      { title: 'On the road: relays only', ...say(P, 'turn off the direct link', 'Settings › Connections › Direct link › <b>Never</b>'), check: async () => { const p = await st(P); return p.directCfg === 'off' && !p.direct || 'direct link still on'; }, wait: 30 },
+      { title: 'On the road: relays only', ...say(P, 'turn off the direct link', 'Settings › Connections › Direct link › <b>Never</b>'), check: async () => { const p = await st(P); return p.directCfg === 'off' && !p.direct && !p.meshDirect?.length || 'direct link still on'; }, wait: 30 },
       { title: '1:1 with the paired Mac', ...say(P, 'run the daily brief on my mac'), check: async () => since(await st(P), S.t0, /three meetings/i) || `last reply: ${lastReply(await st(P)) || 'none'}`, wait: 90 },
       { title: 'Studio A’s Activity shows the request', check: async () => (await st(A)).mesh?.events?.some(e => e.kind === 'request') || 'no request in the activity yet', wait: 60 },
     ],
@@ -74,6 +75,7 @@ export function journeys({ A, B, P, devs, sleep }) {
     show: [
       { title: 'The phone starts the Keynote on all screens', ...say(P, 'start the keynote on all screens'),
         check: async () => { const [a, b] = await Promise.all([st(A), st(B)]); return a.mesh?.conducting && b.mesh?.show?.state === 'on' || 'screens not in the show yet'; }, wait: 90 },
+      { title: 'Every screen shows the show badge', check: async () => { const [a, b, p] = await Promise.all([st(A), st(B), st(P)]); return /Conducting/.test(a.pill) && /In the show/.test(b.pill) && /Keynote/.test(p.pill) || `badges: A “${a.pill}” · B “${b.pill}” · phone “${p.pill}”`; }, wait: 20 },
       { title: 'Studio A moves on by itself; both screens together', before: async () => sleep(2500),
         check: async () => { const b = (await st(B)).mesh?.show; return b?.step >= 1 && Math.abs(b.drift || 0) < 100 || `Studio B at step ${(b?.step ?? -1) + 1}, drift ${b?.drift ?? '–'} ms`; }, wait: 60 },
       { title: 'Next on every screen, from the phone', ...say(P, 'next slide everywhere'), before: async () => { S.step = (await st(B)).mesh?.show?.step; },

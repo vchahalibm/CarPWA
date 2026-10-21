@@ -1541,3 +1541,10 @@ table.bench small{color:var(--text-2)}
 .wg.clear .chat-head b,.wg.clear .chat-day,.wg.clear .meta{text-shadow:0 1px 3px rgba(0,0,0,.85)}
 .wg.clear .chat-row.app .bub{background:color-mix(in srgb,var(--surface-3) 78%,transparent)}
 .wg.clear .chat-type input{background:color-mix(in srgb,var(--panel-2) 70%,transparent)}
+
+/* The show badge (MeshView.pill): top centre, above everything but sheets */
+.mesh-pill{position:fixed;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:8px;min-height:40px;max-width:min(92vw,620px);padding:6px 14px;border-radius:999px;border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);background:color-mix(in srgb,var(--panel-2) 88%,transparent);color:var(--text);font:600 14px/1.2 inherit;box-shadow:0 8px 24px rgba(0,0,0,.35);backdrop-filter:blur(10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:padding .25s}
+.mesh-pill b{color:var(--acc)}.mesh-pill .mp-dot{width:9px;height:9px;border-radius:50%;background:#34c47c;flex:none;animation:mpPulse 1.6s infinite}
+.mesh-pill .mp-small{display:none}.mesh-pill.small .mp-full{display:none}.mesh-pill.small .mp-small{display:inline}.mesh-pill.small{padding:6px 12px}
+@keyframes mpPulse{50%{opacity:.35}}
+@media (max-width:600px){.mesh-pill{top:calc(max(8px,env(safe-area-inset-top)) + 52px);font-size:13px}} /* below a phone screen's title */

@@ -322,6 +322,7 @@ const Relay = {
     if (room.group) return Mesh.onGroup(room, type, b); // the mesh's group channel (signed messages)
     if (type === 'mesh-invite' && !this.isMac() && b.code) { if (store.get('meshAutoJoin', true)) Mesh.join(b.code).catch(e => Log.w('mesh', 'Join failed', e)); return; } // paired with a StudioGen in a mesh: join it
     if (type === 'mesh-key' && room.mesh && Mesh.isOwner(room.peerId) && b.key) { const m = Mesh.m; if (m && b.key !== m.key) Mesh.save({ ...m, oldKey: m.key, key: b.key, oldUntil: Date.now() + 600000 }); return; } // the group key changed (someone was removed)
+    if (type === 'mrtc' && room.mesh) return typeof MeshDirect !== 'undefined' && MeshDirect.signal(room, b); // setting up a direct link between two members (js/meshdirect.js)
     if (type === 'ask' && room.mesh) { // a mesh member's request: its permissions decide (js/mesh.js)
       if (this.answers.has(b.id)) { const a = this.answers.get(b.id); if (a !== 'busy') this.post(room, 're', a); return; }
       this.answers.set(b.id, 'busy'); setTimeout(() => this.answers.delete(b.id), 600000);

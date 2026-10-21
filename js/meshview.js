@@ -147,8 +147,9 @@ const MeshView = {
     const m = Mesh.m;
     sheet('Mesh settings', `<label class="se-field"><span>This device's name in the mesh</span><input id="mvName" class="se-wz-in" value="${esc(Mesh.myName())}"></label>
       ${m ? `<p class="se-note">Mesh “${esc(m.name)}” · ${Mesh.members().length} members · roster revision ${m.roster?.rev || 0}${Mesh.amOwner() ? ' · you are an owner' : ''}</p>` : ''}
-      <label class="se-check"><input type="checkbox" id="mvAuto" ${store.get('meshAutoJoin', true) ? 'checked' : ''}> Devices paired with this Mac join its mesh automatically</label>`,
-      [['Save', () => { store.set('meshName', $('#mvName').value.trim()); store.set('meshAutoJoin', $('#mvAuto').checked); Mesh.rebuild(); this.render(); }], ...(m ? [['Share the relay list with the mesh', () => Mesh.updateBrokers().then(() => toast('Relay list sent to the mesh'))], ['Leave the mesh', () => Mesh.leave().then(() => this.render())]] : []), ['Close']]);
+      <label class="se-check"><input type="checkbox" id="mvAuto" ${store.get('meshAutoJoin', true) ? 'checked' : ''}> Devices paired with this Mac join its mesh automatically</label>
+      <label class="se-check"><input type="checkbox" id="mvPill" ${store.get('meshPill', true) ? 'checked' : ''}> Show a badge on this screen while a show is running (step, drift)</label>`,
+      [['Save', () => { store.set('meshName', $('#mvName').value.trim()); store.set('meshAutoJoin', $('#mvAuto').checked); store.set('meshPill', $('#mvPill').checked); Mesh.rebuild(); this.render(); MeshView.pill(); }], ...(m ? [['Share the relay list with the mesh', () => Mesh.updateBrokers().then(() => toast('Relay list sent to the mesh'))], ['Leave the mesh', () => Mesh.leave().then(() => this.render())]] : []), ['Close']]);
   },
   async invite() {
     const code = await Mesh.invite();
@@ -183,6 +184,28 @@ const MeshView = {
   },
 };
 /* ---------- Wiring ---------- */
+/* The show badge: on every device while a show runs in the mesh, a small pill at the top: conducting it, a screen in it
+   (step and drift from the conductor), or watching (a phone that started it). Full for a few seconds after each change,
+   then small; a tap opens Mesh › Shows. Mesh settings can turn it off (an audience screen). */
+MeshView.pill = function () {
+  let el = document.getElementById('meshPill');
+  const sh = Object.values(Mesh.shows || {}).filter(x => !x.ended && Date.now() - x.started < 4 * 3600000).sort((a, b) => b.started - a.started)[0];
+  if (!sh || !store.get('meshPill', true) || !Mesh.m) { if (el) el.hidden = true; return; }
+  if (!el) {
+    el = document.createElement('button'); el.id = 'meshPill'; el.className = 'mesh-pill'; el.setAttribute('aria-label', 'The show running in the mesh');
+    el.onclick = () => { openView('mesh'); MeshView.tab = LINK_HOST ? 'shows' : 'live'; MeshView.render(); };
+    document.body.appendChild(el);
+  }
+  const me = Mesh._me?.id, name = id => Mesh.member(id)?.name || 'a Mac', mine = Mesh.myShow?.id === sh.id ? Mesh.myShow : null;
+  const step = (mine ? mine.step : sh.step) + 1, of = sh.of ? `/${sh.of}` : '', on = Object.values(sh.lanes || {}).filter(l => l.state === 'on' || l.state === 'ready').length;
+  const full = Mesh.conducting === sh.id ? `<b>Conducting</b> ${esc(sh.script)} · step ${step}${of} · ${on} of ${sh.screens?.length || 0} screen${sh.screens?.length === 1 ? '' : 's'} on`
+    : mine ? `<b>In the show</b> ${esc(sh.script)} · step ${step}${of}${mine.drift != null ? ` · ${mine.drift >= 0 ? '+' : ''}${mine.drift} ms` : ''} · ${esc(name(sh.conductor))}`
+    : `<b>${esc(sh.script)}</b> on ${(sh.screens?.length || 0) + 1} screens · step ${step}${of}${sh.mode === 'tandem' ? ' · tandem' : ''}`;
+  const key = `${sh.id}:${step}:${mine?.state || ''}`;
+  if (el.dataset.key !== key) { el.dataset.key = key; el.classList.remove('small'); clearTimeout(MeshView.pillT); MeshView.pillT = setTimeout(() => el.classList.add('small'), 6000); }
+  el.innerHTML = `<span class="mp-dot"></span><span class="mp-full">${full}</span><span class="mp-small">▶ ${step}${of}</span>`; el.hidden = false;
+};
+setInterval(() => MeshView.pill(), 1000);
 Mesh.onchange = () => { clearTimeout(MeshView.rt); MeshView.rt = setTimeout(() => { if (current === 'mesh' && !['activity', 'history'].includes(MeshView.tab)) MeshView.render(); }, 400); };
 Mesh.onevent = list => { for (const e of list) if (e.kind === 'request' && e.data?.from) MeshView.dot(e.data.from, e.dev); if (current === 'mesh' && MeshView.tab === 'activity') { const f = $('.mv-feed'); if (f) f.insertAdjacentHTML('afterbegin', list.map(e => `<div class="mv-ev">${MeshView.line(e)}</div>`).join('')); } else Mesh.onchange(); };
 Bus.on('view.open', d => { if (d.value === 'mesh') MeshView.render(); });

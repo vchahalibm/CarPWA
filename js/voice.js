@@ -489,7 +489,8 @@ const Voice = {
           u.rate = 1.03;
           const s = performance.now();
           u.onstart = () => { started = true; Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s), voice: v?.name }); Bus.emit('voice.talk', { on: true });
-            setTimeout(() => end('done'), 1800 + text.length * 85); }; // never wait for ever on a lost onend
+            this.phoneUnlocked = true;
+            setTimeout(() => { if (!over) { Log.w('tts', 'Phone voice end never came: carrying on'); Bus.emit('voice.talk', { on: false }); end('done'); } }, 1800 + text.length * 85); }; // never wait for ever on a lost onend
           u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); Bus.emit('voice.talk', { on: false }); end('done'); };
           u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); Bus.emit('voice.talk', { on: false }); end(started ? 'done' : e.error === 'interrupted' || e.error === 'canceled' ? 'cancel' : 'nostart'); };
           Log.i('tts', 'Phone voice', { text, voice: v?.name, lang: u.lang, voices: speechSynthesis.getVoices().length, attempt, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking });
@@ -509,7 +510,7 @@ const Voice = {
       out.phone = await new Promise(res => {
         const u = new SpeechSynthesisUtterance('Voice check.'); if (v) { u.voice = v; u.lang = v.lang; } if (silent) u.volume = 0;
         let ok = false; const s = performance.now();
-        u.onstart = () => { ok = true; res({ startMs: Math.round(performance.now() - s), voice: v?.name || 'default', voices: n }); };
+        u.onstart = () => { ok = true; this.phoneUnlocked = true; res({ startMs: Math.round(performance.now() - s), voice: v?.name || 'default', voices: n }); };
         u.onerror = e => { if (!ok) { ok = true; res({ error: e.error, voices: n }); } };
         this.session('playback'); try { speechSynthesis.cancel(); } catch {} speechSynthesis.speak(u);
         setTimeout(() => { if (!ok) { ok = true; res({ error: 'didn’t start within 3 s', voices: n }); } }, 3000);
@@ -651,10 +652,21 @@ const Voice = {
   /** Phones only let a page make sound after a tap, and replies come seconds later. So on a tap, play a moment
       of silence on the reply player and start an empty utterance: both may then speak later without a tap. */
   unlock() {
+    this.primePhone();
     if (this.unlocked) return;
     const el = this.player();
     try { el.src = SILENCE(); const p = el.play(); p?.then(() => { this.unlocked = true; Log.i('audio', 'Reply player unlocked by a tap'); }).catch(e => Log.w('audio', 'Reply player unlock refused', e)); } catch (e) { Log.w('audio', 'Unlock failed', e); }
-    try { if ('speechSynthesis' in window && !speechSynthesis.speaking) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); Log.d('audio', 'Phone voice primed by a tap'); } } catch {}
+  },
+  /** iOS lets the page speak (speechSynthesis) only after it has spoken during a tap; a blank, silent utterance doesn't
+      count (the device voice then stayed silent until the Voice check spoke during a tap). So: a real, near-silent word,
+      on every tap, until iOS says it started. */
+  primePhone() {
+    if (this.phoneUnlocked || !('speechSynthesis' in window) || speechSynthesis.speaking || speechSynthesis.pending) return;
+    try {
+      const u = this.primeUtt = new SpeechSynthesisUtterance('ok'); u.volume = 0.01; u.rate = 2;
+      u.onstart = () => { this.phoneUnlocked = true; Log.i('audio', 'Phone voice unlocked by a tap'); };
+      speechSynthesis.speak(u);
+    } catch {}
   },
   /** Memory the reply voice needs: the build given, or the best one this device will try first. */
   ttsCost(device = Diag.get().device, dtype = 'fp32') {

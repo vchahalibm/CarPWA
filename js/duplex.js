@@ -111,7 +111,7 @@ const Convo = {
     Voice.show('Starting the conversation…', 'Conversation mode (beta) · on-device');
     this.nativeFailed = false;
     if (settings.tts === 'neural' && store.get('kokoroOK')) Voice.loadTTS(false, true).catch(() => {}); // the natural voice for the replies, making room for it
-    Log.i('duplex', 'Conversation starting', { model: this.model(), lang: settings.voiceLang });
+    Log.i('duplex', 'Conversation starting', { model: this.model(), lang: settings.voiceLang, replies: Voice.ttsMode() });
     try {
       await this.loadSTT();
       if (this.stt.which !== 'native') this.warm();
@@ -134,6 +134,7 @@ const Convo = {
   },
   listenUI() { Voice.show('Listening…', 'Conversation · just talk, interrupt any time · say “that’s all” to finish'); },
   end(why) {
+    this.micPaused = false;
     if (!this.active && !this.starting) return;
     this.active = false; this.starting = false; clearInterval(this.idleT);
     NativeSR.stop(); AudioEngine.stop(); Voice.session('auto');
@@ -271,6 +272,20 @@ const Convo = {
     Promise.resolve(said).then(() => { this.replyEnd = Date.now(); if (this.active && !this.utt) { AudioEngine.duck(false); this.listenUI(); } });
     // A reply that opens another app: only "stop" can cancel it. The conversation pauses if the app really comes to the front.
     this.leaving = !!o?.leaves; if (o?.leaves) Promise.resolve(said).then(() => setTimeout(() => (this.leaving = false), 1500));
+  },
+  /** iOS keeps the device's own voice silent while the microphone is live (the audio stays in record mode): during a
+      conversation it pauses listening while that voice speaks (no interrupting it then), then listens again. */
+  async micPause() {
+    if (!this.active || this.micPaused) return false;
+    this.micPaused = true; Log.d('duplex', 'Microphone paused for the device voice');
+    NativeSR.stop(); AudioEngine.stop(); Voice.session('playback', true);
+    return true;
+  },
+  async micResume() {
+    if (!this.micPaused) return; this.micPaused = false;
+    if (!this.active) return;
+    try { await AudioEngine.start(f => this.frame(f), why => this.lost(why)); if (this.stt.which === 'native') NativeSR.start(); this.listenUI(); Log.d('duplex', 'Microphone back on'); }
+    catch (e) { Log.e('duplex', 'Microphone didn’t come back after the device voice', e); this.end('the microphone didn’t come back'); }
   },
   /** A reply sentence from the on-device voice, played through the engine (with lip-sync). */
   async play({ n, f32, rate }) {

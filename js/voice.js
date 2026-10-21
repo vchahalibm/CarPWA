@@ -463,15 +463,19 @@ const Voice = {
     if (!('speechSynthesis' in window)) return this.voiceless(text, 'no speech synthesis here');
     await PhoneVoices.ready();
     if (id !== this.sayId) return;
-    this.session('playback'); // out of play-and-record after listening
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const r = await this.phoneOnce(text, id, attempt);
-      if (r !== 'nostart') return;
-      Log.w('tts', 'Phone voice didn’t start: resetting it', { attempt, voices: speechSynthesis.getVoices().length });
-      try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
-      this.session('playback');
-    }
-    this.voiceless(text, 'the phone voice didn’t start twice');
+    // In a conversation on iOS the microphone stays live, which keeps this voice silent: pause it while speaking.
+    const paused = isIOS && typeof Convo !== 'undefined' && Convo.active ? await Convo.micPause() : false;
+    try {
+      this.session('playback'); // out of play-and-record after listening
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await this.phoneOnce(text, id, attempt);
+        if (r !== 'nostart') return;
+        Log.w('tts', 'Phone voice didn’t start: resetting it', { attempt, voices: speechSynthesis.getVoices().length });
+        try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
+        this.session('playback');
+      }
+      this.voiceless(text, 'the phone voice didn’t start twice');
+    } finally { if (paused) Convo.micResume(); }
   },
   phoneOnce(text, id, attempt) {
     return new Promise(res => {
@@ -634,8 +638,8 @@ const Voice = {
     this.session('auto');
   },
   /** The phone's audio session (WebKit): 'auto' lets the microphone work; anything else can block it. */
-  session(type) {
-    if (typeof Convo !== 'undefined' && Convo.active) type = 'play-and-record'; // a conversation plays and records all along
+  session(type, force) {
+    if (!force && typeof Convo !== 'undefined' && Convo.active && !Convo.micPaused) type = 'play-and-record'; // a conversation plays and records all along
     try { if (navigator.audioSession && navigator.audioSession.type !== type) { Log.d('audio', `Audio session ${navigator.audioSession.type} → ${type}`); navigator.audioSession.type = type; } }
     catch (e) { Log.w('audio', `Audio session ${type} refused`, e); }
   },
@@ -733,7 +737,7 @@ const Voice = {
   async start() {
     if (settings.convo && typeof Convo !== 'undefined') return Convo.toggle();
     if (!$('#assistant').hidden && (this.rec || this.sr)) return this.stopRec(); // tap again = done talking
-    Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
+    Log.i('voice', 'Mic tapped', { engine: this.engine(), tts: settings.tts, replies: this.ttsMode(), convo: !!settings.convo, whisperLoaded: !!this.pipe, whisperDownloaded: !!store.get('whisperOK'),
       voiceLoaded: !!this.tts, voiceDownloaded: !!store.get('kokoroOK'), playerUnlocked: !!this.unlocked, silence: settings.vadSilence, lang: settings.voiceLang });
     this.hush(); this.respId++; this.unlock(); Bus.emit('voice.listen');
     if (this.pipe?.alive && !this.pipe.alive()) { Log.w('stt', 'Whisper worker had stopped: reloading it'); this.resetSTT(); }

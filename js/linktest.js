@@ -136,6 +136,8 @@ const Tandem = {
     // what you'd say or type: through the command matcher, like the Assistant's typing box
     // a test phone: no location or install prompts over the dashboard
     tidy: () => { store.set('onboarded', true); closeSheet(); $('#locPrompt')?.setAttribute('hidden', ''); if (typeof ACTIONS !== 'undefined') ACTIONS.dismissInstall?.(); return true; },
+    // the voices' speed here (silent), for the tandem tests
+    voiceCheck: () => Voice.checkVoices({ silent: true }),
     phrase: t => Relay.setPhrase(String(t)).then(() => true),
     command: t => { handleCommand(String(t).slice(0, 200)); return true; },
   },

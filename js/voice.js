@@ -291,6 +291,34 @@ function kokoroWorker() {
     terminate() { w.terminate(); for (const h of [...pending.values()]) h({ type: 'error', message: 'Voice worker stopped' }); pending.clear(); },
   };
 }
+/* ---------- The device's own voices (speechSynthesis): instant, and the default reply voice unless Kokoro is fast here ----------
+   Browsers don't say a voice's gender, so it comes from the usual voice names (Apple, Google, Microsoft); novelty voices are left out. */
+const VOICE_NAMES = {
+  female: /samantha|karen|moira|tessa|fiona|victoria|veena|lekha|isha|kiran|allison|ava\b|susan|zoe|serena|nicky|kathy|vicki|zira|aria|jenny|neerja|heera|swara|female|ellen|kate|martha|catherine|stephanie|joanna|salli|kimberly|nora|amelie|anna|alice|sara|paulina|flo|grandma|sandy|shelley/i,
+  male: /daniel|alex\b|fred|rishi|aaron|arthur|oliver|\btom\b|\blee\b|gordon|\bmale\b|david|guy|prabhat|ravi|hemant|madhur|reed|eddy|ralph|junior|rocko|grandpa|evan|nathan|thomas|jorge|diego/i,
+  novelty: /bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert/i,
+};
+/** Words that already are a whole command with nothing left to fill in (“what can I say”, “next slide”): listening can end sooner. */
+const quickCmd = t => { if (typeof Commands === 'undefined') return false; const m = Commands.match(t); return m.how === 'phrase' && !Object.entries(m.vars || {}).some(([k, v]) => k !== 'text' && v); };
+const PhoneVoices = {
+  list: () => ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => !VOICE_NAMES.novelty.test(v.name)),
+  /** iOS fills the list a moment after the first call (it was empty when the phone voice stayed silent). */
+  ready(ms = 800) {
+    if (this.list().length || !('speechSynthesis' in window)) return Promise.resolve(this.list());
+    return new Promise(res => { const t = setTimeout(() => res(this.list()), ms); speechSynthesis.addEventListener?.('voiceschanged', () => { clearTimeout(t); res(this.list()); }, { once: true }); });
+  },
+  gender: v => /female/i.test(v.name) ? 'female' : VOICE_NAMES.male.test(v.name) ? 'male' : VOICE_NAMES.female.test(v.name) ? 'female' : '',
+  want: () => (LANGS[settings.voiceLang] || LANGS.auto)[2] || 'en-IN',
+  /** The voices for the reply language, best first: the language (Indian English first for English), the gender asked for, better quality. */
+  ranked() {
+    const want = this.want().toLowerCase(), base = want.split('-')[0], l = v => v.lang.replace('_', '-').toLowerCase();
+    const score = v => (l(v) === want ? 40 : base === 'en' && l(v) === 'en-in' ? 30 : l(v) === 'en-gb' ? 15 : l(v) === 'en-us' ? 12 : 0)
+      + (this.gender(v) === (settings.voiceGender || 'female') ? 25 : 0) + (/enhanced|premium|natural|neural|siri/i.test(v.name) ? 10 : 0) + (v.localService ? 20 : 0); // on the device beats an online voice (Chrome's “Google …” voices go to Google)
+    return this.list().filter(v => l(v).startsWith(base)).sort((a, b) => score(b) - score(a));
+  },
+  pick() { return (settings.phoneVoice && this.list().find(v => v.voiceURI === settings.phoneVoice)) || this.ranked()[0] || null; },
+};
+
 /* StudioGen: Apple's speech recognizer through the desktop app (desktop/speech.js), shaped like the Web Speech API that
    Electron lacks (lang, continuous, interimResults, maxAlternatives; onstart/onresult/onerror/onend; start/stop/abort),
    so listening and conversations use it as they use the phone's recognizer. It's told the words to expect: script names,
@@ -410,37 +438,96 @@ const Voice = {
   },
 
   /* ---------- Speaking: Kokoro on the phone when downloaded, else the phone's own voice ---------- */
+  /** Which voice speaks: Automatic is the device's voice (it starts at once) unless Kokoro is loaded and measured fast
+      enough here (making speech at least ~1.25× faster than it plays); Natural is Kokoro, chosen by you. */
+  ttsMode() {
+    if (settings.tts !== 'auto') return settings.tts;
+    const sp = store.get('ttsSpeed', null);
+    return this.tts && !this.ttsBroken && sp?.n >= 2 && sp.r <= 0.8 ? 'neural' : 'phone';
+  },
   speak(text) {
-    this.hush(); const id = ++this.sayId;
+    this.hush(); const id = ++this.sayId, mode = this.ttsMode();
     text = String(text || '').replace(/[“”"«»]/g, '').trim();
-    if (!text || settings.tts === 'off') { Log.d('tts', 'Not spoken', { setting: settings.tts, text }); return Promise.resolve(); }
-    if (settings.tts === 'neural' && this.tts && this.ttsBroken) Log.w('tts', 'On-device voice not working on this device: phone voice', { reason: this.ttsBroken });
-    else if (settings.tts === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
+    if (!text || mode === 'off') { Log.d('tts', 'Not spoken', { setting: settings.tts, text }); return Promise.resolve(); }
+    if (mode === 'phone') return this.speakPhone(text, id);
+    if (mode === 'neural' && this.tts && this.ttsBroken) Log.w('tts', 'On-device voice not working on this device: phone voice', { reason: this.ttsBroken });
+    else if (mode === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
       Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
     if (settings.tts === 'neural') Log.i('tts', store.get('kokoroOK') ? 'On-device voice still loading: phone voice this time' : 'On-device voice not downloaded: phone voice', { text });
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS(false, true).catch(() => {}); // from cache, ready for the next reply (makes room)
     return this.speakPhone(text, id);
   },
-  speakPhone(text, id) {
+  /** The device's voice. It must say it started within 1.5 s: if not (iOS sometimes stays silent right after the
+      microphone), the audio is set back to playback and it's tried once more; then the reply stays on screen, marked. */
+  async speakPhone(text, id) {
+    if (!('speechSynthesis' in window)) return this.voiceless(text, 'no speech synthesis here');
+    await PhoneVoices.ready();
+    if (id !== this.sayId) return;
+    this.session('playback'); // out of play-and-record after listening
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await this.phoneOnce(text, id, attempt);
+      if (r !== 'nostart') return;
+      Log.w('tts', 'Phone voice didn’t start: resetting it', { attempt, voices: speechSynthesis.getVoices().length });
+      try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
+      this.session('playback');
+    }
+    this.voiceless(text, 'the phone voice didn’t start twice');
+  },
+  phoneOnce(text, id, attempt) {
     return new Promise(res => {
-      if (!('speechSynthesis' in window)) return res();
-      // Speaking straight after cancel() is dropped on some phones: give it a moment.
+      let started = false, over = false; const end = r => { if (!over) { over = true; res(r); } };
       setTimeout(() => {
-        if (id !== this.sayId) return res();
+        if (id !== this.sayId) return end('cancel');
         try {
-          const u = this.utt = new SpeechSynthesisUtterance(text); // kept referenced, or onend may never fire
+          const u = this.utt = new SpeechSynthesisUtterance(text), v = PhoneVoices.pick(); // kept referenced, or onend may never fire
           this.played = true;
-          u.rate = 1.03; u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
+          if (v) { u.voice = v; u.lang = v.lang; } else u.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-IN';
+          u.rate = 1.03;
           const s = performance.now();
-          u.onstart = () => { Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s) }); Bus.emit('voice.talk', { on: true }); };
-          u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); Bus.emit('voice.talk', { on: false }); res(); };
-          u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); Bus.emit('voice.talk', { on: false }); res(); };
-          Log.i('tts', 'Phone voice', { text, lang: u.lang, voices: speechSynthesis.getVoices().length, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking });
+          u.onstart = () => { started = true; Log.d('tts', 'Phone voice started', { waitedMs: Math.round(performance.now() - s), voice: v?.name }); Bus.emit('voice.talk', { on: true });
+            setTimeout(() => end('done'), 1800 + text.length * 85); }; // never wait for ever on a lost onend
+          u.onend = () => { Log.i('tts', `Phone voice done ${Math.round(performance.now() - s)} ms`); Bus.emit('voice.talk', { on: false }); end('done'); };
+          u.onerror = e => { Log.e('tts', 'Phone voice error', { error: e.error }); Bus.emit('voice.talk', { on: false }); end(started ? 'done' : e.error === 'interrupted' || e.error === 'canceled' ? 'cancel' : 'nostart'); };
+          Log.i('tts', 'Phone voice', { text, voice: v?.name, lang: u.lang, voices: speechSynthesis.getVoices().length, attempt, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking });
           speechSynthesis.speak(u);
-        } catch { res(); }
-      }, this.cancelled ? 150 : 0);
-      setTimeout(res, 1800 + text.length * 85);
+          setTimeout(() => { if (!started && id === this.sayId) end('nostart'); }, 1500);
+        } catch (e) { Log.e('tts', 'Phone voice threw', e); end('nostart'); }
+      }, this.cancelled || attempt ? 150 : 0);
     });
+  },
+  /** Voice check: how fast each voice is here. The device voice: the time until it starts (silent: volume 0, for tests);
+      Kokoro, when downloaded: the time to make a test sentence ÷ its length (below 1: faster than it plays). Kokoro's
+      result counts for Automatic. */
+  async checkVoices({ silent = false } = {}) {
+    const out = { phone: null, neural: null };
+    if ('speechSynthesis' in window) {
+      await PhoneVoices.ready(1500); const v = PhoneVoices.pick(), n = PhoneVoices.list().length;
+      out.phone = await new Promise(res => {
+        const u = new SpeechSynthesisUtterance('Voice check.'); if (v) { u.voice = v; u.lang = v.lang; } if (silent) u.volume = 0;
+        let ok = false; const s = performance.now();
+        u.onstart = () => { ok = true; res({ startMs: Math.round(performance.now() - s), voice: v?.name || 'default', voices: n }); };
+        u.onerror = e => { if (!ok) { ok = true; res({ error: e.error, voices: n }); } };
+        this.session('playback'); try { speechSynthesis.cancel(); } catch {} speechSynthesis.speak(u);
+        setTimeout(() => { if (!ok) { ok = true; res({ error: 'didn’t start within 3 s', voices: n }); } }, 3000);
+      });
+    }
+    if (this.tts || store.get('kokoroOK')) {
+      try {
+        if (!this.tts) await this.loadTTS(false, true);
+        const text = 'This is a test of the natural voice on this device.', t0 = performance.now();
+        const a = await this.tts.generate(text, TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart');
+        const ms = performance.now() - t0, sec = a.f32.length / a.rate, r = ms / 1000 / sec;
+        store.set('ttsSpeed', { ...store.get('ttsSpeed', { cps: 14 }), r, cps: text.length / sec, n: Math.max(2, store.get('ttsSpeed', {}).n || 0) }); this.ttsSpeed = null;
+        out.neural = { firstMs: Math.round(ms), seconds: +sec.toFixed(2), speed: +r.toFixed(2), engine: this.tts.kind };
+        if (settings.tts === 'auto' && r > 0.8) this.resetTTS(); // too slow for Automatic: give the memory back
+      } catch (e) { out.neural = { error: e.message }; }
+    }
+    Log.i('tts', 'Voice check', out); return out;
+  },
+  /** No voice could speak: the reply is on screen; say why once in a while instead of leaving silence unexplained. */
+  voiceless(text, why) {
+    Log.e('tts', 'No voice could speak this reply', { why, text });
+    if (Date.now() - (this.voicelessAt || 0) > 60000) { this.voicelessAt = Date.now(); toast('The voice didn’t start: the reply is on screen'); }
   },
   /** Kokoro, one sentence at a time (the first plays while the rest are generated), through an <audio> element:
       unlike Web Audio, it isn't silenced by the phone's ring/silent switch. */
@@ -491,7 +578,7 @@ const Voice = {
           if (id !== this.sayId || fail) return; // leaving the loop cancels the rest of the reply
           const item = { n: ++n, f32, rate }; this.ttsStalls = 0; this.ttsBroken = '';
           const ms = performance.now() - g, sec = item.f32.length / item.rate; made += sentence.length;
-          if (sec > 0.3) { sp.r = sp.r * 0.6 + (ms / 1000 / sec) * 0.4; sp.cps = sp.cps * 0.6 + (sentence.length / sec) * 0.4; store.set('ttsSpeed', sp); }
+          if (sec > 0.3) { sp.r = sp.n ? sp.r * 0.6 + (ms / 1000 / sec) * 0.4 : ms / 1000 / sec; sp.cps = sp.cps * 0.6 + (sentence.length / sec) * 0.4; sp.n = (sp.n || 0) + 1; store.set('ttsSpeed', sp); }
           Log.i('tts', `Sentence ${n} generated in ${Math.round(ms)} ms`, { sentence, seconds: +sec.toFixed(2), rate: item.rate, speed: +sp.r.toFixed(2) });
           g = performance.now();
           firstAt ||= performance.now(); queue.push(item); go(); if (!started && !playing) { clearTimeout(startT); startT = setTimeout(go, Math.max(0, until() - performance.now())); }
@@ -836,9 +923,9 @@ const Voice = {
     }
     try {
       const r = this.sr = new SR(); r.lang = (LANGS[settings.voiceLang] || LANGS.auto)[2]; r.interimResults = true; r.maxAlternatives = 3;
-      let text = '', alts = [], done = false, lastChange = performance.now(), audio = false, guard = 0;
+      let text = '', alts = [], done = false, lastChange = performance.now(), audio = false, guard = 0, early = 0;
       const latency = () => Log.i('stt', `Recognised ${Math.round(performance.now() - lastChange)} ms after your last word (phone recognizer)`, { text });
-      const finish = () => { clearTimeout(guard); if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); if (cfg.sr !== 'plain') this.session('auto'); };
+      const finish = () => { clearTimeout(guard); clearTimeout(early); if (this.sr === r) this.sr = null; $('#vOrb').classList.remove('live'); if (cfg.sr !== 'plain') this.session('auto'); };
       Log.i('stt', 'Phone recognizer starting', { lang: r.lang, retry, primed: cfg.sr !== 'plain' && (this.played || !!retry), session: navigator.audioSession?.type });
       r.onstart = () => {
         Log.d('stt', 'Phone recognizer listening');
@@ -856,7 +943,16 @@ const Voice = {
         text = t;
         Log.d('stt', `Phone recognizer ${e.results[e.results.length - 1].isFinal ? 'final' : 'interim'}`, { text });
         this.show(`“${text}”`, 'Listening…');
-        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.srFails = 0; this.heard(text, { engine: 'Phone', alts }); }
+        if (e.results[e.results.length - 1].isFinal && !done) { done = true; finish(); latency(); this.srFails = 0; this.heard(text, { engine: 'Phone', alts }); return; }
+        // Don't wait for the phone's own “final” (about 2 s after your last word on an iPhone): act once the words have
+        // stopped changing for Settings › Voice › Act after you stop talking, sooner when they already are a command.
+        const end = settings.sttEnd === 'phone' ? 0 : (+settings.sttEnd || 0.8) * 1000;
+        clearTimeout(early);
+        if (end && text) early = setTimeout(() => {
+          if (done || this.sr !== r || !text) return;
+          done = true; Log.i('stt', `Acting ${Math.round(performance.now() - lastChange)} ms after your last word (words stopped changing)`, { text });
+          finish(); this.srFails = 0; try { r.abort(); } catch {} this.heard(text, { engine: 'Phone', alts });
+        }, quickCmd(text) ? Math.min(end, 450) : end);
       };
       r.onerror = e => {
         Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message, audio }); finish(); if (done) return; done = true;
@@ -927,18 +1023,23 @@ async function resample(data, from, to) {
   return (await ctx.startRendering()).getChannelData(0);
 }
 $('#vOrb').addEventListener('click', () => Voice.rec ? Voice.stopRec() : Voice.start());
-// The desktop app speaks with the on-device voice by default: switched to it once (you can still choose another in
-// Settings › Voice), and downloaded in the background without asking; a computer has the room and the connection.
-if (IS_DESKTOP_APP && !store.get('ttsDesktop')) {
-  store.set('ttsDesktop', true); store.set('ttsAsked', true);
-  if (settings.tts !== 'neural') { Log.i('tts', 'Desktop app: replies in the on-device voice', { was: settings.tts }); settings.tts = 'neural'; store.set('settings', settings); }
-}
+// The desktop app downloads the natural voice in the background without asking (a computer has the room and the
+// connection); Automatic then uses it once it's measured fast enough, which it is on a Mac.
+if (IS_DESKTOP_APP && !store.get('ttsDesktop')) { store.set('ttsDesktop', true); store.set('ttsAsked', true); }
 // Load the downloaded reply voice soon after launch, so even the first reply (or spoken direction) uses it. The desktop app
 // downloads it first if it isn't there yet.
+// Automatic needs Kokoro's speed on this device: measured once after it loads (silently), so it can pick it when it keeps up.
 setTimeout(() => {
-  if (settings.tts !== 'neural' || Voice.tts) return;
-  if (store.get('kokoroOK')) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().catch(() => {}); }
-  else if (IS_DESKTOP_APP) { Log.i('tts', 'Desktop app: downloading the on-device voice'); Voice.loadTTS(false, true).catch(() => {}); }
+  const sp = store.get('ttsSpeed', {}), slow = sp.n >= 2 && sp.r > 0.8; // measured too slow here: not loaded for Automatic
+  const want = settings.tts === 'neural' || (settings.tts === 'auto' && !slow && (IS_DESKTOP_APP || store.get('kokoroOK')));
+  if (!want || Voice.tts) return;
+  const measure = async () => {
+    if (settings.tts !== 'auto' || store.get('ttsSpeed', {}).n >= 2) return;
+    await Voice.checkVoices({ silent: true }).catch(() => {});
+    if (Voice.ttsMode() !== 'neural' && settings.tts === 'auto') { Log.i('tts', 'Natural voice too slow here: unloaded, the device voice answers', store.get('ttsSpeed')); Voice.resetTTS(); }
+  };
+  if (store.get('kokoroOK')) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().then(measure).catch(() => {}); }
+  else if (IS_DESKTOP_APP) { Log.i('tts', 'Desktop app: downloading the on-device voice'); Voice.loadTTS(false, true).then(measure).catch(() => {}); }
 }, 4000);
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
 

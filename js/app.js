@@ -124,10 +124,12 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'neural', ttsVoice: 'af_heart', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
   convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
+// Replies: Automatic (the device's voice unless Kokoro is fast here) replaces the old default, the natural voice, once.
+if (!store.get('ttsAuto')) { if (settings.tts === 'neural') settings.tts = 'auto'; store.set('ttsAuto', true); store.set('settings', settings); }
 if (!store.get('sttNative')) { if (settings.stt === 'whisper') settings.stt = 'browser'; store.set('sttNative', true); store.set('settings', settings); }
 
 const WALLS = [
@@ -1281,11 +1283,13 @@ function renderSettings() {
       ${tog('cmdTone', 'Sound when a command runs', 'A soft tone as soon as it knows what you asked for')}
       ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
       ${store.get('whisperOK') || (settings.stt !== 'whisper' && !((typeof Voice !== 'undefined' && !SR))) ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
-      ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? '' : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
-      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this phone, works offline' : (typeof IS_DESKTOP_APP !== 'undefined' && IS_DESKTOP_APP ? 'Kokoro · natural voice on this computer, downloading in the background' : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the phone’s voice until then`)) : settings.tts === 'phone' ? 'The phone’s built-in voice' : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['neural', 'On-device'], ['phone', 'Phone'], ['off', 'Off']])}</div>
+      ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">When your words stop changing for this long (sooner when they already are a command); “Recognizer” waits for its own end (about 2 s on an iPhone)</div></div>${seg('sttEnd', [['0.5', '0.5 s'], ['0.8', '0.8 s'], ['1.2', '1.2 s'], ['phone', 'Recognizer']])}</div>` : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
+      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${typeof Voice === 'undefined' ? '' : settings.tts === 'auto' ? (Voice.ttsMode() === 'neural' ? 'Automatic: the natural voice (fast enough on this device)' : `Automatic: ${IS_DESKTOP_APP ? 'the Mac’s' : 'the device’s'} own voice, which starts at once`) : settings.tts === 'phone' ? `${IS_DESKTOP_APP ? 'The Mac’s' : 'The device’s'} own voice` : settings.tts === 'neural' ? (store.get('kokoroOK') ? 'Kokoro · natural voice on this device, works offline (slower on some phones)' : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the device’s voice until then`) : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['auto', 'Automatic'], ['phone', IS_DESKTOP_APP ? 'Mac' : 'Device'], ['neural', 'Natural'], ['off', 'Off']])}</div>
+      ${settings.tts !== 'off' && typeof Voice !== 'undefined' && Voice.ttsMode() === 'phone' ? btn('phoneVoice', 'Reply voice', `${PhoneVoices.pick()?.name || 'Default'}${settings.phoneVoice ? '' : ` · ${settings.voiceGender === 'male' ? 'male' : 'female'}, chosen automatically`}`) : ''}
       ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
       ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
       ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}
+      ${btn('voiceCheck', 'Check the voices', 'How fast each voice is on this device')}
       ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
     </div>
@@ -1424,6 +1428,23 @@ const ACTIONS = {
   radio: () => Radio.browse(),
   ttsGpu: () => { Diag.set('device', 'webgpu'); ACTIONS.ttsModel(); },
   versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),
+  phoneVoice: async () => {
+    await PhoneVoices.ready(1500);
+    const g = settings.voiceGender === 'male' ? 'male' : 'female', other = g === 'male' ? 'female' : 'male', pick = PhoneVoices.pick();
+    const set = (k, v) => { settings[k] = v; applySettings(); renderSettings(); Voice.speak('This is how I sound.'); };
+    sheet('Reply voice', `<p>${IS_DESKTOP_APP ? 'The Mac’s' : 'The device’s'} own voices for ${esc(PhoneVoices.want())}. Automatic picks the best one for the language and the kind of voice you choose; more voices: ${isIOS ? 'Settings › Accessibility › Spoken Content › Voices' : IS_DESKTOP_APP ? 'System Settings › Accessibility › Spoken Content' : 'your system’s speech settings'}.</p>`,
+      [[`Automatic · ${g}${settings.phoneVoice ? '' : ' ✓'}`, () => set('phoneVoice', '')], [`Automatic · ${other}`, () => { settings.voiceGender = other; set('phoneVoice', ''); }],
+       ...PhoneVoices.ranked().slice(0, 14).map(v => [`${v.name} · ${v.lang}${PhoneVoices.gender(v) ? ` · ${PhoneVoices.gender(v)}` : ''}${settings.phoneVoice === v.voiceURI ? ' ✓' : ''}`, () => set('phoneVoice', v.voiceURI)]), ['Close']]);
+  },
+  voiceCheck: async () => {
+    sheet('Checking the voices', '<p>Saying “Voice check” with the device’s voice, then timing the natural voice if it’s downloaded…</p>', [['Close']]);
+    const r = await Voice.checkVoices(), P = r.phone, N = r.neural, fast = N && !N.error && N.speed <= 0.8;
+    const line = (t, s) => `<div class="row"><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div></div>`;
+    sheet('Voice check', `<div class="group">${line(IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', P ? (P.error ? `Didn’t start (${esc(P.error)}): ${P.voices} voices` : `Started in ${P.startMs} ms · ${esc(P.voice)}`) : 'Not available here')}
+      ${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
+      <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : N && !N.error ? 'The natural voice is too slow here for replies without pauses: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice, which starts at once.'}</p>`,
+      [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }], ['Close']]);
+  },
   ttsVoice: () => sheet('Reply voice', '<p>The on-device voice that answers you and reads directions.</p>',
     [...Object.entries(TTS_VOICES).map(([id, [name]]) => [name + (settings.ttsVoice === id ? ' ✓' : ''), () => { settings.ttsVoice = id; applySettings(); renderSettings(); Voice.speak('This is how I sound.'); }]), ['Cancel']]),
   ttsModel: () => { Voice.open(); Voice.show('Downloading the reply voice…', 'Kokoro · one time'); Voice.loadTTS(true).then(() => { Voice.show('Reply voice ready', 'Works offline from now on'); Voice.speak('Reply voice ready.'); Voice.closeT = setTimeout(() => Voice.close(), 2500); if (current === 'settings') renderSettings(); }).catch(e => { console.warn(e); Voice.show('Couldn’t download the reply voice', 'Check the connection and try again'); }); },

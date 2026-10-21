@@ -279,6 +279,7 @@ const Convo = {
     if (!this.active || this.micPaused) return false;
     this.micPaused = true; Log.d('duplex', 'Microphone paused for the device voice');
     NativeSR.stop(); AudioEngine.stop(); Voice.session('playback', true);
+    await new Promise(r => setTimeout(r, 300)); // let iOS move the audio from record to the loudspeaker before speaking
     return true;
   },
   async micResume() {

@@ -301,7 +301,15 @@ const VOICE_NAMES = {
 /** Words that already are a whole command with nothing left to fill in (“what can I say”, “next slide”): listening can end sooner. */
 const quickCmd = t => { if (typeof Commands === 'undefined') return false; const m = Commands.match(t); return m.how === 'phrase' && !Object.entries(m.vars || {}).some(([k, v]) => k !== 'text' && v); };
 const PhoneVoices = {
-  list: () => ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => !VOICE_NAMES.novelty.test(v.name)),
+  /** Each voice once: iOS lists a voice in several qualities (super-compact, compact, enhanced/premium): keep the best. */
+  list() {
+    const q = v => /premium/i.test(v.voiceURI) ? 4 : /enhanced/i.test(v.voiceURI) ? 3 : /super-compact/i.test(v.voiceURI) ? 1 : 2, best = new Map();
+    for (const v of ('speechSynthesis' in window ? speechSynthesis.getVoices() : [])) {
+      if (VOICE_NAMES.novelty.test(v.name)) continue;
+      const k = `${v.name}|${v.lang}`, o = best.get(k); if (!o || q(v) > q(o)) best.set(k, v);
+    }
+    return [...best.values()];
+  },
   /** iOS fills the list a moment after the first call (it was empty when the phone voice stayed silent). */
   ready(ms = 800) {
     if (this.list().length || !('speechSynthesis' in window)) return Promise.resolve(this.list());
@@ -316,7 +324,7 @@ const PhoneVoices = {
       + (this.gender(v) === (settings.voiceGender || 'female') ? 25 : 0) + (/enhanced|premium|natural|neural|siri/i.test(v.name) ? 10 : 0) + (v.localService ? 20 : 0); // on the device beats an online voice (Chrome's “Google …” voices go to Google)
     return this.list().filter(v => l(v).startsWith(base)).sort((a, b) => score(b) - score(a));
   },
-  pick() { return (settings.phoneVoice && this.list().find(v => v.voiceURI === settings.phoneVoice)) || this.ranked()[0] || null; },
+  pick() { return (settings.phoneVoice && ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).find(v => v.voiceURI === settings.phoneVoice)) || this.ranked()[0] || null; },
 };
 
 /* StudioGen: Apple's speech recognizer through the desktop app (desktop/speech.js), shaped like the Web Speech API that
@@ -469,6 +477,7 @@ const Voice = {
       this.session('playback'); // out of play-and-record after listening
       for (let attempt = 0; attempt < 2; attempt++) {
         const r = await this.phoneOnce(text, id, attempt);
+        if (r === 'nostart' && !this.phoneUnlocked && isIOS) { Log.w('tts', 'Phone voice not unlocked yet (no tap since the app opened)', { text }); if (Date.now() - (this.voicelessAt || 0) > 60000) { this.voicelessAt = Date.now(); toast('Tap once to turn on spoken replies'); } return; }
         if (r !== 'nostart') return;
         Log.w('tts', 'Phone voice didn’t start: resetting it', { attempt, voices: speechSynthesis.getVoices().length });
         try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
@@ -1058,6 +1067,8 @@ setTimeout(() => {
   else if (IS_DESKTOP_APP) { Log.i('tts', 'Desktop app: downloading the on-device voice'); Voice.loadTTS(false, true).then(measure).catch(() => {}); }
 }, 4000);
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
+// iOS counts a finished tap (click / touchend), not the touch going down, as leave to speak: unlock the device voice there too.
+for (const ev of ['click', 'touchend']) addEventListener(ev, () => Voice.primePhone(), { capture: true, passive: true });
 
 /* ---------- Assistant widget: a hands-free conversation view ---------- */
 // Text size: by default it follows the widget's size (smaller widget, smaller text); the ⚙ settings can fix it instead.

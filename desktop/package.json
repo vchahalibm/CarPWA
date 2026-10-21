@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "speech": "sh speech/build.sh",
-    "dist": "sh speech/build.sh && electron-builder --mac dmg zip --arm64 --x64",
+    "ai": "sh ai/build.sh",
+    "dist": "sh speech/build.sh && sh ai/build.sh && electron-builder --mac dmg zip --arm64 --x64",
     "dist:dir": "electron-builder --dir"
   },
   "devDependencies": {
@@ -31,6 +32,7 @@
       "tasks.js",
       "data.js",
       "speech.js",
+      "ai.js",
       "link.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
@@ -40,6 +42,10 @@
       {
         "from": "speech/bin/sg-speech",
         "to": "sg-speech"
+      },
+      {
+        "from": "ai/bin/sg-ai",
+        "to": "sg-ai"
       },
       {
         "from": "..",

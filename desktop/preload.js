@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     abort: () => ipcRenderer.invoke('dd:speech-abort'),
     on: f => { const h = (e, m) => f(m); ipcRenderer.on('dd:speech', h); return () => ipcRenderer.removeListener('dd:speech', h); },
   } : null)(ipcRenderer.sendSync('dd:speech-available')),
+  /** Apple's on-device language model (desktop/ai.js): status() → { available, reason }; ask({ instructions, prompt,
+      schema, temperature, max }) → { text } or, with a JSON schema, { json } (a string), or { error }. */
+  ai: ipcRenderer.sendSync('dd:ai-available') ? { status: () => ipcRenderer.invoke('dd:ai-status'), ask: o => ipcRenderer.invoke('dd:ai-ask', o) } : null,
   /** The link to DriveGen (desktop/link.js): status() → { listening, tailscale, signedIn, url, sharing, devices, pairing },
       share(on) on the tailnet, pair() → { code, until }, revoke(id); onAsk(f): f(kind, payload) answers DriveGen's requests
       ('offers', 'run', 'say', 'paired'). */

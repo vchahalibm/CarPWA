@@ -596,10 +596,13 @@ const Commands = {
     }
     if (typeof Script !== 'undefined' && Script.hear(raw)) return; // a running script's own words ("next", "go back"…) come first
     const r = this.match(raw, alts);
-    if (!r.cmd) return say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
+    const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
+    // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
+    if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();
     if (r.how === 'loose' && r.conf < LOOSE_RUN) {
-      this.pending = { r, raw, at: Date.now() };
-      return say(`Did you mean “${r.echo}”?`, null, { ask: true });
+      const ask = () => { this.pending = { r, raw, at: Date.now() }; return say(`Did you mean “${r.echo}”?`, null, { ask: true }); };
+      // unsure: the on-device model's pick by meaning first, the “Did you mean” question if it has none
+      return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, ask) : ask();
     }
     this.exec(r, raw, say);
   },

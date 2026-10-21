@@ -71,6 +71,7 @@ const Direct = {
     if (kind === 'offers') return { name: APP_NAME, scripts: LinkHost.scripts().map(s => ({ id: s.id, name: s.name, about: s.json.about || '' })) };
     if (kind === 'run') return LinkHost.run({ ...p, from });
     if (kind === 'say') return LinkHost.say({ ...p, from });
+    if (kind === 'ai') return MacAI.answer(p); // a paired phone uses this Mac's on-device model (js/brain.js)
     throw new Error(`Unknown request ${kind}`);
   },
   call(kind, payload = {}, ms = 600000) {

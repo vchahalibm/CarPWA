@@ -33,12 +33,17 @@ jobs:
         env:
           WEB_VERSION: ${{ github.run_number }}
           COMMIT: ${{ github.sha }}
+      - name: Newest Xcode (Apple's on-device model needs the macOS 26 SDK)
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1); [ -n "$X" ] && sudo xcode-select -s "$X"; xcodebuild -version | head -1
       - name: Install
         working-directory: desktop
         run: npm ci
       - name: Build the DMGs and zipped apps (ad-hoc signed)
         working-directory: desktop
         run: npm run dist
+      - name: The model helper has Apple's framework
+        run: desktop/ai/bin/sg-ai --built-with
       - name: Pack and sign the update feed
         run: node tools/release/make-update.mjs pack update-out
         env:

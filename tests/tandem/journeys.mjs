@@ -63,6 +63,11 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: '1:1 with the paired Mac', ...say(P, 'run the daily brief on my mac'), check: async () => since(await st(P), S.t0, /three meetings/i) || `last reply: ${lastReply(await st(P)) || 'none'}`, wait: 90 },
       { title: 'Studio A’s Activity shows the request', check: async () => (await st(A)).mesh?.events?.some(e => e.kind === 'request') || 'no request in the activity yet', wait: 60 },
     ],
+    meaning: [
+      { title: 'The phone is understood by meaning, through its Mac (Apple’s on-device model)', ...say(P, 'is it going to pour later'),
+        check: async () => { const [a, p] = await Promise.all([st(A), st(P)]); return !a.ai || since(p, S.t0, /degrees|rain|drizzle|sunny|cloud/i) || `last reply: ${lastReply(p) || 'none'}`; }, wait: 60 },
+      { title: 'And on the Mac itself', ...say(A, 'switch the gauges to a different look'), check: async () => { const a = await st(A); return !a.ai || since(a, S.t0, /style/i) || `last reply: ${lastReply(a) || 'none'}`; }, wait: 60 },
+    ],
     ask: [
       { title: 'Run a script on the other Mac, through the mesh', ...say(P, 'run the sales summary on studio b', 'Mesh › Who’s around › Studio B › <b>▶ Sales summary</b>'),
         check: async () => since(await st(P), S.t0, /12 percent/i) || `last reply: ${lastReply(await st(P)) || 'none'}`, wait: 90 },

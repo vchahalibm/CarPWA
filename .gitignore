@@ -7,3 +7,4 @@ vendor/models/_cand/
 tests/net/out/
 tests/tandem/out/
 desktop/speech/bin/
+desktop/ai/bin/

@@ -46,6 +46,8 @@ const Link = {
   /** Wait for a job on the Mac (long polls of 25 s), up to 10 minutes. */
   async job(id) { const t0 = Date.now(); for (;;) { const j = await this.call(`/api/jobs/${id}?wait=25`, null, 40000); if (j.state !== 'running' || Date.now() - t0 > 600000) return j; } },
   async run(script, vars = {}) { if (this.direct()) return this.viaDirect(Direct.call('run', { script, vars })); if (this.relay()) return this.viaDirect(Relay.call('run', { script, vars })); const { job } = await this.call('/api/run', { script, vars }); return this.job(job); },
+  /** Apple's on-device model on the Mac (js/brain.js › MacAI), for this phone. */
+  async ai(o) { if (this.direct()) return Direct.call('ai', o, 30000); if (this.relay()) return Relay.call('ai', o, 30000); return this.call('/api/ai', o, 30000); },
   async say(text) { if (this.direct()) return this.viaDirect(Direct.call('say', { text })); if (this.relay()) return this.viaDirect(Relay.call('say', { text })); const { job } = await this.call('/api/say', { text }); return this.job(job); },
   /** What came back, as something to say. */
   spoken(j) { if (j.state === 'failed') return `It didn’t work on your Mac: ${j.error || 'no reason given'}.`; const r = j.result; return (j.said || []).join(' ') || (r != null && typeof r !== 'object' ? String(r) : '') || 'Done on your Mac.'; },
@@ -151,6 +153,7 @@ if (window.DriveDeckDesktop?.link) DriveDeckDesktop.link.onAsk(async (kind, p) =
   if (kind === 'offers') return { name: APP_NAME, scripts: LinkHost.scripts().map(s => ({ id: s.id, name: s.name, about: s.json.about || '' })) };
   if (kind === 'run') return LinkHost.run(p);
   if (kind === 'say') return LinkHost.say(p);
+  if (kind === 'ai') return MacAI.answer(p);
   if (kind === 'paired') { toast(`${p.name} is paired`); if (!$('#sheet').hidden && $('#sheet .lk')) LinkHost.settings(); return true; }
   throw new Error(`Unknown request ${kind}`);
 });

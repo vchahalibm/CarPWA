@@ -16,7 +16,7 @@ const BRAIN_MODELS = { anthropic: ['claude-opus-5-5', 'claude-sonnet-5-5', 'clau
 const Brain = {
   cfg: () => ({ provider: 'off', model: '', url: 'http://localhost:11434/v1', ...store.get('llm', {}) }),
   key: () => store.get('llmKey', ''),
-  ready() { const c = this.cfg(); return c.provider === 'anthropic' ? !!this.key() : c.provider === 'openai' ? !!c.url : false; },
+  ready() { const c = this.cfg(); return c.provider === 'anthropic' ? !!this.key() : c.provider === 'openai' ? !!c.url : c.provider === 'mac' ? MacAI.can() : false; },
   /** One question → the model's text. */
   async complete(system, user, max = 400) {
     const c = this.cfg(), ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
@@ -35,6 +35,7 @@ const Brain = {
         const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `${r.status}`);
         return j.choices?.[0]?.message?.content || '';
       }
+      if (c.provider === 'mac') return await MacAI.text(system, user, max); // Apple's on-device model: this Mac, or the paired Mac for a phone
       throw new Error('No model set up (Settings › Assistant › Understanding)');
     } finally { clearTimeout(t); }
   },
@@ -43,6 +44,13 @@ const Brain = {
     const list = intents.map(i => ({ id: i.id, title: i.title, examples: i.on.slice(0, 4), slots: [...new Set([...Object.keys(i.ask || {}), ...i.on.flatMap(p => [...p.matchAll(/\{(\w+)\}/g)].map(m => m[1]))])] }));
     const sys = 'You route what a user said to a voice assistant to one of the actions it can take. Reply with JSON only, no prose: {"intent": "<an id from the list, or null>", "slots": {"<slot>": "<value from what they said>"}, "say": "<if no intent fits: a short, friendly spoken reply, at most two sentences>"}.';
     const known = Object.fromEntries(Object.entries(vars).filter(([, v]) => typeof v !== 'object').slice(0, 20));
+    if (this.cfg().provider === 'mac') { // the on-device model answers in exactly this shape
+      const slotNames = [...new Set(list.flatMap(i => i.slots))];
+      const schema = { type: 'object', required: ['intent'], properties: { intent: { type: 'string', enum: [...list.map(i => i.id), 'none'] }, say: { type: 'string', description: 'if no action fits: a short answer to say' }, ...Object.fromEntries(slotNames.map(n => [n, { type: 'string', description: `the ${n}, from what was said` }])) } };
+      const j = JSON.parse((await MacAI.ask({ instructions: sys, prompt: `Actions: ${JSON.stringify(list)}\nKnown values: ${JSON.stringify(known)}\nThe user said: “${text}”`, schema, temperature: 0, max: 200 })).json || '{}');
+      const r = { intent: j.intent && j.intent !== 'none' ? j.intent : null, slots: Object.fromEntries(slotNames.filter(n => j[n] && !/^(none|null)$/i.test(j[n])).map(n => [n, j[n]])), say: j.intent === 'none' ? j.say : undefined };
+      Log.i('brain', 'Routed (this Mac)', { intent: r.intent, slots: r.slots }); return r;
+    }
     const out = await this.complete(sys, `Actions: ${JSON.stringify(list)}\nKnown values: ${JSON.stringify(known)}\nThe user said: “${text}”`, 300);
     const m = out.match(/\{[\s\S]*\}/); if (!m) return { say: out.trim().slice(0, 300) };
     const r = JSON.parse(m[0]); if (r.intent && !intents.some(i => i.id === r.intent)) r.intent = null;
@@ -57,7 +65,7 @@ const Brain = {
   settings() {
     const c = this.cfg(), o = (v, cur, l = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(l)}</option>`;
     sheet('Understanding (optional)', `<p class="se-note">In interactive scripts the assistant matches what you say to what it can do on this device. A language model can take over when nothing matches (and scripts can ask it questions). What you said is sent to the provider only then.</p>
-      <label class="se-field"><span>Model</span><select id="llmP">${o('off', c.provider, 'Off: only the phrases in scripts')}${o('anthropic', c.provider, 'Claude (your Anthropic API key)')}${o('openai', c.provider, 'OpenAI-compatible server (Ollama, LM Studio, others)')}</select></label>
+      <label class="se-field"><span>Model</span><select id="llmP">${o('off', c.provider, 'Off: only the phrases in scripts')}${o('mac', c.provider, IS_DESKTOP_APP ? 'This Mac (Apple, on-device, private, free)' : 'My Mac (Apple, on-device, through the link)')}${o('anthropic', c.provider, 'Claude (your Anthropic API key)')}${o('openai', c.provider, 'OpenAI-compatible server (Ollama, LM Studio, others)')}</select></label>
       <label class="se-field"><span>Which model</span><input id="llmM" class="se-wz-in" list="llmML" value="${esc(c.model)}" placeholder="${c.provider === 'openai' ? 'llama3.2' : BRAIN_MODELS.anthropic[0]}"><datalist id="llmML">${BRAIN_MODELS.anthropic.map(m => `<option value="${m}">`).join('')}</datalist></label>
       <label class="se-field"><span>Server address (OpenAI-compatible)</span><input id="llmU" class="se-wz-in" value="${esc(c.url)}"></label>
       <label class="se-field"><span>API key (kept on this device; not needed for a local server)</span><input id="llmK" class="se-wz-in" type="password" value="${esc(this.key())}" autocomplete="off"></label>`,
@@ -67,3 +75,82 @@ const Brain = {
 };
 ACTIONS.brain = () => Brain.settings();
 Actions.define('brain.ask', { group: 'Scripts', name: 'Ask the model (Understanding)', arg: 'The question ({variables} are filled in); keep the answer with “as”', run: v => Brain.ask(v) });
+
+/* ---------- Apple's on-device model (Foundation Models): StudioGen through its helper (desktop/ai), a phone through its
+   paired Mac (the link's 'ai' request, js/link.js). Needs macOS 26+, Apple silicon, Apple Intelligence on. ---------- */
+const MacAI = {
+  local: () => !!window.DriveDeckDesktop?.ai,
+  /** Possible here: this Mac has the helper, or this phone has a link to its Mac (which may still say it can't). */
+  can() { return this.local() || (!LINK_HOST && typeof Link !== 'undefined' && Link.ready() && Date.now() > (this.noUntil || 0)); },
+  async status() { if (this.local()) return (this.st ||= await DriveDeckDesktop.ai.status()); return { available: this.can(), via: 'your Mac' }; },
+  /** { instructions, prompt, schema?, temperature?, max? } → { text } or { json }. */
+  async ask(o) {
+    const t0 = performance.now(); let r;
+    if (this.local()) r = await DriveDeckDesktop.ai.ask(o);
+    else if (!LINK_HOST && typeof Link !== 'undefined' && Link.ready()) { try { r = await Link.ai(o); } catch (e) { if (/not available|macOS 26|Apple Intelligence|Unknown request/i.test(e.message)) this.noUntil = Date.now() + 600000; throw e; } }
+    else throw new Error('Apple’s on-device model needs StudioGen on a Mac (macOS 26 or later)');
+    if (r?.error) { if (/not available|macOS 26|Apple Intelligence/i.test(r.error)) this.noUntil = Date.now() + 600000; throw new Error(r.error); }
+    Log.d('brain', `Mac model answered in ${Math.round(performance.now() - t0)} ms`, { json: !!r.json }); return r;
+  },
+  async text(system, user, max) { return (await this.ask({ instructions: system, prompt: user, max, temperature: 0.3 })).text || ''; },
+  /** On StudioGen: a paired phone's request (Direct.handle / LinkHost 'ai'): run it here, within limits. */
+  async answer(p) { if (!this.local()) throw new Error('Apple’s on-device model isn’t available on this Mac'); return DriveDeckDesktop.ai.ask({ instructions: p.instructions, prompt: p.prompt, schema: p.schema, temperature: p.temperature, max: p.max }); },
+};
+
+/* ---------- Commands by intent: when no phrase matched, the on-device model picks the command and fills its slots
+   (one of this device's commands, described by name and an example; known script, device and contact names as
+   hints). A phone asks its Mac. Things that are hard to undo (calls, messages, removing devices…) are asked first. ---------- */
+const Intent = {
+  RISKY: /^(phone\.(call|text|whatsapp)|mesh\.(remove|leave|deny|private)|link\.rekey)/,
+  // always in the shortlist: everyday things asked in words that share nothing with their phrases (“is it going to pour?”)
+  CORE: ['info.weather', 'info.time', 'info.date', 'info.help', 'nav.to', 'nav.eta', 'nav.nearby', 'music.play', 'music.pause', 'phone.call', 'phone.read', 'mesh.who', 'mac.run'],
+  can: () => MacAI.can(),
+  /** The commands: id, what it does, one way to say it, the words it needs (its {slots}). */
+  catalog() {
+    const eg = l => String(l).replace(/\[[^\]]*\]\s*/g, '').replace(/\(([^)|]*)[^)]*\)/g, '$1').replace(/\{(\w+)\}/g, '<$1>').replace(/\s+/g, ' ').trim();
+    return Commands.all().filter(c => c.on !== false && (c.match || 'phrase') !== 'regex').map(c => {
+      const say = [].concat(c.say || []).map(String), slots = [...new Set(say.flatMap(l => [...l.matchAll(/\{(\w+)\}/g)].map(m => m[1])))];
+      const ex = (c.match === 'keywords' ? say.slice(0, 2).map(l => l.replace(/[|,]/g, ' ')) : say.slice(0, 2).map(eg)).map(x => x.slice(0, 50));
+      return { id: c.id, name: c.name, eg: ex, slots, words: `${c.name} ${say.join(' ')}`.toLowerCase() };
+    });
+  },
+  /** The commands worth showing the model for this: those sharing words with what was said (stems), at most 20. */
+  shortlist(text, cat) {
+    const stop = /^(the|a|an|to|me|my|i|you|it|is|of|on|in|for|and|or|please|can|could|would|what|let|some|that|this|be|do|up|with|at|from)$/;
+    const stem = w => w.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/(ing|ed|es|s)$/, '').slice(0, 6);
+    const words = text.split(/\s+/).map(stem).filter(w => w.length > 2 && !stop.test(w));
+    const scored = cat.map(c => ({ c, n: words.filter(w => c.words.includes(w)).length })).sort((a, b) => b.n - a.n);
+    const top = scored.filter(x => x.n > 0).slice(0, 16).map(x => x.c);
+    return [...new Set([...top, ...cat.filter(c => this.CORE.includes(c.id))])];
+  },
+  hints(text = '') {
+    const h = {};
+    try { h.scripts = Scripts.all().map(s => s.name).slice(0, 30); } catch {}
+    try { if (typeof Mesh !== 'undefined' && Mesh.m) h.devices = Mesh.members().map(x => x.name); } catch {}
+    // people only when one was named: a list of names made the model put “Mom” into “who called me”
+    try { if (typeof CONTACTS !== 'undefined') { const ppl = CONTACTS.map(c => c.n || c.name).filter(n => n && new RegExp(`\\b${n.split(' ')[0]}\\b`, 'i').test(text)); if (ppl.length) h.people = ppl; } } catch {}
+    return h;
+  },
+  request(text) {
+    const cat = this.shortlist(text, this.catalog()), h = this.hints(text), slots = [...new Set(cat.flatMap(c => c.slots))];
+    const instructions = `You map what someone said to a voice assistant (in a car and presentation app) to one of its commands, or "none" if nothing fits well. Commands (id: what it does, e.g. how it's said):\n${cat.map(c => `- ${c.id}: ${c.name} (e.g. ${c.eg.map(e => `“${e}”`).join(', ')})${c.slots.length ? ` [${c.slots.join(', ')}]` : ''}`).join('\n')}\nRules: pick by meaning, not by shared words; asking about something that happened (messages, calls) is reading, not sending. Fill only the words the chosen command needs (in brackets) and only with words that were said; never invent a name${h.scripts ? `. Scripts are: ${h.scripts.join(', ')}` : ''}${h.devices ? `. Devices are: ${h.devices.join(', ')}` : ''}${h.people ? `. People named: ${h.people.join(', ')}` : ''}.`;
+    const schema = { type: 'object', required: ['intent'], properties: { intent: { type: 'string', enum: [...cat.map(c => c.id), 'none'] }, ...Object.fromEntries(slots.map(s => [s, { type: 'string', description: `the ${s}, if the command needs it` }])) } };
+    return { instructions, prompt: text, schema, temperature: 0, max: 200 };
+  },
+  /** What was heard and matched nothing → a command (run, or asked first), else `fallback()`. */
+  async handle(raw, say, fallback) {
+    Voice.show(`“${raw}”`, MacAI.local() ? 'Understanding…' : 'Asking your Mac…');
+    let j; const t0 = performance.now();
+    try { const r = await MacAI.ask(this.request(raw)); j = JSON.parse(r.json || '{}'); }
+    catch (e) { Log.w('cmd', 'Commands by intent: no answer', { error: e.message }); return fallback(); }
+    const c = j.intent && j.intent !== 'none' && Commands.all().find(x => x.id === j.intent);
+    Log.i('cmd', `“${raw}” → ${c ? c.id : 'nothing'} (by intent, ${Math.round(performance.now() - t0)} ms)`, { answer: j });
+    if (!c) return fallback();
+    const want = new Set([].concat(c.say || []).flatMap(l => [...String(l).matchAll(/\{(\w+)\}/g)].map(m => m[1])));
+    const vars = { text: raw, q: '' }; for (const k of want) { const v = String(j[k] ?? '').trim(); if (v && !/^(none|null|n\/a)$/i.test(v)) vars[k] = v; }
+    if ([...want].some(k => !vars[k]) && want.size) { Log.d('cmd', 'By intent: a needed word is missing', { want: [...want], vars }); }
+    const r = { cmd: c, vars, how: 'intent', echo: `${c.name}${Object.entries(vars).filter(([k, v]) => v && k !== 'text').map(([, v]) => ` · ${v}`).join('')}` };
+    if (this.RISKY.test(c.id)) { Commands.pending = { r, raw, at: Date.now() }; return say(`Did you mean “${r.echo}”?`, null, { ask: true }); }
+    Commands.exec(r, raw, say);
+  },
+};

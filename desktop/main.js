@@ -36,6 +36,7 @@ const Updates = require('./updater')({ app, net, bundled: BUNDLED });
 const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
 const Data = require('./data')({ app, dialog, getWindow: () => mainWin }); // SQLite (read-only) and data files for the data widget
 const Speech = require('./speech')({ app, getWindow: () => mainWin }); // Apple's speech recognizer (desktop/speech/main.swift) for voice commands
+const AI = require('./ai')({ app }); // Apple's on-device language model (desktop/ai/main.swift): the Brain's “This Mac” and commands by intent
 // The link to DriveGen on a phone or iPad (desktop/link.js): its requests are done by the page (js/link.js), asked here.
 const linkWaits = new Map();
 const linkAsk = (kind, payload) => new Promise((res, rej) => {
@@ -235,6 +236,10 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:speech-start', own(o => Speech.start(o)));
   ipcMain.handle('dd:speech-stop', own(() => Speech.stop()));
   ipcMain.handle('dd:speech-abort', own(() => Speech.abort()));
+  // The on-device language model (desktop/ai.js), when this Mac has it (macOS 26+, Apple Intelligence on).
+  ipcMain.on('dd:ai-available', e => { e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) && AI.available(); });
+  ipcMain.handle('dd:ai-status', own(() => AI.status()));
+  ipcMain.handle('dd:ai-ask', own(o => AI.ask(o).catch(e => ({ error: e.message }))));
   // The link to DriveGen (desktop/link.js): status, sharing on the tailnet, pairing, revoking; and the page's answers.
   ipcMain.handle('dd:link-status', own(() => Link.status()));
   ipcMain.handle('dd:link-share', own(on => Link.share(on)));
@@ -279,4 +284,4 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
-app.on('will-quit', () => { Speech.quit(); Updates.installShell(false); });
+app.on('will-quit', () => { Speech.quit(); AI.quit(); Updates.installShell(false); });

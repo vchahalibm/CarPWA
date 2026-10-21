@@ -44,6 +44,7 @@ module.exports = ({ app, ask }) => {
     }
     const d = who(req); if (!d) return send(res, 401, { error: 'Not paired (or revoked): pair again from Settings › Connections' });
     if (p === '/api/offers') return send(res, 200, await ask('offers', {}).catch(e => ({ error: e.message })));
+    if (p === '/api/ai' && req.method === 'POST') return send(res, 200, await ask('ai', await body(req)).catch(e => ({ error: e.message }))); // the on-device model, for this phone
     if ((p === '/api/run' || p === '/api/say') && req.method === 'POST') {
       const b = await body(req), id = crypto.randomBytes(5).toString('hex'), j = { id, state: 'running', from: d.name, started: Date.now() };
       jobs.set(id, j);

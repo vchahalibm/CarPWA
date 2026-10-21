@@ -1449,8 +1449,10 @@ const ACTIONS = {
   /** The natural voice on the graphics chip (WebGPU) instead of one CPU core: downloads the GPU build once, loads it, times
       it; if it fails, says why and the CPU build stays (an earlier failure is forgotten first, so it can be tried again). */
   voiceGpu: async () => {
-    sheet('Trying the GPU voice', '<p>Downloading the GPU version of the natural voice (310 MB, once; use Wi-Fi), then timing it…</p>', [['Close']]);
+    sheet('Trying the GPU voice', '<p>Downloading the GPU version of the natural voice (310 MB, once; use Wi-Fi), then timing it… Keep the app open. If it closes by itself, the phone ran out of memory for it, and that will be remembered.</p>', [['Close']]);
     const said = [], ow = Log.w, oe = Log.e, grab = f => (c, m, d) => { if (c === 'tts') said.push(`${m}${d?.message ? `: ${d.message}` : ''}`); return f(c, m, d); };
+    const blocked = Budget.tooBig('Reply voice webgpu fp32');
+    if (blocked) { store.set('tooBig', store.get('tooBig', []).filter(l => l !== 'Reply voice webgpu fp32')); Log.i('tts', 'GPU voice unblocked to try it again (the app had stopped while loading it once)'); }
     store.set('gpuFailed', false); Voice.resetTTS(); Diag.set('device', 'webgpu'); Log.w = grab(ow); Log.e = grab(oe);
     let r; try { await Voice.loadTTS(true); r = await Voice.checkVoices({ silent: true }); } catch (e) { said.push(e.message); } finally { Log.w = ow; Log.e = oe; }
     const N = r?.neural, gpu = Diag.get().device === 'webgpu' && !store.get('gpuFailed');

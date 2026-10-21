@@ -186,12 +186,16 @@ const Budget = {
   /** Run a model load, noting it so a crash during it is caught on the next launch. */
   async guard(label, f) {
     store.set('loadingModel', { label, at: Date.now(), others: [...this.loaded.keys()] });
-    try { return await f(); } finally { store.set('loadingModel', null); }
+    // iOS closing the app in the background mid-load isn't the model's fault: note it, so it isn't blocked for that
+    const hid = () => { if (document.hidden) { const m = store.get('loadingModel'); if (m?.label === label) store.set('loadingModel', { ...m, hidden: true }); } };
+    document.addEventListener('visibilitychange', hid);
+    try { return await f(); } finally { document.removeEventListener('visibilitychange', hid); store.set('loadingModel', null); }
   },
   /** At launch: did the app die while a model was loading last time? */
   boot() {
     const m = store.get('loadingModel'); if (!m) return;
     store.set('loadingModel', null);
+    if (m.hidden) { Log.w('mem', `The app was closed in the background while loading ${m.label}: not held against it`); return; }
     store.set('tooBig', [...new Set([...store.get('tooBig', []), m.label])]);
     if (m.others.length && store.get('slotsLost', 0) < 3) store.set('slotsLost', store.get('slotsLost', 0) + 1);
     Log.e('mem', `The app stopped while loading ${m.label}: skipping it on this device from now on`, { others: m.others, totalMB: this.total(), class: this.cls() });
@@ -308,7 +312,8 @@ function kokoroChunks(text) {
     if (sen.length <= 48) return sen;
     const parts = sen.split(/(?<=[,;:])\s+|\s+(?=(?:and|or|but)\s)/i), out = [];
     for (const p of parts) { if (out.length && (out[out.length - 1].length < 14 || p.length < 8)) out[out.length - 1] += ' ' + p; else out.push(p); }
-    return out.map(p => p.trim().replace(/[,;:]$/, '')).map(p => /[.!?]$/.test(p) ? p : p + '.').join(' ');
+    // each piece as its own sentence: a capital letter after the full stop, or Kokoro reads on (“…home. play…” stayed one)
+    return out.map(p => p.trim().replace(/[,;:]$/, '')).map(p => (/[.!?]$/.test(p) ? p : p + '.').replace(/^\p{Ll}/u, c => c.toUpperCase())).join(' ');
   }).join(' ');
 }
 const PhoneVoices = {

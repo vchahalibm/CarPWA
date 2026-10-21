@@ -1069,6 +1069,14 @@ $('#vOrb').addEventListener('click', () => Voice.rec ? Voice.stopRec() : Voice.s
 if (IS_DESKTOP_APP && !store.get('ttsDesktop')) { store.set('ttsDesktop', true); store.set('ttsAsked', true); }
 // Load the downloaded reply voice soon after launch, so even the first reply (or spoken direction) uses it. The desktop app
 // downloads it first if it isn't there yet.
+// Phones: what works without fuss (21 Oct, after the iPhone tests): the device's voice. The GPU voice is too big for a web
+// app on a phone (it crashed an iPhone 15 Pro Max), so it's dropped there; the natural voice, measured too slow, goes
+// back to Automatic once (it can still be chosen).
+if (!IS_DESKTOP_APP && Budget.cls() === 'phone' && !store.get('voiceSimple')) {
+  store.set('voiceSimple', true);
+  const d = store.get('diag', {}); if (d.device === 'webgpu') { delete d.device; store.set('diag', d); }
+  if (settings.tts === 'neural' && store.get('ttsSpeed', {}).r > 1.2) { settings.tts = 'auto'; store.set('settings', settings); Log.i('tts', 'Phone: the natural voice is too slow here, replies use the device voice (Automatic)'); }
+}
 // Automatic needs Kokoro's speed on this device: measured once after it loads (silently), so it can pick it when it keeps up.
 setTimeout(() => {
   const sp = store.get('ttsSpeed', {}), slow = sp.n >= 2 && sp.r > 0.8; // measured too slow here: not loaded for Automatic

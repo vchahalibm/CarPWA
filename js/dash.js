@@ -311,10 +311,11 @@ const Wcfg = {
 /** See-through background (widget types with `clear: true`, e.g. the Assistant and the Camera): on Stage, laid over other
     widgets, what's behind shows through. On by default there; the ⚙ settings switch it (Wcfg 'clear'). */
 const wclear = id => Dash.layout === 'stage' && W[wtype(id)]?.clear && Wcfg.get(id).clear !== false ? ' clear' : '';
-function clearSheet(id, extra = []) {
+/** A widget's ⚙ sheet with the see-through switch; `more` adds fields (html) and what to save from them (save → settings). */
+function clearSheet(id, extra = [], more = { html: '', save: () => ({}) }) {
   const name = W[wtype(id)].name, on = Wcfg.get(id).clear !== false;
-  sheet(`${name} widget`, `<label class="se-check"><input type="checkbox" id="wcClear" ${on ? 'checked' : ''}> See-through background on Stage</label><p class="se-note">Lay the widget over others (Edit › float) and what's behind it stays visible.</p>`,
-    [['Save', () => { Wcfg.set(id, { clear: $('#wcClear').checked }); Dash.render(); }], ...extra, ['Cancel']]);
+  sheet(`${name} widget`, `${more.html}<label class="se-check"><input type="checkbox" id="wcClear" ${on ? 'checked' : ''}> See-through background on Stage</label><p class="se-note">Lay the widget over others (Edit › float) and what's behind it stays visible.</p>`,
+    [['Save', () => { Wcfg.set(id, { clear: $('#wcClear').checked, ...more.save() }); Dash.render(); }], ...extra, ['Cancel']]);
 }
 /** Every widget instance currently on the dashboard (any page, column or pane). */
 function widgetIds() {

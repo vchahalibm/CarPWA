@@ -943,11 +943,15 @@ setTimeout(() => {
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
 
 /* ---------- Assistant widget: a hands-free conversation view ---------- */
-W.chat = { name: 'Assistant', html: () => `<div class="chatw">
+// Text size: by default it follows the widget's size (smaller widget, smaller text); the ⚙ settings can fix it instead.
+const CHAT_SIZES = [['', 'Automatic (fits the widget)'], ['12', 'Small (12)'], ['14', 'Medium (14)'], ['16', 'Normal (16)'], ['19', 'Large (19)'], ['23', 'Larger (23)']];
+W.chat = { name: 'Assistant', html: id => `<div class="chatw"${+Wcfg.get(id || 'chat').fs ? ` style="--chat-fs:${+Wcfg.get(id || 'chat').fs}px"` : ''}>
     <div class="chat-head"><b>Assistant</b><button class="chat-mic" data-action="assistant" aria-label="Talk">${svg('mic')}<span>Talk</span></button></div>
     <div class="chat-log" data-html="chat" data-scroll></div>
     <div class="chat-quick" data-html="chatQuick"></div>
-    <form class="chat-type" data-chattype><input name="t" placeholder="Type a command, e.g. who’s around" autocomplete="off" enterkeyhint="send" aria-label="Type a command"><button class="chat-send">Send</button></form></div>`, config: id => clearSheet(id), float: true, clear: true };
+    <form class="chat-type" data-chattype><input name="t" placeholder="Type a command, e.g. who’s around" autocomplete="off" enterkeyhint="send" aria-label="Type a command"><button class="chat-send">Send</button></form></div>`, float: true, clear: true,
+  config: id => clearSheet(id, [], { html: `<label class="se-field"><span>Text size</span><select id="wcFs">${CHAT_SIZES.map(([v, l]) => `<option value="${v}" ${String(Wcfg.get(id).fs || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`,
+    save: () => ({ fs: $('#wcFs').value }) }) };
 // Typing instead of talking (not while driving, when hiding is on): the same commands as speech
 document.addEventListener('submit', e => {
   const f = e.target.closest?.('[data-chattype]'); if (!f) return; e.preventDefault();

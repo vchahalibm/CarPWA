@@ -12,6 +12,22 @@ const { pathToFileURL } = require('url');
 
 const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the internal origin keeps its name: your data lives there
 const fs = require('fs');
+// Errors in this process: written with their stack to ~/Library/Logs/StudioGen/main.log (kept short), and shown once a
+// minute at most, instead of Electron's bare “A JavaScript error occurred in the main process” box. StudioGen keeps running.
+let lastErrBox = 0;
+function mainError(kind, e) {
+  const text = `${new Date().toISOString()} ${kind}: ${e?.stack || e}\n`;
+  try { const dir = app.getPath('logs'), f = path.join(dir, 'main.log'); fs.mkdirSync(dir, { recursive: true });
+    const old = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').slice(-150000) : ''; fs.writeFileSync(f, old + text); } catch {}
+  console.error(text);
+  if (kind === 'error' && app.isReady() && Date.now() - lastErrBox > 60000) {
+    lastErrBox = Date.now();
+    dialog.showMessageBox({ type: 'warning', message: 'StudioGen hit an error (it keeps running)', detail: `${e?.message || e}\n\nThe details are in ~/Library/Logs/StudioGen/main.log.`,
+      buttons: ['OK', 'Copy details'] }).then(r => { if (r.response === 1) require('electron').clipboard.writeText(text); }).catch(() => {});
+  }
+}
+process.on('uncaughtException', e => mainError('error', e));
+process.on('unhandledRejection', e => mainError('promise', e));
 // Renamed from DriveDeck: carry its folder over (settings, scripts, downloaded models), once, before anything opens it.
 try { const ud = app.getPath('userData'), old = path.join(path.dirname(ud), 'DriveDeck'); if (!fs.existsSync(ud) && fs.existsSync(old)) fs.renameSync(old, ud); } catch (e) { console.warn('Could not move the DriveDeck folder', e.message); }
 // Packaged: the web files are copied into Resources/web, and updates (desktop/updater.js) may serve newer ones. From source: the repo root.

@@ -8,10 +8,11 @@ const path = require('path'), fs = require('fs'), { spawn, execFileSync } = requ
 module.exports = ({ app, getWindow }) => {
   const bin = app.isPackaged ? path.join(process.resourcesPath, 'sg-speech') : path.join(__dirname, 'speech', 'bin', 'sg-speech');
   let proc = null, buf = '';
-  const send = m => getWindow()?.webContents.send('dd:speech', m);
+  const send = m => { const w = getWindow(); if (w && !w.isDestroyed()) w.webContents.send('dd:speech', m); };
   function helper() {
     if (proc) return proc;
     proc = spawn(bin, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    proc.stdin.on('error', () => {}); // written to just as it exited: 'exit' below starts over
     proc.stdout.on('data', d => {
       buf += d; let i;
       while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); try { send(JSON.parse(line)); } catch {} }

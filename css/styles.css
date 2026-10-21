@@ -921,17 +921,18 @@ svg{display:block;flex:none}
 .update-bar .big-btn{flex:none;height:56px;padding:0 18px;font-size:16px}
 
 /* Assistant widget: the conversation, big enough to glance at */
-.chatw{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+/* The Assistant's text: one base size from the widget's size (or fixed in its ⚙ settings: --chat-fs); the rest in em */
+.chatw{flex:1;min-height:0;display:flex;flex-direction:column;gap:.5em;font-size:var(--chat-fs,clamp(12px,5.2cqmin,24px))}
 .chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.chat-head b{font-size:16px}
+.chat-head b{font-size:1em}
 .chat-mic{min-height:56px;padding:0 18px;border-radius:999px;background:var(--acc);color:#000;font-weight:800;display:flex;align-items:center;gap:8px}
 .chat-mic svg{width:20px;height:20px}
-.chat-type{display:flex;gap:8px}.chat-type input{flex:1;min-width:0;min-height:56px;padding:0 16px;border-radius:999px;border:1px solid var(--line,rgba(127,127,127,.3));background:var(--card2,rgba(127,127,127,.12));color:inherit;font:inherit}.chat-send{min-height:56px;padding:0 20px;border-radius:999px;background:var(--acc);color:#000;font-weight:800}
+.chat-type{display:flex;gap:8px}.chat-type input{flex:1;min-width:0;min-height:56px;padding:0 16px;border-radius:999px;border:1px solid var(--line,rgba(127,127,127,.3));background:var(--card2,rgba(127,127,127,.12));color:inherit;font:inherit;font-size:.92em}.chat-send{min-height:56px;padding:0 20px;border-radius:999px;background:var(--acc);color:#000;font-weight:800}
 .chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;
   -webkit-mask-image:linear-gradient(transparent,#000 18px);mask-image:linear-gradient(transparent,#000 18px)}
 .chat-log::-webkit-scrollbar{display:none}
-.chat-day{align-self:center;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:4px 0}
-.chat-row{display:grid;gap:3px;max-width:94%;font-size:clamp(14px,4.6cqmin,19px)}
+.chat-day{align-self:center;font-size:.7em;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:4px 0}
+.chat-row{display:grid;gap:3px;max-width:94%;font-size:1em}
 .chat-row .bub{padding:8px 12px;line-height:1.3}
 .chat-row.you{align-self:flex-end;justify-items:end}
 .chat-row.you .bub{background:var(--acc);color:#000;border-radius:18px 18px 4px 18px;font-weight:700}
@@ -939,16 +940,16 @@ svg{display:block;flex:none}
 .chat-row.app .bub{background:var(--surface-3);border-radius:18px 18px 18px 4px}
 .chat-row.app .meta{grid-column:2}
 .chat-row .av svg{width:17px;height:17px}
-.chat-row .act{display:flex;align-items:center;gap:6px;margin-top:6px;min-height:56px;padding:0 14px;border-radius:14px;background:var(--panel-2);font-weight:700;font-size:14px}
+.chat-row .act{display:flex;align-items:center;gap:6px;margin-top:6px;min-height:56px;padding:0 14px;border-radius:14px;background:var(--panel-2);font-weight:700;font-size:.88em}
 .chat-row .act svg{width:18px;height:18px}
-.chat-row .meta{font-size:11px;color:var(--text-3);display:flex;gap:4px;align-items:center}
+.chat-row .meta{font-size:.7em;color:var(--text-3);display:flex;gap:4px;align-items:center}
 .chat-row .meta svg{width:11px;height:11px}
 .chat-quick{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:none}
 .chat-quick:empty{display:none}
-.chat-quick .chip{flex:none;min-height:44px}
-.chat-empty{margin:auto;text-align:center;color:var(--text-2);display:grid;gap:6px;justify-items:center;font-size:13px;padding:8px}
+.chat-quick .chip{flex:none;min-height:44px;font-size:.85em}
+.chat-empty{margin:auto;text-align:center;color:var(--text-2);display:grid;gap:6px;justify-items:center;font-size:.82em;padding:8px}
 .chat-empty svg{width:32px;height:32px;color:var(--acc)}
-.chat-empty b{color:var(--text);font-size:15px}
+.chat-empty b{color:var(--text);font-size:1.15em}
 /* Route hand-off and contacts */
 .eta-more{width:54px;height:54px;flex:none;border-radius:15px;display:grid;place-items:center;background:var(--surface-2)}
 .eta-more svg{width:22px;height:22px}

@@ -106,7 +106,7 @@ function simPhone(id, label, n) {
       await this.step('name', label); await this.step('tidy');
     },
     async state() { const r = reports[id]; return r && Date.now() - r.at < 10000 ? r : null; },
-    async step(name, a) { const sid = `${id}-${++seq}`; (queue[id] ||= []).push({ id: sid, step: name, arg: a }); for (let i = 0; i < 120; i++) { if (results[sid]) { if (results[sid].err) throw new Error(results[sid].err); return results[sid].out; } await sleep(250); } throw new Error('no answer'); },
+    async step(name, a) { const sid = `${id}-${++seq}`; (queue[id] ||= []).push({ id: sid, step: name, arg: a }); for (let i = 0; i < 1200; i++) { if (results[sid]) { if (results[sid].err) throw new Error(results[sid].err); return results[sid].out; } await sleep(250); } throw new Error('no answer'); },
     async clip(text) { execFileSync('xcrun', ['simctl', 'pbcopy', this.udid], { input: text }); return 'the iPhone’s clipboard (tap the box, then Paste)'; },
     async shot(file) { execFileSync('xcrun', ['simctl', 'io', this.udid, 'screenshot', '--type=jpeg', file], { stdio: 'ignore' }); },
   };

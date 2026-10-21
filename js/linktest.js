@@ -138,6 +138,15 @@ const Tandem = {
     tidy: () => { store.set('onboarded', true); closeSheet(); $('#locPrompt')?.setAttribute('hidden', ''); if (typeof ACTIONS !== 'undefined') ACTIONS.dismissInstall?.(); return true; },
     // the voices' speed here (silent), for the tandem tests
     voiceCheck: () => Voice.checkVoices({ silent: true }),
+    // Kokoro on the GPU (WebGPU) here: switch, load (downloads the GPU build once), time it
+    voiceGpu: async () => {
+      store.set('gpuFailed', false); Voice.resetTTS();
+      const before = { gpu: !!navigator.gpu, gpuOK: gpuOK(), device: Diag.get().device, adapter: await navigator.gpu?.requestAdapter?.().then(a => a ? { features: [...a.features].slice(0, 8), maxBuffer: a.limits?.maxBufferSize, maxStorage: a.limits?.maxStorageBufferBindingSize } : null).catch(e => e.message) };
+      const said = [], ow = Log.w, oe = Log.e, grab = f => (c, m, d) => { if (c === 'tts') said.push(`${m} ${d?.message || d?.error || ''} ${String(d?.stack || '').slice(0, 200)}`.trim()); return f(c, m, d); };
+      Log.w = grab(ow); Log.e = grab(oe); Diag.set('device', 'webgpu'); const t0 = performance.now();
+      try { await Voice.loadTTS(true); } catch (e) { Log.w = ow; Log.e = oe; return { before, said, error: e.message }; }
+      Log.w = ow; Log.e = oe;
+      return { before, said, loadMs: Math.round(performance.now() - t0), engine: Voice.tts?.kind, device: Diag.get().device, gpuFailed: !!store.get('gpuFailed'), check: await Voice.checkVoices({ silent: true }) }; },
     phrase: t => Relay.setPhrase(String(t)).then(() => true),
     command: t => { handleCommand(String(t).slice(0, 200)); return true; },
   },

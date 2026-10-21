@@ -1443,6 +1443,20 @@ const ACTIONS = {
     sheet('Voice check', `<div class="group">${line(IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', P ? (P.error ? `Didn’t start (${esc(P.error)}): ${P.voices} voices` : `Started in ${P.startMs} ms · ${esc(P.voice)}`) : 'Not available here')}
       ${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
       <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : N && !N.error ? 'The natural voice is too slow here for replies without pauses: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice, which starts at once.'}</p>`,
+      [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }],
+       ...(N && !N.error && N.speed > 0.8 && navigator.gpu && Diag.get().device !== 'webgpu' ? [['Try the GPU voice (310 MB)', () => ACTIONS.voiceGpu()]] : []), ['Close']]);
+  },
+  /** The natural voice on the graphics chip (WebGPU) instead of one CPU core: downloads the GPU build once, loads it, times
+      it; if it fails, says why and the CPU build stays (an earlier failure is forgotten first, so it can be tried again). */
+  voiceGpu: async () => {
+    sheet('Trying the GPU voice', '<p>Downloading the GPU version of the natural voice (310 MB, once; use Wi-Fi), then timing it…</p>', [['Close']]);
+    const said = [], ow = Log.w, oe = Log.e, grab = f => (c, m, d) => { if (c === 'tts') said.push(`${m}${d?.message ? `: ${d.message}` : ''}`); return f(c, m, d); };
+    store.set('gpuFailed', false); Voice.resetTTS(); Diag.set('device', 'webgpu'); Log.w = grab(ow); Log.e = grab(oe);
+    let r; try { await Voice.loadTTS(true); r = await Voice.checkVoices({ silent: true }); } catch (e) { said.push(e.message); } finally { Log.w = ow; Log.e = oe; }
+    const N = r?.neural, gpu = Diag.get().device === 'webgpu' && !store.get('gpuFailed');
+    sheet(gpu ? 'The GPU voice works' : 'The GPU voice didn’t work here', gpu && N && !N.error
+      ? `<p>${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech: ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (it was slower on the CPU).</p>`
+      : `<p>The natural voice stays on the CPU. The reason (also in Settings › Logs):</p><p class="se-note">${esc(said.filter(x => /fail|error|memory|adapter/i.test(x)).slice(-2).join(' · ') || 'unknown')}</p>`,
       [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }], ['Close']]);
   },
   ttsVoice: () => sheet('Reply voice', '<p>The on-device voice that answers you and reads directions.</p>',

@@ -1295,6 +1295,7 @@ function renderSettings() {
       ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
       ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}
       ${!IS_DESKTOP_APP && 'serviceWorker' in navigator ? btn('voiceThreads', 'Several CPU threads for the natural voice (test)', self.crossOriginIsolated ? 'On: the natural voice may use several threads. YouTube and web-page widgets may not show while it’s on' : 'Off: one thread. Turn on, then Check the voices with the natural voice') : ''}
+      ${!IS_DESKTOP_APP && self.crossOriginIsolated && typeof Voice !== 'undefined' ? btn('voiceThreadCount', 'Threads for the natural voice (test)', `${Diag.get().ttsThreads ? Diag.get().ttsThreads : `Automatic (${Voice.threadsUsed()})`}: tap for 2, 3, 4 or Automatic, then Check the voices`) : ''}
       ${btn('voiceCheck', 'Check the voices', 'How fast each voice is on this device')}
       ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
@@ -1460,12 +1461,17 @@ const ACTIONS = {
     sheet(on ? 'Several threads: on' : 'Several threads: off', `<p>Reloading the app${on ? '. Then choose the natural voice (Settings › Voice) and <b>Check the voices</b>: it shows how many threads it used and how fast it is.' : '.'}</p>`, []);
     setTimeout(() => location.reload(), 900);
   },
+  /** Test: how many CPU threads the natural voice uses (Automatic → 2 → 3 → 4 → Automatic); it reloads with the new number. */
+  voiceThreadCount: () => {
+    const order = ['', '2', '3', '4'], next = order[(order.indexOf(String(Diag.get().ttsThreads || '')) + 1) % order.length];
+    Diag.set('ttsThreads', next); Voice.resetTTS(); Log.i('tts', `Natural voice threads: ${next || 'automatic'}`); renderSettings(); toast(`Natural voice: ${next ? `${next} threads` : 'automatic threads'}. Check the voices to time it.`);
+  },
   voiceCheck: async () => {
     sheet('Checking the voices', '<p>Saying “Voice check” with the device’s voice, then timing the natural voice if it’s downloaded…</p>', [['Close']]);
     const r = await Voice.checkVoices(), P = r.phone, N = r.neural, fast = N && !N.error && N.speed <= 0.8;
     const line = (t, s) => `<div class="row"><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div></div>`;
     sheet('Voice check', `<div class="group">${line(IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', P ? (P.error ? `Didn’t start (${esc(P.error)}): ${P.voices} voices` : `Started in ${P.startMs} ms · ${esc(P.voice)}`) : 'Not available here')}
-      ${N?.threads ? line('Natural voice uses', `${N.threads} CPU thread${N.threads === 'one' ? '' : 's'}`) : ''}${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
+      ${N?.threads ? line('Natural voice uses', `${N.threads} CPU thread${N.threads === 'one' ? '' : 's'}${self.crossOriginIsolated ? ` (this device reports ${navigator.hardwareConcurrency} cores)` : ''}`) : ''}${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
       <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : N && !N.error ? 'The natural voice is too slow here for replies without pauses: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice, which starts at once.'}</p>`,
       [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }],
        ...(N && !N.error && N.speed > 0.8 && navigator.gpu && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? [['Try the GPU voice (310 MB)', () => ACTIONS.voiceGpu()]] : []), ['Close']]); // not on phones: it crashed an iPhone 15 Pro Max (too big for a web app there)

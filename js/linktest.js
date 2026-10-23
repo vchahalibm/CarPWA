@@ -153,11 +153,12 @@ const Tandem = {
     // several CPU threads for the natural voice (cross-origin isolation from sw.js): on or off, then the page reloads
     voiceThreads: async on => { const sw = await navigator.serviceWorker.ready; sw.active.postMessage({ type: 'coi', on: on === 'on' }); setTimeout(() => location.reload(), 1200); return { was: self.crossOriginIsolated }; },
     // the natural voice on the CPU here: load, a short check, then a 7-sentence reply
-    voiceBench: async () => {
+    voiceBench: async n => {
+      if (n) { Diag.set('ttsThreads', String(n)); Voice.resetTTS(); }
       Diag.set('device', 'wasm'); const t0 = performance.now(); await Voice.loadTTS(true); const loadMs = Math.round(performance.now() - t0);
       const text = 'You have six unread emails. Priya sent the revised contract for the Acme deal and needs your signature by Friday. Rahul asked whether the quarterly review can move to Thursday afternoon, since two people are travelling. The IT team says your password expires in three days, and you can reset it from the portal. Finance shared last month’s expense report, which is twelve percent over budget, mostly from travel. There is a newsletter from the design team about the new brand guidelines. Finally, your manager wants a short update on the pilot before Monday’s meeting.';
       const t1 = performance.now(), w = await Voice.tts.generate(text, 'af_heart'), ms = Math.round(performance.now() - t1), sec = w.f32.length / w.rate;
-      return { isolated: self.crossOriginIsolated, cores: navigator.hardwareConcurrency, loadMs, longMs: ms, longSec: +sec.toFixed(1), speed: +(ms / 1000 / sec).toFixed(2) }; },
+      return { isolated: self.crossOriginIsolated, cores: navigator.hardwareConcurrency, threads: Voice.threadsUsed(), loadMs, longMs: ms, longSec: +sec.toFixed(1), speed: +(ms / 1000 / sec).toFixed(2) }; },
     phrase: t => Relay.setPhrase(String(t)).then(() => true),
     command: t => { handleCommand(String(t).slice(0, 200)); return true; },
   },

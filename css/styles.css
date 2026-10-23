@@ -1472,7 +1472,8 @@ table.bench small{color:var(--text-2)}
 @media (orientation:portrait){ .mo-full-main{grid-template-columns:1fr;grid-template-rows:minmax(0,3fr) minmax(0,2fr)} }
 
 /* Desktop app: the window has no title bar, so the dock and a thin strip along the top move it. */
-.desktop-app .dock{-webkit-app-region:drag}
+.desktop-app .dock{-webkit-app-region:drag;padding-top:42px} /* below the window's close/minimize buttons */
+.desktop-app .gps-dot{display:none} /* location matters in the car, not on a Mac */
 .desktop-app .dock button,.desktop-app .dock a,.desktop-app .dock [data-action]{-webkit-app-region:no-drag}
 .desktop-app body::before{content:'';position:fixed;left:0;right:0;top:0;height:10px;z-index:9999;-webkit-app-region:drag}
 
@@ -1561,7 +1562,8 @@ table.bench small{color:var(--text-2)}
 .sp-grad{background:linear-gradient(90deg,#7fa6e6 0%,#9a90b8 38%,#c8746c 62%,#e0573b 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .sp-plain{color:var(--sp-ink,#111)}
 .sp-sub{margin:14px 0 0;max-width:620px;font-size:clamp(14px,1.4vw,18px);line-height:1.5;opacity:.72}
-.sp-avatar{position:absolute;z-index:1;left:52%;bottom:0;transform:translateX(-50%);width:min(30vw,420px);height:min(68vh,700px);pointer-events:auto;background:none}
+.sp-avatar{position:absolute;z-index:1;left:var(--sp-x,52%);bottom:0;transform:translateX(-50%);height:calc(min(72vh,740px) * var(--sp-av,1));width:calc(min(72vh,740px) * var(--sp-av,1) * .8);max-width:70vw;pointer-events:auto;background:none} /* wide enough for a wave */
+.sp-custom{position:absolute;z-index:3;top:14px;right:14px;width:44px;height:44px;border-radius:50%;border:1px solid rgba(127,127,127,.25);background:color-mix(in srgb,var(--panel-2,#fff) 60%,transparent);color:inherit;display:grid;place-items:center;cursor:pointer;opacity:.6}.sp-custom:hover{opacity:1}.sp-custom svg{width:18px;height:18px}
 .sp-avatar .mw-body{width:100%;height:100%;background:none}.sp-avatar .mw-empty{color:inherit;opacity:.6}
 .sp-cards{position:relative;grid-column:2;grid-row:1 / span 2;align-self:end;display:grid;gap:10px;max-width:380px;justify-self:end;width:100%;z-index:2}
 .sp-card{display:grid;gap:4px;text-align:left;padding:14px 16px;min-height:56px;border-radius:18px;border:1px solid rgba(127,127,127,.22);background:color-mix(in srgb,var(--panel-2,#fff) 70%,transparent);backdrop-filter:blur(14px);color:inherit;font:inherit;cursor:pointer}
@@ -1569,4 +1571,12 @@ table.bench small{color:var(--text-2)}
 .sp-primary{background:linear-gradient(120deg,#ff5a4a,#c44ae6 55%,#4f6bff);color:#fff;border:0}.sp-primary span{opacity:.9}
 .sp-row,.sp-link{text-align:left;background:none;border:0;color:inherit;font:inherit;font-size:14px;padding:6px 0;cursor:pointer}.sp-link{opacity:.65;font-size:13px}
 .sp-net{display:flex;align-items:center;gap:6px}.sp-net i{width:8px;height:8px;border-radius:50%;background:#888}.sp-net.direct i{background:#34c47c}.sp-net.relay i{background:#e0a84a}.sp-net.ts i{background:#6ea0ff}.sp-net.off i{background:#ef5f5f}
-@media (max-width:820px){.sp-root{grid-template-columns:1fr}.sp-head{max-width:none}.sp-cards{grid-column:1;grid-row:2;justify-self:stretch;max-width:none}.sp-avatar{left:50%;width:70vw;height:50vh;opacity:.85}}
+@media (max-width:820px){.sp-root{grid-template-columns:1fr}.sp-head{max-width:none}.sp-cards{grid-column:1;grid-row:2;justify-self:stretch;max-width:none}.sp-avatar{opacity:.85}}
+/* The start page uses the whole window; the dock slides in over it from the left */
+#app.sp-dock{grid-template-columns:minmax(0,1fr)}
+#app.sp-dock .dock{position:fixed;left:0;top:0;bottom:0;width:var(--dock-w);transform:translateX(-100%);transition:transform .25s ease;z-index:40;box-shadow:none}
+#app.sp-dock.sp-dock-open .dock{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.35)}
+.sp-handle{position:absolute;z-index:4;left:0;top:50%;width:24px;height:96px;margin-top:-48px;border:0;background:none;display:flex;align-items:center;padding-left:6px;cursor:pointer}
+.sp-handle i{width:5px;height:56px;border-radius:3px;background:currentColor;opacity:.35}.sp-handle:hover i{opacity:.7}
+#app.sp-dock .sp-root{padding-left:clamp(28px,4vw,60px)}
+.desktop-app .sp-root{padding-top:max(48px,4vh)} /* clear of the window buttons */

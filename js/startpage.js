@@ -10,8 +10,11 @@
    ============================================================ */
 const StartPage = {
   on: false, raf: 0, t0: 0, greeted: false,
-  /** The assistant shown here: the first 3D-model widget on Stage (the built-in one by default). */
-  avatarId() { return (typeof Dash !== 'undefined' && [...Dash.list('stage.side'), ...Dash.list('stage.main')].find(id => wtype(id) === 'model')) || 'model~stage'; },
+  /** How the assistant appears here (Customize): character ('' = the one on Stage, or a built-in), size and position (%). */
+  look: () => ({ model: '', size: 100, x: 52, ...store.get('startAvatar', {}) }),
+  /** The assistant shown here: its own widget for another character, else the first 3D-model widget on Stage. */
+  avatarId() { const m = this.look().model; if (m && typeof BUILTIN_MODELS !== 'undefined' && BUILTIN_MODELS[m]) { if (Wcfg.get('model~start').builtin !== m) Wcfg.set('model~start', { builtin: m }); return 'model~start'; } return this.stageId(); },
+  stageId() { return (typeof Dash !== 'undefined' && [...Dash.list('stage.side'), ...Dash.list('stage.main')].find(id => wtype(id) === 'model')) || 'model~stage'; },
   show() {
     const root = $('#startRoot'); if (!root) return;
     const recent = (typeof Scripts !== 'undefined' ? Scripts.mine() : []).slice(-3).reverse();
@@ -22,7 +25,9 @@ const StartPage = {
         <h1 class="sp-title"><span class="sp-grad">Present together: voice, scripts, shows and screens</span> <span class="sp-plain">from one place</span></h1>
         <p class="sp-sub">${APP_NAME} gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.</p>
       </div>
-      <div class="sp-avatar mw" data-media="${esc(this.avatarId())}"><div class="mw-body"></div></div>
+      <div class="sp-avatar mw" data-media="${esc(this.avatarId())}" style="--sp-av:${this.look().size / 100};--sp-x:${this.look().x}%"><div class="mw-body"></div></div>
+      <button class="sp-handle" data-sp="dock" aria-label="Show the apps"><i></i></button>
+      <button class="sp-custom" data-sp="custom" aria-label="Customize the assistant here">${svg('sliders')}</button>
       <div class="sp-cards">
         <button class="sp-card sp-primary" data-sp="stage"><b>${svg('stage')} Start presenting</b><span>Stage: your slides, the assistant and your scripts</span></button>
         <div class="sp-card"><b>${svg('play')} Scripts</b>${recent.length ? recent.map(s => `<button class="sp-row" data-sp-run="${esc(s.id)}">▶ ${esc(s.name)}</button>`).join('') : '<span>None yet: make one in Settings › Scripts</span>'}<button class="sp-link" data-sp="scripts">All scripts</button></div>
@@ -30,14 +35,31 @@ const StartPage = {
         <button class="sp-card" data-sp="net"><b>${svg('signal')} Connections</b><span class="sp-net ${net[0]}"><i></i>${esc(net[1])}${net[2] ? ` · ${esc(net[2])}` : ''}</span></button>
       </div>`;
     this.on = true; this.waves(root.querySelector('.sp-waves'));
+    $('#app').classList.add('sp-dock'); // the whole page; the dock slides in from the left edge
     const el = root.querySelector('.sp-avatar');
-    if (typeof Media !== 'undefined') Media.mount(this.avatarId(), el).then(() => this.greet()).catch(() => {});
+    if (typeof Media !== 'undefined') Media.mount(this.avatarId(), el).then(() => { this.wide(true); this.greet(); }).catch(() => {});
   },
   /** Leaving: the waves stop; the assistant goes back to its Stage widget. */
   hide() {
-    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf);
-    const id = this.avatarId(); if (typeof Media !== 'undefined' && $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`)) Media.mount(id).catch(() => {});
+    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf); this.wide(false);
+    $('#app').classList.remove('sp-dock', 'sp-dock-open');
+    const id = this.avatarId();
+    if (id === 'model~start') $('#startRoot .sp-avatar')?.remove(); // its own character: let it go (avatar.js disposes it)
+    else if (typeof Media !== 'undefined' && $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`)) Media.mount(id).catch(() => {});
   },
+  /** Head to toe with room for the arms here; the Stage framing back when leaving. */
+  wide(on) { const i = typeof VrmAvatar !== 'undefined' && VrmAvatar.all.get(this.avatarId()); if (!i || i.wide === on) return; i.wide = on; i.frame(); },
+  customize() {
+    const L = this.look(), opts = typeof BUILTIN_MODELS !== 'undefined' ? Object.entries(BUILTIN_MODELS).filter(([, m]) => m.vrm) : [];
+    sheet('The assistant on the start page', `<label class="se-field"><span>Character</span><select id="spModel"><option value="">The one on Stage</option>${opts.map(([k, m]) => `<option value="${esc(k)}" ${L.model === k ? 'selected' : ''}>${esc(m.name || k)}</option>`).join('')}</select></label>
+      <label class="se-field"><span>Size: <b id="spSizeV">${L.size}%</b></span><input type="range" id="spSize" min="50" max="140" step="5" value="${L.size}"></label>
+      <label class="se-field"><span>Position (left ↔ right): <b id="spXV">${L.x}%</b></span><input type="range" id="spX" min="15" max="85" step="1" value="${L.x}"></label>`,
+      [['Save', () => { store.set('startAvatar', { model: $('#spModel').value, size: +$('#spSize').value, x: +$('#spX').value }); if (current === 'start') { this.hide(); this.show(); } }], ['Reset', () => { store.set('startAvatar', {}); if (current === 'start') { this.hide(); this.show(); } }], ['Cancel', () => this.preview(this.look())]]);
+    const live = () => { $('#spSizeV').textContent = `${$('#spSize').value}%`; $('#spXV').textContent = `${$('#spX').value}%`; this.preview({ size: +$('#spSize').value, x: +$('#spX').value }); };
+    $('#spSize').addEventListener('input', live); $('#spX').addEventListener('input', live);
+  },
+  /** Size and position while the sliders move. */
+  preview(L) { const el = $('#startRoot .sp-avatar'); if (!el) return; el.style.setProperty('--sp-av', L.size / 100); el.style.setProperty('--sp-x', `${L.x}%`); requestAnimationFrame(() => VrmAvatar?.all.get(this.avatarId())?.resize()); },
   greet() {
     if (this.greeted) return; this.greeted = true;
     setTimeout(() => {
@@ -83,6 +105,16 @@ document.addEventListener('click', e => {
   const k = b.dataset.sp;
   if (k === 'stage') { if (settings.appMode !== 'stage') { settings.appMode = 'stage'; applySettings(); } openView('dashboard'); }
   else if (k === 'scripts') { openView('settings'); setTimeout(() => typeof ScriptUI !== 'undefined' && ScriptUI.open?.(), 300); }
+  else if (k === 'dock') $('#app').classList.toggle('sp-dock-open');
+  else if (k === 'custom') StartPage.customize();
   else if (k === 'mesh') openView('mesh');
   else if (k === 'net') (APP_NAME === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : Link.settings());
 });
+// The dock on the start page: in from the left edge (pointer at the edge, or the handle), out again when the pointer leaves it or the page is tapped.
+document.addEventListener('pointermove', e => {
+  const app = $('#app'); if (!app?.classList.contains('sp-dock') || e.pointerType === 'touch') return;
+  if (e.clientX <= 8) { clearTimeout(StartPage.dockT); app.classList.add('sp-dock-open'); }
+  else if (app.classList.contains('sp-dock-open') && !e.target.closest('.dock, .sp-handle')) { clearTimeout(StartPage.dockT); StartPage.dockT = setTimeout(() => app.classList.remove('sp-dock-open'), 700); }
+  else if (e.target.closest('.dock')) clearTimeout(StartPage.dockT);
+});
+document.addEventListener('click', e => { const app = $('#app'); if (app?.classList.contains('sp-dock-open') && !e.target.closest('.dock, .sp-handle')) app.classList.remove('sp-dock-open'); }, true);

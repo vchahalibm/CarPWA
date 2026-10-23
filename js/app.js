@@ -1313,6 +1313,7 @@ function renderSettings() {
     <div class="group">
       <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['dashboard', 'Dashboard']])}</div>
       ${tog('startGreet', 'The assistant says hello on the start page', 'A wave and a short spoken hello')}
+      ${typeof StartPage !== 'undefined' ? btn('startAvatar', 'The assistant on the start page', `${StartPage.look().model ? (BUILTIN_MODELS[StartPage.look().model]?.name || StartPage.look().model) : 'As on Stage'} · ${StartPage.look().size}%`) : ''}
       ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_NAME === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
@@ -1437,6 +1438,7 @@ const ACTIONS = {
   radio: () => Radio.browse(),
   ttsGpu: () => { Diag.set('device', 'webgpu'); ACTIONS.ttsModel(); },
   versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),
+  startAvatar: () => StartPage.customize(),
   phoneVoice: async () => {
     await PhoneVoices.ready(1500);
     const g = settings.voiceGender === 'male' ? 'male' : 'female', other = g === 'male' ? 'female' : 'male', pick = PhoneVoices.pick();

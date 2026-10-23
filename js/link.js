@@ -57,13 +57,14 @@ const Link = {
   /** The voice command “run … on my Mac”: a script it offers by name, else the words go to the Mac as said. */
   async command(q, say) {
     if (!this.ready()) return say(typeof Relay !== 'undefined' && Relay.online.mac && !Relay.dataOk() ? 'Your Mac only takes requests over a direct link, and there isn’t one on this network right now.' : typeof Relay !== 'undefined' && Relay.mac() ? 'I can’t reach your Mac right now. Is StudioGen open, with the internet?' : 'Pair with your Mac first: Settings, Connections.');
-    say('Asking your Mac…');
+    if (typeof Working !== 'undefined') { Voice.show?.(q, 'Asking your Mac…'); Working.begin(); } else say('Asking your Mac…');
     try {
       const offers = (await this.offers()).scripts || [], p = plain(q), s = offers.find(o => plain(o.name) === p) || offers.find(o => plain(o.name).includes(p) || p.includes(plain(o.name)));
       const j = s ? await this.run(s.id) : await this.say(q);
       if (j.rows?.length && typeof DataViz !== 'undefined') DataViz.set(DataViz.target(), DataViz.from(j.rows), { kind: 'script', label: `from ${this.macName()}` });
+      if (typeof Working !== 'undefined') await Working.end(j.state !== 'failed');
       Voice.respond(this.spoken(j));
-    } catch (e) { Voice.respond(e.message); }
+    } catch (e) { if (typeof Working !== 'undefined') await Working.end(false); Voice.respond(e.message); }
   },
 
   /* ---------- Settings › Connections ---------- */

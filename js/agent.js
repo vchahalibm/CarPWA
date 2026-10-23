@@ -239,6 +239,36 @@ const AgentWeb = {
 };
 document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) AgentWeb.show(false); });
 
+/* ---------- Working on it: a short line at once, the assistant types and then thinks, and answers with a gesture ----------
+   For anything that takes more than a moment (a task, a script on the Mac). The line is in the voice that starts at once
+   here (the natural voice where it's fast, as on a Mac; the device's voice on a phone), so nobody waits in silence while the
+   work and the reply's voice are being made. Nothing is said when the answer comes within half a second. In Drive mode the
+   assistant only changes its face (Avatar.gesture). */
+const FILLERS = ['On it. Give me a second.', 'Let me check.', 'Working on it.', 'One moment.', 'Sure, looking now.'];
+const Working = {
+  on: false, n: 0, t: 0, t2: 0, said: null,
+  begin(o = {}) {
+    this.stop(); this.on = true; const tok = ++this.n;
+    this.t = setTimeout(() => {
+      if (tok !== this.n) return;
+      if (!o.silent) {
+        const line = o.line || FILLERS[Math.floor(Math.random() * FILLERS.length)];
+        Voice.reply?.(line); Log.i('tts', `Working: “${line}”`);
+        this.said = Promise.resolve(Voice.ttsMode() === 'neural' ? Voice.speak(line) : (Voice.hush?.(), Voice.speakPhone(line, ++Voice.sayId))).catch(() => {});
+      }
+      if (typeof Avatar !== 'undefined') { Avatar.gesture('Typing'); this.t2 = setTimeout(() => tok === this.n && Avatar.gesture('Think', 20), 3000); }
+    }, o.after ?? 500);
+  },
+  stop() { clearTimeout(this.t); clearTimeout(this.t2); },
+  /** Done: let the line finish (at most 2.5 s), then the answer's gesture (a shrug when it didn't work). */
+  async end(ok = true) {
+    this.stop(); if (!this.on) return; this.on = false; this.n++;
+    if (this.said) await Promise.race([this.said, new Promise(r => setTimeout(r, 2500))]);
+    this.said = null;
+    if (typeof Avatar !== 'undefined') Avatar.gesture(ok ? 'Explain' : 'Shrug');
+  },
+};
+
 /* ---------- The library, matching, asking, running ---------- */
 const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.com|signin|\/login|slack\.com\/(signin|get-started)/i;
 const Agent = {
@@ -304,16 +334,18 @@ const Agent = {
       Commands.pending = this.pend; return say(`Shall I ${what}? Say yes, or “yes, always”.`, null, { ask: true });
     }
     const c = this.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: this.where(t) === 'mac' ? `Asking ${Link.macName()}…` : 'Working on it…' });
-    if (!o.quiet) say(this.where(t) === 'mac' ? `Asking ${Link.macName()}.` : 'On it.');
+    Voice.show?.(t.name, this.where(t) === 'mac' ? `Asking ${Link.macName()}…` : 'Working on it…');
+    if (!o.quiet) Working.begin();
     try {
       const r = await this.exec(t, params, { confirmed: true });
       const done = this.post({ ...this.asCard(r), id: c.id, task: t.id, title: t.name, status: 'done', at: Date.now() });
+      await Working.end(true);
       if (done.type !== 'none') say(this.spoken(done)); else this.drop(c.id);
       return r;
     } catch (e) {
       const signin = /^SIGNIN:/.test(e.message), msg = signin ? `Sign in to ${e.message.slice(7)} once in the agent browser on your Mac, then ask again.` : e.message;
       this.post({ id: c.id, task: t.id, title: t.name, type: 'summary', status: signin ? 'signin' : 'failed', headline: msg, at: Date.now() });
-      Log.w('agent', `Task failed: ${t.name}`, { error: e.message }); say(msg);
+      Log.w('agent', `Task failed: ${t.name}`, { error: e.message }); await Working.end(false); say(msg);
     }
   },
   /** Run a task (inputs complete, confirmed) and give back its result card. */
@@ -362,8 +394,9 @@ const Agent = {
     if (!t) throw new Error('That task isn’t in this Mac’s library');
     if (this.acts(t) && !p.confirmed) throw new Error('That task acts for you: confirm it on the device first');
     const c = this.post({ task: t.id, title: `${t.name}${p.from ? ` · for ${p.from}` : ''}`, type: 'status', status: 'running', headline: 'Working on it…' });
-    try { const r = await this.exec(t, p.params || {}, { confirmed: true, here: true }); const k = this.asCard(r); this.post({ ...k, id: c.id, status: 'done', at: Date.now() }); return { card: k }; }
-    catch (e) { const signin = /^SIGNIN:/.test(e.message); this.post({ id: c.id, type: 'summary', status: signin ? 'signin' : 'failed', headline: signin ? `Sign in to ${e.message.slice(7)} in the agent browser` : e.message, at: Date.now() }); if (signin) AgentWeb.show(true); throw e; }
+    Working.begin({ silent: true }); // the phone says its line; here the assistant only works on it
+    try { const r = await this.exec(t, p.params || {}, { confirmed: true, here: true }); const k = this.asCard(r); this.post({ ...k, id: c.id, status: 'done', at: Date.now() }); Working.end(true); return { card: k }; }
+    catch (e) { Working.end(false); const signin = /^SIGNIN:/.test(e.message); this.post({ id: c.id, type: 'summary', status: signin ? 'signin' : 'failed', headline: signin ? `Sign in to ${e.message.slice(7)} in the agent browser` : e.message, at: Date.now() }); if (signin) AgentWeb.show(true); throw e; }
   },
   /** On the phone: the Mac's own tasks (names, examples, inputs), for matching and the model. */
   async refresh() {

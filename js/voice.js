@@ -301,6 +301,8 @@ const VOICE_NAMES = {
   female: /samantha|karen|moira|tessa|fiona|victoria|veena|lekha|isha|kiran|allison|ava\b|susan|zoe|serena|nicky|kathy|vicki|zira|aria|jenny|neerja|heera|swara|female|ellen|kate|martha|catherine|stephanie|joanna|salli|kimberly|nora|amelie|anna|alice|sara|paulina|flo|grandma|sandy|shelley/i,
   male: /daniel|alex\b|fred|rishi|aaron|arthur|oliver|\btom\b|\blee\b|gordon|\bmale\b|david|guy|prabhat|ravi|hemant|madhur|reed|eddy|ralph|junior|rocko|grandpa|evan|nathan|thomas|jorge|diego/i,
   novelty: /bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert/i,
+  // macOS's character voices (Eloquence) and the old MacInTalk ones sound robotic: only if nothing else speaks the language
+  robotic: /^(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|fred|junior|ralph|kathy)\b/i,
 };
 /** Words that already are a whole command with nothing left to fill in (“what can I say”, “next slide”): listening can end sooner. */
 const quickCmd = t => { if (typeof Commands === 'undefined') return false; const m = Commands.match(t); return m.how === 'phrase' && !Object.entries(m.vars || {}).some(([k, v]) => k !== 'text' && v); };
@@ -337,7 +339,7 @@ const PhoneVoices = {
   ranked() {
     const want = this.want().toLowerCase(), base = want.split('-')[0], l = v => v.lang.replace('_', '-').toLowerCase();
     const score = v => (l(v) === want ? 40 : base === 'en' && l(v) === 'en-in' ? 30 : l(v) === 'en-gb' ? 15 : l(v) === 'en-us' ? 12 : 0)
-      + (this.gender(v) === (settings.voiceGender || 'female') ? 25 : 0) + (/enhanced|premium|natural|neural|siri/i.test(v.name) ? 10 : 0) + (v.localService ? 20 : 0); // on the device beats an online voice (Chrome's “Google …” voices go to Google)
+      + (this.gender(v) === (settings.voiceGender || 'female') ? 25 : 0) + (/premium|siri|neural/i.test(v.name + v.voiceURI) ? 60 : /enhanced|natural/i.test(v.name + v.voiceURI) ? 45 : 0) + (v.localService ? 20 : 0) - (VOICE_NAMES.robotic.test(v.name) ? 80 : 0); // on the device beats an online voice (Chrome's “Google …” voices go to Google)
     return this.list().filter(v => l(v).startsWith(base)).sort((a, b) => score(b) - score(a));
   },
   pick() { return (settings.phoneVoice && ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).find(v => v.voiceURI === settings.phoneVoice)) || this.ranked()[0] || null; },
@@ -467,6 +469,7 @@ const Voice = {
   ttsMode() {
     if (settings.tts !== 'auto') return settings.tts;
     const sp = store.get('ttsSpeed', null);
+    if (IS_DESKTOP_APP && store.get('kokoroOK') && !this.ttsBroken && !(sp?.n >= 2 && sp.r > 0.8)) return 'neural'; // a Mac: natural, fast enough
     return this.tts && !this.ttsBroken && sp?.n >= 2 && sp.r <= 0.8 ? 'neural' : 'phone';
   },
   speak(text) {
@@ -477,6 +480,12 @@ const Voice = {
     if (mode === 'neural' && this.tts && this.ttsBroken) Log.w('tts', 'On-device voice not working on this device: phone voice', { reason: this.ttsBroken });
     else if (mode === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
       Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
+    // a Mac: wait a few seconds for the natural voice to load (at start-up) instead of the system voice
+    if (mode === 'neural' && IS_DESKTOP_APP && store.get('kokoroOK') && !this.ttsBroken) {
+      Log.i('tts', 'Natural voice still loading: waiting for it', { text });
+      return Promise.race([this.loadTTS(false, true).catch(() => null), new Promise(r => setTimeout(r, 7000))])
+        .then(() => id !== this.sayId ? undefined : this.tts ? this.speakNeural(text, id).catch(() => this.speakPhone(text, id)) : this.speakPhone(text, id));
+    }
     if (settings.tts === 'neural') Log.i('tts', store.get('kokoroOK') ? 'On-device voice still loading: phone voice this time' : 'On-device voice not downloaded: phone voice', { text });
     if (settings.tts === 'neural' && store.get('kokoroOK')) this.loadTTS(false, true).catch(() => {}); // from cache, ready for the next reply (makes room)
     return this.speakPhone(text, id);

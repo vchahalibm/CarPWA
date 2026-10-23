@@ -11,7 +11,7 @@
 const StartPage = {
   on: false, raf: 0, t0: 0, greeted: false,
   /** How the assistant appears here (Customize): character ('' = the one on Stage, or a built-in), size and position (%). */
-  look: () => ({ model: '', size: 100, x: 52, ...store.get('startAvatar', {}) }),
+  look: () => ({ model: '', size: 100, x: 52, y: 0, ...store.get('startAvatar', {}) }),
   /** The assistant shown here: its own widget for another character, else the first 3D-model widget on Stage. */
   avatarId() { const m = this.look().model; if (m && typeof BUILTIN_MODELS !== 'undefined' && BUILTIN_MODELS[m]) { if (Wcfg.get('model~start').builtin !== m) Wcfg.set('model~start', { builtin: m }); return 'model~start'; } return this.stageId(); },
   stageId() { return (typeof Dash !== 'undefined' && [...Dash.list('stage.side'), ...Dash.list('stage.main')].find(id => wtype(id) === 'model')) || 'model~stage'; },
@@ -25,7 +25,7 @@ const StartPage = {
         <h1 class="sp-title"><span class="sp-grad">Present together: voice, scripts, shows and screens</span> <span class="sp-plain">from one place</span></h1>
         <p class="sp-sub">${APP_NAME} gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.</p>
       </div>
-      <div class="sp-avatar mw" data-media="${esc(this.avatarId())}" style="--sp-av:${this.look().size / 100};--sp-x:${this.look().x}%"><div class="mw-body"></div></div>
+      <div class="sp-avatar mw" data-media="${esc(this.avatarId())}" style="--sp-av:${this.look().size / 100};--sp-x:${this.look().x}%;--sp-y:${this.look().y}%" title="Drag to move her"><div class="mw-body"></div></div>
       <button class="sp-handle" data-sp="dock" aria-label="Show the apps"><i></i></button>
       <button class="sp-custom" data-sp="custom" aria-label="Customize the assistant here">${svg('sliders')}</button>
       <div class="sp-cards">
@@ -53,13 +53,13 @@ const StartPage = {
     const L = this.look(), opts = typeof BUILTIN_MODELS !== 'undefined' ? Object.entries(BUILTIN_MODELS).filter(([, m]) => m.vrm) : [];
     sheet('The assistant on the start page', `<label class="se-field"><span>Character</span><select id="spModel"><option value="">The one on Stage</option>${opts.map(([k, m]) => `<option value="${esc(k)}" ${L.model === k ? 'selected' : ''}>${esc(m.name || k)}</option>`).join('')}</select></label>
       <label class="se-field"><span>Size: <b id="spSizeV">${L.size}%</b></span><input type="range" id="spSize" min="50" max="140" step="5" value="${L.size}"></label>
-      <label class="se-field"><span>Position (left ↔ right): <b id="spXV">${L.x}%</b></span><input type="range" id="spX" min="15" max="85" step="1" value="${L.x}"></label>`,
-      [['Save', () => { store.set('startAvatar', { model: $('#spModel').value, size: +$('#spSize').value, x: +$('#spX').value }); if (current === 'start') { this.hide(); this.show(); } }], ['Reset', () => { store.set('startAvatar', {}); if (current === 'start') { this.hide(); this.show(); } }], ['Cancel', () => this.preview(this.look())]]);
-    const live = () => { $('#spSizeV').textContent = `${$('#spSize').value}%`; $('#spXV').textContent = `${$('#spX').value}%`; this.preview({ size: +$('#spSize').value, x: +$('#spX').value }); };
-    $('#spSize').addEventListener('input', live); $('#spX').addEventListener('input', live);
+      <p class="se-note">To place her, drag her anywhere on the start page.</p>`,
+      [['Save', () => { store.set('startAvatar', { ...this.look(), model: $('#spModel').value, size: +$('#spSize').value }); if (current === 'start') { this.hide(); this.show(); } }], ['Reset', () => { store.set('startAvatar', {}); if (current === 'start') { this.hide(); this.show(); } }], ['Cancel', () => this.preview(this.look())]]);
+    const live = () => { $('#spSizeV').textContent = `${$('#spSize').value}%`; this.preview({ ...this.look(), size: +$('#spSize').value }); };
+    $('#spSize').addEventListener('input', live);
   },
   /** Size and position while the sliders move. */
-  preview(L) { const el = $('#startRoot .sp-avatar'); if (!el) return; el.style.setProperty('--sp-av', L.size / 100); el.style.setProperty('--sp-x', `${L.x}%`); requestAnimationFrame(() => VrmAvatar?.all.get(this.avatarId())?.resize()); },
+  preview(L) { const el = $('#startRoot .sp-avatar'); if (!el) return; el.style.setProperty('--sp-av', L.size / 100); el.style.setProperty('--sp-x', `${L.x}%`); el.style.setProperty('--sp-y', `${L.y || 0}%`); requestAnimationFrame(() => VrmAvatar?.all.get(this.avatarId())?.resize()); },
   greet() {
     if (this.greeted) return; this.greeted = true;
     setTimeout(() => {
@@ -118,3 +118,20 @@ document.addEventListener('pointermove', e => {
   else if (e.target.closest('.dock')) clearTimeout(StartPage.dockT);
 });
 document.addEventListener('click', e => { const app = $('#app'); if (app?.classList.contains('sp-dock-open') && !e.target.closest('.dock, .sp-handle')) app.classList.remove('sp-dock-open'); }, true);
+// Drag her anywhere on the start page (a tap still makes her wave): left/bottom in % of the page, kept.
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest?.('#startRoot .sp-avatar'); if (!el || e.button > 0) return;
+  const root = $('#startRoot'), R = root.getBoundingClientRect(), L = StartPage.look(), x0 = e.clientX, y0 = e.clientY;
+  let moved = false;
+  const move = ev => {
+    if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; moved = true; el.classList.add('dragging');
+    const x = Math.min(92, Math.max(8, L.x + (ev.clientX - x0) / R.width * 100)), y = Math.min(70, Math.max(-20, L.y - (ev.clientY - y0) / R.height * 100));
+    el.style.setProperty('--sp-x', `${x}%`); el.style.setProperty('--sp-y', `${y}%`); StartPage.drag = { x: Math.round(x), y: Math.round(y) };
+  };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); el.classList.remove('dragging');
+    if (moved) { el.classList.add('dragged'); setTimeout(() => el.classList.remove('dragged'), 60); }
+    if (moved && StartPage.drag) { store.set('startAvatar', { ...StartPage.look(), ...StartPage.drag }); StartPage.drag = null; } };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+// a drag isn't a tap: no wave after moving her
+addEventListener('click', e => { if (e.target.closest?.('#startRoot .sp-avatar.dragged')) e.stopImmediatePropagation(); }, true);

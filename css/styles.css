@@ -1581,3 +1581,8 @@ table.bench small{color:var(--text-2)}
 #app.sp-dock .sp-root{padding-left:clamp(28px,4vw,60px)}
 .desktop-app .sp-root{padding-top:max(48px,4vh)} /* clear of the window buttons */
 .sp-avatar.dragging{cursor:grabbing}
+/* StudioGen: the start page moves the window like a title bar (its dock is hidden); buttons, cards, the assistant
+   (dragged to move her) and the left edge (where the dock slides in) stay clickable */
+.desktop-app .sp-root{-webkit-app-region:drag}
+.desktop-app .sp-root button,.desktop-app .sp-root .sp-card,.desktop-app .sp-root .sp-avatar,.desktop-app .sp-root a,.desktop-app .sp-root input,.desktop-app .sp-root select{-webkit-app-region:no-drag}
+.desktop-app .sp-root::before{content:'';position:absolute;left:0;top:0;bottom:0;width:12px;z-index:5;-webkit-app-region:no-drag}

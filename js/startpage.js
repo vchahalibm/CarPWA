@@ -22,8 +22,8 @@ const StartPage = {
     const around = typeof Mesh !== 'undefined' && Mesh.m ? Object.values(Mesh.presence || {}).filter(x => Date.now() - x.at < 60000).length : null;
     root.innerHTML = `<canvas class="sp-waves" aria-hidden="true"></canvas>
       <div class="sp-head">
-        <h1 class="sp-title"><span class="sp-grad">Present together: voice, scripts, shows and screens</span> <span class="sp-plain">from one place</span></h1>
-        <p class="sp-sub">${APP_NAME} gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.</p>
+        <h1 class="sp-title"><span class="sp-grad">Act together: voice, scripts, shows and screens</span> <span class="sp-plain">from one place</span></h1>
+        <p class="sp-sub">${APP_NAME === 'StudioGen' ? 'StudioGen gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.' : 'DriveGen gives you an agent in the car: talk to it to navigate, call and message, hear your mail and calendar, run tasks on your Mac and start shows on your screens, hands-free, with the answers shown big and simple.'}</p>
       </div>
       <div class="sp-avatar mw" data-media="${esc(this.avatarId())}" style="--sp-av:${this.look().size / 100};--sp-x:${this.look().x}%;--sp-y:${this.look().y}%" title="Drag to move her"><div class="mw-body"></div></div>
       <button class="sp-handle" data-sp="dock" aria-label="Show the apps"><i></i></button>
@@ -120,7 +120,7 @@ document.addEventListener('pointermove', e => {
 document.addEventListener('click', e => { const app = $('#app'); if (app?.classList.contains('sp-dock-open') && !e.target.closest('.dock, .sp-handle')) app.classList.remove('sp-dock-open'); }, true);
 // Drag her anywhere on the start page (a tap still makes her wave): left/bottom in % of the page, kept.
 document.addEventListener('pointerdown', e => {
-  const el = e.target.closest?.('#startRoot .sp-avatar'); if (!el || e.button > 0) return;
+  const el = e.target.closest?.('#startRoot .sp-avatar'); if (!el || e.button > 0 || matchMedia('(orientation: portrait)').matches) return; // a phone in portrait: she sits in the flow
   const root = $('#startRoot'), R = root.getBoundingClientRect(), L = StartPage.look(), x0 = e.clientX, y0 = e.clientY;
   let moved = false;
   const move = ev => {

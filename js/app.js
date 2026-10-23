@@ -1573,7 +1573,7 @@ const qs = new URLSearchParams(location.search);
 if (qs.get('theme')) { settings.theme = qs.get('theme'); applySettings(); }
 if (qs.has('demo')) startDemo();
 if (qs.has('nav')) startNav(destinations()[0]);
-if (qs.get('view')) openView(qs.get('view'));
+if (qs.get('view')) addEventListener('DOMContentLoaded', () => openView(qs.get('view'))); // after every file (the start page, the Mesh screen load later)
 if (qs.has('play')) { player.playing = true; updatePlayerUI(); }
 $('#installTip').hidden = isStandalone() || store.get('installTipOff') || !(isIOS || /Android/i.test(navigator.userAgent));
 

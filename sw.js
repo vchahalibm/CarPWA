@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v98';
+const VERSION = 'v99';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -55,25 +55,11 @@ self.addEventListener('install', e => {
   if (WEB) e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)));
 });
 
-// Test: cross-origin isolation (Settings › Voice › Several CPU threads), so the natural voice can use several CPU threads
-// (SharedArrayBuffer). GitHub Pages can't send the headers, so this worker adds them to the app's own responses. It also
-// stops other sites' frames (YouTube, web pages) and media that don't allow it, hence a switch, kept in the cache.
-let COI = null;
-const coiOn = async () => COI ??= !!(await (await caches.open('dd-flags')).match('/__coi'));
-const COEP = /Chrome|Firefox/.test(self.navigator.userAgent) ? 'credentialless' : 'require-corp'; // Safari: require-corp only
-async function isolated(res) {
-  if (!res || res.type === 'opaque' || res.type === 'error' || !(await coiOn())) return res;
-  const h = new Headers(res.headers); h.set('Cross-Origin-Opener-Policy', 'same-origin'); h.set('Cross-Origin-Embedder-Policy', COEP); h.set('Cross-Origin-Resource-Policy', 'same-origin');
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
-}
-self.addEventListener('message', e => {
-  if (e.data === 'skipWaiting') self.skipWaiting();
-  if (e.data?.type === 'coi') e.waitUntil((async () => { const c = await caches.open('dd-flags'); if (e.data.on) await c.put('/__coi', new Response('1')); else await c.delete('/__coi'); COI = !!e.data.on; e.source?.postMessage({ type: 'coi', on: COI }); })());
-});
+self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k.startsWith('dd-shell-') && k !== SHELL_CACHE).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => (k.startsWith('dd-shell-') && k !== SHELL_CACHE) || k === 'dd-flags').map(k => caches.delete(k)))) // dd-flags: the several-threads test (removed)
     .then(() => self.clients.claim()));
 });
 
@@ -127,5 +113,5 @@ self.addEventListener('fetch', e => {
   else if (url.hostname === 'api.open-meteo.com') e.respondWith(fresh(req));
   // On-device Whisper: transformers.js and the ONNX runtime come from versioned CDN URLs, so cache-first. Model files are cached by the library itself.
   else if (url.hostname === 'cdn.jsdelivr.net' && /^\/npm\/(onnxruntime-web|@huggingface\/transformers|kokoro-js)@/.test(url.pathname)) e.respondWith(tile(req, VOICE_CACHE, 20));
-  else if (WEB && url.origin === self.location.origin) e.respondWith(shell(req).then(isolated));
+  else if (WEB && url.origin === self.location.origin) e.respondWith(shell(req));
 });

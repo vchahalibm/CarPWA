@@ -220,9 +220,6 @@ self.onmessage = ({ data: m }) => {
   const job = async () => {
     try {
       if (m.type === 'load') {
-        // Several threads (cross-origin isolated only): the runtime takes min(4, ceil(cores / 2)), and Safari reports fewer
-        // cores than an iPhone has; report twice the chosen number so it uses that many.
-        if (m.threads > 0) try { Object.defineProperty(self.navigator, 'hardwareConcurrency', { get: () => m.threads * 2, configurable: true }); } catch {}
         K = await import(m.url);
         tts = await K.KokoroTTS.from_pretrained(m.model, { dtype: m.dtype, device: m.device, progress_callback: p => send({ type: 'progress', id: m.id, p }) });
         send({ type: 'loaded', id: m.id });
@@ -469,9 +466,6 @@ const Voice = {
   /* ---------- Speaking: Kokoro on the phone when downloaded, else the phone's own voice ---------- */
   /** Which voice speaks: Automatic is the device's voice (it starts at once) unless Kokoro is loaded and measured fast
       enough here (making speech at least ~1.25× faster than it plays); Natural is Kokoro, chosen by you. */
-  /** CPU threads for the natural voice: the chosen number (Settings › Voice, while several threads are on), else 0 (the runtime's own: half the cores, at most 4). */
-  threads() { return self.crossOriginIsolated ? +Diag.get().ttsThreads || 0 : 0; },
-  threadsUsed() { return !self.crossOriginIsolated ? 1 : this.threads() || Math.min(4, Math.ceil((navigator.hardwareConcurrency || 1) / 2)); },
   ttsMode() {
     if (settings.tts !== 'auto') return settings.tts;
     const sp = store.get('ttsSpeed', null);
@@ -563,7 +557,7 @@ const Voice = {
         const a = await this.tts.generate(text, TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart');
         const ms = performance.now() - t0, sec = a.f32.length / a.rate, r = ms / 1000 / sec;
         store.set('ttsSpeed', { ...store.get('ttsSpeed', { cps: 14 }), r, cps: text.length / sec, n: Math.max(2, store.get('ttsSpeed', {}).n || 0) }); this.ttsSpeed = null;
-        out.neural = { firstMs: Math.round(ms), seconds: +sec.toFixed(2), speed: +r.toFixed(2), engine: this.tts.kind, threads: this.threadsUsed() > 1 ? `${this.threadsUsed()}` : 'one' };
+        out.neural = { firstMs: Math.round(ms), seconds: +sec.toFixed(2), speed: +r.toFixed(2), engine: this.tts.kind };
         if (settings.tts === 'auto' && r > 0.8) this.resetTTS(); // too slow for Automatic: give the memory back
       } catch (e) { out.neural = { error: e.message }; }
     }
@@ -736,7 +730,7 @@ const Voice = {
       let engine = null;
       try {
         if (cfg.engine !== 'main' && typeof Worker !== 'undefined') {
-          try { engine = kokoroWorker(); await Budget.guard(`Reply voice ${device} ${dtype}`, () => engine.load({ dtype, device, threads: Voice.threads() }, onProgress)); }
+          try { engine = kokoroWorker(); await Budget.guard(`Reply voice ${device} ${dtype}`, () => engine.load({ dtype, device }, onProgress)); }
           catch (e) {
             try { engine?.terminate(); } catch {} engine = null;
             // Out of memory: loading it again on the main thread is what gets the app killed; try the next (smaller) build.

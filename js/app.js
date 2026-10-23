@@ -1309,7 +1309,7 @@ function renderSettings() {
     </div>
     <div class="group-title">System</div>
     <div class="group">
-      ${tog('wakeLock', 'Keep screen awake', 'wakeLock' in navigator ? 'Uses the Screen Wake Lock API' : 'Not supported in this browser')}
+      ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_NAME === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
@@ -1358,14 +1358,18 @@ function toast(msg) {
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2400);
 }
 let wakeLock = null;
+// StudioGen keeps the screen awake only while it's busy (a script, a show or a conversation running, or presenting full
+// screen): holding it all the time kept a Mac's display from ever sleeping. In the car (DriveGen) it's always on.
+const wakeBusy = () => APP_NAME !== 'StudioGen' || (typeof Script !== 'undefined' && Script.running) || (typeof Convo !== 'undefined' && Convo.active) || !!document.fullscreenElement || (typeof Mesh !== 'undefined' && !!(Mesh.conducting || Mesh.myShow));
 async function syncWakeLock() {
   try {
-    if (settings.wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+    if (settings.wakeLock && wakeBusy() && 'wakeLock' in navigator && document.visibilityState === 'visible') {
       if (!wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock = null); }
     } else if (wakeLock) { await wakeLock.release(); wakeLock = null; }
   } catch {}
 }
 document.addEventListener('visibilitychange', syncWakeLock);
+if (APP_NAME === 'StudioGen') setInterval(syncWakeLock, 10000); // busy or not changes with scripts and shows
 async function toggleFullscreen() {
   try { document.fullscreenElement ? await document.exitFullscreen() : await document.documentElement.requestFullscreen(); }
   catch { toast('Full screen not available'); }
@@ -1522,7 +1526,26 @@ function tick() {
 }
 hydrateIcons();
 $('#siriBtn').innerHTML = svg('mic');
-$('#netIcon').innerHTML = svg('signal');
+/* The corner badge: how this app is connected (not a phone's signal bars): Direct (a direct link up: to the paired
+   device or a mesh member), Relay (reachable through the relays), Tailscale, Waiting (paired, nobody online), Online
+   (nothing paired yet) or Offline. A tap opens Connections. */
+function netState() {
+  if (!navigator.onLine) return ['off', 'Offline', 'No internet connection'];
+  if (typeof Relay === 'undefined') return ['on', 'Online', ''];
+  const direct = (typeof Direct !== 'undefined' && Direct.connected) || (typeof MeshDirect !== 'undefined' && MeshDirect.list().length > 0);
+  const recent = t => t && Date.now() - t < 70000, studio = Relay.isMac();
+  const peers = studio ? Relay.peers().filter(p => recent(Relay.online[p.room])).length : (recent(Relay.online.mac) ? 1 : 0);
+  const mesh = typeof Mesh !== 'undefined' && Mesh.m ? Object.values(Mesh.presence || {}).filter(x => Date.now() - x.at < 60000).length : 0;
+  const who = `${peers ? `${peers} paired device${peers > 1 ? 's' : ''} online` : ''}${mesh ? `${peers ? ' · ' : ''}${mesh} in the mesh` : ''}`;
+  if (direct) return ['direct', 'Direct', `A direct link is up${who ? ` · ${who}` : ''}`];
+  if (peers || mesh) return ['relay', 'Relay', `Through the encrypted relays · ${who}`];
+  if (typeof Link !== 'undefined' && !studio && Link.mac()?.token) return ['ts', 'Tailscale', 'Paired over Tailscale'];
+  if (studio ? Relay.peers().length : Relay.mac()) return ['wait', 'Waiting', studio ? 'Paired devices aren’t online' : 'Your Mac isn’t online'];
+  return ['on', 'Online', 'Nothing paired yet: Settings › Connections'];
+}
+function renderNet() { const el = $('#netState'); if (!el) return; const [k, label, tip] = netState(); el.className = `net-state ${k}`; el.title = tip; el.querySelector('span').textContent = label; }
+$('#netState')?.addEventListener('click', () => (APP_NAME === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : typeof Link !== 'undefined' ? Link.settings() : openView('settings')));
+setInterval(renderNet, 3000); addEventListener('online', renderNet); addEventListener('offline', renderNet); setTimeout(renderNet, 500);
 applySettings(); renderHome(); updatePlayerUI(); renderDashTiles(); renderMessages();
 openView('dashboard');
 tick(); setInterval(tick, 1000);

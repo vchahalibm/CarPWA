@@ -310,6 +310,7 @@ const Media = {
         <input type="file" id="mwFile" accept="${K.accept}" hidden></div>` : ''}
       ${k === 'model' ? `<label class="fld"><span>Or a built-in model (used when there's no link or file)</span><select id="mwBuiltin">${Object.entries(BUILTIN_MODELS).map(([b, m]) => `<option value="${b}" ${(c.builtin || Object.keys(BUILTIN_MODELS)[0]) === b ? 'selected' : ''}>${esc(m.name)} · ${esc(m.note)}${typeof Avatars !== 'undefined' && !Avatars.local(b) ? ' (downloads when chosen)' : ''}</option>`).join('')}</select></label>` : ''}
       <label class="fld"><span>Title (optional)</span><input id="mwTitle" value="${esc(c.title || '')}" placeholder="${K.name}" autocomplete="off"></label>
+      ${k === 'model' ? `<label class="se-check"><input type="checkbox" id="mwClear" ${c.clear !== false ? 'checked' : ''}> See-through background on Stage (lay it over other widgets: the assistant stands on what's behind)</label>` : ''}
       <p class="hint">${esc(K.hint)}</p></div>`,
       [['Save', () => this.saveCfg(id)], ...(isNew ? [] : [['Clear', () => this.clearCfg(id)]]), ['Cancel']]);
     let picked = null;
@@ -318,6 +319,7 @@ const Media = {
     this.picked = null;
   },
   async saveCfg(id) {
+    if ($('#mwClear')) Wcfg.set(id, { clear: $('#mwClear').checked });
     const url = $('#mwUrl')?.value.trim() || '', title = $('#mwTitle')?.value.trim() || '', f = this.picked, old = Wcfg.get(id);
     if (url && !/^https:\/\//i.test(url)) { toast('Use a link starting with https://'); return this.config(id); }
     const v = { title, url: f ? '' : url || (old.file ? '' : old.url || '') }; this.resetPage(id);
@@ -343,6 +345,7 @@ const Media = {
 
 for (const [k, K] of Object.entries(MEDIA_KINDS)) W[k] = { name: K.name, multi: true, html: id => Media.html(id), config: (id, isNew) => Media.config(id, isNew) };
 W.model.float = true; // can float over the other widgets (Dash.float)
+W.model.clear = true; // see-through on Stage, switched in its settings (wclear in js/dash.js)
 Bus.on('dash.rendered', () => Media.mountAll());
 Bus.on('dash.resized', () => { clearTimeout(Media.rt); Media.rt = setTimeout(() => Object.keys(Media.pdf).forEach(id => Media.pdfDraw(id)), 150); });
 // YouTube player events (with enablejsapi): a video ending.

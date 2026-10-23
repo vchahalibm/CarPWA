@@ -102,6 +102,11 @@ function createWindow({ show = true } = {}) {
   guard(win); guestRules(win.webContents);
   win.on('closed', () => { if (mainWin === win) mainWin = null; presenting = false; presWin?.close(); menu(); });
   win.on('leave-full-screen', () => { if (presenting) { presenting = false; menu(); } });
+  // Hidden or minimized (and not presenting): let Chromium slow the page down, so the 3D assistant and timers stop costing
+  // battery (about 22% CPU in the background otherwise); back to full speed as soon as it's shown again.
+  const throttle = on => { try { if (!win.isDestroyed()) win.webContents.setBackgroundThrottling(on && !presenting); } catch {} };
+  win.on('hide', () => throttle(true)); win.on('minimize', () => throttle(true));
+  win.on('show', () => throttle(false)); win.on('restore', () => throttle(false));
   // Esc on the wall stops presenting (the presenter view stays open).
   win.webContents.on('before-input-event', (e, i) => { if (presenting && i.type === 'keyDown' && i.key === 'Escape') { presenting = false; win.setFullScreen(false); menu(); } });
   win.webContents.once('did-finish-load', () => Updates.start()); // it runs: tidy up after an update, then check now and then

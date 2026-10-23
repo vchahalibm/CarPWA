@@ -15,7 +15,12 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', E
 const RUN = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19), OUT = path.join(ROOT, 'tests/tandem/out', RUN), TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'sg-tandem-'));
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms)), kids = [];
-const bye = () => { for (const k of kids) try { k.kill(); } catch {} for (const s of sims) try { execFileSync('xcrun', ['simctl', 'shutdown', s]); } catch {} };
+// on the way out: the devices stop, their throwaway profiles go (they were GBs after a few days), the last 5 runs' results stay
+const bye = () => {
+  for (const k of kids) try { k.kill(); } catch {} for (const s of sims) try { execFileSync('xcrun', ['simctl', 'shutdown', s]); } catch {}
+  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {}
+  try { const all = fs.readdirSync(path.dirname(OUT)).sort(); for (const d of all.slice(0, -5)) fs.rmSync(path.join(path.dirname(OUT), d), { recursive: true, force: true }); } catch {}
+};
 process.on('exit', bye); process.on('SIGINT', () => process.exit(130)); process.on('SIGTERM', () => process.exit(143)); process.on('SIGHUP', () => process.exit(129));
 const hasSim = () => { try { execFileSync('xcrun', ['simctl', 'help'], { stdio: 'ignore' }); return true; } catch { return false; } };
 const PHONE = arg('phone', hasSim() ? 'sim' : 'chrome'), STUDIO = arg('studio', fs.existsSync(ELECTRON) ? 'electron' : 'chrome');

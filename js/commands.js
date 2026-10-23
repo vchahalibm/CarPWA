@@ -651,6 +651,8 @@ function chime() {
   try {
     const a = chime.ctx ||= new (window.AudioContext || window.webkitAudioContext)(), t = a.currentTime + 0.02;
     a.resume?.();
+    // a running AudioContext keeps an audio stream open: the browser counts it as playing audio and the computer won't sleep
+    clearTimeout(chime.st); chime.st = setTimeout(() => a.state === 'running' && a.suspend().catch(() => {}), 2000);
     [[660, 0], [880, 0.09]].forEach(([f, dt]) => {
       const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = f;
       g.gain.setValueAtTime(0, t + dt); g.gain.linearRampToValueAtTime(0.12, t + dt + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.22);

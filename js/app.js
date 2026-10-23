@@ -124,7 +124,7 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', intentAI: true, ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', intentAI: true, startGreet: true, startScreen: APP_NAME === 'StudioGen' ? 'start' : 'dashboard', ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
   convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
@@ -174,6 +174,7 @@ const APPS = [
   { id: 'drive', name: 'Drive', icon: 'gauge', bg: 'linear-gradient(160deg,#ffb340,#ff6a00)' },
   { id: 'calendar', name: 'Calendar', icon: 'calendar', bg: 'linear-gradient(160deg,#ff6b6b,#d0213f)' },
   { id: 'settings', name: 'Settings', icon: 'settings', bg: 'linear-gradient(160deg,#a1a1a8,#5b5b62)' },
+  { id: 'start', name: 'Start', icon: 'house', bg: 'linear-gradient(160deg,#ff6a5c,#b84df0 55%,#4f6bff)' },
   { id: 'mesh', name: 'Mesh', icon: 'mesh', bg: 'linear-gradient(160deg,#6ea0ff,#7c3aed)' },
   { id: 'podcasts', name: 'Podcasts', icon: 'podcasts', bg: 'linear-gradient(160deg,#d68bff,#8a2be2)', view: 'music', source: 'podcasts' },
   { id: 'radio', name: 'Radio', icon: 'radio', bg: 'linear-gradient(160deg,#ff8a5c,#e5383b)', run: () => typeof Radio !== 'undefined' && Radio.browse() },
@@ -183,7 +184,7 @@ const APPS = [
 const appById = id => APPS.find(a => a.id === id);
 let current = 'dashboard';
 // StudioGen: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
-if (APP_NAME === 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1));
+if (APP_NAME === 'StudioGen') { APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1)); APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'start'), 1)); }
 let recents = store.get('recents', APP_NAME === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
 
 function appIcon(a, withBadge) {
@@ -227,6 +228,7 @@ function openView(id, fromApp) {
   renderDock();
   ({
     dashboard: () => { if (typeof Dash !== 'undefined') Dash.show(); },
+    start: () => { if (typeof StartPage !== 'undefined') StartPage.show(); },
     maps: () => { ensureMap('main'); renderMapPanel(); },
     weather: () => loadWeather(),
     messages: () => renderMessages(),
@@ -1309,6 +1311,8 @@ function renderSettings() {
     </div>
     <div class="group-title">System</div>
     <div class="group">
+      <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['dashboard', 'Dashboard']])}</div>
+      ${tog('startGreet', 'The assistant says hello on the start page', 'A wave and a short spoken hello')}
       ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_NAME === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
@@ -1547,7 +1551,9 @@ function renderNet() { const el = $('#netState'); if (!el) return; const [k, lab
 $('#netState')?.addEventListener('click', () => (APP_NAME === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : typeof Link !== 'undefined' ? Link.settings() : openView('settings')));
 setInterval(renderNet, 3000); addEventListener('online', renderNet); addEventListener('offline', renderNet); setTimeout(renderNet, 500);
 applySettings(); renderHome(); updatePlayerUI(); renderDashTiles(); renderMessages();
+// The first screen: StudioGen's start page by default, DriveGen's dashboard (Settings › Start screen)
 openView('dashboard');
+if (settings.startScreen === 'start' && !new URLSearchParams(location.search).get('view')) addEventListener('DOMContentLoaded', () => { if (typeof StartPage !== 'undefined' && current === 'dashboard') openView('start'); }); // startpage.js loads later
 tick(); setInterval(tick, 1000);
 emit();
 

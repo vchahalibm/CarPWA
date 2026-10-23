@@ -632,7 +632,10 @@ const Voice = {
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); this.played = true;
       Log.d('tts', `▶ sentence ${n} (Web Audio)`, { ctxRate: ctx.sampleRate, secs: +secs.toFixed(2) });
       const at = ctx.currentTime; Bus.emit('voice.audio', { f32, rate, now: () => ctx.currentTime - at });
-      return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); }).finally(() => Bus.emit('voice.audio.end'));
+      return new Promise(r => { src.onended = r; src.start(); this.src = src; setTimeout(r, secs * 1000 + 1500); }).finally(() => {
+        Bus.emit('voice.audio.end');
+        clearTimeout(this.acIdle); this.acIdle = setTimeout(() => ctx.state === 'running' && ctx.suspend().catch(() => {}), 4000); // silent but running = “playing audio”: no sleep
+      });
     }
     this.played = true; // the next phone-recognizer turn resets the microphone first
     const el = this.player(), url = out === 'data' ? await wavDataUrl(f32, rate) : URL.createObjectURL(wavBlob(f32, rate));

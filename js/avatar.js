@@ -81,10 +81,10 @@ const VrmAvatar = {
     this.raf = 0;
     for (const [id, i] of this.all) if (!i.canvas.isConnected && !i.disposed && (i.preview || !$(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`))) { i.dispose(); this.all.delete(id); }
     if (!this.all.size) { Budget.drop('avatar'); return; }
-    const on = document.visibilityState === 'visible' && (current === 'dashboard' || [...this.all.values()].some(i => i.preview && i.canvas.isConnected));
+    const on = document.visibilityState === 'visible' && (current === 'dashboard' || current === 'start' || [...this.all.values()].some(i => i.preview && i.canvas.isConnected)); // the start page shows the Stage assistant
     if (on && t - this.last >= 32) { // ~30 fps is plenty, and saves battery
       const dt = Math.min(0.1, (t - this.last) / 1000); this.last = t;
-      for (const i of this.all.values()) if (i.canvas.isConnected && i.canvas.clientWidth && (current === 'dashboard' || i.preview)) i.update(dt, t / 1000);
+      for (const i of this.all.values()) if (i.canvas.isConnected && i.canvas.clientWidth && (current === 'dashboard' || current === 'start' || i.preview)) i.update(dt, t / 1000);
     } else if (!on) this.last = t;
     this.raf = requestAnimationFrame(x => this.tick(x));
   },

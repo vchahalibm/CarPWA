@@ -557,7 +557,7 @@ const Voice = {
         const a = await this.tts.generate(text, TTS_VOICES[settings.ttsVoice] ? settings.ttsVoice : 'af_heart');
         const ms = performance.now() - t0, sec = a.f32.length / a.rate, r = ms / 1000 / sec;
         store.set('ttsSpeed', { ...store.get('ttsSpeed', { cps: 14 }), r, cps: text.length / sec, n: Math.max(2, store.get('ttsSpeed', {}).n || 0) }); this.ttsSpeed = null;
-        out.neural = { firstMs: Math.round(ms), seconds: +sec.toFixed(2), speed: +r.toFixed(2), engine: this.tts.kind };
+        out.neural = { firstMs: Math.round(ms), seconds: +sec.toFixed(2), speed: +r.toFixed(2), engine: this.tts.kind, threads: self.crossOriginIsolated ? `several (up to ${Math.min(4, Math.ceil((navigator.hardwareConcurrency || 1) / 2))})` : 'one' };
         if (settings.tts === 'auto' && r > 0.8) this.resetTTS(); // too slow for Automatic: give the memory back
       } catch (e) { out.neural = { error: e.message }; }
     }

@@ -1294,6 +1294,7 @@ function renderSettings() {
       ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
       ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
       ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}
+      ${!IS_DESKTOP_APP && 'serviceWorker' in navigator ? btn('voiceThreads', 'Several CPU threads for the natural voice (test)', self.crossOriginIsolated ? 'On: the natural voice may use several threads. YouTube and web-page widgets may not show while it’s on' : 'Off: one thread. Turn on, then Check the voices with the natural voice') : ''}
       ${btn('voiceCheck', 'Check the voices', 'How fast each voice is on this device')}
       ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
@@ -1449,12 +1450,22 @@ const ACTIONS = {
       [[`Automatic · ${g}${settings.phoneVoice ? '' : ' ✓'}`, () => set('phoneVoice', '')], [`Automatic · ${other}`, () => { settings.voiceGender = other; set('phoneVoice', ''); }],
        ...PhoneVoices.ranked().slice(0, 14).map(v => [`${v.name} · ${v.lang}${PhoneVoices.gender(v) ? ` · ${PhoneVoices.gender(v)}` : ''}${settings.phoneVoice === v.voiceURI ? ' ✓' : ''}`, () => set('phoneVoice', v.voiceURI)]), ['Close']]);
   },
+  /** Test: cross-origin isolation from the service worker (sw.js), so the natural voice can run on several CPU threads. */
+  voiceThreads: async () => {
+    const sw = await navigator.serviceWorker.ready.catch(() => null), on = !self.crossOriginIsolated;
+    if (!sw?.active) return toast('The app’s service worker isn’t running yet: reload and try again');
+    const done = new Promise(r => { const f = e => { if (e.data?.type === 'coi') { navigator.serviceWorker.removeEventListener('message', f); r(); } }; navigator.serviceWorker.addEventListener('message', f); setTimeout(r, 3000); });
+    sw.active.postMessage({ type: 'coi', on }); await done;
+    Log.i('tts', `Several CPU threads for the natural voice: ${on ? 'on' : 'off'} (reloading)`);
+    sheet(on ? 'Several threads: on' : 'Several threads: off', `<p>Reloading the app${on ? '. Then choose the natural voice (Settings › Voice) and <b>Check the voices</b>: it shows how many threads it used and how fast it is.' : '.'}</p>`, []);
+    setTimeout(() => location.reload(), 900);
+  },
   voiceCheck: async () => {
     sheet('Checking the voices', '<p>Saying “Voice check” with the device’s voice, then timing the natural voice if it’s downloaded…</p>', [['Close']]);
     const r = await Voice.checkVoices(), P = r.phone, N = r.neural, fast = N && !N.error && N.speed <= 0.8;
     const line = (t, s) => `<div class="row"><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div></div>`;
     sheet('Voice check', `<div class="group">${line(IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', P ? (P.error ? `Didn’t start (${esc(P.error)}): ${P.voices} voices` : `Started in ${P.startMs} ms · ${esc(P.voice)}`) : 'Not available here')}
-      ${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
+      ${N?.threads ? line('Natural voice uses', `${N.threads} CPU thread${N.threads === 'one' ? '' : 's'}`) : ''}${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
       <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : N && !N.error ? 'The natural voice is too slow here for replies without pauses: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice, which starts at once.'}</p>`,
       [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }],
        ...(N && !N.error && N.speed > 0.8 && navigator.gpu && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? [['Try the GPU voice (310 MB)', () => ACTIONS.voiceGpu()]] : []), ['Close']]); // not on phones: it crashed an iPhone 15 Pro Max (too big for a web app there)

@@ -10,6 +10,8 @@ A car-friendly Progressive Web App dashboard: live map, drive stats, media, phon
 
 The original single-file prototype lives in [`docs/prototype.html`](docs/prototype.html) for reference.
 
+**User guide** (for people using the apps): [docs/user-guide.html](docs/user-guide.html).
+
 ## Getting started
 
 Plain HTML, CSS and JavaScript: no frameworks, no bundler, no build step, no npm (npm is used only by the optional desktop wrapper in `desktop/`). Serve the folder with any static web server:

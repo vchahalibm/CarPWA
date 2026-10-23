@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveGen & StudioGen Guide</title>
+<style>
+:root{--bg:#fbfbfd;--panel:#fff;--ink:#1d1d1f;--ink2:#515154;--line:#e3e3e8;--acc:#0a6cff;--acc2:#b84df0;--tip:#eef5ff;--warn:#fff4e5;--code:#f2f2f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228}}
+:root[data-theme="dark"]{--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line)}
+nav b{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);margin:18px 0 6px}
+nav a{display:block;color:var(--ink);text-decoration:none;padding:4px 8px;border-radius:8px;font-size:15px}
+nav a:hover{background:var(--code)}
+main{padding:40px clamp(16px,4vw,64px) 80px;min-width:0}
+header.hero{padding:10px 0 24px;border-bottom:1px solid var(--line);margin-bottom:12px}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.1;margin:0 0 10px;letter-spacing:-.02em;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:28px;margin:56px 0 8px;letter-spacing:-.01em;scroll-margin-top:16px}
+h3{font-size:20px;margin:30px 0 6px;scroll-margin-top:16px}
+p,li{color:var(--ink)}
+.lead{font-size:19px;color:var(--ink2);max-width:760px}
+a{color:var(--acc)}
+.path{font-weight:600;white-space:nowrap}
+q.say{quotes:"“" "”";font-style:italic;background:var(--code);padding:1px 6px;border-radius:6px}
+.tip,.warn{border-radius:12px;padding:12px 16px;margin:16px 0}
+.tip{background:var(--tip)}.warn{background:var(--warn)}
+.tip b:first-child,.warn b:first-child{display:block;margin-bottom:2px}
+figure{margin:18px 0}
+figure img{max-width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+figcaption{font-size:14px;color:var(--ink2);margin-top:6px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.card h4{margin:0 0 4px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:15px;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600}
+ol li,ul li{margin:4px 0}
+kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:14px}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--code);color:var(--ink2);vertical-align:2px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);columns:2;padding:16px}nav b{break-after:avoid}}
+@media (max-width:480px){nav{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <b>Start here</b>
+  <a href="#what">What the apps are</a>
+  <a href="#install">Install and set up</a>
+  <a href="#pair">Pair your phone with your Mac</a>
+  <a href="#around">Getting around</a>
+  <b>Every day</b>
+  <a href="#voice">Talking to it</a>
+  <a href="#agent">The agent: tasks for you</a>
+  <a href="#drive">In the car</a>
+  <a href="#dash">The dashboard and widgets</a>
+  <b>Presenting (StudioGen)</b>
+  <a href="#stage">Stage and the assistant</a>
+  <a href="#scripts">Scripts</a>
+  <a href="#mac">Tasks, data and web pages on the Mac</a>
+  <b>Many devices</b>
+  <a href="#connect">Connections</a>
+  <a href="#mesh">The Mesh and shows</a>
+  <b>Reference</b>
+  <a href="#settings">Settings at a glance</a>
+  <a href="#privacy">Privacy and safety</a>
+  <a href="#trouble">When something goes wrong</a>
+  <a href="#phrases">Things you can say</a>
+</nav>
+<main>
+<header class="hero">
+  <h1>DriveGen & StudioGen guide</h1>
+  <p class="lead">How to use the two apps: <b>DriveGen</b> on your phone (an agent in the car) and <b>StudioGen</b> on your Mac (presenting, the desktop agent and the hub for your devices).</p>
+</header>
+
+<h2 id="what">What the apps are</h2>
+<div class="two">
+  <div class="card"><h4>DriveGen (phone, iPad, any browser)</h4><p>A car screen in the style of CarPlay: maps and turn-by-turn, a dashboard of dials and widgets, calls, messages, music and radio, all by voice. Its <b>Agent</b> screen is your home for results: ask for your mail, your day or a message, and the answer shows big and simple, read aloud. Mail, calendar and chat tasks are done by your Mac.</p></div>
+  <div class="card"><h4>StudioGen (Mac app)</h4><p>The same app on the Mac, plus what only a computer can do: a 3D assistant that presents your slides with you, scripts that drive web pages and apps, a browser that stays signed in to Outlook, Teams, Slack and WhatsApp, Apple’s on-device model, and the <b>Mesh</b>, which links all your Macs and phones.</p></div>
+</div>
+<p>They work alone, and better together: once your phone is paired with your Mac, what you ask in the car can be done on the Mac and the answer comes back to the phone.</p>
+
+<h2 id="install">Install and set up</h2>
+<h3>DriveGen on an iPhone or iPad</h3>
+<ol>
+  <li>Open <b>https://vchahalibm.github.io/CarPWA/</b> in <b>Safari</b>.</li>
+  <li>Tap <span class="path">Share › Add to Home Screen</span>, keep <b>Open as Web App</b> on, and open DriveGen from the Home Screen (it then runs full screen, without browser bars).</li>
+  <li>On first launch, tap to allow <b>location</b> (needed for maps and speed). The first time you tap the mic, allow the <b>microphone</b>.</li>
+</ol>
+<div class="tip"><b>Tip</b>Safari and the Home Screen app keep separate storage: pair and set things up in the one you’ll use (the Home Screen app).</div>
+<h3>StudioGen on a Mac</h3>
+<ol>
+  <li>Download the latest <b>StudioGen</b> DMG (Apple silicon or Intel) and drag it to Applications.</li>
+  <li>The app isn’t notarised by Apple, so the first time either right-click it and choose <b>Open</b>, or run <kbd>xattr -cr /Applications/StudioGen.app</kbd> in Terminal once.</li>
+  <li>macOS asks once each for the microphone, the camera and speech recognition when you first use them.</li>
+  <li>StudioGen updates itself: when new files are ready a bar offers <b>Restart now</b>. You can also use <span class="path">StudioGen menu › Check for updates…</span>.</li>
+</ol>
+<p>Apple’s on-device model (for understanding commands by meaning and summarising) needs macOS 26 or later with Apple Intelligence turned on. Without it everything else still works.</p>
+
+<h2 id="pair">Pair your phone with your Mac</h2>
+<p>Do this once; afterwards they find each other by themselves, at home, at work and in the car on mobile data.</p>
+<ol>
+  <li>On the Mac: <span class="path">StudioGen › Settings › Connections › Pair a phone or iPad (once)</span>. Optionally type a secret phrase of your own. A code appears.</li>
+  <li>On the phone: <span class="path">DriveGen › Settings › Connections › Pair once</span> and scan the code (or paste it with <b>No camera? Paste the code</b>). Type the same phrase if you set one.</li>
+  <li>The corner of the dock shows the connection: <b>Direct</b>, <b>Relay</b>, <b>Tailscale</b>, <b>Waiting</b> or <b>Offline</b>.</li>
+</ol>
+<figure><img src="req/connections.jpg" alt="Connections settings with the pairing code"><figcaption>Settings › Connections on the Mac.</figcaption></figure>
+<p>Messages are end-to-end encrypted. They travel through public relays (which only see noise) and switch to a direct link between the devices whenever the networks allow. More in <a href="#connect">Connections</a>.</p>
+
+<h2 id="around">Getting around</h2>
+<ul>
+  <li><b>The dock</b> (left in landscape, bottom in portrait): the clock, the connection, your three latest apps, the <b>mic</b> and the <b>Home</b> button (the grid of apps).</li>
+  <li><b>Agent</b> (the star): the results of what you ask. It’s first on DriveGen’s home grid; StudioGen has it too.</li>
+  <li><b>Start page</b> (StudioGen): the assistant, what the app does and cards to start presenting, open scripts, the Mesh or Connections. Drag the window by the strip along the top. The ⚙ top right changes the character and its size; drag the character to move it. The handle on the left slides the dock in.</li>
+  <li><b>Dashboard</b>: dials, a map or pages of widgets (see <a href="#dash">the dashboard</a>).</li>
+  <li><b>Settings</b>: tabs along the top (swipe them sideways on a phone). Choose what opens first in <span class="path">Settings › Start screen</span>: Start page, Agent or Dashboard.</li>
+</ul>
+<figure><img src="req/start-page.jpg" alt="StudioGen start page"><figcaption>StudioGen’s start page.</figcaption></figure>
+
+<h2 id="voice">Talking to it</h2>
+<p>Tap the mic and speak, or type in the Agent screen’s box (not while driving). It answers aloud and shows the reply in the listening strip.</p>
+<ul>
+  <li><b>Commands</b>: about a hundred, from <q class="say">take me home</q> to <q class="say">next slide</q>. All are listed, switchable and editable in <span class="path">Settings › Voice › Voice commands</span>, where you can also add your own: what you say (with <code>{words}</code> to catch), and what happens (an action, an app, a shortcut, a reply).</li>
+  <li><b>By meaning</b>: if nothing matches, Apple’s on-device model on the Mac works out what you meant (<q class="say">is it going to pour later?</q> gives the weather). Phones ask their Mac. <span class="path">Settings › Voice › Understand commands by meaning</span>.</li>
+  <li><b>“Did you mean…?”</b>: when it’s unsure it asks; say <q class="say">yes</q> or <q class="say">no</q>.</li>
+  <li><b>Conversation mode</b> (<span class="path">Settings › Voice</span>): tap once and keep talking; you can interrupt it. Say <q class="say">that’s all</q> to finish.</li>
+  <li><b>The reply voice</b>: <b>Automatic</b> uses the device’s own voice where that’s quicker (phones) and the natural on-device voice (Kokoro) on the Mac. Choose female or male, or a voice by name, and test them with <span class="path">Settings › Voice › Check the voices</span>.</li>
+  <li><b>Keep speech on this device</b>: speech is never sent to Apple’s or Google’s servers; recognition runs on the device instead.</li>
+</ul>
+
+<h2 id="agent">The agent: tasks for you</h2>
+<p>Ask for a task in your own words and the agent does it, most often on your Mac, and shows the result as a card. Tasks that send, book or post <b>always ask first</b>.</p>
+<figure><img src="req/agent-screen.jpg" alt="The Agent screen with result cards"><figcaption>The Agent screen: ask box, suggestions for the time of day, the latest result big, earlier ones below.</figcaption></figure>
+<h3>What you can ask (first set)</h3>
+<table>
+<tr><th>Area</th><th>For example</th></tr>
+<tr><td>Mail (Outlook on the web)</td><td><q class="say">summarise my unread mail</q> · <q class="say">anything urgent in my mail?</q> · <q class="say">read the mail from Priya</q> · <q class="say">mails about the Acme deal</q> · <q class="say">find my PNR in my mail</q> · <q class="say">email Rahul saying the deck is ready</q> · <q class="say">reply to Priya saying I’ll call at five</q></td></tr>
+<tr><td>Calendar (Outlook on the web)</td><td><q class="say">what’s my day?</q> · <q class="say">when is my next meeting?</q> · <q class="say">brief me for my next meeting</q> · <q class="say">add team lunch to my calendar tomorrow at one</q> · <q class="say">I’m running ten minutes late</q></td></tr>
+<tr><td>Messaging (web)</td><td><q class="say">any Teams messages?</q> · <q class="say">tell Priya on Teams I’m on my way</q> · <q class="say">any Slack mentions?</q> · <q class="say">post in sales on Slack the numbers are out</q> · <q class="say">any WhatsApp messages?</q> · <q class="say">WhatsApp Mom saying I’m on my way</q></td></tr>
+<tr><td>Presenting</td><td><q class="say">present the keynote</q> · <q class="say">outline a talk about electric cars</q> · <q class="say">what can I present?</q></td></tr>
+<tr><td>Web</td><td><q class="say">flight status of AI 101</q> · <q class="say">news about electric cars</q> · <q class="say">look up the population of Pune</q> · <q class="say">price of a MacBook Air</q></td></tr>
+<tr><td>Car</td><td><q class="say">commute brief</q> · <q class="say">remember where I parked</q> · <q class="say">where did I park?</q> · <q class="say">navigate to my next meeting</q> · <q class="say">when do I arrive?</q> · <q class="say">WhatsApp Mom my ETA</q> · <q class="say">take a note: call the bank</q></td></tr>
+</table>
+<h3>Set up once on the Mac</h3>
+<ol>
+  <li><span class="path">Agent › Library › Agent browser (sign in)</span>: sign in to <b>Outlook</b>, <b>Teams</b> and <b>Slack</b>, and link <b>WhatsApp Web</b> with your phone. The browser keeps you signed in; close it with <b>Done</b>. If a task finds a sign-in page later, its card says so and opens the browser.</li>
+  <li><span class="path">Agent › Library › Settings</span>: choose <b>work or school</b> Outlook (outlook.office.com) or <b>personal</b> (outlook.live.com).</li>
+  <li><span class="path">Agent › Library › People</span>: names you say, with an email (mail and Teams) and a WhatsApp number (with the country code).</li>
+</ol>
+<h3>Asking before acting</h3>
+<p>For anything that acts for you, the agent says <q class="say">Shall I email Rahul: “the deck is ready”?</q> and shows <b>Yes</b>, <b>Yes, always</b> and <b>No</b>. <b>Yes, always</b> trusts that task from then on; take it back with <b>Ask first</b> in the Library.</p>
+<h3>In the car</h3>
+<p>While you drive, cards show at most three short lines and are read aloud; tap a card to hear it again, or <b>Go there</b> on a card with a place. Missing details are asked for (<q class="say">From whom?</q>). Mail, calendar and chat tasks run on your paired Mac, so it needs to be awake with StudioGen open.</p>
+<h3>Your own tasks</h3>
+<p><span class="path">Agent › Library › + New task</span>: give it a name and the ways you’d ask (one per line; words in braces become details it fills in, e.g. <code>check order {order}</code>). Then what it does:</p>
+<ul>
+  <li><b>Read a web page and answer</b>: a web address (it can use your details, e.g. <code>https://shop.example/orders/{order}</code>) and what to tell you. On the Mac it can use your signed-in sites.</li>
+  <li><b>Run tasks in order</b> (a composite): pick tasks; each result shows as its own card. <q class="say">Run my Monday</q> could be your day, urgent mail and the weekly script.</li>
+  <li><b>Run one of my scripts</b>, or <b>steps as JSON</b> for anything else.</li>
+</ul>
+<figure><img src="req/agent-library.jpg" alt="The task library"><figcaption>The Library: every task, Run, Trust, and your own.</figcaption></figure>
+
+<h2 id="drive">In the car</h2>
+<ul>
+  <li><b>Navigate</b>: <q class="say">navigate to the airport</q>, <q class="say">take me home</q>, or search in Maps. Turn-by-turn prompts, speed limits, rerouting. Tap ☆ on a place to save it as Home or Work.</li>
+  <li><b>Views</b>: Map, 3D, AR (the route on the camera view) and HUD (big arrow; Mirror for a windscreen reflection). Say <q class="say">AR mode</q> or use the mode button.</li>
+  <li><b>Nearby</b>: <q class="say">find parking</q>, <q class="say">find a charger</q>, fuel, coffee, food.</li>
+  <li><b>Calls and messages</b>: add your contacts in <span class="path">Settings › Phone & apps › Contacts</span>; <q class="say">call Ravi</q>, <q class="say">text Ravi saying running late</q>. Messages are read aloud and hidden while moving.</li>
+  <li><b>Music and radio</b>: <q class="say">play Radio Mirchi</q>, <q class="say">play Believer on Spotify</q>. Radio pauses while you talk to the assistant.</li>
+  <li><b>Camera</b>: the Camera widget recognises people, cars, bikes, animals and signals on the device; optional spoken alerts; <q class="say">what do you see?</q>.</li>
+  <li><b>Hide while driving</b> keeps distracting screens away above walking speed; in Drive mode the assistant only changes its face, no arm movements.</li>
+</ul>
+<figure><img src="req/drive-map.jpg" alt="Driving map"><figcaption>The map layout of the dashboard.</figcaption></figure>
+
+<h2 id="dash">The dashboard and widgets</h2>
+<ul>
+  <li><b>Three layouts</b> (swipe or use the pill): <b>Cluster</b> (eight dial styles), <b>Map</b>, and <b>Widgets</b> (pages of widgets).</li>
+  <li><b>Edit</b>: add, remove, reorder and resize widgets with the corner handle; add pages; stack widgets beside or inside the cluster. The camera and 3D widgets can <b>float</b> over the rest.</li>
+  <li><b>Widgets</b>: speed, trip, route, next turn, weather, calendar, clock, now playing, compass, roll, pitch, elevation, G-force, radio, the Assistant (your conversation by day), camera, data (table and chart), and documents, videos, web pages and 3D models (each as many times as you like; tap ⚙ in Edit).</li>
+  <li><b>Documents</b>: PDF and PowerPoint (with speaker notes), Word/Excel/SharePoint by link. <q class="say">next slide</q>, <q class="say">go to slide 5</q>.</li>
+  <li><b>Customise</b> (sliders button): dial style, accent colour, sensors. Dark and light themes, wallpapers.</li>
+  <li><b>Widget links</b> (<span class="path">Settings › Dashboard › Widget links</span>): when something happens, do something (e.g. when I arrive at the office, stop the radio).</li>
+</ul>
+<figure><img src="req/drive-widgets.jpg" alt="Widget pages"><figcaption>A page of widgets.</figcaption></figure>
+
+<h2 id="stage">Stage and the assistant (presenting)</h2>
+<p><span class="path">Settings › Mode › Stage</span> (or say <q class="say">stage mode</q>): your content large on the left, the 3D assistant and any widgets on the right, captions along the bottom. A clicker or the arrow keys turn slides.</p>
+<ul>
+  <li><b>The assistant</b> talks with lip-sync, blinks, looks at you and gestures (about 45 motions: wave, point, present, explain, think, typing, thumbs up…). Choose the character in <span class="path">Settings › Assistant › Avatars</span> (Elle, Vita, Victoria, Kiko, Noir, Ren, Seed-san, Maya, Leo, or your own .vrm).</li>
+  <li><b>Capture a motion</b> (<span class="path">Settings › Scripts › Assistant motions</span>): stand in front of the camera and the assistant copies you; record a few seconds and it joins the motion library.</li>
+  <li><b>Follow the presenter</b>: whoever shows the claim gesture (open palm, then fist) becomes the presenter; the assistant looks at them and takes their hand gestures. Point and pinch to click.</li>
+  <li><b>Presenter view</b>: a second window with notes, what’s next, a timer and big controls. <span class="path">Present on</span> (menu bar) puts StudioGen full screen on the TV and the presenter view on your screen; <kbd>Esc</kbd> ends it.</li>
+</ul>
+<figure><img src="req/stage.jpg" alt="Stage layout"><figcaption>Stage: content, the assistant and captions.</figcaption></figure>
+
+<h2 id="scripts">Scripts</h2>
+<p>A script has the assistant lead a presentation or a demo, step by step. They live in <span class="path">Settings › Scripts</span>, the same place as always.</p>
+<ul>
+  <li><b>New script</b> opens the editor: a timeline of steps, each with <b>Show</b> (what happens on screen: slides, pages, widgets, actions), <b>Say</b> (the assistant’s line, face and motion; <code>{notes}</code> reads the slide’s speaker notes) and <b>Next</b> (clicker, a phrase like “next”, a hand gesture, a pause, an app event, or a jump). New steps come from a three-question wizard.</li>
+  <li><b>Record a new script</b>: use the app as you will in the demo; your clicks, typing and drags become the steps, replayed with a gliding pointer.</li>
+  <li><b>Record web steps</b>: clicks and typing on a web page, replayed on cue. Passwords, card numbers and one-time codes are never recorded.</li>
+  <li><b>Interactive scripts</b>: no timeline; the assistant listens and does what you ask from its list, until you say you’re done.</li>
+  <li><b>Logic</b>: remember values, if/else, repeat, for each, and background jobs that report when done.</li>
+  <li>While a script runs: <q class="say">next</q>, <q class="say">go back</q>, <q class="say">back two steps</q>, <q class="say">start over</q>, <q class="say">stop the demo</q>, or tap the step dots.</li>
+  <li><b>Sharing</b>: ⬇ exports a bundle with everything the script uses; <b>Import</b> and <b>Library</b> bring them in.</li>
+</ul>
+<figure><img src="req/editor.jpg" alt="Script editor"><figcaption>The script editor.</figcaption></figure>
+<div class="tip"><b>Scripts and agent tasks</b>Scripts are for presenting and longer, timed sequences; agent tasks are quick jobs you ask for in words. An agent task can run a script, so “present the keynote” from the car starts it on the Mac.</div>
+
+<h2 id="mac">Tasks, data and web pages on the Mac</h2>
+<ul>
+  <li><b>Tasks on this computer</b>: script steps can run AppleScript, a Shortcut or a shell command (open an app, notify, draft an email, battery and disk…). Each piece of code shows itself and asks once before it runs; <span class="path">Settings › System › Tasks you always allow</span>.</li>
+  <li><b>Data</b>: the data widget shows a CSV/Excel export or JSON as a table and a chart; scripts load, chart and summarise it.</li>
+  <li><b>Web page widgets are real browsers</b> on the Mac: any site, signed in, with back and forward. <b>Site helpers</b> add your own CSS/JS to chosen sites (for example to hide cookie banners before a demo).</li>
+</ul>
+
+<h2 id="connect">Connections</h2>
+<p><span class="path">Settings › Connections</span> on both apps.</p>
+<ul>
+  <li><b>Pair once</b> (above): from anywhere, no account. Encrypted messages through public relays, a direct link when the networks allow.</li>
+  <li><b>Connect directly</b>: same Wi-Fi or the Mac on the phone’s hotspot, codes shown both ways, nothing in between.</li>
+  <li><b>Tailscale</b>: if you already use it.</li>
+  <li><b>Secret phrase</b>: an extra secret typed on both devices; <b>Change secret</b> now or on a schedule; <b>Revoke</b> a device on the Mac.</li>
+  <li><b>Test the connection</b>: this network, every relay, the other app, a verdict. Say <q class="say">test the connection</q>.</li>
+  <li>From the phone: <q class="say">run the sales summary on my Mac</q> runs a script the Mac offers (tick them in Connections), and the answer comes back to the phone.</li>
+</ul>
+
+<h2 id="mesh">The Mesh and shows</h2>
+<p>Several StudioGens and DriveGens as one team (<span class="path">StudioGen › Mesh</span>).</p>
+<ul>
+  <li><b>Create a mesh</b>, then <b>Invite</b> (a code or QR); paired phones join by themselves.</li>
+  <li><b>Live</b>: who is connected to whom and how, what each is running. <b>Devices</b>: roles and permissions. <b>Activity</b> and <b>History</b> (a week, with replay and export).</li>
+  <li><b>Shows</b>: one script across screens, in <b>steps</b> (every screen moves together) or in <b>tandem</b> (each runs its own part, waiting for your cues). From the phone: <q class="say">start the keynote on all screens</q>, <q class="say">next on every screen</q>, <q class="say">stop the show</q>. A small badge shows on every screen while a show runs.</li>
+  <li><b>Shared</b>: scripts and motions from the mesh; mark yours private if they shouldn’t be shared.</li>
+</ul>
+<figure><img src="req/mesh-live.jpg" alt="Mesh live view"><figcaption>Mesh › Live.</figcaption></figure>
+
+<h2 id="settings">Settings at a glance</h2>
+<p>Settings has six tabs (swipe them sideways on a phone). The guide names the group inside a tab, e.g. <span class="path">Settings › Voice</span> is the Voice group on the Assistant tab.</p>
+<table>
+<tr><th>Tab</th><th>Groups and what’s there</th></tr>
+<tr><td>Assistant</td><td><b>Assistant</b>: avatars, the start-page greeting, Understanding (a language model for interactive scripts) · <b>Voice</b>: speech recognition, keep speech on this device, reply voice (Automatic, device, natural), check the voices, voice commands, conversation mode, understand commands by meaning, act after you stop talking</td></tr>
+<tr><td>Stage</td><td><b>Mode</b> (Drive or Stage) · <b>Presenting</b>: captions, presenter view, follow the presenter, claim gesture, point to click · <b>Cameras</b>: which camera per mode</td></tr>
+<tr><td>Drive</td><td><b>Dashboard</b> (widget links, radio stations) · <b>Driving</b> (hide while driving) · <b>Navigation</b> (routing, TomTom key, Home and Work) · <b>Phone & apps</b> (contacts, music app, shortcuts) · <b>Camera & objects</b> (recognition model, alerts) · <b>Location</b>. On StudioGen this tab shows when you turn on the drive settings.</td></tr>
+<tr><td>Scripts & tasks</td><td>Scripts, assistant motions, recordings, site helpers, screen understanding, the library address</td></tr>
+<tr><td>Connections</td><td>Pairing, relays, direct link, test the connection, secrets, devices</td></tr>
+<tr><td>System</td><td><b>Display</b> (start screen, theme, wallpaper, units, seamless widgets) · <b>System</b> (updates, start at login, tasks you always allow, download everything for offline use)</td></tr>
+</table>
+
+<h2 id="privacy">Privacy and safety</h2>
+<ul>
+  <li>Recognition, the reply voice, the camera’s recognition and Apple’s model all run <b>on your devices</b>. Speech goes to Apple’s or Google’s servers only for languages that can’t be recognised on the device, and never with <b>Keep speech on this device</b>.</li>
+  <li>Messages between your devices are <b>end-to-end encrypted</b>; relays only pass on noise.</li>
+  <li>Sign-ins in the agent browser and web widgets stay on your Mac. Passwords, card numbers and one-time codes are never recorded or typed by the app.</li>
+  <li>Tasks that act for you ask first; Mac tasks show their code before the first run.</li>
+  <li>In the car: short cards, read aloud; distracting screens hide while moving; the assistant doesn’t gesture in Drive mode.</li>
+</ul>
+
+<h2 id="trouble">When something goes wrong</h2>
+<table>
+<tr><th>What happens</th><th>Try this</th></tr>
+<tr><td>StudioGen doesn’t respond to clicks</td><td>Fixed in the 23 Oct update (the start page was one big window-drag area). Use <span class="path">StudioGen menu › Check for updates…</span>, then quit and reopen.</td></tr>
+<tr><td>No spoken reply on the iPhone</td><td><span class="path">Settings › Voice › Check the voices</span> (the tap lets iOS speak), and keep the reply voice on Automatic.</td></tr>
+<tr><td>A mail or calendar task says “sign in”</td><td>On the Mac: <span class="path">Agent › Library › Agent browser</span>, sign in, <b>Done</b>, ask again.</td></tr>
+<tr><td>“I can’t reach your Mac”</td><td>The Mac must be awake with StudioGen open and online. Check the dock corner and <span class="path">Settings › Connections › Test the connection</span>.</td></tr>
+<tr><td>The phone forgot the pairing</td><td>Safari and the Home Screen app have separate storage: pair in the Home Screen app.</td></tr>
+<tr><td>A task acts without asking</td><td>It was trusted: <span class="path">Agent › Library</span> › <b>Ask first</b>.</td></tr>
+<tr><td>Something else</td><td>Settings › tap the version row 7 times for the Logs tab (it needs a key from the team) and share the log.</td></tr>
+</table>
+
+<h2 id="phrases">Things you can say</h2>
+<div class="two">
+  <div class="card"><h4>Driving</h4><p><q class="say">take me home</q> · <q class="say">navigate to Costco</q> · <q class="say">what’s my ETA?</q> · <q class="say">find parking</q> · <q class="say">AR mode</q> · <q class="say">stop navigation</q> · <q class="say">call Mom</q> · <q class="say">read my messages</q> · <q class="say">play the radio</q> · <q class="say">what do you see?</q></p></div>
+  <div class="card"><h4>The agent</h4><p><q class="say">summarise my unread mail</q> · <q class="say">what’s my day?</q> · <q class="say">brief me for my next meeting</q> · <q class="say">any WhatsApp messages?</q> · <q class="say">email Rahul saying …</q> · <q class="say">flight status of …</q> · <q class="say">where did I park?</q></p></div>
+  <div class="card"><h4>Presenting</h4><p><q class="say">stage mode</q> · <q class="say">next slide</q> · <q class="say">go to slide 5</q> · <q class="say">go back</q> · <q class="say">start over</q> · <q class="say">stop the demo</q> · <q class="say">present the keynote</q></p></div>
+  <div class="card"><h4>Devices</h4><p><q class="say">who’s around?</q> · <q class="say">run the sales summary on my Mac</q> · <q class="say">start the keynote on all screens</q> · <q class="say">next on every screen</q> · <q class="say">test the connection</q></p></div>
+</div>
+<p>The full list, with on/off switches and your own additions: <span class="path">Settings › Voice › Voice commands</span>. Agent tasks: <span class="path">Agent › Library</span>.</p>
+</main>
+</div>
+</body>
+</html>

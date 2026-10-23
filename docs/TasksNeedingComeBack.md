@@ -20,6 +20,8 @@ Things started or decided but not finished, and things to perform together later
 
 ## Code features
 
+- [ ] **Decide: “say a filler first” for spoken replies** (tested 23 Oct). A filler line in the device voice starts at once (~2 ms; ~2 s long) while the assistant types, then thinks (the new Typing and Think motions), and the natural voice is made in the background. Measured for a 7-sentence email summary (27 s of speech): Mac GPU 2.4 s to make all of it (with the assistant animating: no slowdown), Mac CPU 38 s (one thread: the app isn't cross-origin isolated), iPhone CPU ~2.4× slower than real time. Waiting for the whole reply: Mac 2.4 s (fine), phone ~47 s (not usable). Streaming without pauses after the filler: phone ~33 s before the answer starts. Options for DriveGen: the device voice for long replies (today), the Mac making the natural voice and sending it to the phone, or multi-threaded voice on the phone (cross-origin isolation via the service worker), to measure.
+
 - [ ] **Data lake: SQL queries as task data sources** (decided 23 Oct): for now tasks read Excel/CSV and draw charts; later, queries against a data-lake setup (connection, read-only, parameters bound like `data.sql`).
 
 - [x] **Commands by intent with Apple's on-device model** (built 21 Oct, StudioGen 0.10): phones ask their Mac; checked in the Demo Day journey (39/39). Left from the proposal: the “What can I say” screen per mode (1:1, mesh, show), and “No, I meant…” teaching.

@@ -117,6 +117,7 @@ const Tandem = {
     return { app: typeof meshApp === 'function' ? meshApp() : APP_NAME, name: store.get('meshName', ''), view: document.querySelector('.view.active')?.id || '',
       paired: Relay.isMac() ? Relay.peers().map(p => ({ id: p.id, name: p.name, online: !!Relay.online[p.room], key: (p.key || '').slice(0, 6), pass: !!p.passKey })) : Relay.mac() ? [{ name: 'mac', online: !!Relay.online.mac, key: (Relay.mac().key || '').slice(0, 6), pass: !!Relay.mac().passKey }] : [],
       direct: Direct.ch?.readyState === 'open',
+      agent: typeof Agent !== 'undefined' ? Agent.feed().slice(0, 4).map(c => ({ task: c.task, title: c.title, status: c.status, headline: c.headline })) : [],
       mesh: m ? { id: m.id, name: m.name, me, member: !!M.member(me), owner: !!M.amOwner?.(), members: M.members().map(x => x.id), online: Object.keys(M.presence).filter(id => Date.now() - (M.presence[id].at || 0) < 45000), show: M.myShow || null, key: (m.key || '').slice(0, 6),
         events: M.events.slice(-40).map(e => ({ ts: e.ts, dev: e.dev, kind: e.kind, what: e.data?.what || e.data?.kind || '', text: e.data?.text || e.data?.name || e.data?.script || '' })),
         names: Object.fromEntries(M.members().map(x => [x.id, x.name])), perms: Object.fromEntries(M.members().map(x => [x.id, x.perms?.run !== false])),

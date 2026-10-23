@@ -132,6 +132,13 @@ leave the microphone to you), and when what you say matches an intent, does it, 
   meanwhile. macOS asks once per app a task controls (Automation).
 - Ready-made tasks are in the editor's picker (This computer). DriveGen will run them through a paired StudioGen.
 
+## The agent's steps (js/agent.js)
+
+Tasks of the agent library are scripts like these, with inputs (`params`) filled from what was said. The steps work in any script:
+- `agent.open` (a web address in StudioGen's agent browser; `?name=value` inputs go into the address, `wait=<selector>`, `site=<name>` to ask for a sign-in), `agent.read` (selectors to read, `||` between choices; the whole page if none fit), `agent.wait`, `agent.click` (by text, or `sel=`), `agent.type` (a field by label, the text, `enter`), `agent.key`, `agent.show`, `agent.fail` (stop with a message), `agent.task` (run another task: `name=value` inputs; a composite).
+- `ai.card` (the model makes a card `{ headline, items: [{ title, detail, when, place, person }] }` from text: `{ "do": "ai.card", "value": "what to pull out", "args": ["{read}"], "as": "card" }`), `ai.when` (a spoken time → `{ start, end }`).
+- `car.park`, `car.findcar`, `car.eta`. Use `{read}` (not `{page}`, which is the slide number) for page text.
+
 ## Data (the data widget)
 
 - `{ "do": "data.csv", "value": "samples/sales.csv", "as": "rows" }`: a CSV, TSV or JSON link, or a path on this computer

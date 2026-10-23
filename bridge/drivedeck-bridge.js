@@ -107,6 +107,51 @@
         el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         return { ok: true, how: 'text', rect: rect(el), text: clean(el.innerText || el.value || '') };
       },
+      /** For agent tasks: the text of the first selector (comma list, tried in order) that has some; each matching element
+          is one line (its aria-label when it has one, as list rows often do). The whole page as a last resort. */
+      read(sels, max = 6000) {
+        for (const s of [].concat(sels || []).flatMap(x => String(x).split('||'))) {
+          let els = []; try { els = [...doc.querySelectorAll(s.trim())].filter(visible); } catch {}
+          const lines = els.map(e => (e.getAttribute('aria-label') || e.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+          if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title };
+        }
+        return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };
+      },
+      /** Wait until a selector (comma list) or a text shows, up to `ms`. */
+      async waitFor(o = {}, ms = 15000) {
+        const t0 = Date.now(), q = clean(o.text || '').toLowerCase();
+        for (;;) {
+          let hit = false;
+          if (o.sel) { try { hit = [...doc.querySelectorAll(o.sel)].some(visible); } catch {} }
+          if (!hit && q) hit = (doc.body?.innerText || '').toLowerCase().includes(q);
+          if (hit) return { ok: true, url: win.location.href };
+          if (Date.now() - t0 > ms) return { ok: false, error: 'not there', url: win.location.href };
+          await wait(300);
+        }
+      },
+      /** Focus a field found by its label, placeholder or a selector (never a secret field), for real typing. */
+      focus(o = {}) {
+        let el = null; const q = clean(o.label || '').toLowerCase();
+        if (o.sel) { try { el = [...doc.querySelectorAll(o.sel)].find(visible); } catch {} }
+        if (!el && q) el = [...doc.querySelectorAll('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox],[role=combobox],[role=searchbox]')].find(e => visible(e) && clean(label(e) || e.getAttribute('aria-label') || '').toLowerCase().includes(q));
+        if (!el) return { ok: false, error: `No field “${o.label || o.sel}” on the page` };
+        if (secret(el)) return { ok: false, error: 'That is a password, payment or code field: type it yourself' };
+        el.scrollIntoView({ block: 'center' }); el.focus(); el.click?.();
+        if (el.select && o.clear !== false) el.select();
+        return { ok: true, rect: rect(el) };
+      },
+      /** Click the first visible element of a selector (comma list), or the control whose text, label or title reads `text`. */
+      async clickOn(o = {}) {
+        let el = null;
+        if (o.sel) { try { el = [...doc.querySelectorAll(o.sel)].find(visible); } catch {} }
+        if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(a.innerText || '').length - clean(b.innerText || '').length).find(e => clean(e.innerText || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
+        if (!el) return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
+        el.scrollIntoView({ block: 'center' }); await wait(150);
+        const r = el.getBoundingClientRect(), pt = { bubbles: true, cancelable: true, view: win, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+        for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) el.dispatchEvent(new (t.startsWith('pointer') && win.PointerEvent ? win.PointerEvent : win.MouseEvent)(t, pt));
+        el.click();
+        return { ok: true, rect: rect(el), text: clean(el.innerText || el.getAttribute('aria-label') || '') };
+      },
       /** Find a step's element and bring it into view (a field: focused, its text selected, ready to be typed over). */
       async prepare(s, opts = {}) {
         let f = null;

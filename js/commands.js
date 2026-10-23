@@ -591,11 +591,15 @@ const Commands = {
     const p = this.pending; this.pending = null;
     if (p && Date.now() - p.at < 20000) {
       const t = tidy(raw);
-      if (YES.test(t) && t.split(' ').length <= 4) { Log.i('cmd', `Confirmed: ${p.r.cmd.name}`); return this.exec(p.r, p.raw, say); }
-      if (NO.test(t) && t.split(' ').length <= 3) return say('Okay, never mind.');
+      if (NO.test(t) && t.split(' ').length <= 3) { p.no?.(); return say('Okay, never mind.'); }
+      if (p.answer) return p.answer(raw, say); // a task asked for one of its inputs (js/agent.js)
+      if (p.yes && /\balways\b/.test(t) && t.split(' ').length <= 5) return p.yes(true);
+      if (YES.test(t) && t.split(' ').length <= 4) { if (p.yes) return p.yes(false); Log.i('cmd', `Confirmed: ${p.r.cmd.name}`); return this.exec(p.r, p.raw, say); }
     }
     if (typeof Script !== 'undefined' && Script.hear(raw)) return; // a running script's own words ("next", "go back"…) come first
     const r = this.match(raw, alts);
+    // a task of the agent's library said in one of its ways (js/agent.js), when no command matched for sure
+    if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id))) { const m = Agent.match(raw); if (m) { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
     if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();

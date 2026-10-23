@@ -112,7 +112,7 @@ const Intent = {
       const say = [].concat(c.say || []).map(String), slots = [...new Set(say.flatMap(l => [...l.matchAll(/\{(\w+)\}/g)].map(m => m[1])))];
       const ex = (c.match === 'keywords' ? say.slice(0, 2).map(l => l.replace(/[|,]/g, ' ')) : say.slice(0, 2).map(eg)).map(x => x.slice(0, 50));
       return { id: c.id, name: c.name, eg: ex, slots, words: `${c.name} ${say.join(' ')}`.toLowerCase() };
-    });
+    }).concat(typeof Agent !== 'undefined' ? Agent.catalog() : []);
   },
   /** The commands worth showing the model for this: those sharing words with what was said (stems), at most 20. */
   shortlist(text, cat) {
@@ -143,6 +143,10 @@ const Intent = {
     let j; const t0 = performance.now();
     try { const r = await MacAI.ask(this.request(raw)); j = JSON.parse(r.json || '{}'); }
     catch (e) { Log.w('cmd', 'Commands by intent: no answer', { error: e.message }); return fallback(); }
+    if (/^task:/.test(j.intent || '') && typeof Agent !== 'undefined') { // a task of the agent's library, its inputs filled from what was said
+      const t = Agent.get(j.intent.slice(5)); Log.i('cmd', `“${raw}” → ${j.intent} (by intent, ${Math.round(performance.now() - t0)} ms)`, { answer: j });
+      if (t) { const ps = {}; for (const k of Object.keys(Agent.params(t))) if (j[k] != null && String(j[k]).trim()) ps[k] = String(j[k]).trim(); return Agent.start(t, ps, { say }); }
+    }
     const c = j.intent && j.intent !== 'none' && Commands.all().find(x => x.id === j.intent);
     Log.i('cmd', `“${raw}” → ${c ? c.id : 'nothing'} (by intent, ${Math.round(performance.now() - t0)} ms)`, { answer: j });
     if (!c) return fallback();

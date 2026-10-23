@@ -68,6 +68,15 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => { const [a, p] = await Promise.all([st(A), st(P)]); return !a.ai || since(p, S.t0, /degrees|rain|drizzle|sunny|cloud/i) || `last reply: ${lastReply(p) || 'none'}`; }, wait: 60 },
       { title: 'And on the Mac itself', ...say(A, 'switch the gauges to a different look'), check: async () => { const a = await st(A); return !a.ai || since(a, S.t0, /style/i) || `last reply: ${lastReply(a) || 'none'}`; }, wait: 60 },
     ],
+    agent: [
+      { title: 'The phone asks its Mac for a task of the agent library; the result comes back as a card', ...say(P, 'what can i present'),
+        check: async () => { const [a, p] = await Promise.all([st(A), st(P)]); const c = p.agent?.[0]; return c?.task === 'present.scripts' && c.status === 'done' && /\d+ scripts/.test(c.headline) && a.agent?.some(x => x.task === 'present.scripts' && / · for /.test(x.title)) || `phone card: ${c ? `${c.status} ${c.headline}` : 'none'}`; }, wait: 60 },
+      { title: 'A car task on the phone itself: remember where it parked', ...say(P, 'remember where i parked'), check: async () => (await st(P)).agent?.[0]?.task === 'car.park' || 'no card yet', wait: 20 },
+      { title: 'And find it again', ...say(P, 'where did i park'), check: async () => { const c = (await st(P)).agent?.[0]; return c?.task === 'car.findcar' && /away/.test(c.headline) || `card: ${c?.headline || 'none'}`; }, wait: 20 },
+      { title: 'A task that acts for you is asked first (a WhatsApp message sent from the Mac)', ...say(P, 'whatsapp Mom saying hello from the test'),
+        check: async () => { const c = (await st(P)).agent?.[0]; return c?.status === 'ask' && /Shall I/.test(c.headline) || `card: ${c ? `${c.status} ${c.headline}` : 'none'}`; }, wait: 20 },
+      { title: 'Saying no sends nothing', ...say(P, 'no'), check: async () => (await st(P)).agent?.[0]?.status !== 'ask' || 'still asking', wait: 20 },
+    ],
     ask: [
       { title: 'Run a script on the other Mac, through the mesh', ...say(P, 'run the sales summary on studio b', 'Mesh › Who’s around › Studio B › <b>▶ Sales summary</b>'),
         check: async () => since(await st(P), S.t0, /12 percent/i) || `last reply: ${lastReply(await st(P)) || 'none'}`, wait: 90 },

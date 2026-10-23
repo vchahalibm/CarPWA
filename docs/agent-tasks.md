@@ -199,8 +199,12 @@ A working list for the script library (draft for discussion, 23 Oct 2026). Each 
 - **Results from the Mac** (scripts run remotely) arrive in the same feed, as do background jobs when they finish ("Your export is done").
 - **Below the feed:** a few suggested next asks based on the time and place (commute brief in the morning, "join your meeting" five minutes before).
 
-## Questions to settle before building
-1. **Which apps do you use?** Outlook web or the Outlook app, Teams or Slack, which calendar and drive (OneDrive, Box), which data sources. This decides the first 20 scripts.
-2. **What should the first library cover?** I'd start with mail, calendar and meetings, presenting, data, and the car (sections 1, 2, 5, 6 and 9).
-3. **Acting on your behalf:** a confirmation for everything that acts, or a per-script "trust" switch after the first few times?
-4. **The DriveGen feed:** does it replace the car dashboard as the home, or sit beside it as its own screen?
+## Built (23 Oct 2026)
+js/agent.js: the library (the tasks of sections 1, 2, 3, 5, 7 and 9 that run without new app powers), the agent browser on the Mac, asking before acting with “yes, always”, People, your own tasks and composites, and the Agent screen. Checked: matching on both apps, news and flight status on the Mac with Apple’s on-device model, Outlook’s sign-in detected, the phone running a task on its Mac (tandem Demo Day, act “agent”). Still to try: the signed-in Outlook, Teams, Slack and WhatsApp pages.
+
+## Decided (23 Oct 2026)
+1. **Apps:** Outlook on the web (mail and calendar), Teams, Slack and WhatsApp on the web, OneDrive and Box for files. Data: Excel/CSV files and charts for now; SQL queries on a data lake later (in docs/TasksNeedingComeBack.md).
+2. **First library:** mail, calendar, messaging, presenting, web tasks and the car (sections 1, 2, 3, 5, 7 and 9).
+3. **Acting for you:** asked every time; after a confirmed run the question offers “Always allow this task”, and Settings lists trusted tasks to take back.
+4. **DriveGen's home:** its own screen (Home), beside the car dashboard: the dashboard stays the CarPlay-style view, Home is the agent's results feed.
+5. **The list keeps growing:** people add their own tasks (a web page + a question, a recorded web sequence, a script) and compose tasks into bigger ones (a composite runs tasks in order, passing results on).

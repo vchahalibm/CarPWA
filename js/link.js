@@ -48,6 +48,9 @@ const Link = {
   async run(script, vars = {}) { if (this.direct()) return this.viaDirect(Direct.call('run', { script, vars })); if (this.relay()) return this.viaDirect(Relay.call('run', { script, vars })); const { job } = await this.call('/api/run', { script, vars }); return this.job(job); },
   /** Apple's on-device model on the Mac (js/brain.js › MacAI), for this phone. */
   async ai(o) { if (this.direct()) return Direct.call('ai', o, 30000); if (this.relay()) return Relay.call('ai', o, 30000); return this.call('/api/ai', o, 30000); },
+  /** A task of the Mac's agent library (js/agent.js), and the list of the ones made there. Direct link or relay. */
+  async task(o) { if (this.direct()) return Direct.call('task', o, 300000); if (this.relay()) return Relay.call('task', o, 300000); throw new Error('Tasks need a direct or relay link to your Mac (pair once in Settings › Connections)'); },
+  async tasks() { if (this.direct()) return Direct.call('tasks', {}, 15000); if (this.relay()) return Relay.call('tasks', {}, 20000); return { tasks: [] }; },
   async say(text) { if (this.direct()) return this.viaDirect(Direct.call('say', { text })); if (this.relay()) return this.viaDirect(Relay.call('say', { text })); const { job } = await this.call('/api/say', { text }); return this.job(job); },
   /** What came back, as something to say. */
   spoken(j) { if (j.state === 'failed') return `It didn’t work on your Mac: ${j.error || 'no reason given'}.`; const r = j.result; return (j.said || []).join(' ') || (r != null && typeof r !== 'object' ? String(r) : '') || 'Done on your Mac.'; },

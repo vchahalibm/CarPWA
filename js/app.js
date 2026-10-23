@@ -174,6 +174,7 @@ const APPS = [
   { id: 'drive', name: 'Drive', icon: 'gauge', bg: 'linear-gradient(160deg,#ffb340,#ff6a00)' },
   { id: 'calendar', name: 'Calendar', icon: 'calendar', bg: 'linear-gradient(160deg,#ff6b6b,#d0213f)' },
   { id: 'settings', name: 'Settings', icon: 'settings', bg: 'linear-gradient(160deg,#a1a1a8,#5b5b62)' },
+  { id: 'agent', name: 'Agent', icon: 'star', bg: 'linear-gradient(160deg,#ffcf5c,#ff7a45 50%,#e0457b)' },
   { id: 'start', name: 'Start', icon: 'house', bg: 'linear-gradient(160deg,#ff6a5c,#b84df0 55%,#4f6bff)' },
   { id: 'mesh', name: 'Mesh', icon: 'mesh', bg: 'linear-gradient(160deg,#6ea0ff,#7c3aed)' },
   { id: 'podcasts', name: 'Podcasts', icon: 'podcasts', bg: 'linear-gradient(160deg,#d68bff,#8a2be2)', view: 'music', source: 'podcasts' },
@@ -184,6 +185,7 @@ const APPS = [
 const appById = id => APPS.find(a => a.id === id);
 let current = 'dashboard';
 // StudioGen: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
+if (APP_NAME !== 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // DriveGen: the agent's Home first
 if (APP_NAME === 'StudioGen') { APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1)); APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'start'), 1)); }
 let recents = store.get('recents', APP_NAME === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
 
@@ -1311,7 +1313,7 @@ function renderSettings() {
     </div>
     <div class="group-title">System</div>
     <div class="group">
-      <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['dashboard', 'Dashboard']])}</div>
+      <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['agent', 'Agent'], ['dashboard', 'Dashboard']])}</div>
       ${tog('startGreet', 'The assistant says hello on the start page', 'A wave and a short spoken hello')}
       ${typeof StartPage !== 'undefined' ? btn('startAvatar', 'The assistant on the start page', `${StartPage.look().model ? (BUILTIN_MODELS[StartPage.look().model]?.name || StartPage.look().model) : 'As on Stage'} · ${StartPage.look().size}%`) : ''}
       ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_NAME === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
@@ -1555,7 +1557,7 @@ setInterval(renderNet, 3000); addEventListener('online', renderNet); addEventLis
 applySettings(); renderHome(); updatePlayerUI(); renderDashTiles(); renderMessages();
 // The first screen: StudioGen's start page by default, DriveGen's dashboard (Settings › Start screen)
 openView('dashboard');
-if (settings.startScreen === 'start' && !new URLSearchParams(location.search).get('view')) addEventListener('DOMContentLoaded', () => { if (typeof StartPage !== 'undefined' && current === 'dashboard') openView('start'); }); // startpage.js loads later
+if (/^(start|agent)$/.test(settings.startScreen) && !new URLSearchParams(location.search).get('view')) addEventListener('DOMContentLoaded', () => { if (current === 'dashboard' && (settings.startScreen === 'agent' ? typeof AgentHome !== 'undefined' : typeof StartPage !== 'undefined')) openView(settings.startScreen); }); // startpage.js loads later
 tick(); setInterval(tick, 1000);
 emit();
 

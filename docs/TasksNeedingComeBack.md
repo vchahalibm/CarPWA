@@ -4,6 +4,8 @@ Things started or decided but not finished, and things to perform together later
 
 ## To perform (with you)
 
+- [ ] **The agent with your accounts** (built 23 Oct): in StudioGen, Agent › Library › Agent browser: sign in once to Outlook (work: outlook.office.com, or personal in Agent › Settings), Teams, Slack and WhatsApp Web (link your phone). Then ask: “summarise my unread mail”, “what’s my day”, “read the mail from <someone>”, “any teams messages”, “any whatsapp messages”; and from DriveGen the same. Add People (email, WhatsApp number) before the sending tasks. The page selectors for Outlook/Teams/Slack/WhatsApp are best guesses (the model reads whatever text is there); note what comes back wrong and I'll tune each task. Tried so far without accounts: news and flight status (right), Outlook asks to sign in (right).
+
 - [ ] **Main-process error in StudioGen (“out of range”)**, seen 21 Oct; couldn't be reproduced with an empty profile. From 0.9.3 such errors go to `~/Library/Logs/StudioGen/main.log` with the stack: when it happens again, say so and I'll read the file and fix the line.
 - [x] **Voice settled** (21 Oct): phones use the device voice (Automatic) and the phone's recognizer, listening acts ~0.45–0.8 s after you stop; Kokoro stays a choice but is 2.4× slower than speech on the CPU of an iPhone 15 Pro Max, and its GPU build crashed the app (too big for a web app on a phone), so the GPU option is gone on phones. StudioGen keeps Kokoro (fast on a Mac) and Apple's recognizer. No more voice experiments unless something breaks.
 - [ ] ~~Voice: try on the iPhone~~ (done, see above): Settings › Voice › Check the voices (a tap: unlocks iOS speech), then a few replies with Automatic; listening should act ~0.8 s after you stop. In the iPhone simulator the device voice doesn't start without a tap (same symptom as the real phone): the retry and the on-screen note now cover it.
@@ -17,6 +19,8 @@ Things started or decided but not finished, and things to perform together later
 - [ ] A mesh with **two real phones** (or iPhone + iPad) and **two real Macs**.
 
 ## Code features
+
+- [ ] **Data lake: SQL queries as task data sources** (decided 23 Oct): for now tasks read Excel/CSV and draw charts; later, queries against a data-lake setup (connection, read-only, parameters bound like `data.sql`).
 
 - [x] **Commands by intent with Apple's on-device model** (built 21 Oct, StudioGen 0.10): phones ask their Mac; checked in the Demo Day journey (39/39). Left from the proposal: the “What can I say” screen per mode (1:1, mesh, show), and “No, I meant…” teaching.
 - [ ] ~~Commands by intent, not by phrase lists~~ (was proposed 20 Oct): utterance → intent → action. A small on-device sentence-embedding model classifies what was said against a few examples per intent (no permutations to list); slots (script, device, person) filled from what the app knows; “No, I meant…” teaches it. Plus a “What can I say” screen per mode (1:1, mesh, show), showing only what works right now.

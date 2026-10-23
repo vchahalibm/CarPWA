@@ -88,6 +88,12 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 
 ## Features
 
+### The agent (both apps)
+- **Ask for tasks in your own words**: “summarise my unread mail”, “read the mail from Priya”, “what’s my day”, “brief me for my next meeting”, “WhatsApp Mom saying I’m on my way”, “post in #sales on Slack …”, “flight status of AI 101”, “remember where I parked”, “navigate to my next meeting”. The task library (Agent › Library) has mail, calendar, messaging, presenting, web and car tasks; add your own (a web page and a question, a script, or tasks in order).
+- **The Mac does the work**: StudioGen’s agent browser stays signed in to Outlook, Teams, Slack and WhatsApp on the web; Apple’s on-device model turns what it reads into a short card. DriveGen asks its paired Mac.
+- **Asked first**: anything that sends or books asks “Shall I …?”; say “yes, always” to trust that task (Agent › Library to take it back).
+- **The Agent screen** (DriveGen’s Home, beside the car dashboard): the latest result big and read aloud, earlier ones below, suggestions for the time of day; at most three lines while driving. Design and the full task list: docs/agent-tasks.md.
+
 ### Layout
 - **Dock**: clock, signal, location dot (green = GPS, orange = demo), three most recent apps, voice assistant and Home. Left side in landscape, bottom in portrait.
 - **Home button**: from an app it goes to the home grid; on the home grid it goes to the dashboard.

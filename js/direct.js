@@ -72,6 +72,8 @@ const Direct = {
     if (kind === 'run') return LinkHost.run({ ...p, from });
     if (kind === 'say') return LinkHost.say({ ...p, from });
     if (kind === 'ai') return MacAI.answer(p); // a paired phone uses this Mac's on-device model (js/brain.js)
+    if (kind === 'tasks') return { tasks: typeof Agent !== 'undefined' ? Agent.offered() : [] }; // the agent's tasks made on this Mac (js/agent.js)
+    if (kind === 'task') { if (typeof Agent === 'undefined') throw new Error('No agent here'); return Agent.answer({ ...p, from }); }
     throw new Error(`Unknown request ${kind}`);
   },
   call(kind, payload = {}, ms = 600000) {

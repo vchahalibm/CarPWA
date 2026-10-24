@@ -117,6 +117,19 @@
         }
         return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };
       },
+      /** Teaching an agent task: the next element you click is picked, not clicked (outlined while you hover), and returned
+          with a selector to read it by. Times out after `ms`. */
+      pick(ms = 120000) {
+        return new Promise(res => {
+          let hov = null; const prev = [];
+          const mark = e => { const el = e.target; if (hov === el) return; if (hov) hov.style.outline = prev.pop() || ''; hov = el; prev.push(el.style.outline); el.style.outline = '3px solid #ff375f'; };
+          const done = r => { doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
+          const take = e => { e.preventDefault(); e.stopPropagation(); const el = e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
+            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', text: clean(el.innerText || '') }); };
+          doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true);
+          const t = setTimeout(() => done({ ok: false, error: 'Nothing picked' }), ms);
+        });
+      },
       /** Wait until a selector (comma list) or a text shows, up to `ms`. */
       async waitFor(o = {}, ms = 15000) {
         const t0 = Date.now(), q = clean(o.text || '').toLowerCase();

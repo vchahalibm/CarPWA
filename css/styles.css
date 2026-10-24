@@ -1728,3 +1728,24 @@ table.bench small{color:var(--text-2)}
 .ag-head{font-size:clamp(17px,.6vw + 13px,21px)}
 .ag-value{font-size:clamp(36px,2.5vw + 22px,56px)}
 .ag-items li{font-size:clamp(15px,.4vw + 13px,18px)}
+
+/* ---------- The agent task editor and Teach me (js/taskedit.js) ---------- */
+.te{display:flex;flex-direction:column;gap:12px}
+.te-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:3;background:var(--bg);padding:6px 0}
+.te-sp{flex:1}
+.te-steps{display:flex;flex-direction:column;gap:10px}
+.te-step{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px}
+.te-step-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}.te-step-h svg{width:20px;height:20px;color:var(--accent)}
+.te-n{width:26px;height:26px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;font-size:13px;font-weight:700}
+.te-more summary{color:var(--text-2);font-size:14px;cursor:pointer;margin-top:4px}
+.te-in{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}.te-in input:not([type=checkbox]){flex:1 1 180px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:0 10px}
+.te-add .chip svg{width:16px;height:16px;vertical-align:-3px}
+.ag-teach{display:flex;align-items:center;gap:8px;padding:8px 12px;background:color-mix(in srgb,var(--red) 18%,var(--surface));border-bottom:1px solid var(--line)}
+.ag-teach-n{font-weight:600}
+.te{box-sizing:border-box;max-width:100%;padding-right:16px}
+.te .se-field{display:flex;flex-direction:column;gap:4px}
+.te .se-field>span{color:var(--text-2);font-size:14px}
+.te input:not([type=checkbox]),.te textarea,.te select{width:100%;box-sizing:border-box;min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:9px 12px;font:inherit;font-size:16px}
+.te textarea{min-height:64px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+.te-step .se-field{margin-top:6px}
+.te-top .chip{white-space:nowrap}

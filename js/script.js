@@ -707,6 +707,7 @@ const ScriptUI = {
     const body = $('#settingsBody');
     if (this.page === 'help') return body.innerHTML = this.helpHtml();
     if (this.page === 'edit' && this.draft) return this.renderEditor();
+    if (this.page === 'task' && typeof TaskUI !== 'undefined' && TaskUI.draft) return TaskUI.render();
     const open = store.get('suiOpen', { scripts: true }), sec = (id, title, sub, inner) => `<details class="sui-sec" data-sec="${id}" ${open[id] ? 'open' : ''}>
         <summary><div class="main"><div class="t">${title}</div><div class="s">${sub}</div></div><span class="chev">${svg('back')}</span></summary><div class="sui-sec-body">${inner}</div></details>`;
     const ic = (n, label, attr, cls = '') => `<button class="icon-btn ${cls}" ${attr} aria-label="${esc(label)}" title="${esc(label)}">${svg(n)}</button>`;
@@ -731,6 +732,7 @@ const ScriptUI = {
       <button class="row btn back-row" data-sui="back"><div class="main"><div class="t">‹ Settings</div></div></button>
       <p class="cmd-help">The assistant leads a presentation or demo on Stage: it says each step with an expression and a motion, turns your slides, opens and works web pages, and moves on when you say “next”, show a hand gesture, press the clicker or after a pause.</p>
       ${sec('scripts', 'Scripts', `${Scripts.all().length} · make, record, run`, scripts)}
+      ${typeof TaskUI !== 'undefined' ? sec('tasks', 'Agent tasks', `${Agent.all().filter(t => !t.remoteOnly).length} · what the agent does when you ask; make your own, or teach it`, TaskUI.listHtml()) : ''}
       ${motions ? sec('motions', 'Assistant motions', `${Object.keys(MOTIONS).length} · preview them, or capture your own with the camera`, motions) : ''}
       ${recs ? sec('recs', 'Web page recordings', `${WebDrive.recs().length} · page-only sequences`, recs) : ''}
       ${desk && typeof WebDrive !== 'undefined' ? sec('helpers', 'Site helpers', `${WebDrive.helperList().length} · your CSS and JavaScript for chosen sites`, WebDrive.helpersHtml()) : ''}

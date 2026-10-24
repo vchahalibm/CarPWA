@@ -217,7 +217,8 @@ const AgentWeb = {
     document.body.appendChild(box);
     const wv = this.wv = box.querySelector('webview');
     this.up = new Promise(r => wv.addEventListener('dom-ready', r, { once: true }));
-    wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); h(m); } });
+    wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); return h(m); }
+      if (typeof TaskTeach !== 'undefined') { if (m.type === 'step') TaskTeach.step(m.step); else if (m.type === 'ready') TaskTeach.page(m.url); } }); // Teach me: what you do becomes steps
     wv.addEventListener('did-navigate', e => { const u = $('.ag-web-url', box); if (u) u.textContent = e.url; });
     return wv;
   },
@@ -227,12 +228,12 @@ const AgentWeb = {
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
   },
   url() { try { return this.wv?.getURL() || ''; } catch { return ''; } },
-  call(op, args = [], ms = 20000) {
-    const wv = this.el(), id = `ag${++this.seq}`;
+  async call(op, args = [], ms = 20000) {
+    const wv = this.el(), id = `ag${++this.seq}`; await this.up; // the browser must be ready before it can be asked anything
     return new Promise(res => {
       const t = setTimeout(() => { this.waits.delete(id); res({ ok: false, error: 'The page didn’t answer' }); }, ms);
       this.waits.set(id, m => { clearTimeout(t); res(m); });
-      wv.send('dd-drive', { id, op, args }).catch?.(e => { this.waits.delete(id); clearTimeout(t); res({ ok: false, error: e.message }); });
+      try { wv.send('dd-drive', { id, op, args }).catch?.(e => { this.waits.delete(id); clearTimeout(t); res({ ok: false, error: e.message }); }); } catch (e) { this.waits.delete(id); clearTimeout(t); res({ ok: false, error: e.message }); }
     });
   },
   async insert(text) { await this.wv.insertText(text); },
@@ -248,7 +249,8 @@ document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) 
 /* ---------- Watching a task: each step listed as it runs (✓ or ✗ with why), the element it acts on ringed; optionally one
    step at a time (Next step / Run the rest / Stop), for finding out why a task doesn't work and fixing it. ---------- */
 const AgentWatch = {
-  on: () => AgentWeb.can() && !!Agent.cfg().watch,
+  force: false, // the editor's Test (watch) and Run
+  on() { return AgentWeb.can() && (this.force || !!Agent.cfg().watch); },
   stepMode: false, gate: null,
   begin(t) {
     if (!this.on()) return; this.stepMode = !!Agent.cfg().stepMode; AgentWeb.watch(true);
@@ -685,7 +687,7 @@ document.addEventListener('click', e => {
   if (k === 'grp') return AgentHome.lib(v);
   if (k === 'trust') { Agent.trust(v, !Agent.trusted(v)); return AgentHome.lib(Agent.get(v)?.group); }
   if (k === 'edit') return AgentHome.edit(v);
-  if (k === 'new') return AgentHome.edit();
+  if (k === 'new') { closeSheet(); return typeof TaskTeach !== 'undefined' ? TaskTeach.wizard() : AgentHome.edit(); }
   if (k === 'people') return AgentHome.people();
   if (k === 'addperson') return $('#agPeople').insertAdjacentHTML('beforeend', '<div class="se-row ag-person"><input placeholder="Name" data-k="name"><input placeholder="email@work.com" data-k="email" autocapitalize="off"><input placeholder="+91 98…" data-k="phone" inputmode="tel"></div>');
   if (k === 'addstep') { const s = $('[data-agc]'); return s && s.parentElement.appendChild(Object.assign(s.cloneNode(true), { value: '' })); }

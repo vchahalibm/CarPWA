@@ -311,12 +311,12 @@ const Mesh = {
   catalog() {
     if (!LINK_HOST) return [];
     const items = [...Scripts.mine().map(s => ['script', s.name, s.json]), ...Object.entries(typeof Mocap !== 'undefined' ? Mocap.saved() : {}).map(([k, m]) => ['motion', k, m]),
-      ...(typeof WebDrive !== 'undefined' ? WebDrive.recs().map(r => ['webrec', r.name, r]) : []), ...(typeof AppSteps !== 'undefined' ? AppSteps.recs().map(r => ['apprec', r.name, r]) : [])];
+      ...(typeof WebDrive !== 'undefined' ? WebDrive.recs().map(r => ['webrec', r.name, r]) : []), ...(typeof AppSteps !== 'undefined' ? AppSteps.recs().map(r => ['apprec', r.name, r]) : []), ...(typeof Agent !== 'undefined' ? Agent.mine().filter(t => t.share).map(t => ['task', t.name, t]) : [])];
     return items.filter(([k, n]) => !this.isPrivate(k, n)).map(([k, n, v]) => { const j = JSON.stringify(v); let h = 0; for (let i = 0; i < j.length; i++) h = (h * 31 + j.charCodeAt(i)) | 0; return { k, n, s: j.length, v: (h >>> 0).toString(36) }; });
   },
   artifact(k, n) {
     if (this.isPrivate(k, n)) throw new Error('That one is private');
-    const v = k === 'script' ? Scripts.mine().find(s => s.name === n)?.json : k === 'motion' ? Mocap.saved()[n] : k === 'webrec' ? WebDrive.recs().find(r => r.name === n) : k === 'apprec' ? AppSteps.recs().find(r => r.name === n) : null;
+    const v = k === 'script' ? Scripts.mine().find(s => s.name === n)?.json : k === 'motion' ? Mocap.saved()[n] : k === 'webrec' ? WebDrive.recs().find(r => r.name === n) : k === 'apprec' ? AppSteps.recs().find(r => r.name === n) : k === 'task' ? Agent.mine().find(t => t.share && t.name === n) : null;
     if (!v) throw new Error('Not found'); if (JSON.stringify(v).length > 200000) throw new Error('Too big to send over the mesh (200 KB)'); return { k, n, v };
   },
   /** Fetch a shared artifact from its owner and keep it here (names that exist get “(2)”, like an imported bundle). */
@@ -327,6 +327,7 @@ const Mesh = {
     if (k === 'motion') Mocap.save(MOTIONS[n] ? `${n}2` : n, a.v);
     if (k === 'webrec') WebDrive.saveRec({ ...a.v, name: `${a.v.name} (mesh)` });
     if (k === 'apprec') AppSteps.saveRec({ ...a.v, name: `${a.v.name} (mesh)` });
+    if (k === 'task') Agent.put({ ...a.v, id: `my.${Date.now().toString(36)}`, share: false, name: Agent.all().some(t => t.name === a.v.name) ? `${a.v.name} (from ${this.member(owner)?.name || 'the mesh'})` : a.v.name });
     this.event('share', { what: 'fetched', kind: k, name: n, from: owner }); return true;
   },
   /** Request mode: which StudioGen offers a script (by name), online now. */

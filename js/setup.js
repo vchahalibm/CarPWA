@@ -9,6 +9,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Make and change agent tasks in Settings › Scripts & tasks › Agent tasks, or Teach me: do it once in the agent browser',
   'While presenting, weather, messages, “what can I say” and other screens open as cards over the slides; say “close card”',
   'Agent tasks can be watched step by step (Agent › Library › Settings › Show the browser while tasks run)',
   'On Stage, a gesture of your choice opens the microphone for the presenter (Settings › Stage)',

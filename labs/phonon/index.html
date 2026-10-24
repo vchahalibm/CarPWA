@@ -28,6 +28,11 @@ pre{white-space:pre-wrap;font-size:13px;color:var(--ink2);margin:0}
   <button data-run="webgpu:fp32">GPU · fp32</button>
   <button data-run="wasm:q4">CPU · q4</button>
 </div>
+<div class="card"><label class="row"><span>3D assistant animating (GPU)</span><input type="checkbox" id="optAv"></label>
+  <label class="row"><span>Camera recognition (CPU, YOLOv10 nano, ~2.5 a second)</span><input type="checkbox" id="optCam"></label>
+  <div class="row"><span id="avState">Assistant: off</span><span id="camState">Camera: off</span></div></div>
+<canvas id="av" width="240" height="320" style="display:none;width:120px;height:160px;border-radius:12px;background:#222;float:right;margin:0 0 8px 8px"></canvas>
+<video id="cam" playsinline muted style="display:none"></video>
 <div class="card" id="sum"><div class="row"><span>This device</span><span id="dev"></span></div></div>
 <div class="card" id="res" hidden></div>
 <div class="card"><pre id="log"></pre></div>
@@ -37,6 +42,50 @@ $('#dev').textContent = `${navigator.gpu ? 'WebGPU yes' : 'no WebGPU'} · ${navi
 const SHORT = 'Your next meeting is the design review at three, in the small room.';
 const LONG = "You have six unread emails. Priya sent the revised contract for the Acme deal and needs your signature by Friday. Rahul asked whether the quarterly review can move to Thursday afternoon, since two people are travelling. The IT team says your password expires in three days, and you can reset it from the portal. Finance shared last month's expense report, which is twelve percent over budget, mostly from travel. There is a newsletter from the design team about the new brand guidelines. Finally, your manager wants a short update on the pilot before Monday's meeting.";
 let T = null, ctx = null;
+/* The 3D assistant, drawn every frame like in the app (vendor/three-vrm, the Vita avatar), with an idle movement. */
+const Av = { on: false, frames: 0, fps: 0, since: 0,
+  async start() {
+    const L = await import('../../vendor/three-vrm/avatar-lib.min.mjs'), cv = $('#av'); cv.style.display = 'block';
+    const r = new L.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); r.setPixelRatio(Math.min(2, devicePixelRatio)); r.setSize(120, 160, false); r.outputColorSpace = L.SRGBColorSpace;
+    const scene = new L.Scene(), cam = new L.PerspectiveCamera(30, 0.75, 0.1, 20); cam.position.set(0, 1.3, 3.2); cam.lookAt(0, 1.0, 0);
+    scene.add(new L.HemisphereLight(0xffffff, 0x444444, 2.2)); const d = new L.DirectionalLight(0xffffff, 1.6); d.position.set(1, 2, 2); scene.add(d);
+    const loader = new L.GLTFLoader(); loader.register(p => new L.VRMLoaderPlugin(p));
+    $('#avState').textContent = 'Assistant: loading…';
+    const g = await loader.loadAsync('../../vendor/models/vita.vrm'), vrm = g.userData.vrm; L.VRMUtils.rotateVRM0?.(vrm); scene.add(vrm.scene);
+    const bone = n => vrm.humanoid.getNormalizedBoneNode(n), clock = new L.Clock(); this.on = true; this.since = performance.now(); this.frames = 0;
+    const loop = () => { if (!this.on) return; const t = clock.getElapsedTime();
+      const ua = bone('rightUpperArm'), la = bone('leftUpperArm'), h = bone('head'), sp = bone('spine');
+      if (ua) ua.rotation.z = -1.2 + Math.sin(t * 2) * 0.25; if (la) la.rotation.z = 1.2 - Math.sin(t * 2 + 1) * 0.25; if (h) h.rotation.y = Math.sin(t) * 0.3; if (sp) sp.rotation.x = Math.sin(t * 1.3) * 0.05;
+      vrm.update(clock.getDelta() || 0.016); r.render(scene, cam); this.frames++;
+      const now = performance.now(); if (now - this.since > 1000) { this.fps = this.frames * 1000 / (now - this.since); this.frames = 0; this.since = now; $('#avState').textContent = `Assistant: ${Math.round(this.fps)} fps`; }
+      requestAnimationFrame(loop); };
+    loop();
+  },
+  stop() { this.on = false; $('#av').style.display = 'none'; $('#avState').textContent = 'Assistant: off'; },
+};
+/* Camera recognition on the CPU in its own worker, like the app's Camera widget. */
+const Cam = { on: false, ms: [], worker: null, stream: null,
+  async start() {
+    $('#camState').textContent = 'Camera: loading…';
+    this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } }); const v = $('#cam'); v.srcObject = this.stream; await v.play();
+    const url = new URL('./transformers.min.js', location.href).href;
+    const src = `let model, proc, T; self.onmessage = async ({ data: m }) => { try {
+      if (m.type === 'load') { T = await import('${url}'); T.env.allowLocalModels = false; if (T.env.backends?.onnx?.wasm) T.env.backends.onnx.wasm.numThreads = 1;
+        model = await T.AutoModel.from_pretrained('onnx-community/yolov10n', { device: 'wasm', dtype: 'fp32' }); proc = await T.AutoProcessor.from_pretrained('onnx-community/yolov10n'); self.postMessage({ type: 'loaded' }); }
+      else { const t = performance.now(), c = new OffscreenCanvas(m.frame.width, m.frame.height), x = c.getContext('2d'); x.drawImage(m.frame, 0, 0); m.frame.close();
+        const img = new T.RawImage(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height, 4).rgb(), { pixel_values } = await proc(img), { output0 } = await model({ images: pixel_values });
+        const n = output0.tolist()[0].filter(p => p[4] >= 0.4).length; self.postMessage({ type: 'dets', n, ms: performance.now() - t }); } } catch (e) { self.postMessage({ type: 'error', message: String(e.message || e) }); } };`;
+    this.worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+    await new Promise((res, rej) => { this.worker.onmessage = e => e.data.type === 'loaded' ? res() : rej(new Error(e.data.message)); this.worker.postMessage({ type: 'load' }); });
+    this.on = true; this.ms = []; let busy = false;
+    this.worker.onmessage = e => { busy = false; if (e.data.type === 'dets') { this.ms.push(e.data.ms); if (this.ms.length > 30) this.ms.shift(); $('#camState').textContent = `Camera: ${Math.round(e.data.ms)} ms a frame, ${e.data.n} things`; } };
+    this.timer = setInterval(async () => { if (busy || !this.on) return; busy = true; const f = await createImageBitmap(v, { resizeWidth: 320, resizeHeight: 240 }); this.worker.postMessage({ type: 'frame', frame: f }, [f]); }, 400);
+  },
+  stop() { this.on = false; clearInterval(this.timer); this.worker?.terminate(); this.stream?.getTracks().forEach(t => t.stop()); $('#camState').textContent = 'Camera: off'; },
+  avg() { return this.ms.length ? this.ms.reduce((a, b) => a + b, 0) / this.ms.length : 0; },
+};
+$('#optAv').onchange = e => e.target.checked ? Av.start().catch(err => { $('#avState').textContent = 'Assistant: ' + err.message; }) : Av.stop();
+$('#optCam').onchange = e => e.target.checked ? Cam.start().catch(err => { $('#camState').textContent = 'Camera: ' + err.message; e.target.checked = false; }) : Cam.stop();
 const row = (k, v, cls = '') => `<div class="row"><span>${k}</span><span class="${cls}">${v}</span></div>`;
 async function run(device, dtype) {
   ctx ||= new AudioContext({ sampleRate: 24000 }); await ctx.resume(); // the tap lets iOS play
@@ -70,8 +119,9 @@ async function run(device, dtype) {
       + row('Short line: first sound after', `${Math.round(s.first)} ms`) + row('Short line: speed', fmt(s), s.x >= 1.25 ? 'good' : 'bad')
       + row('Email summary: first sound after', `${Math.round(l.first)} ms`) + row('Email summary: speed', `<span class="big">${fmt(l)}</span>`, l.x >= 1.25 ? 'good' : 'bad')
       + row('Email summary: length', `${l.sec.toFixed(1)} s of speech in ${l.pieces} pieces, made in ${(l.ms / 1000).toFixed(1)} s`)
+      + row('Running alongside', [Av.on ? `assistant at ${Math.round(Av.fps)} fps` : '', Cam.on ? `camera ${Math.round(Cam.avg())} ms a frame` : ''].filter(Boolean).join(' · ') || 'nothing')
       + row('Gaps heard while playing', l.gaps ? `${l.gaps} (${l.gapS.toFixed(1)} s in all)` : 'none', l.gaps ? 'bad' : 'good');
-    log(`Done: short ${fmt(s)}, summary ${fmt(l)}, gaps ${l.gaps}`);
+    log(`Done: short ${fmt(s)}, summary ${fmt(l)}, gaps ${l.gaps}${Av.on ? `, assistant ${Math.round(Av.fps)} fps` : ''}${Cam.on ? `, camera ${Math.round(Cam.avg())} ms/frame` : ''}`);
   } catch (e) { res.innerHTML = row('Didn’t work', String(e?.message || e), 'bad'); log('Error: ' + (e?.stack || e)); }
   document.querySelectorAll('button').forEach(b => b.disabled = false);
 }

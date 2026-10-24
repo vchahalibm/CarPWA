@@ -187,6 +187,7 @@ let current = 'dashboard';
 // StudioGen: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
 if (APP_NAME !== 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // DriveGen: the agent's Home first
 if (APP_NAME === 'StudioGen') { APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1)); APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'start'), 1)); }
+if (APP_NAME === 'StudioGen') APPS.splice(2, 0, ...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // Start, Mesh, Agent on the first page
 let recents = store.get('recents', APP_NAME === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
 
 function appIcon(a, withBadge) {

@@ -176,10 +176,13 @@ Object.assign(Voice, {
     const pump = async () => {
       if (stopped || id !== this.sayId) return;
       if (!started && !genDone && queued() < needAhead) return;
-      if (convo) {
-        if (playing) return; playing = true;
-        while (blocks.length && !stopped && id === this.sayId) { const f = blocks.shift(); if (!started) { started = true; Log.i('tts', `First sound after ${Math.round(performance.now() - t0)} ms (Phonon ${eng.build.label}, conversation)`); } await Convo.play({ n: 0, f32: f, rate: PHONON_RATE }); }
-        playing = false; if (genDone && !blocks.length) finish(); return;
+      if (convo) { // the conversation's engine (its echo cancellation needs to know what plays), queued back to back
+        while (blocks.length && (!AudioEngine.ctx || (AudioEngine.endAt - AudioEngine.ctx.currentTime) < SCHEDULE_AHEAD)) {
+          const f = blocks.shift(); if (!started) { started = true; Log.i('tts', `First sound after ${Math.round(performance.now() - t0)} ms (Phonon ${eng.build.label}, conversation)`); }
+          else if (AudioEngine.ctx && AudioEngine.endAt && AudioEngine.endAt < AudioEngine.ctx.currentTime) gaps++;
+          playing = true; Convo.play({ n: 0, f32: f, rate: PHONON_RATE }).then(() => { if (!AudioEngine.list.length) { playing = false; if (genDone && !blocks.length) finish(); } });
+        }
+        return;
       }
       while (blocks.length && (nextT - ctx.currentTime) < SCHEDULE_AHEAD) {
         const f = blocks.shift(), now = ctx.currentTime;

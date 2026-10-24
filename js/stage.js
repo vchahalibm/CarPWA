@@ -61,6 +61,7 @@ const Stage = {
       ${this.chosen ? tog('captions', 'Captions', 'Shows what you said and the reply along the bottom of the Stage layout') : ''}
       ${this.chosen && typeof People !== 'undefined' ? `${tog('peopleOn', 'Follow the presenter', 'The Stage camera watches who is in front of the screen: whoever shows the claim gesture becomes the presenter. The assistant looks at them and acts on their hand gestures. On this device only; nothing is kept')}
         ${settings.peopleOn ? `${btn('claimSeq', 'Claim gesture', esc(CLAIM_SEQS[settings.claimSeq]?.[1] || ''))}
+        ${btn('listenGesture', 'Gesture to start listening', settings.listenGesture ? `${esc(LISTEN_GESTURES[settings.listenGesture] || settings.listenGesture)}: opens the mic, as a tap on it does (no conversation mode needed); again to close it` : 'Off')}
         ${tog('ownerOnly', 'Only listen to the presenter', 'In a conversation, speech counts only while the presenter’s mouth is moving (others in the room are ignored)')}
         ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}
         ${tog('handPointer', 'Point to click', 'The presenter points with a finger to move a pointer on the screen and pinches (thumb to fingertip) to click: slides, buttons, web pages, anything on Stage')}
@@ -87,6 +88,10 @@ const Stage = {
 ACTIONS.camDrive = () => Stage.pickCam('driveCam');
 ACTIONS.claimSeq = () => sheet('Claim gesture', `<p class="hint">Show these one after the other (each for a moment) to become the presenter.</p><div class="pick-list">${Object.entries(typeof CLAIM_SEQS !== 'undefined' ? CLAIM_SEQS : {}).map(([v, [, l]]) =>
   `<button class="big-btn ${settings.claimSeq === v ? 'accent' : ''}" data-campick="claimSeq|${esc(v)}">${esc(l)}</button>`).join('')}</div>`, [['Cancel']]);
+// The presenter's gesture that opens the microphone (as a tap on the mic does), without conversation mode.
+const LISTEN_GESTURES = { Pointing_Up: 'Point up ☝', ILoveYou: 'I love you 🤟', Victory: 'Victory ✌', Thumb_Up: 'Thumb up 👍', Thumb_Down: 'Thumb down 👎' };
+ACTIONS.listenGesture = () => sheet('Gesture to start listening', `<p class="hint">When the presenter (Follow the presenter) holds this for a moment, the microphone opens as if they tapped it; a reply that’s playing stops so they can speak. The same gesture again closes it. A running script’s own gestures come first.${settings.claimSeq?.includes(settings.listenGesture || '-') ? ' This gesture is also part of the claim gesture: choose another.' : ''}</p><div class="pick-list">${[['', 'Off'], ...Object.entries(LISTEN_GESTURES)].map(([v, l]) =>
+  `<button class="big-btn ${(settings.listenGesture || '') === v ? 'accent' : ''}" data-campick="listenGesture|${esc(v)}">${esc(l)}${v && (settings.claimSeq || '').includes(v) ? ' (in the claim gesture)' : ''}</button>`).join('')}</div>`, [['Cancel']]);
 ACTIONS.camStage = () => Stage.pickCam('stageCam');
 ACTIONS.presenter = () => Presenter.show();
 // Desktop app: which screen is the wall.

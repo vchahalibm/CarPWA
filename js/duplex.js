@@ -55,21 +55,25 @@ const AudioEngine = {
     this.ctx?.close().catch(() => {}); this.ctx = null; this.node = null; this.out = null;
     Log.i('duplex', 'Audio engine off');
   },
-  /** Play one reply sentence; resolves when it has finished (or was stopped). */
+  /** Play a piece of a reply; resolves when it has finished (or was stopped). Pieces queue back to back with no gap (a
+      streamed voice sends a fraction of a second at a time); `last` is the piece just queued, `cur` the one playing. */
+  list: [], endAt: 0, last: null,
   play(f32, rate) {
     if (!this.ctx) return Promise.resolve();
     const buf = this.ctx.createBuffer(1, f32.length, rate); buf.copyToChannel(f32, 0);
     const s = this.ctx.createBufferSource(); s.buffer = buf; s.connect(this.out);
-    const t0 = this.ctx.currentTime + 0.02;
-    this.cur = { f32, rate, t0, s }; this.duck(false);
-    return new Promise(res => { s.onended = () => { if (this.cur?.s === s) this.cur = null; res(); }; s.start(t0); });
+    const now = this.ctx.currentTime, t0 = Math.max(now + 0.02, this.endAt);
+    if (!this.list.length) this.duck(false);
+    const c = { f32, rate, t0, s }; this.list.push(c); this.last = c; this.endAt = t0 + buf.duration;
+    return new Promise(res => { s.onended = () => { this.list = this.list.filter(x => x !== c); if (!this.list.length) this.endAt = 0; res(); }; s.start(t0); });
   },
-  stopPlayback() { const c = this.cur; this.cur = null; try { c?.s.stop(); } catch {} },
+  get cur() { const now = this.ctx?.currentTime ?? 0; return this.list.find(x => now >= x.t0 - 0.01 && now < x.t0 + x.f32.length / x.rate) || null; },
+  stopPlayback() { const l = this.list; this.list = []; this.endAt = 0; for (const c of l) try { c.s.stop(); } catch {} },
   /** Turn the reply down while it might be you talking (soft), back up if it wasn't. */
   duck(on) { if (this.out && this.ctx) this.out.gain.setTargetAtTime((on ? 0.25 : 1) * this.boost(), this.ctx.currentTime, 0.02); this.ducked = on; },
   /** Reply loudness: Settings › Logs › Conversation volume, else 2.5× on iPhone/iPad (whose echo cancellation turns playback down), 1.4× elsewhere. */
   boost() { const d = +Diag.get().convoBoost; return d > 0 ? d : isIOS ? 2.5 : 1.4; },
-  playing() { return !!this.cur && this.ctx && this.ctx.currentTime < this.cur.t0 + this.cur.f32.length / this.cur.rate; },
+  playing() { return !!this.ctx && this.list.some(c => this.ctx.currentTime < c.t0 + c.f32.length / c.rate); },
   /** Loudness of what's going to the speaker about `delay` seconds ago (the echo arriving now). */
   ref(delay = 0.08) {
     const c = this.cur; if (!c || !this.ctx) return 0;
@@ -291,10 +295,12 @@ const Convo = {
   /** A reply sentence from the on-device voice, played through the engine (with lip-sync). */
   async play({ n, f32, rate }) {
     Voice.played = true;
-    const done = AudioEngine.play(f32, rate), c = AudioEngine.cur;
+    const done = AudioEngine.play(f32, rate), c = AudioEngine.last;
     Log.d('tts', `▶ sentence ${n} (conversation engine)`, { secs: +(f32.length / rate).toFixed(2) });
-    Bus.emit('voice.audio', { f32, rate, now: () => (AudioEngine.ctx ? AudioEngine.ctx.currentTime - c.t0 : 99) });
-    await done; Bus.emit('voice.audio.end');
+    // lip-sync from the moment this piece starts (it may be queued behind another)
+    const lips = () => Bus.emit('voice.audio', { f32, rate, now: () => (AudioEngine.ctx ? AudioEngine.ctx.currentTime - c.t0 : 99) });
+    const wait = AudioEngine.ctx ? (c.t0 - AudioEngine.ctx.currentTime) * 1000 : 0; wait > 30 ? setTimeout(lips, wait) : lips();
+    await done; if (!AudioEngine.list.length) Bus.emit('voice.audio.end');
   },
 };
 // Another app came to the front (a hand-off, or you switched): the microphone is gone, so pause; tap the mic to carry on.

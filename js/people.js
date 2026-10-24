@@ -304,7 +304,16 @@ const People = {
 // Start and stop with Stage, the setting and the dashboard being on screen.
 ['mode.change', 'view.open', 'dash.rendered'].forEach(e => Bus.on(e, () => setTimeout(() => People.sync(), 0)));
 document.addEventListener('visibilitychange', () => People.sync());
-Bus.on('people.gesture', d => { if (typeof Script !== 'undefined') Script.gesture(d.value); });
+Bus.on('people.gesture', d => {
+  if (typeof Script !== 'undefined' && Script.gesture(d.value)) return; // a running script's own gestures first
+  if (!settings.listenGesture || d.value !== settings.listenGesture || Date.now() - (People.listenAt || 0) < 2000) return;
+  People.listenAt = Date.now();
+  // Listening already: close it (the same gesture toggles); else stop a reply that's playing and open the microphone.
+  const listening = !$('#assistant').hidden && (Voice.rec || Voice.sr);
+  Log.i('people', `Listening gesture (${d.value}): ${listening ? 'closing the microphone' : 'opening the microphone'}`);
+  if (listening) return Voice.close?.();
+  Voice.hush?.(); if (typeof Avatar !== 'undefined') Avatar.gesture('Listen'); openAssistant();
+});
 Bus.on('camera.switch', () => { if (People.running) { People.stop(); People.sync(); } });
 Actions.define('people.start', { group: 'Camera', name: 'Follow the presenter (people tracking)', arg: '', run() { settings.peopleOn = true; applySettings(); People.sync(); } });
 Actions.define('people.stop', { group: 'Camera', name: 'Stop following people', arg: '', run() { settings.peopleOn = false; applySettings(); People.sync(); } });

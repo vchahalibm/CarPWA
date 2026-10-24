@@ -9,6 +9,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'On Stage, a gesture of your choice opens the microphone for the presenter (Settings › Stage)',
+  'Conversation mode plays the natural voice without the small gaps',
   'A new natural voice, Phonon: about 3× faster than speech on an iPhone, and it starts at once',
   'While it works on something, the assistant says so, types and then thinks',
   'Camera recognition runs on the CPU on phones and tablets, leaving the graphics chip to the voice and the assistant',

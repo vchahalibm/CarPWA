@@ -195,6 +195,7 @@ const BUILTINS = {
     say(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
   } },
   time: { group: 'Info', name: 'The time', run: (v, say) => say(`It’s ${fmtClock(new Date())}.`) },
+  closeCard: { group: 'Screens', name: 'Close the card', run: (v, say) => { if (typeof Peek !== 'undefined' && Peek.open) { Peek.close(); say('Closed.'); } else say('There’s no card open.'); } },
   date: { group: 'Info', name: 'Today’s date', run: (v, say) => say(`It’s ${new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}.`) },
   help: { group: 'Info', name: 'What can I say?', run: (v, say) => say('Try “take me home”, “play music from Maroon 5”, “call Mom” or “what’s my ETA”. Every command is in Settings, Voice commands.', () => CmdUI.open()) },
 
@@ -320,6 +321,7 @@ const DEFAULT_COMMANDS = [
   { id: 'phone.read', name: 'Read my messages', match: 'keywords', say: ['read, message|messages|texts|text', 'new messages|any messages|unread', 'check, messages|texts'], do: { type: 'builtin', fn: 'readMessages' } },
   // Information
   { id: 'info.weather', name: 'Weather', match: 'keywords', say: ['weather', 'temperature', 'rain|raining|umbrella', 'forecast', 'how hot|how cold'], do: { type: 'builtin', fn: 'weather' } },
+  { id: 'screen.closecard', name: 'Close the card', say: ['close [the] card', 'hide [the] card', 'close that card', 'dismiss [the] card'], do: { type: 'builtin', fn: 'closeCard' } },
   { id: 'info.time', name: 'What time is it?', match: 'keywords', say: ['time is it', 'what’s the time|whats the time|what is the time|current time|the time now|tell me the time'], do: { type: 'builtin', fn: 'time' } },
   { id: 'info.date', name: 'What’s the date?', match: 'keywords', say: ['what’s the date|whats the date|what is the date|the date today|today’s date|todays date|what date', 'what day is|which day is'], do: { type: 'builtin', fn: 'date' } },
   { id: 'info.help', name: 'What can I say?', say: ['what can (i|you) (say|do|ask)', 'what all can (i|you) (say|do|ask)', 'help [me]', '[show] [the] [voice] commands', 'what are [the|my] commands'], do: { type: 'builtin', fn: 'help' } },

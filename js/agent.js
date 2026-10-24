@@ -383,6 +383,8 @@ const Agent = {
       const r = await this.exec(t, params, { confirmed: true });
       const done = this.post({ ...this.asCard(r), id: c.id, task: t.id, title: t.name, status: 'done', at: Date.now() });
       await Working.end(true);
+      // presenting: the result as a card over the slides (private ones only when allowed), the presentation carries on
+      if (done.type !== 'none' && typeof Peek !== 'undefined' && Peek.mode() === 'stage' && (settings.peekPrivate || !/^(Mail|Calendar|Messaging)$/.test(t.group || ''))) Peek.html(t.name, AgentHome.cardHtml(done, true));
       if (done.type !== 'none') say(this.spoken(done)); else this.drop(c.id);
       return r;
     } catch (e) {

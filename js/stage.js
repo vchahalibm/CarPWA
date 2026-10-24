@@ -66,6 +66,7 @@ const Stage = {
         ${tog('blurOthers', 'Blur other faces', 'In the Camera widget, everyone but the presenter is blurred')}
         ${tog('handPointer', 'Point to click', 'The presenter points with a finger to move a pointer on the screen and pinches (thumb to fingertip) to click: slides, buttons, web pages, anything on Stage')}
         <div class="row"><div class="main"><div class="t">Keep when memory is short</div><div class="s">${settings.stageKeep === 'people' ? 'People tracking stays; the natural voice gives way to the device’s voice if they don’t both fit' : 'The natural voice stays; people tracking pauses if they don’t both fit (on an iPad they often don’t, with the avatar)'}</div></div>${seg('stageKeep', [['voice', 'Natural voice'], ['people', 'People tracking']])}</div>` : ''}` : ''}
+      ${this.chosen ? tog('peekPrivate', 'Show private things on screen', 'While presenting, messages, calls, your calendar and results from mail and chats show as cards on the big screen; off, they are only spoken') : ''}
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations the assistant leads`) : ''}
       ${this.chosen ? btn('presenter', 'Presenter view', 'Your notes, what’s next, a timer and the controls in a second window, while this one is on the big screen') : ''}
       ${this.chosen && window.DriveDeckDesktop?.present ? btn('presentOn', 'Present on another screen', 'Full screen on the wall, the presenter view on this screen') : ''}

@@ -223,23 +223,28 @@ function openApp(id) {
   pushRecent(id);
   openView(a.view || a.id, true);
 }
+/** What each screen does when it opens (also used to draw a screen into a card: js/peek.js). */
+const VIEW_RENDER = {
+  dashboard: () => { if (typeof Dash !== 'undefined') Dash.show(); },
+  start: () => { if (typeof StartPage !== 'undefined') StartPage.show(); },
+  maps: () => { ensureMap('main'); renderMapPanel(); },
+  weather: () => loadWeather(),
+  messages: () => renderMessages(),
+  phone: () => renderPhone(),
+  calendar: () => renderCalendar(),
+  settings: () => renderSettings(),
+  drive: () => updateDrive(),
+};
 function openView(id, fromApp) {
+  // Presenting (Stage) or on the Agent home: a screen a command opens shows as a card, so nothing leaves the screen (js/peek.js)
+  if (typeof Peek !== 'undefined' && Peek.take(id)) return;
+  if (typeof Peek !== 'undefined') Peek.close();
   if (!fromApp && appById(id)) pushRecent(id);
   current = id;
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
   Bus.emit('view.open', { value: id });
   renderDock();
-  ({
-    dashboard: () => { if (typeof Dash !== 'undefined') Dash.show(); },
-    start: () => { if (typeof StartPage !== 'undefined') StartPage.show(); },
-    maps: () => { ensureMap('main'); renderMapPanel(); },
-    weather: () => loadWeather(),
-    messages: () => renderMessages(),
-    phone: () => renderPhone(),
-    calendar: () => renderCalendar(),
-    settings: () => renderSettings(),
-    drive: () => updateDrive(),
-  })[id]?.();
+  VIEW_RENDER[id]?.();
 }
 function homeButton() {
   closeAssistant();

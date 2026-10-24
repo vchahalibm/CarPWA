@@ -1655,3 +1655,32 @@ table.bench small{color:var(--text-2)}
 .ag-web-url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);font-size:13px}
 .ag-root{width:100%;box-sizing:border-box;min-width:0}
 .ag-root>*{flex-shrink:0;min-width:0;max-width:100%}
+
+/* ---------- Setup: first start and after an update (js/setup.js) ---------- */
+.su-root{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(120% 90% at 20% 0%,rgba(79,107,255,.35),transparent 60%),radial-gradient(90% 80% at 100% 100%,rgba(184,77,240,.3),transparent 60%),rgba(6,6,12,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:opacity .35s;-webkit-app-region:no-drag}
+.su-root.out{opacity:0}
+.su-card{width:min(680px,100%);max-height:100%;overflow-y:auto;color:#f5f5f7;padding:clamp(16px,3vw,28px)}
+.su-head{display:flex;gap:16px;align-items:center;margin-bottom:12px}
+.su-title{margin:0;font-size:clamp(24px,4.5vw,34px);letter-spacing:-.02em;min-height:1.2em}
+.su-sub{margin:6px 0 0;color:rgba(245,245,247,.7);font-size:16px}
+.su-orb{flex:0 0 auto;width:64px;height:64px;border-radius:50%;background:conic-gradient(from 0deg,#4f6bff,#b84df0,#ff6a5c,#4f6bff);animation:suSpin 3s linear infinite;display:grid;place-items:center;box-shadow:0 0 40px rgba(124,77,255,.55)}
+.su-orb i{width:46px;height:46px;border-radius:50%;background:rgba(10,10,20,.85);animation:suPulse 1.6s ease-in-out infinite}
+.su-orb.done{animation-duration:9s}
+@keyframes suSpin{to{transform:rotate(360deg)}}
+@keyframes suPulse{50%{transform:scale(.82)}}
+.su-news{background:rgba(255,255,255,.07);border-radius:14px;padding:10px 14px;margin:10px 0}
+.su-news ul{margin:6px 0 0;padding-left:20px}.su-news li{margin:3px 0;color:rgba(245,245,247,.85)}
+.su-list{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.su-row{display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:11px 14px;opacity:0;transform:translateY(8px);transition:opacity .35s,transform .35s}
+.su-row.in{opacity:1;transform:none}
+.su-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.su-main b{font-size:16px}.su-d{color:rgba(245,245,247,.72);font-size:14.5px}
+.su-where{display:inline-block;margin-left:4px;font-size:12.5px;color:#9fb3ff}
+.su-ic{flex:0 0 22px;height:22px;border-radius:50%;margin-top:1px;display:grid;place-items:center;font-size:13px;font-weight:700}
+.su-row.work .su-ic{border:2.5px solid rgba(255,255,255,.25);border-top-color:#9fb3ff;animation:suSpin .9s linear infinite}
+.su-row.done .su-ic{background:#3ccf7a;color:#04210f}.su-row.done .su-ic::after{content:'✓'}
+.su-row.info .su-ic{background:#4f9bff;color:#fff}.su-row.info .su-ic::after{content:'i'}
+.su-row.warn .su-ic{background:#ff9f43;color:#2a1600}.su-row.warn .su-ic::after{content:'!'}
+.su-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin-top:6px;overflow:hidden}.su-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4f6bff,#b84df0);transition:width .25s}
+.su-foot{display:flex;gap:10px;margin-top:16px;position:sticky;bottom:calc(-1 * clamp(16px,3vw,28px));padding:12px 0 clamp(16px,3vw,28px);background:linear-gradient(transparent,rgba(8,8,16,.96) 30%)}
+.su-foot .big-btn{flex:1;min-height:56px}

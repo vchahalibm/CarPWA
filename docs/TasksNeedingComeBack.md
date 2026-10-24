@@ -4,6 +4,9 @@ Things started or decided but not finished, and things to perform together later
 
 ## To perform (with you)
 
+- [ ] **Phonon in the apps, on your iPhone and iPad** (built 24 Oct): after the update the setup screen appears (what's new, the voice downloading, the speed check). Then a few replies, a long one (“summarise my unread mail”), interrupting one, a conversation, and the assistant's lips. Measured here: Chrome on this Mac 8–9× faster than speech, StudioGen ~6.7× (7.1 s of speech in 1.3 s), first sound ~0.4 s for the first reply and ~30 ms after.
+- [ ] **Transformers.js release with Phonon**: when PR #1811 ships, drop vendor/transformers-phonon and load the release from jsDelivr (pinned).
+
 - [x] **Several CPU threads for the natural voice** (tested 23 Oct, removed): iPhone 15 Pro Max 2.4× → 1.4× (2 threads) and 1.6× (4 threads) slower than real time, never keeping up; the iPad keeps up anyway (its GPU voice). The isolation it needs also blocks YouTube, web-page widgets and some radio, so the code was taken out: iPhones use the device voice (Automatic), iPads the natural voice where it measures fast enough. Measured on the simulator: 1 thread 1.58×, 2: 1.11×, 3: 0.98×, 4: 0.92×.
 
 - [ ] **The agent with your accounts** (built 23 Oct): in StudioGen, Agent › Library › Agent browser: sign in once to Outlook (work: outlook.office.com, or personal in Agent › Settings), Teams, Slack and WhatsApp Web (link your phone). Then ask: “summarise my unread mail”, “what’s my day”, “read the mail from <someone>”, “any teams messages”, “any whatsapp messages”; and from DriveGen the same. Add People (email, WhatsApp number) before the sending tasks. The page selectors for Outlook/Teams/Slack/WhatsApp are best guesses (the model reads whatever text is there); note what comes back wrong and I'll tune each task. Tried so far without accounts: news and flight status (right), Outlook asks to sign in (right).

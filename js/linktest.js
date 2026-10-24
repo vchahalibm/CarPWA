@@ -138,7 +138,7 @@ const Tandem = {
     open: v => { closeSheet(); Direct.done(); openView(String(v).replace(/[^a-z]/g, '')); return true; },
     // what you'd say or type: through the command matcher, like the Assistant's typing box
     // a test phone: no location or install prompts over the dashboard
-    tidy: () => { store.set('onboarded', true); closeSheet(); $('#locPrompt')?.setAttribute('hidden', ''); if (typeof ACTIONS !== 'undefined') ACTIONS.dismissInstall?.(); return true; },
+    tidy: () => { store.set('onboarded', true); store.set('setupDone', 'skip'); document.getElementById('setup')?.remove(); closeSheet(); $('#locPrompt')?.setAttribute('hidden', ''); if (typeof ACTIONS !== 'undefined') ACTIONS.dismissInstall?.(); return true; },
     // the voices' speed here (silent), for the tandem tests
     voiceCheck: () => Voice.checkVoices({ silent: true }),
     // Kokoro on the GPU (WebGPU) here: switch, load (downloads the GPU build once), time it

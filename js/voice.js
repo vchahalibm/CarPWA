@@ -467,16 +467,17 @@ const Voice = {
   /** Which voice speaks: Automatic is the device's voice (it starts at once) unless Kokoro is loaded and measured fast
       enough here (making speech at least ~1.25× faster than it plays); Natural is Kokoro, chosen by you. */
   ttsMode() {
-    if (settings.tts !== 'auto') return settings.tts;
-    const sp = store.get('ttsSpeed', null);
-    if (IS_DESKTOP_APP && store.get('kokoroOK') && !this.ttsBroken && !(sp?.n >= 2 && sp.r > 0.8)) return 'neural'; // a Mac: natural, fast enough
-    return this.tts && !this.ttsBroken && sp?.n >= 2 && sp.r <= 0.8 ? 'neural' : 'phone';
+    const english = /^(auto|en)/.test(settings.voiceLang || 'auto'); // Phonon speaks English only: other languages, the device's voice
+    if (settings.tts === 'phonon') return english ? 'phonon' : 'phone';
+    if (settings.tts !== 'auto') return settings.tts; // 'neural' is Kokoro, chosen (and downloaded) in Settings › Voice
+    return english && typeof Phonon !== 'undefined' && Phonon.ok() && Phonon.keepsUp() ? 'phonon' : 'phone';
   },
   speak(text) {
     this.hush(); const id = ++this.sayId, mode = this.ttsMode();
     text = String(text || '').replace(/[“”"«»]/g, '').trim();
     if (!text || mode === 'off') { Log.d('tts', 'Not spoken', { setting: settings.tts, text }); return Promise.resolve(); }
     if (mode === 'phone') return this.speakPhone(text, id);
+    if (mode === 'phonon') return this.speakPhonon(text, id).catch(e => { Log.w('tts', `Natural voice (Phonon) didn’t speak: the device’s voice (${e.message})`); return id === this.sayId && this.speakPhone(text, id); });
     if (mode === 'neural' && this.tts && this.ttsBroken) Log.w('tts', 'On-device voice not working on this device: phone voice', { reason: this.ttsBroken });
     else if (mode === 'neural' && this.tts) return this.speakNeural(text, id).catch(e => {
       Log.w('tts', 'On-device voice failed; using the phone voice', e); return id === this.sayId && this.speakPhone(text, id); });
@@ -550,7 +551,15 @@ const Voice = {
         setTimeout(() => { if (!ok) { ok = true; res({ error: 'didn’t start within 3 s', voices: n }); } }, 3000);
       });
     }
-    if (this.tts || store.get('kokoroOK')) {
+    if (typeof Phonon !== 'undefined' && (Phonon.ok() || settings.tts === 'phonon')) {
+      try {
+        const eng = await Phonon.load(), t0 = performance.now(); let n = 0, first = 0;
+        await eng.speak('This is a test of the natural voice on this device.', Phonon.voiceId(), pcm => { first ||= performance.now() - t0; n += pcm.length; }).done;
+        const ms = performance.now() - t0, sec = n / PHONON_RATE, s = Phonon.learn(ms, sec);
+        out.phonon = { firstMs: Math.round(first), seconds: +sec.toFixed(2), speed: +(ms / 1000 / sec).toFixed(2), build: `${eng.build.label} ${eng.build.dtype}`, engine: eng.kind, learned: s?.r };
+      } catch (e) { out.phonon = { error: e.message }; }
+    }
+    if (settings.tts === 'neural' && (this.tts || store.get('kokoroOK'))) {
       try {
         if (!this.tts) await this.loadTTS(false, true);
         const text = 'This is a test of the natural voice on this device.', t0 = performance.now();
@@ -1089,19 +1098,10 @@ if (!IS_DESKTOP_APP && Budget.cls() === 'phone' && !store.get('voiceSimple')) {
   const d = store.get('diag', {}); if (d.device === 'webgpu') { delete d.device; store.set('diag', d); }
   if (settings.tts === 'neural' && store.get('ttsSpeed', {}).r > 1.2) { settings.tts = 'auto'; store.set('settings', settings); Log.i('tts', 'Phone: the natural voice is too slow here, replies use the device voice (Automatic)'); }
 }
-// Automatic needs Kokoro's speed on this device: measured once after it loads (silently), so it can pick it when it keeps up.
-setTimeout(() => {
-  const sp = store.get('ttsSpeed', {}), slow = sp.n >= 2 && sp.r > 0.8; // measured too slow here: not loaded for Automatic
-  const want = settings.tts === 'neural' || (settings.tts === 'auto' && !slow && (IS_DESKTOP_APP || store.get('kokoroOK')));
-  if (!want || Voice.tts) return;
-  const measure = async () => {
-    if (settings.tts !== 'auto' || store.get('ttsSpeed', {}).n >= 2) return;
-    await Voice.checkVoices({ silent: true }).catch(() => {});
-    if (Voice.ttsMode() !== 'neural' && settings.tts === 'auto') { Log.i('tts', 'Natural voice too slow here: unloaded, the device voice answers', store.get('ttsSpeed')); Voice.resetTTS(); }
-  };
-  if (store.get('kokoroOK')) { Log.d('tts', 'Preloading the reply voice'); Voice.loadTTS().then(measure).catch(() => {}); }
-  else if (IS_DESKTOP_APP) { Log.i('tts', 'Desktop app: downloading the on-device voice'); Voice.loadTTS(false, true).then(measure).catch(() => {}); }
-}, 4000);
+// Kokoro is optional now (Phonon is the natural voice): loaded only when chosen. An earlier Natural (Kokoro) choice becomes
+// Automatic once, which uses Phonon.
+if (!store.get('phononMoved')) { store.set('phononMoved', true); if (settings.tts === 'neural') { settings.tts = 'auto'; store.set('settings', settings); Log.i('tts', 'Natural voice is Phonon now: Kokoro was chosen, replies use Automatic (Phonon)'); } }
+setTimeout(() => { if (settings.tts === 'neural' && store.get('kokoroOK') && !Voice.tts) Voice.loadTTS().catch(() => {}); }, 4000);
 addEventListener('pointerdown', () => Voice.unlock(), { capture: true, passive: true });
 // iOS counts a finished tap (click / touchend), not the touch going down, as leave to speak: unlock the device voice there too.
 for (const ev of ['click', 'touchend']) addEventListener(ev, () => Voice.primePhone(), { capture: true, passive: true });

@@ -90,6 +90,11 @@ All paths are relative, so the app runs from the site root or a sub-path such as
 
 ## Features
 
+### The natural voice: Phonon (both apps)
+- Replies are spoken by **Phonon** (Gradium's 31M text-to-speech model, on the device, English, 25 English voices; Harper or Preston by your female/male choice, any by name in Settings › Voice). On an iPhone 15 Pro Max it makes speech 3.2× faster than it plays on the GPU (2.3× with the 3D assistant and the camera running) and starts in about 70 ms; 1.1× on the CPU. It streams in 80 ms frames, so long replies never wait for the whole text, and stopping or interrupting cuts in at once.
+- Each device picks its build (GPU where WebGPU works, else CPU) and times every reply; one that can't keep up falls back to the CPU build, then the device's voice. Other languages use the device's voice. **Kokoro**, the earlier natural voice, is an optional download in Settings › Voice.
+- **Setup**: the first start shows the agent setting the app up (the voice downloading, a speed check, the voice, listening, camera, assistant, start screen, your Mac), each with where to change it; after an update the same screen shows what's new and updates what's needed.
+
 ### The agent (both apps)
 - **Ask for tasks in your own words**: “summarise my unread mail”, “read the mail from Priya”, “what’s my day”, “brief me for my next meeting”, “WhatsApp Mom saying I’m on my way”, “post in #sales on Slack …”, “flight status of AI 101”, “remember where I parked”, “navigate to my next meeting”. The task library (Agent › Library) has mail, calendar, messaging, presenting, web and car tasks; add your own (a web page and a question, a script, or tasks in order).
 - **The Mac does the work**: StudioGen’s agent browser stays signed in to Outlook, Teams, Slack and WhatsApp on the web; Apple’s on-device model turns what it reads into a short card. DriveGen asks its paired Mac.

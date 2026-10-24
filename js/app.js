@@ -1289,11 +1289,17 @@ function renderSettings() {
       ${btn('voiceLang', 'Language you speak', (typeof LANGS !== 'undefined' && LANGS[settings.voiceLang]?.[0]) || 'Auto-detect')}
       ${store.get('whisperOK') || (settings.stt !== 'whisper' && !((typeof Voice !== 'undefined' && !SR))) ? '' : btn('voiceModel', 'Download the voice model now', 'Use Wi-Fi')}
       ${typeof Voice !== 'undefined' && Voice.engine() !== 'whisper' ? `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">When your words stop changing for this long (sooner when they already are a command); “Recognizer” waits for its own end (about 2 s on an iPhone)</div></div>${seg('sttEnd', [['0.5', '0.5 s'], ['0.8', '0.8 s'], ['1.2', '1.2 s'], ['phone', 'Recognizer']])}</div>` : `<div class="row"><div class="main"><div class="t">Act after you stop talking</div><div class="s">Whisper waits this long for more words</div></div>${seg('vadSilence', [['1.5', '1.5 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']])}</div>`}
-      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${typeof Voice === 'undefined' ? '' : settings.tts === 'auto' ? (Voice.ttsMode() === 'neural' ? 'Automatic: the natural voice (fast enough on this device)' : `Automatic: ${IS_DESKTOP_APP ? 'the Mac’s' : 'the device’s'} own voice, which starts at once`) : settings.tts === 'phone' ? `${IS_DESKTOP_APP ? 'The Mac’s' : 'The device’s'} own voice` : settings.tts === 'neural' ? (store.get('kokoroOK') ? (store.get('ttsSpeed', {}).r > 1.2 ? `Kokoro · natural, but ${store.get('ttsSpeed').r.toFixed(1)}× slower than speech on this device: replies start late and pause` : 'Kokoro · natural voice on this device, works offline') : `Kokoro · about ${typeof ttsSize === 'function' ? ttsSize() : '90 MB'} on first use, the device’s voice until then`) : 'Replies are shown, not spoken'}</div></div>${seg('tts', [['auto', 'Automatic'], ['phone', IS_DESKTOP_APP ? 'Mac' : 'Device'], ['neural', 'Natural'], ['off', 'Off']])}</div>
-      ${settings.tts !== 'off' && typeof Voice !== 'undefined' && Voice.ttsMode() === 'phone' ? btn('phoneVoice', 'Reply voice', `${PhoneVoices.pick()?.name || 'Default'}${settings.phoneVoice ? '' : ` · ${settings.voiceGender === 'male' ? 'male' : 'female'}, chosen automatically`}`) : ''}
-      ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Reply voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
-      ${settings.tts === 'neural' && !store.get('kokoroOK') ? btn('ttsModel', 'Download the reply voice now', 'Use Wi-Fi') : ''}
-      ${settings.tts === 'neural' && typeof gpuOK === 'function' && gpuOK() && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? btn('ttsGpu', 'Faster reply voice (GPU)', 'Download 310 MB') : ''}
+      <div class="row"><div class="main"><div class="t">Replies spoken by</div><div class="s">${typeof Voice === 'undefined' || typeof Phonon === 'undefined' ? '' : (() => { const m = Voice.ttsMode(), b = Phonon.build(), s = Phonon.speed(), sp = s && s.build === Phonon.buildKey() ? ` · ${(1 / s.r).toFixed(1)}× faster than speech here` : '';
+        if (settings.tts === 'off') return 'Replies are shown, not spoken';
+        if (settings.tts === 'neural') return store.get('kokoroOK') ? 'Kokoro (optional voice), on this device' : 'Kokoro: downloading when first used (90 MB)';
+        if (m === 'phonon') return `${settings.tts === 'auto' ? 'Automatic: ' : ''}the natural voice (Phonon, ${b.label}${sp})${Phonon.engine ? '' : Phonon.ok() ? ', loading' : ''}`;
+        if (settings.tts === 'phonon' || (settings.tts === 'auto' && !Phonon.ok())) return /^(auto|en)/.test(settings.voiceLang || 'auto') ? `The natural voice (Phonon, ${b.label}, ${b.mb} MB) isn’t downloaded yet: ${IS_DESKTOP_APP ? 'the Mac’s' : 'the device’s'} voice until then` : 'Phonon speaks English only: the device’s voice for your language';
+        return settings.tts === 'auto' ? `Automatic: ${IS_DESKTOP_APP ? 'the Mac’s' : 'the device’s'} own voice${Phonon.ok() ? ' (the natural voice can’t keep up here)' : ''}` : `${IS_DESKTOP_APP ? 'The Mac’s' : 'The device’s'} own voice`; })()}</div></div>${seg('tts', [['auto', 'Automatic'], ['phonon', 'Natural'], ['phone', IS_DESKTOP_APP ? 'Mac' : 'Device'], ['off', 'Off']])}</div>
+      ${settings.tts !== 'off' && typeof Voice !== 'undefined' && Voice.ttsMode() === 'phone' ? btn('phoneVoice', IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', `${PhoneVoices.pick()?.name || 'Default'}${settings.phoneVoice ? '' : ` · ${settings.voiceGender === 'male' ? 'male' : 'female'}, chosen automatically`}`) : ''}
+      ${typeof Phonon !== 'undefined' && settings.tts !== 'off' && settings.tts !== 'neural' && settings.tts !== 'phone' ? btn('phononVoice', 'Natural voice', `${(Phonon.list || store.get('phononVoices', []) || []).find(v => v.id === Phonon.voiceId())?.name || (settings.voiceGender === 'male' ? 'Preston' : 'Harper')}${settings.phononVoice ? '' : ` · ${settings.voiceGender === 'male' ? 'male' : 'female'}`}`) : ''}
+      ${typeof Phonon !== 'undefined' && !Phonon.ok() && settings.tts !== 'off' ? btn('phononGet', 'Download the natural voice now', `Phonon · ${Phonon.build().label} · ${Phonon.build().mb} MB, once`) : ''}
+      ${settings.tts === 'neural' && typeof TTS_VOICES !== 'undefined' ? btn('ttsVoice', 'Kokoro voice', TTS_VOICES[settings.ttsVoice]?.[0] || 'Heart') : ''}
+      ${btn('kokoroOpt', settings.tts === 'neural' ? 'Stop using Kokoro' : 'Kokoro voice (optional)', settings.tts === 'neural' ? 'Back to Automatic (Phonon)' : 'The earlier natural voice; downloads about 90 MB when chosen')}
       ${btn('voiceCheck', 'Check the voices', 'How fast each voice is on this device')}
       ${typeof Commands !== 'undefined' ? btn('commands', 'Voice commands', Commands.all().filter(c => c.on !== false).length + ' on') : ''}
       ${btn('voiceLogClear', 'Clear conversation history')}
@@ -1449,15 +1455,28 @@ const ACTIONS = {
       [[`Automatic · ${g}${settings.phoneVoice ? '' : ' ✓'}`, () => set('phoneVoice', '')], [`Automatic · ${other}`, () => { settings.voiceGender = other; set('phoneVoice', ''); }],
        ...PhoneVoices.ranked().slice(0, 14).map(v => [`${v.name} · ${v.lang}${PhoneVoices.gender(v) ? ` · ${PhoneVoices.gender(v)}` : ''}${settings.phoneVoice === v.voiceURI ? ' ✓' : ''}`, () => set('phoneVoice', v.voiceURI)]), ['Close']]);
   },
+  phononGet: () => { Voice.open(); Voice.show('Downloading the natural voice…', `Phonon · ${Phonon.build().mb} MB · one time`);
+    Phonon.load((a, b) => b && Voice.show('Downloading the natural voice…', `${Math.round(a / 1e6)} of ${Math.round(b / 1e6)} MB`)).then(() => { Voice.show('Natural voice ready', 'Works offline from now on'); Voice.speak('The natural voice is ready.'); Voice.closeT = setTimeout(() => Voice.close(), 2500); if (current === 'settings') renderSettings(); })
+      .catch(e => Voice.show('Couldn’t download the natural voice', e.message)); },
+  phononVoice: async () => {
+    let list = []; try { list = await Phonon.voices(); } catch { return toast('Couldn’t get the voice list: check the connection'); }
+    const set = id => { settings.phononVoice = id; applySettings(); renderSettings(); Voice.speak('This is how I sound.'); };
+    const g = settings.voiceGender === 'male' ? 'male' : 'female', other = g === 'male' ? 'female' : 'male', cur = Phonon.voiceId();
+    const row = v => [`${v.name} · ${v.gender}, ${v.locale === 'en-gb' ? 'British' : 'American'}${v.id === cur && settings.phononVoice ? ' ✓' : ''}`, () => set(v.id)];
+    sheet('Natural voice', `<p>Phonon’s English voices. Automatic follows your choice of a female or male voice (Harper or Preston).</p>`,
+      [[`Automatic · ${g}${settings.phononVoice ? '' : ' ✓'}`, () => set('')], [`Automatic · ${other}`, () => { settings.voiceGender = other; set(''); }],
+       ...list.filter(v => v.gender === g).map(row), ...list.filter(v => v.gender === other).map(row), ['Close']]);
+  },
+  kokoroOpt: () => { if (settings.tts === 'neural') { settings.tts = 'auto'; Voice.resetTTS(); } else { settings.tts = 'neural'; ACTIONS.ttsModel(); } applySettings(); renderSettings(); },
   voiceCheck: async () => {
-    sheet('Checking the voices', '<p>Saying “Voice check” with the device’s voice, then timing the natural voice if it’s downloaded…</p>', [['Close']]);
-    const r = await Voice.checkVoices(), P = r.phone, N = r.neural, fast = N && !N.error && N.speed <= 0.8;
+    sheet('Checking the voices', '<p>Saying “Voice check” with the device’s voice, then timing the natural voice…</p>', [['Close']]);
+    const r = await Voice.checkVoices(), P = r.phone, F = r.phonon, N = r.neural, fast = F && !F.error && F.speed <= 0.95;
     const line = (t, s) => `<div class="row"><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div></div>`;
     sheet('Voice check', `<div class="group">${line(IS_DESKTOP_APP ? 'Mac voice' : 'Device voice', P ? (P.error ? `Didn’t start (${esc(P.error)}): ${P.voices} voices` : `Started in ${P.startMs} ms · ${esc(P.voice)}`) : 'Not available here')}
-      ${line('Natural voice (Kokoro)', !N ? 'Not downloaded (choose Natural to try it)' : N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech · ${N.speed < 1 ? `${(1 / N.speed).toFixed(1)}× faster` : `${N.speed.toFixed(1)}× slower`} than it plays (${esc(N.engine)})`)}</div>
-      <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : N && !N.error ? 'The natural voice is too slow here for replies without pauses: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice, which starts at once.'}</p>`,
-      [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'neural'; applySettings(); renderSettings(); }],
-       ...(N && !N.error && N.speed > 0.8 && navigator.gpu && Diag.get().device !== 'webgpu' && Budget.cls() !== 'phone' ? [['Try the GPU voice (310 MB)', () => ACTIONS.voiceGpu()]] : []), ['Close']]); // not on phones: it crashed an iPhone 15 Pro Max (too big for a web app there)
+      ${line('Natural voice (Phonon)', !F ? 'Not downloaded yet (Download the natural voice now)' : F.error ? `Didn’t work: ${esc(F.error)}` : `${esc(F.build)} · first sound after ${F.firstMs} ms · ${F.speed < 1 ? `${(1 / F.speed).toFixed(1)}× faster` : `${F.speed.toFixed(1)}× slower`} than speech`)}
+      ${N ? line('Kokoro (optional)', N.error ? `Didn’t work: ${esc(N.error)}` : `${(N.firstMs / 1000).toFixed(1)} s to make ${N.seconds} s of speech`) : ''}</div>
+      <p>${fast ? 'The natural voice keeps up on this device: Automatic uses it.' : F && !F.error ? 'The natural voice can’t keep up here: Automatic uses the device’s voice.' : 'Automatic uses the device’s voice until the natural voice is downloaded.'}</p>`,
+      [['Use Automatic', () => { settings.tts = 'auto'; applySettings(); renderSettings(); }], ['Use the natural voice', () => { settings.tts = 'phonon'; applySettings(); renderSettings(); }], ['Close']]);
   },
   /** The natural voice on the graphics chip (WebGPU) instead of one CPU core: downloads the GPU build once, loads it, times
       it; if it fails, says why and the CPU build stays (an earlier failure is forgotten first, so it can be tried again). */

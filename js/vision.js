@@ -64,7 +64,9 @@ const Vision = {
     if (this.worker && this.worker.model !== this.model()) { Log.i('vision', 'Detector model changed: reloading'); this.unload(); }
     if (this.worker) return Promise.resolve(this.worker);
     if (this.loading) return this.loading;
-    const M = this.model(), device = gpuOK() ? 'webgpu' : 'wasm';
+    // Phones and tablets: on the CPU, which keeps the GPU for the reply voice and the 3D assistant (an iPhone 15 Pro Max: 350–530 ms a
+    // frame, ~2 a second, with Phonon still 2.3× faster than speech and the assistant at 60 fps). Computers: the GPU.
+    const M = this.model(), device = gpuOK() && Budget.cls() === 'desktop' ? 'webgpu' : 'wasm';
     if (!Budget.room('detector', Budget.COST.detector, true)) { this.status('Not enough memory for object detection right now'); return Promise.reject(new Error('No memory for the detector')); }
     this.loading = Heavy.run(`detector (${M.name})`, () => Budget.guard(`Detector ${M.name} ${device}`, () => new Promise((res, rej) => {
       const w = new Worker(URL.createObjectURL(new Blob([VISION_WORKER], { type: 'text/javascript' })), { type: 'module' }), s = performance.now();

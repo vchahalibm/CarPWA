@@ -100,6 +100,9 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
 </ol>
 <p>Apple’s on-device model (for understanding commands by meaning and summarising) needs macOS 26 or later with Apple Intelligence turned on. Without it everything else still works.</p>
 
+<h3>The setup screen</h3>
+<p>The first time you open either app, the agent sets it up in front of you: it checks the device, downloads the natural voice (about 40 MB on most phones, once) and times it, picks your voice, and shows how listening, the camera, the 3D assistant and the start screen are set, each with where to change it in Settings. Tap <b>Start</b> when you like; downloads carry on. After an update, the same screen shows what's new.</p>
+
 <h2 id="pair">Pair your phone with your Mac</h2>
 <p>Do this once; afterwards they find each other by themselves, at home, at work and in the car on mobile data.</p>
 <ol>
@@ -127,7 +130,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
   <li><b>By meaning</b>: if nothing matches, Apple’s on-device model on the Mac works out what you meant (<q class="say">is it going to pour later?</q> gives the weather). Phones ask their Mac. <span class="path">Settings › Voice › Understand commands by meaning</span>.</li>
   <li><b>“Did you mean…?”</b>: when it’s unsure it asks; say <q class="say">yes</q> or <q class="say">no</q>.</li>
   <li><b>Conversation mode</b> (<span class="path">Settings › Voice</span>): tap once and keep talking; you can interrupt it. Say <q class="say">that’s all</q> to finish.</li>
-  <li><b>The reply voice</b>: <b>Automatic</b> uses the device’s own voice where that’s quicker (phones) and the natural on-device voice (Kokoro) on the Mac. Choose female or male, or a voice by name, and test them with <span class="path">Settings › Voice › Check the voices</span>.</li>
+  <li><b>The reply voice</b>: <b>Automatic</b> uses the natural voice, <b>Phonon</b>, on the device (fast on phones, tablets and Macs), or the device’s own voice where Phonon can’t keep up or for languages other than English. Choose female or male, or any of Phonon’s 25 English voices by name in <span class="path">Settings › Voice › Natural voice</span>; <span class="path">Check the voices</span> times them. Kokoro, the earlier voice, is an optional download there.</li>
   <li><b>Keep speech on this device</b>: speech is never sent to Apple’s or Google’s servers; recognition runs on the device instead.</li>
 </ul>
 

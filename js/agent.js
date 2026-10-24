@@ -254,7 +254,7 @@ const Working = {
       if (!o.silent) {
         const line = o.line || FILLERS[Math.floor(Math.random() * FILLERS.length)];
         Voice.reply?.(line); Log.i('tts', `Working: “${line}”`);
-        this.said = Promise.resolve(Voice.ttsMode() === 'neural' ? Voice.speak(line) : (Voice.hush?.(), Voice.speakPhone(line, ++Voice.sayId))).catch(() => {});
+        this.said = Promise.resolve(/^(neural|phonon)$/.test(Voice.ttsMode()) ? Voice.speak(line) : (Voice.hush?.(), Voice.speakPhone(line, ++Voice.sayId))).catch(() => {});
       }
       if (typeof Avatar !== 'undefined') { Avatar.gesture('Typing'); this.t2 = setTimeout(() => tok === this.n && Avatar.gesture('Think', 20), 3000); }
     }, o.after ?? 500);

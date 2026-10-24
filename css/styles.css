@@ -1649,7 +1649,19 @@ table.bench small{color:var(--text-2)}
 @media (max-width:560px){.ag-person{grid-template-columns:1fr}.ag-list{grid-template-columns:1fr}}
 /* The Mac's agent browser: hidden (still running) until a sign-in is needed */
 .ag-web{position:fixed;right:0;bottom:0;width:1280px;height:860px;opacity:0;pointer-events:none;z-index:-1;display:flex;flex-direction:column;background:var(--bg)}
-.ag-web webview{flex:1}
+.ag-web-view{flex:1;position:relative;min-height:0}
+.ag-web webview{position:absolute;inset:0;width:100%;height:100%}
+.ag-web.watch{opacity:1;pointer-events:auto;z-index:2000;left:auto;right:12px;top:56px;bottom:auto;width:calc(1280px * var(--s,.5));height:auto;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);border:1px solid var(--line)}
+.ag-web.watch .ag-web-view{flex:none;width:calc(1280px * var(--s,.5));height:calc(860px * var(--s,.5));overflow:hidden}
+.ag-web.watch webview{inset:auto;left:0;top:0;width:1280px;height:860px;transform:scale(var(--s,.5));transform-origin:0 0}
+.ag-ring{position:absolute;border:3px solid #ff375f;border-radius:8px;box-shadow:0 0 0 4px rgba(255,55,95,.25);pointer-events:none;z-index:2}
+.ag-watch-log{max-height:190px;overflow-y:auto;background:var(--surface);border-top:1px solid var(--line);padding:8px 12px}
+.ag-watch-log ol{margin:0;padding-left:22px;font-size:13.5px}
+.ag-watch-log li{margin:3px 0}.ag-watch-log li small{display:block;color:var(--text-2)}
+.ag-watch-log li.work{color:var(--text-2)}.ag-watch-log li.work::marker{content:'⏳ '}.ag-watch-log li.paused::marker{content:'⏸ '}
+.ag-watch-log li.ok::marker{content:'✓ ';color:var(--green)}.ag-watch-log li.bad{color:var(--red)}.ag-watch-log li.bad::marker{content:'✗ '}
+.ag-watch-log li.end{font-weight:700}
+.ag-watch-ctl{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .ag-web.show{opacity:1;pointer-events:auto;z-index:2000;inset:6% 6%;width:auto;height:auto;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45);border:1px solid var(--line)}
 .ag-web-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line);-webkit-app-region:no-drag}
 .ag-web-url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);font-size:13px}

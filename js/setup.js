@@ -9,6 +9,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Agent tasks can be watched step by step (Agent › Library › Settings › Show the browser while tasks run)',
   'On Stage, a gesture of your choice opens the microphone for the presenter (Settings › Stage)',
   'Conversation mode plays the natural voice without the small gaps',
   'A new natural voice, Phonon: about 3× faster than speech on an iPhone, and it starts at once',

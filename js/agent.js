@@ -211,7 +211,9 @@ const AgentWeb = {
   el() {
     if (this.wv) return this.wv;
     const box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
-    box.innerHTML = `<div class="ag-web-bar"><b>Agent browser</b><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div><webview partition="persist:browse" src="about:blank" allowpopups webpreferences="backgroundThrottling=no"></webview>`;
+    box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
+      <div class="ag-web-view"><webview partition="persist:browse" src="about:blank" allowpopups webpreferences="backgroundThrottling=no"></webview><i class="ag-ring" hidden></i></div>
+      <div class="ag-watch-log" hidden><ol></ol><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
     document.body.appendChild(box);
     const wv = this.wv = box.querySelector('webview');
     this.up = new Promise(r => wv.addEventListener('dom-ready', r, { once: true }));
@@ -235,9 +237,50 @@ const AgentWeb = {
   },
   async insert(text) { await this.wv.insertText(text); },
   key(k = 'Enter') { const wv = this.wv; wv.sendInputEvent({ type: 'keyDown', keyCode: k }); if (k === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r' }); wv.sendInputEvent({ type: 'keyUp', keyCode: k }); },
-  show(on = true) { this.el(); $('#agentWeb').classList.toggle('show', on); },
+  /** Shown to sign in (full size, interactive). */
+  show(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); },
+  /** Shown to watch a task: a side panel, the page at its usual size (1280×860) drawn smaller, with the steps below. */
+  watch(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('show'); b.classList.toggle('watch', on); $('.ag-watch-log', b).hidden = !on;
+    if (on) b.style.setProperty('--s', String(Math.min(0.62, (Math.min(innerWidth * 0.5, 820)) / 1280).toFixed(3))); },
 };
-document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) AgentWeb.show(false); });
+document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) { AgentWeb.show(false); AgentWeb.watch(false); } });
+
+/* ---------- Watching a task: each step listed as it runs (✓ or ✗ with why), the element it acts on ringed; optionally one
+   step at a time (Next step / Run the rest / Stop), for finding out why a task doesn't work and fixing it. ---------- */
+const AgentWatch = {
+  on: () => AgentWeb.can() && !!Agent.cfg().watch,
+  stepMode: false, gate: null,
+  begin(t) {
+    if (!this.on()) return; this.stepMode = !!Agent.cfg().stepMode; AgentWeb.watch(true);
+    $('#agentWeb .ag-web-title').textContent = `Watching: ${t.name}`; $('#agentWeb .ag-watch-log ol').innerHTML = '';
+  },
+  label(id, v, a = {}) {
+    const short = s => String(s || '').replace(/^https?:\/\//, '').slice(0, 70);
+    return ({ 'agent.open': () => `Open ${short(v)}`, 'agent.read': () => `Read the page (${short(String(v).split('||')[0])})`, 'agent.wait': () => `Wait for ${short(v)}`,
+      'agent.click': () => `Click ${v ? `“${short(v)}”` : short(agentArgs(a.args).sel?.split('||')[0])}`, 'agent.type': () => `Type into “${short(v)}”`, 'agent.key': () => `Press ${v || 'Enter'}`,
+      'ai.card': () => 'Ask the model for the card', 'ai.when': () => `Work out the time “${short(v)}”` })[id]?.() || id;
+  },
+  async step(id, v, ev) {
+    if (!this.on() || !$('#agentWeb')?.classList.contains('watch')) return null;
+    const li = document.createElement('li'); li.className = 'work'; li.textContent = this.label(id, v, ev); $('#agentWeb .ag-watch-log ol').appendChild(li); li.scrollIntoView({ block: 'nearest' });
+    if (this.stepMode) { li.classList.add('paused'); const ctl = $('#agentWeb .ag-watch-ctl'); ctl.hidden = false;
+      const what = await new Promise(r => { this.gate = r; }); ctl.hidden = true; li.classList.remove('paused');
+      if (what === 'run') this.stepMode = false; if (what === 'stop') { li.className = 'bad'; throw new Error('Stopped while watching'); } }
+    return li;
+  },
+  done(li, ok, note) { if (!li) return; li.className = ok ? 'ok' : 'bad'; if (note) { const s = document.createElement('small'); s.textContent = note; li.appendChild(s); } },
+  ring(rect) {
+    const r = $('#agentWeb .ag-ring'); if (!r || !rect || !$('#agentWeb')?.classList.contains('watch')) return;
+    const k = parseFloat(getComputedStyle($('#agentWeb')).getPropertyValue('--s')) || 1; // the page is drawn smaller in the panel
+    Object.assign(r.style, { left: `${rect.x * k - 4}px`, top: `${rect.y * k - 4}px`, width: `${rect.w * k + 8}px`, height: `${rect.h * k + 8}px` }); r.hidden = false; clearTimeout(this.rt); this.rt = setTimeout(() => { r.hidden = true; }, 1600);
+  },
+  end(ok, why) {
+    if (!$('#agentWeb')?.classList.contains('watch')) return;
+    const li = document.createElement('li'); li.className = ok ? 'ok end' : 'bad end'; li.textContent = ok ? 'Done' : `Stopped: ${why}`; $('#agentWeb .ag-watch-log ol').appendChild(li); li.scrollIntoView({ block: 'nearest' });
+    $('#agentWeb .ag-web-title').textContent = ok ? 'Task done' : 'Task didn’t work: see the steps';
+  },
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-agstep]'); if (b && AgentWatch.gate) { const g = AgentWatch.gate; AgentWatch.gate = null; g(b.dataset.agstep); } });
 
 /* ---------- Working on it: a short line at once, the assistant types and then thinks, and answers with a gesture ----------
    For anything that takes more than a moment (a task, a script on the Mac). The line is in the voice that starts at once
@@ -357,7 +400,7 @@ const Agent = {
     }
     const prev = this.ctx, run = this.runner(t, params);
     // one task at a time in the agent browser (a composite's own tasks run inside it)
-    const go = async () => { this.ctx = run.ctx; try { await run.steps(t.steps || [], { tok: 1 }); } finally { this.ctx = prev; } };
+    const go = async () => { this.ctx = run.ctx; if (!prev) AgentWatch.begin(t); try { await run.steps(t.steps || [], { tok: 1 }); } finally { this.ctx = prev; if (!prev) AgentWatch.end(!run.ctx.failed, run.ctx.failed); } };
     if (prev || t.runs !== 'mac') await go(); else { const q = this.queue.then(go); this.queue = q.catch(() => {}); await q; }
     if (run.ctx.failed) throw new Error(run.ctx.failed);
     const res = t.result ? run.val(String(t.result).replace(/^\{|\}$/g, '')) : run.vars.card ?? run.vars.result;
@@ -420,7 +463,11 @@ const Agent = {
 const agentArgs = args => { const o = { q: [], flags: [] }; for (const a of args || []) { const s = String(a), i = s.indexOf('='); if (s.startsWith('?') && i > 0) o.q.push([s.slice(1, i), s.slice(i + 1)]); else if (i > 0) o[s.slice(0, i).trim()] = s.slice(i + 1); else o.flags.push(s.trim()); } return o; };
 const agentCtx = () => { const c = Agent.ctx; if (c?.failed) throw new Error(c.failed); return c; };
 /** Agent steps: a failure stops the task with its reason (the script engine would carry on with the next step). */
-const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) { try { return await def.run(...a); } catch (e) { if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
+const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
+  let li = null;
+  try { li = await AgentWatch.step(id, a[0], a[2]); const r = await def.run(...a);
+    AgentWatch.done(li, true, typeof r === 'string' && id === 'agent.read' ? `${r.length} characters read` : id === 'ai.card' && r?.headline ? r.headline : ''); return r; }
+  catch (e) { AgentWatch.done(li, false, e.message); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
 const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs StudioGen on a Mac (its agent browser)'); };
 agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
@@ -452,14 +499,14 @@ agentAction('agent.wait', { group: 'Agent', name: 'Agent browser: wait for somet
 } });
 agentAction('agent.click', { group: 'Agent', name: 'Agent browser: click', arg: 'The text on it; inputs: sel=CSS selector (|| between choices), optional', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args); let r = { ok: false };
-  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('clickOn', [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) break; }
+  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('clickOn', [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok && !a.flags.includes('optional')) throw new Error(r.error || `Couldn’t click ${v || a.sel}`);
   return r.ok;
 } });
 agentAction('agent.type', { group: 'Agent', name: 'Agent browser: type into a field', arg: 'The field’s label or placeholder; inputs: the text, then enter (to press Enter), sel=CSS selector', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args), text = a.flags.find(f => f !== 'enter') ?? '';
   let r = { ok: false };
-  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('focus', [{ sel: sel || undefined, label: v }]); if (r.ok) break; }
+  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('focus', [{ sel: sel || undefined, label: v }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok) throw new Error(r.error || `No field ${v}`);
   if (text) await AgentWeb.insert(text);
   if (a.flags.includes('enter')) { await new Promise(x => setTimeout(x, 200)); AgentWeb.key('Enter'); }
@@ -578,9 +625,11 @@ const AgentHome = {
   cfg() {
     const c = Agent.cfg();
     sheet('Agent settings', `<label class="se-field"><span>Outlook on the web</span><select id="agOl">${[['https://outlook.office.com', 'Work or school (outlook.office.com)'], ['https://outlook.live.com', 'Personal (outlook.live.com)']].map(([u, l]) => `<option value="${u}" ${c.outlook === u ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${AgentWeb.can() ? `<label class="se-check"><input type="checkbox" id="agWatch" ${c.watch ? 'checked' : ''}> Show the browser while tasks run (watch each step, to see why one doesn’t work)</label>
+      <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>` : ''}
       ${LINK_HOST ? `<label class="se-check"><input type="checkbox" id="agRemote" ${c.remote ? 'checked' : ''}> Paired phones may run this Mac’s tasks (acting ones are confirmed on the phone)</label>` : ''}
       <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>`,
-      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote }); toast('Saved'); }], ['Close']]);
+      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); toast('Saved'); }], ['Close']]);
   },
   /** Your own task: a web page and a question, a script, or other tasks in order (a composite). */
   edit(id) {

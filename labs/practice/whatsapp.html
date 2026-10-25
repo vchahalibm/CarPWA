@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice WhatsApp</title>
+<style>
+:root{--bg:#efeae2;--side:#fff;--ink:#111b21;--ink2:#667781;--line:#e9edef;--green:#25d366;--dark:#008069;--in:#fff;--out:#d9fdd3;--hdr:#f0f2f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--side:#111b21;--ink:#e9edef;--ink2:#8696a0;--line:#222d34;--in:#202c33;--out:#005c4b;--hdr:#202c33}}
+:root[data-theme="dark"]{--bg:#0b141a;--side:#111b21;--ink:#e9edef;--ink2:#8696a0;--line:#222d34;--in:#202c33;--out:#005c4b;--hdr:#202c33}
+*{box-sizing:border-box}body{margin:0;font:14.5px/1.4 -apple-system,system-ui,Segoe UI,sans-serif;color:var(--ink);background:var(--bg);height:100vh}
+#app{display:grid;grid-template-columns:minmax(280px,30%) 1fr;height:100vh}
+#side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#side header{padding:12px 16px;font-weight:700;font-size:20px;color:var(--dark)}
+.search{margin:0 12px 8px;background:var(--hdr);border-radius:8px;padding:7px 12px}
+.search [contenteditable]{outline:none;min-height:20px}.search [contenteditable]:empty::before{content:'Search';color:var(--ink2)}
+#pane-side{flex:1;overflow:auto}
+[role=listitem]{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+[role=listitem][aria-selected=true]{background:var(--hdr)}
+.av{width:46px;height:46px;border-radius:50%;background:#dfe5e7;display:grid;place-items:center;font-weight:700;color:#54656f;flex:0 0 auto}
+.cell{flex:1;min-width:0}.r1,.r2{display:flex;gap:8px;align-items:center}.r1 span[title]{font-size:16px;flex:1}
+.r2 span.last{flex:1;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:12px;color:var(--ink2)}.unread .time{color:var(--green)}
+.badge{background:var(--green);color:#fff;border-radius:10px;font-size:12px;font-weight:700;min-width:20px;text-align:center;padding:1px 6px}
+#main{display:flex;flex-direction:column;min-height:0}
+#main header{background:var(--hdr);padding:10px 16px;font-weight:600;display:flex;gap:10px;align-items:center}
+.msgs{flex:1;overflow:auto;padding:14px 8%;display:flex;flex-direction:column;gap:4px}
+[role=row]{display:flex}
+.message-in,.message-out{max-width:65%;padding:6px 9px 8px;border-radius:8px;box-shadow:0 1px .5px rgba(0,0,0,.13)}
+.message-in{background:var(--in)}.message-out{background:var(--out);margin-left:auto}
+[role=row]:has(.message-out){justify-content:flex-end}
+.meta{font-size:11px;color:var(--ink2);text-align:right}
+footer{background:var(--hdr);padding:8px 12px;display:flex;gap:10px;align-items:flex-end}
+footer [contenteditable]{flex:1;background:var(--side);border-radius:8px;padding:9px 12px;outline:none;min-height:22px}
+footer [contenteditable]:empty::before{content:'Type a message';color:var(--ink2)}
+footer button{width:42px;height:42px;border-radius:50%;border:0;background:var(--dark);color:#fff;cursor:pointer}
+.landing{max-width:760px;margin:10vh auto;background:var(--side);border-radius:10px;padding:34px 40px;display:grid;grid-template-columns:1fr 200px;gap:30px}
+.landing h1{font-weight:300;font-size:26px;margin:0 0 14px}.landing ol{color:var(--ink2);line-height:2}
+.qr{width:200px;height:200px;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/16px 16px;border:8px solid #fff;border-radius:6px}
+.landing button{margin-top:14px;height:40px;border-radius:20px;border:0;background:var(--dark);color:#fff;padding:0 18px;cursor:pointer;font:inherit}
+.empty{margin:auto;color:var(--ink2);text-align:center}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* A made-up WhatsApp Web for practising agent tasks (docs/scripts-and-tasks-guide.html). Its page structure follows
+   WhatsApp Web (#pane-side, chat rows, “N unread messages” badges, data-pre-plain-text on messages, the footer's message
+   box) so tasks made for it carry over. Linking a phone is simulated; messages you send stay in this browser.
+   ?reset starts over; ?phone=…&text=… opens a chat with a draft, like WhatsApp's send links. */
+const KEY = 'practiceWa', q = new URLSearchParams(location.search);
+if (q.has('reset')) { localStorage.removeItem(KEY); localStorage.removeItem(KEY + 'Auth'); location.replace(location.pathname); }
+const DEF = [
+  { id: 'c1', name: 'Mom', phone: '919800000001', unread: 2, msgs: [['in', '8:05', 'Good morning beta!'], ['in', '8:06', 'Are you coming for dinner on Sunday?']] },
+  { id: 'c2', name: 'Priya Nair', phone: '919800000002', unread: 1, msgs: [['out', 'Yesterday', 'Thanks for the update'], ['in', '9:40', 'Can you call me after the 3 pm review?']] },
+  { id: 'c3', name: 'Family', phone: '', group: true, unread: 5, msgs: [['in', '7:30', 'Ravi: Photos from the trip are up'], ['in', '7:31', 'Ravi: Check the album'], ['in', '7:50', 'Anu: Lovely!'], ['in', '8:10', 'Mom: Who is bringing dessert?'], ['in', '8:12', 'Anu: I will']] },
+  { id: 'c4', name: 'Rahul Mehta', phone: '919800000004', unread: 0, msgs: [['in', 'Mon', 'See you at the review'], ['out', 'Mon', 'Sure']] },
+  { id: 'c5', name: 'Asha Rao', phone: '919800000005', unread: 0, msgs: [['in', 'Sun', 'Pilot update before Monday please']] },
+];
+const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const root = document.getElementById('root'); let cur = null, filter = '';
+function landing() {
+  root.innerHTML = `<div class="landing"><div><h1>Use WhatsApp on your computer</h1><ol><li>Open WhatsApp on your phone</li><li>Tap Menu or Settings and select Linked devices</li><li>Tap Link a device</li><li>Point your phone at this screen to scan the QR code</li></ol>
+    <button id="link">Simulate scanning with your phone</button></div><div class="qr" role="img" aria-label="Scan this QR code to link a device!"></div></div>`;
+  document.getElementById('link').onclick = () => { localStorage.setItem(KEY + 'Auth', '1'); location.reload(); };
+}
+function rows() {
+  const f = filter.toLowerCase();
+  return S.filter(c => !f || c.name.toLowerCase().includes(f) || c.msgs.some(m => m[2].toLowerCase().includes(f))).map(c => { const last = c.msgs.at(-1);
+    return `<div role="listitem" tabindex="0" data-id="${c.id}" class="${c.unread ? 'unread' : ''}" aria-selected="${cur === c}"><div class="av">${esc(c.name[0])}</div><div class="cell">
+      <div class="r1"><span title="${esc(c.name)}" dir="auto">${esc(c.name)}</span><span class="time">${esc(last[1])}</span></div>
+      <div class="r2"><span class="last" title="${esc(last[2])}">${last[0] === 'out' ? '✓✓ ' : ''}${esc(last[2])}</span>${c.unread ? `<span class="badge" aria-label="${c.unread} unread message${c.unread > 1 ? 's' : ''}">${c.unread}</span>` : ''}</div></div></div>`; }).join('') || '<p class="empty">No chats, contacts or messages found</p>';
+}
+function draw(draft = '') {
+  root.innerHTML = `<div id="app"><div id="side"><header>WhatsApp</header>
+    <div class="search"><div contenteditable="true" role="textbox" aria-label="Search input textbox" data-tab="3" title="Search input textbox"></div></div>
+    <div id="pane-side"><div aria-label="Chat list" role="grid">${rows()}</div></div></div>
+    <div id="main">${cur ? `<header><div class="av">${esc(cur.name[0])}</div><span title="${esc(cur.name)}">${esc(cur.name)}</span></header>
+      <div class="msgs" role="application" aria-label="Messages">${cur.msgs.map(m => `<div role="row"><div class="${m[0] === 'out' ? 'message-out' : 'message-in'}"><div class="copyable-text" data-pre-plain-text="[${esc(m[1])}] ${esc(m[0] === 'out' ? 'You' : cur.group ? m[2].split(':')[0] : cur.name)}: "><span class="selectable-text" dir="ltr">${esc(m[2])}</span></div><div class="meta">${esc(m[1])}</div></div></div>`).join('')}</div>
+      <footer><div contenteditable="true" role="textbox" aria-label="Type a message" data-tab="10" title="Type a message">${esc(draft)}</div><button aria-label="Send" data-icon="send">➤</button></footer>`
+      : '<div class="empty"><h2>WhatsApp Web (practice)</h2><p>Send and receive messages without keeping your phone online.</p></div>'}</div></div>`;
+  const m = document.querySelector('.msgs'); if (m) m.scrollTop = m.scrollHeight;
+  if (cur?.unread) setTimeout(() => { cur.unread = 0; save(); const b = document.querySelector(`[data-id="${cur.id}"] .badge`); b?.remove(); }, 1200);
+}
+function send() {
+  const box = document.querySelector('footer [contenteditable]'), t = box?.innerText.trim(); if (!t || !cur) return;
+  cur.msgs.push(['out', new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t]); S.splice(S.indexOf(cur), 1); S.unshift(cur); save(); draw();
+}
+document.addEventListener('click', e => {
+  const r = e.target.closest('[role=listitem]'); if (r) { cur = S.find(c => c.id === r.dataset.id); return draw(); }
+  if (e.target.closest('footer button')) send();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('footer [contenteditable]') && !e.shiftKey) { e.preventDefault(); send(); } });
+document.addEventListener('input', e => { if (e.target.matches('.search [contenteditable]')) { filter = e.target.innerText.trim(); document.querySelector('[role=grid]').innerHTML = rows(); } });
+if (!localStorage.getItem(KEY + 'Auth')) landing();
+else { const p = q.get('phone'); cur = p ? S.find(c => c.phone === p.replace(/\D/g, '')) || null : null; draw(cur ? q.get('text') || '' : ''); }
+</script>
+</body>
+</html>

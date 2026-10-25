@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Slack</title>
+<style>
+:root{--side:#3f0e40;--side2:#350d36;--sideInk:#e8dfe8;--bg:#fff;--ink:#1d1c1d;--ink2:#616061;--line:#e8e8e8;--acc:#1164a3;--hl:#f8f4e6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1d21;--ink:#d1d2d3;--ink2:#9a9b9d;--line:#2c2d30;--hl:#2a2610}}
+:root[data-theme="dark"]{--bg:#1a1d21;--ink:#d1d2d3;--ink2:#9a9b9d;--line:#2c2d30;--hl:#2a2610}
+*{box-sizing:border-box}body{margin:0;font:15px/1.46 -apple-system,system-ui,Segoe UI,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--side2)}
+.top button[data-qa="top_nav_search"]{flex:1;max-width:620px;margin:0 auto;height:28px;border-radius:6px;border:0;background:rgba(255,255,255,.18);color:#fff;text-align:left;padding:0 10px;font:inherit;cursor:text}
+.top input{flex:1;max-width:620px;margin:0 auto;height:28px;border-radius:6px;border:0;padding:0 10px;font:inherit}
+.app{flex:1;display:grid;grid-template-columns:64px 260px 1fr;min-height:0}
+.rail{background:var(--side2);display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px}
+.rail button{width:44px;height:44px;border-radius:10px;border:0;background:transparent;color:#fff;font-size:12px;cursor:pointer;position:relative}
+.rail button[aria-pressed=true]{background:rgba(255,255,255,.2)}
+.rail .badge{position:absolute;top:2px;right:2px;background:#e01e5a;border-radius:9px;font-size:11px;padding:0 5px}
+nav.p-channel_sidebar{background:var(--side);color:var(--sideInk);overflow:auto;padding:10px 0}
+nav h2{font-size:15px;color:#fff;padding:0 16px;margin:4px 0 10px}
+nav .sec{font-size:13px;opacity:.8;padding:10px 16px 4px}
+.p-channel_sidebar__channel{display:flex;align-items:center;gap:6px;padding:4px 16px;cursor:pointer;color:var(--sideInk)}
+.p-channel_sidebar__channel--unread{font-weight:700;color:#fff}
+.p-channel_sidebar__channel[aria-selected=true]{background:var(--acc);color:#fff}
+.p-channel_sidebar__badge{margin-left:auto;background:#e01e5a;color:#fff;border-radius:9px;font-size:11px;padding:0 6px;font-weight:700}
+main{display:flex;flex-direction:column;min-height:0}
+.p-view_header{padding:10px 18px;border-bottom:1px solid var(--line);font-weight:800;font-size:17px}
+.p-message_pane{flex:1;overflow:auto;padding:8px 0}
+.c-virtual_list__item{padding:6px 18px}
+.c-message_kit__sender{font-weight:800;margin-right:6px}.c-timestamp{color:var(--ink2);font-size:12px}
+.c-mrkdwn__mention{background:#fdf2c4;color:#1264a3;border-radius:3px;padding:0 2px}
+.unread-divider{color:#e01e5a;font-size:12.5px;font-weight:700;border-top:1px solid #e01e5a;margin:8px 18px;padding-top:2px}
+.composer{margin:10px 18px 16px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:flex-end}
+.ql-editor{flex:1;min-height:42px;padding:10px 12px;outline:none}
+.ql-editor:empty::before{content:attr(data-placeholder);color:var(--ink2)}
+button[data-qa="texty_send_button"]{margin:6px;height:30px;border-radius:6px;border:0;background:#007a5a;color:#fff;padding:0 12px;cursor:pointer}
+.signin{max-width:420px;margin:12vh auto;text-align:center;padding:20px}
+.signin h1{font-size:32px;margin:10px 0}.signin input{width:100%;height:42px;border:1px solid var(--line);border-radius:6px;padding:0 12px;font:inherit;margin:8px 0}
+.signin button{width:100%;height:44px;border:0;border-radius:6px;background:var(--side);color:#fff;font:600 15px system-ui;cursor:pointer}
+.p-activity{padding:10px 18px}.p-activity .c-virtual_list__item{border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* A made-up Slack workspace for practising agent tasks (docs/scripts-and-tasks-guide.html). Its page structure follows
+   Slack's web app (data-qa attributes, roles, labels) so tasks made for it carry over. The sign-in is simulated (no
+   password); messages you send stay in this browser. ?reset starts over. */
+const KEY = 'practiceSlack', q = new URLSearchParams(location.search);
+if (q.has('reset')) { localStorage.removeItem(KEY); localStorage.removeItem(KEY + 'Auth'); location.replace(location.pathname); }
+const ME = 'You';
+const DEF = { channels: [
+  { id: 'C1', name: 'general', unread: 2, msgs: [['Asha Rao', '9:02', 'Morning all, standup moved to 10:15 today.', 1], ['Rahul Mehta', '9:20', 'Thanks @You for the pilot notes, they helped a lot.', 0], ['Priya Nair', '9:41', 'Reminder: the Acme contract review is at 3 pm.', 0]] },
+  { id: 'C2', name: 'sales', unread: 3, msgs: [['Rahul Mehta', '8:15', 'Q3 numbers are in the shared drive.', 1], ['Asha Rao', '8:50', '@You can you check the North region figures before lunch?', 0], ['Rahul Mehta', '9:05', 'North is 12 percent up on last quarter.', 0], ['Priya Nair', '9:30', 'Acme wants the revised pricing by Friday.', 0]] },
+  { id: 'C3', name: 'design', unread: 0, msgs: [['Design Bot', 'Mon', 'New brand guidelines are live.', 1]] },
+], dms: [
+  { id: 'D1', name: 'Priya Nair', unread: 1, msgs: [['Priya Nair', '10:02', 'Can you sign the Acme contract today? Legal approved it.', 0]] },
+  { id: 'D2', name: 'Rahul Mehta', unread: 0, msgs: [['Rahul Mehta', 'Yesterday', 'Shall we move the quarterly review to Thursday?', 1]] },
+  { id: 'D3', name: 'Asha Rao', unread: 2, msgs: [['Asha Rao', '9:55', 'Pilot update before Monday please.', 0], ['Asha Rao', '9:56', 'Three bullet points are enough.', 0]] },
+] };
+const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const all = () => [...S.channels, ...S.dms], label = c => S.channels.includes(c) ? `#${c.name}` : c.name;
+let cur = null, view = 'home';
+function signin() {
+  history.replaceState(null, '', location.pathname + '#signin');
+  root.innerHTML = `<div class="signin"><b style="font-size:22px">slack</b><h1>Sign in to Bobworks</h1><p>bobworks.slack.com (practice)</p>
+    <input aria-label="Email" placeholder="name@work-email.com" value="you@bobworks.example"><button id="go">Sign in with email (simulated)</button></div>`;
+  go.onclick = () => { localStorage.setItem(KEY + 'Auth', '1'); location.replace(location.pathname); };
+}
+function msgHtml(c, m, i) {
+  const [who, when, text, read] = m, first = !read && (i === 0 || c.msgs[i - 1][3]);
+  return `${first ? '<div class="unread-divider" role="separator">New</div>' : ''}<div class="c-virtual_list__item" role="listitem" data-qa="virtual-list-item"><div class="c-message_kit__message" data-qa="message_container"><span class="c-message_kit__sender" data-qa="message_sender_name">${esc(who)}</span><span class="c-timestamp">${esc(when)}</span><div class="c-message_kit__blocks p-rich_text_section" data-qa="message-text">${esc(text).replace(/@You/g, '<span class="c-mrkdwn__mention" data-qa="mention">@You</span>')}</div></div></div>`;
+}
+function draw() {
+  const mentions = all().flatMap(c => c.msgs.filter(m => /@You/.test(m[2])).map(m => [c, m]));
+  const side = s => s.map(c => `<div class="p-channel_sidebar__channel ${c.unread ? 'p-channel_sidebar__channel--unread' : ''}" role="treeitem" tabindex="0" data-qa="channel_sidebar_name_${esc(c.name.toLowerCase().replace(/\s+/g, '-'))}" data-id="${c.id}" aria-selected="${cur === c}" aria-label="${esc(label(c))}${c.unread ? ` (${c.unread} unread)` : ''}"><span>${S.channels.includes(c) ? '#' : '●'}</span><span class="p-channel_sidebar__name">${esc(c.name)}</span>${c.unread ? `<span class="p-channel_sidebar__badge" aria-label="${c.unread} unread">${c.unread}</span>` : ''}</div>`).join('');
+  root.innerHTML = `<div class="top"><button data-qa="top_nav_search" aria-label="Search">Search Bobworks</button></div>
+    <div class="app"><div class="rail" role="tablist"><button data-qa="tab_rail_home_button" aria-label="Home" aria-pressed="${view === 'home'}">Home</button><button data-qa="tab_rail_activity_button" aria-label="Activity" aria-pressed="${view === 'activity'}">Activity${mentions.length ? `<span class="badge">${mentions.length}</span>` : ''}</button></div>
+    <nav class="p-channel_sidebar" aria-label="Sidebar"><h2>Bobworks</h2><div role="tree" aria-label="Channels"><div class="sec">Channels</div>${side(S.channels)}<div class="sec">Direct messages</div>${side(S.dms)}</div></nav>
+    <main role="main" aria-label="${view === 'activity' ? 'Activity' : cur ? esc(label(cur)) : 'Home'}">${view === 'activity'
+      ? `<div class="p-view_header">Activity · Mentions</div><div class="p-activity" role="list" data-qa="activity_list">${mentions.map(([c, m]) => `<div class="c-virtual_list__item" role="listitem" data-qa="activity-item"><span class="c-message_kit__sender">${esc(m[0])}</span> in <b>${esc(label(c))}</b> <span class="c-timestamp">${esc(m[1])}</span><div data-qa="message-text">${esc(m[2])}</div></div>`).join('') || '<p>Nothing new.</p>'}</div>`
+      : cur ? `<div class="p-view_header" data-qa="channel_name">${esc(label(cur))}</div><div class="p-message_pane" role="list" aria-label="Messages in ${esc(label(cur))}" data-qa="message_pane">${cur.msgs.map((m, i) => msgHtml(cur, m, i)).join('')}</div>
+        <div class="composer" data-qa="message_input"><div class="ql-editor" contenteditable="true" role="textbox" aria-label="Message ${esc(label(cur))}" data-placeholder="Message ${esc(label(cur))}" data-qa="message_input_editor"></div><button data-qa="texty_send_button" aria-label="Send now">Send</button></div>`
+      : `<div class="p-view_header">Home</div><p style="padding:18px">Pick a channel or direct message.</p>`}</main></div>`;
+  if (cur && view !== 'activity') { const p = document.querySelector('.p-message_pane'); p.scrollTop = p.scrollHeight; setTimeout(() => { cur.msgs.forEach(m => m[3] = 1); cur.unread = 0; save(); }, 1500); }
+}
+function send() {
+  const ed = document.querySelector('.ql-editor'), t = ed?.innerText.trim(); if (!t || !cur) return;
+  cur.msgs.push([ME, new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t, 1]); save(); draw();
+}
+function search(v) {
+  const s = v.toLowerCase(), hits = all().flatMap(c => c.msgs.filter(m => m[2].toLowerCase().includes(s) || m[0].toLowerCase().includes(s)).map(m => [c, m]));
+  document.querySelector('main').innerHTML = `<div class="p-view_header">Search: ${esc(v)}</div><div class="p-activity" role="list" data-qa="search_results">${hits.map(([c, m]) => `<div class="c-virtual_list__item" role="listitem" data-qa="search_message_result"><span class="c-message_kit__sender">${esc(m[0])}</span> in <b>${esc(label(c))}</b> <span class="c-timestamp">${esc(m[1])}</span><div data-qa="message-text">${esc(m[2])}</div></div>`).join('') || '<p>No results.</p>'}</div>`;
+}
+document.addEventListener('click', e => {
+  const ch = e.target.closest('.p-channel_sidebar__channel'); if (ch) { cur = all().find(c => c.id === ch.dataset.id); view = 'home'; return draw(); }
+  if (e.target.closest('[data-qa="tab_rail_activity_button"]')) { view = 'activity'; return draw(); }
+  if (e.target.closest('[data-qa="tab_rail_home_button"]')) { view = 'home'; return draw(); }
+  if (e.target.closest('[data-qa="texty_send_button"]')) return send();
+  const sb = e.target.closest('[data-qa="top_nav_search"]'); if (sb) { sb.outerHTML = '<input type="search" aria-label="Search" placeholder="Search Bobworks" data-qa="search_input">'; document.querySelector('[data-qa="search_input"]').focus(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('.ql-editor') && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && e.target.matches('[data-qa="search_input"]')) search(e.target.value);
+});
+const root = document.getElementById('root');
+if (!localStorage.getItem(KEY + 'Auth')) signin(); else { const want = q.get('channel'); cur = want ? all().find(c => label(c).replace('#', '') === want.replace('#', '')) : null; draw(); }
+</script>
+</body>
+</html>

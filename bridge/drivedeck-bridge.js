@@ -114,7 +114,8 @@
           let els = []; try { els = [...doc.querySelectorAll(s.trim())].filter(visible); } catch {}
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
-          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(); return l.length > t.length ? l : t; }).filter(Boolean);
+          // (WhatsApp keeps a message's time and sender in data-pre-plain-text, outside the text: put it in front)
+          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; return pre + (l.length > t.length ? l : t); }).filter(Boolean);
           if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title };
         }
         return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };
@@ -158,7 +159,9 @@
       /** Click the first visible element of a selector (comma list), or the control whose text, label or title reads `text`. */
       async clickOn(o = {}) {
         let el = null;
-        if (o.sel) { try { el = [...doc.querySelectorAll(o.sel)].find(visible); } catch {} }
+        // a selector and a text: the match of the selector whose text (or label) has those words, e.g. a channel by name
+        const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase();
+        if (o.sel) { try { const m = [...doc.querySelectorAll(o.sel)].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).includes(q)) : m[0]; } catch {} }
         if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(a.innerText || '').length - clean(b.innerText || '').length).find(e => clean(e.innerText || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
         if (!el) return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
         el.scrollIntoView({ block: 'center' }); await wait(150);

@@ -23,6 +23,14 @@ const MAIL_LIST = '[role="listbox"] [role="option"]||[aria-label*="Message list"
 const MAIL_BODY = '[aria-label="Message body"]||[role="document"]||#ReadingPaneContainerId||[aria-label="Reading Pane"]||[role="main"]';
 const CAL_VIEW = '[role="main"]';
 const SEND_BTN = 'button[aria-label="Send"]||button[title="Send"]||button[aria-label^="Send"]';
+// Where things are on Slack and WhatsApp Web (the practice copies in labs/practice follow the same structure); choices
+// with || are tried in order. Also listed for LLMs in docs/llm/build-prompt.md: keep the two in step.
+const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]', item: '.p-channel_sidebar__channel||[role="treeitem"]',
+  unread: '.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]', activity: '[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]',
+  activityList: '[data-qa="activity_list"]||[data-qa="activity-item"]', messages: '[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]',
+  input: '[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]' };
+const WA = { list: '#pane-side', rows: '#pane-side [role="listitem"]||#pane-side [role="row"]', search: '[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]',
+  msgs: '#main [data-pre-plain-text]||#main [role="row"]', input: 'footer [contenteditable="true"]||[aria-label="Type a message"]' };
 const outlookOpen = (path, wait = MAIL_LIST) => ({ do: 'agent.open', value: `{outlook}${path}`, args: ['site=Outlook', `wait=${wait.split('||')[0]}`] });
 const card = (ask, from = '{read}') => ({ do: 'ai.card', value: ask, args: [from], as: 'card' });
 
@@ -112,29 +120,47 @@ const AGENT_TASKS = [
       { do: 'agent.open', value: 'https://teams.microsoft.com/l/chat/0/0', args: ['site=Teams', 'wait=[data-tid="newMessageCommands-send"]', 'ms=30000', '?users={person_email}', '?message={message}'] },
       { do: 'wait', value: '1.5' }, { do: 'agent.click', value: 'Send', args: ['sel=[data-tid="newMessageCommands-send"]||button[name="send"]||button[aria-label^="Send"]'] }, { do: 'wait', value: '1.5' },
       { set: 'card', value: '{"type":"status","headline":"Sent to {person} on Teams","items":[{"title":"{message}"}]}' }] },
-  { id: 'slack.mentions', group: 'Messaging', name: 'Slack mentions and unread', runs: 'mac', about: 'What needs you on Slack',
-    examples: ['any slack messages', 'whats new on slack', 'slack mentions', 'did anyone mention me on slack'],
-    steps: [{ do: 'agent.open', value: 'https://app.slack.com/client', args: ['site=Slack', 'wait=[role="main"]', 'ms=30000'] }, { do: 'wait', value: '2' },
-      { do: 'agent.click', value: 'Activity', args: ['optional'] }, { do: 'wait', value: '2' }, { do: 'agent.read', value: '[role="main"]', as: 'read' },
-      card('This is Slack activity. Headline: how many mentions or unread threads and the most important. Items: channel or person; detail: what they said or asked.')] },
+  { id: 'slack.mentions', group: 'Messaging', name: 'Slack mentions and unread', runs: 'mac', about: 'What needs you on Slack: mentions, and channels and messages with something unread',
+    examples: ['any slack messages', 'whats new on slack', 'slack mentions', 'did anyone mention me on slack', 'unread slack messages'],
+    steps: [{ do: 'agent.open', value: '{slack}', args: ['site=Slack', `wait=${SLACK.sidebar}`, 'ms=30000'] },
+      { do: 'agent.read', value: SLACK.unread, as: 'unread' },
+      { do: 'agent.click', args: [`sel=${SLACK.activity}`, 'optional'] }, { do: 'agent.wait', value: SLACK.activityList, args: ['ms=8000'] },
+      { do: 'agent.read', value: `${SLACK.activityList}||[role="main"]`, as: 'read' },
+      card('Slack. First the channels and people with unread messages, then the mentions. Headline: how many unread and how many mentions, and the most important. Items: a channel or person with what they said or asked, mentions first.', 'Unread: {unread}\nMentions: {read}')] },
+  { id: 'slack.channel', group: 'Messaging', name: 'Read a Slack channel', runs: 'mac', about: 'The latest messages in a channel or from a person',
+    params: { channel: { ask: 'Which channel or person?' } },
+    examples: ['read the {channel} channel on slack', 'whats new in {channel} on slack', 'read slack {channel}', 'what did {channel} say on slack'],
+    steps: [{ do: 'agent.open', value: '{slack}', args: ['site=Slack', `wait=${SLACK.sidebar}`, 'ms=30000'] },
+      { do: 'agent.click', value: '{channel}', args: [`sel=${SLACK.item}`] }, { do: 'agent.wait', value: SLACK.messages, args: ['ms=8000'] }, { do: 'wait', value: '1' },
+      { do: 'agent.read', value: `${SLACK.messages}||[role="main"]`, as: 'read' },
+      card('The latest Slack messages in {channel}. Headline: the gist in one line. Items: up to five recent messages, title = who, detail = what they said.')] },
   { id: 'slack.post', group: 'Messaging', name: 'Post in a Slack channel', runs: 'mac', acts: true, confirm: 'post “{message}” in {channel} on Slack', about: 'A message in a channel or to a person',
     params: { channel: { ask: 'Which channel or person?' }, message: { ask: 'What should it say?' } },
     examples: ['post in {channel} on slack {message}', 'slack {channel} saying {message}', 'tell {channel} on slack {message}', 'post {message} in {channel}'],
-    steps: [{ do: 'agent.open', value: 'https://app.slack.com/client', args: ['site=Slack', 'wait=[role="main"]', 'ms=30000'] }, { do: 'wait', value: '2' },
-      { do: 'agent.click', value: '{channel}' }, { do: 'wait', value: '2' },
-      { do: 'agent.type', value: 'Message', args: ['{message}', 'enter', 'sel=[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]'] }, { do: 'wait', value: '1.5' },
+    steps: [{ do: 'agent.open', value: '{slack}', args: ['site=Slack', `wait=${SLACK.sidebar}`, 'ms=30000'] },
+      { do: 'agent.click', value: '{channel}', args: [`sel=${SLACK.item}`] }, { do: 'agent.wait', value: SLACK.input, args: ['ms=8000'] },
+      { do: 'agent.type', value: 'Message', args: ['{message}', 'enter', `sel=${SLACK.input}`] }, { do: 'wait', value: '1.5' },
       { set: 'card', value: '{"type":"status","headline":"Posted in {channel}","items":[{"title":"{message}"}]}' }] },
   { id: 'whatsapp.read', group: 'Messaging', name: 'Unread WhatsApp chats', runs: 'mac', about: 'Chats with unread messages on WhatsApp Web',
-    examples: ['any whatsapp messages', 'read my whatsapp', 'unread whatsapp', 'whats new on whatsapp'],
-    steps: [{ do: 'agent.open', value: 'https://web.whatsapp.com/', args: ['site=WhatsApp', 'wait=#pane-side', 'ms=40000'] }, { do: 'wait', value: '2' },
-      { do: 'agent.read', value: '#pane-side [role="listitem"]||#pane-side [role="row"]||#pane-side', as: 'read' },
-      card('These are WhatsApp chats. Headline: how many have unread messages and from whom. Items: only chats with unread messages; title = person or group; detail = the last message in a few words.')] },
-  { id: 'whatsapp.send', group: 'Messaging', name: 'Send a WhatsApp message', runs: 'mac', acts: true, confirm: 'send “{message}” to {person} on WhatsApp', about: 'A WhatsApp message (their number in People)',
+    examples: ['any whatsapp messages', 'read my whatsapp', 'unread whatsapp', 'whats new on whatsapp', 'unread whatsapp messages'],
+    steps: [{ do: 'agent.open', value: '{whatsapp}', args: ['site=WhatsApp', `wait=${WA.list}`, 'ms=40000'] }, { do: 'wait', value: '1.5' },
+      { do: 'agent.read', value: WA.rows, as: 'read' },
+      card('These are WhatsApp chats, one per line: the name, the time, the last message and, when there are unread messages, their number at the end. Headline: how many chats have unread messages and from whom. Items: only the chats with unread messages; title = person or group; detail = the last message in a few words; when = the number of unread messages.')] },
+  { id: 'whatsapp.from', group: 'Messaging', name: 'Read WhatsApp messages from someone', runs: 'mac', about: 'The latest messages in a chat',
+    params: { person: { ask: 'Whose chat?' } },
+    examples: ['read my whatsapp from {person}', 'what did {person} say on whatsapp', 'read whatsapp messages from {person}', 'whatsapp messages from {person}'],
+    steps: [{ do: 'agent.open', value: '{whatsapp}', args: ['site=WhatsApp', `wait=${WA.list}`, 'ms=40000'] },
+      { do: 'agent.type', value: 'Search', args: ['{person}', `sel=${WA.search}`] }, { do: 'wait', value: '1.5' },
+      { do: 'agent.click', args: [`sel=${WA.rows}`] }, { do: 'agent.wait', value: WA.msgs, args: ['ms=8000'] }, { do: 'wait', value: '1' },
+      { do: 'agent.read', value: `${WA.msgs}||#main`, as: 'read' },
+      card('The latest WhatsApp messages with {person}, oldest first, each starting with [time] sender. Headline: what {person} said most recently, in one line. Items: up to five recent messages; title = who; detail = what they said; when = the time.')] },
+  { id: 'whatsapp.send', group: 'Messaging', name: 'Send a WhatsApp message', runs: 'mac', acts: true, confirm: 'send “{message}” to {person} on WhatsApp', about: 'Finds the chat by name, types and sends',
     params: { person: { ask: 'To whom?', type: 'person' }, message: { ask: 'What should it say?' } },
     examples: ['whatsapp {person} saying {message}', 'send a whatsapp to {person} saying {message}', 'tell {person} on whatsapp {message}', 'message {person} on whatsapp {message}'],
-    steps: [{ if: '{person_phone} is empty', then: [{ do: 'agent.fail', value: 'I don’t have a WhatsApp number for {person}: add it in Agent › Library › People.' }] },
-      { do: 'agent.open', value: 'https://web.whatsapp.com/send', args: ['site=WhatsApp', 'wait=footer [contenteditable="true"]', 'ms=40000', '?phone={person_phone}', '?text={message}'] },
-      { do: 'wait', value: '1.5' }, { do: 'agent.key', value: 'Enter', args: ['sel=footer [contenteditable="true"]'] }, { do: 'wait', value: '1.5' },
+    steps: [{ do: 'agent.open', value: '{whatsapp}', args: ['site=WhatsApp', `wait=${WA.list}`, 'ms=40000'] },
+      { do: 'agent.type', value: 'Search', args: ['{person}', `sel=${WA.search}`] }, { do: 'wait', value: '1.5' },
+      { do: 'agent.click', args: [`sel=${WA.rows}`] }, { do: 'agent.wait', value: WA.input, args: ['ms=8000'] },
+      { do: 'agent.type', value: 'Type a message', args: ['{message}', 'enter', `sel=${WA.input}`] }, { do: 'wait', value: '1.5' },
       { set: 'card', value: '{"type":"status","headline":"Sent to {person} on WhatsApp","items":[{"title":"{message}"}]}' }] },
 
   /* ---------- Presenting ---------- */
@@ -319,6 +345,12 @@ const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.c
 const Agent = {
   ctx: null, queue: Promise.resolve(), pend: null,
   cfg: () => ({ outlook: 'https://outlook.office.com', remote: true, ...store.get('agentCfg', {}) }),
+  /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams}: the real ones, or the practice copies (labs/practice). */
+  sites() {
+    const c = this.cfg(), here = f => new URL(`labs/practice/${f}`, location.href).href;
+    return c.practice ? { outlook: here('inbox.html').replace(/\/inbox\.html$/, '/inbox.html#'), slack: here('slack.html'), whatsapp: here('whatsapp.html'), teams: 'https://teams.microsoft.com/v2/' }
+      : { outlook: c.outlook.replace(/\/$/, ''), slack: 'https://app.slack.com/client', whatsapp: 'https://web.whatsapp.com/', teams: 'https://teams.microsoft.com/v2/' };
+  },
   mine: () => store.get('agentTasks', []),
   /** Tasks the paired Mac has made itself (fetched from it; run there by id). */
   macMine: () => store.get('macTasks', []),
@@ -412,7 +444,7 @@ const Agent = {
   },
   /** A script runner of its own (js/script.js's step engine), so a presentation that's running isn't touched. */
   runner(t, params) {
-    const people = this.people(), vars = { ...params, outlook: this.cfg().outlook.replace(/\/$/, '') };
+    const people = this.people(), vars = { ...params, ...this.sites() };
     for (const [k, v] of Object.entries(this.params(t))) if (v.type === 'person' && params[k]) {
       const q = plain(params[k]), p = people.find(x => plain(x.name) === q) || people.find(x => plain(x.name).split(' ')[0] === q.split(' ')[0]);
       const email = p?.email || (/@/.test(params[k]) ? params[k].trim() : ''), phone = (p?.phone || (/^\+?[\d\s()-]{7,}$/.test(params[k]) ? params[k] : '')).replace(/[^\d]/g, '');
@@ -629,11 +661,12 @@ const AgentHome = {
   cfg() {
     const c = Agent.cfg();
     sheet('Agent settings', `<label class="se-field"><span>Outlook on the web</span><select id="agOl">${[['https://outlook.office.com', 'Work or school (outlook.office.com)'], ['https://outlook.live.com', 'Personal (outlook.live.com)']].map(([u, l]) => `<option value="${u}" ${c.outlook === u ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="se-check"><input type="checkbox" id="agPractice" ${c.practice ? 'checked' : ''}> Use the practice sites (made-up mail, Slack and WhatsApp, to try and test tasks safely)</label>
       ${AgentWeb.can() ? `<label class="se-check"><input type="checkbox" id="agWatch" ${c.watch ? 'checked' : ''}> Show the browser while tasks run (watch each step, to see why one doesn’t work)</label>
       <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>` : ''}
       ${LINK_HOST ? `<label class="se-check"><input type="checkbox" id="agRemote" ${c.remote ? 'checked' : ''}> Paired phones may run this Mac’s tasks (acting ones are confirmed on the phone)</label>` : ''}
       <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>`,
-      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); toast('Saved'); }], ['Close']]);
+      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); toast('Saved'); }], ['Close']]);
   },
   /** Your own task: a web page and a question, a script, or other tasks in order (a composite). */
   edit(id) {

@@ -1749,3 +1749,5 @@ table.bench small{color:var(--text-2)}
 .te textarea{min-height:64px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
 .te-step .se-field{margin-top:6px}
 .te-top .chip{white-space:nowrap}
+.te-run{display:flex;flex-direction:column;gap:4px;margin:10px 0}.te-run>span{color:var(--text-2);font-size:14px}
+.te-run input{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:9px 12px;font:inherit;font-size:17px}

@@ -1530,7 +1530,7 @@ const CLICK = {
   set: v => { const [k, val] = v.split(':'); settings[k] = val; applySettings(); renderSettings(); if (k === 'units') { wx = null; renderDashTiles(); } },
   toggle: v => { settings[v] = !settings[v]; applySettings(); renderSettings(); if (v === 'terrain') apply3D(maps.main); if (v === 'seamless' && typeof Dash !== 'undefined') requestAnimationFrame(() => Dash.fitGrid()); if (v === 'driveTabs' && typeof Dash !== 'undefined') Dash.render(); },
   mode: v => setMode(v),
-  sheet: v => { const fn = sheetFns[+v]; closeSheet(); fn?.(); },
+  sheet: v => { const fn = sheetFns[+v]; closeSheet(); if (fn?.() === false) $('#sheet').hidden = false; }, // false: stay open (a value is missing)
   save: v => { const d = panelItems[+v]; if (!d) return;
     sheet('Save place', `<p><b>${esc(d.name)}</b>${d.sub ? '<br>' + esc(d.sub) : ''}</p>`,
       [['Set as Home', () => savePlace('home', d)], ['Set as Work', () => savePlace('work', d)], ['Cancel']]); },

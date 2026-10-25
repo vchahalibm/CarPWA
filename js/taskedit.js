@@ -87,7 +87,7 @@ const TaskUI = {
       <div class="te-top"><button class="chip" data-tui="back">${svg('back')} Tasks</button><span class="te-sp"></span>${AgentWeb.can() ? `<button class="chip" data-tui="teachmore"><i class="rec-dot"></i>Teach more steps</button>` : ''}<button class="chip" data-tui="test">${svg('play')} Test (watch)</button><button class="chip accent" data-tui="save">Save</button></div>
       <label class="se-field"><span>Name</span><input data-td="name" value="${esc(d.name)}"></label>
       <label class="se-field"><span>Ways to ask (one a line; {words} in braces become inputs)</span><textarea rows="3" data-td="examples" placeholder="read the mail from {person}">${esc((d.examples || []).join('\n'))}</textarea></label>
-      ${ins.length ? `<div class="se-field"><span>Inputs</span>${ins.map(k => `<div class="te-in"><b>{${esc(k)}}</b><input data-tp="${esc(k)}:ask" value="${esc(d.params?.[k]?.ask || '')}" placeholder="Question when it's missing, e.g. From whom?"><input data-tp="${esc(k)}:default" value="${esc(d.params?.[k]?.default ?? '')}" placeholder="Default (optional)"><label class="se-check"><input type="checkbox" data-tp="${esc(k)}:person" ${d.params?.[k]?.type === 'person' ? 'checked' : ''}> a person (email/number from People)</label></div>`).join('')}</div>` : ''}
+      ${ins.length ? `<div class="se-field"><span>Inputs</span>${ins.map(k => `<div class="te-in"><b>{${esc(k)}}</b><input data-tp="${esc(k)}:ask" value="${esc(d.params?.[k]?.ask || '')}" placeholder="Question when it's missing, e.g. From whom?"><input data-tp="${esc(k)}:default" value="${esc(d.params?.[k]?.default ?? '')}" placeholder="Default (optional)"><input data-tv="${esc(k)}" value="${esc(d.test?.[k] ?? '')}" placeholder="Test value, e.g. Priya"><label class="se-check"><input type="checkbox" data-tp="${esc(k)}:person" ${d.params?.[k]?.type === 'person' ? 'checked' : ''}> a person (email/number from People)</label></div>`).join('')}</div>` : ''}
       <div class="chip-row"><label class="se-check"><input type="checkbox" data-td="acts" ${d.acts ? 'checked' : ''}> It acts for me (sends, books, posts): ask before running</label>
         <label class="se-check"><input type="checkbox" data-td="mac" ${d.runs === 'mac' ? 'checked' : ''}> Runs on my Mac (its agent browser)</label>
         ${LINK_HOST ? `<label class="se-check"><input type="checkbox" data-td="share" ${d.share ? 'checked' : ''}> Share in the mesh</label>` : ''}</div>
@@ -102,6 +102,7 @@ const TaskUI = {
       if (k === 'examples') d.examples = el.value.split('\n').map(x => x.trim()).filter(Boolean);
       else if (k === 'acts' || k === 'share') d[k] = el.checked; else if (k === 'mac') d.runs = el.checked ? 'mac' : 'here'; else d[k] = el.value; }
     for (const el of $$('[data-tf]')) { const [i, k] = el.dataset.tf.split(':'); d.steps[+i][k] = el.type === 'checkbox' ? el.checked : el.value; }
+    d.test ||= {}; for (const el of $$('[data-tv]')) { if (el.value.trim()) d.test[el.dataset.tv] = el.value.trim(); else delete d.test[el.dataset.tv]; }
     d.params ||= {}; for (const el of $$('[data-tp]')) { const [k, f] = el.dataset.tp.split(':'); const p = (d.params[k] ||= {});
       if (f === 'person') { if (el.checked) p.type = 'person'; else delete p.type; } else if (el.value) p[f] = el.value; else delete p[f]; }
     return d;
@@ -111,14 +112,31 @@ const TaskUI = {
     const t = this.task(); if (!t.name.trim()) return toast('A name, please'); if (!t.examples.length) return toast('At least one way to ask, please');
     Agent.put(t); this.editId = t.id; if (!quiet) toast('Saved'); if (typeof Mesh !== 'undefined') Mesh.pres?.();
   },
-  async test() { const t = this.task(); AgentWatch.force = true; try { await Agent.start(t, {}, {}); } finally { AgentWatch.force = false; } },
+  /** The inputs a task takes, then a form to fill them for a run (prefilled with its test values); runs it, watched. */
+  inputsOf(t) { return Object.entries(Agent.params(t)).map(([k, p]) => ({ k, ...p })); },
+  runForm(t, saveBack) {
+    const ins = this.inputsOf(t), go = vals => { AgentWatch.force = true; Agent.start(t, vals, {}).finally(() => { AgentWatch.force = false; }); };
+    if (!ins.length) return go({});
+    sheet(`Test: ${t.name}`, `<p class="se-note">The values to run it with (as if you had said them). They’re kept as the task’s test values for next time.</p>
+      ${ins.map(p => `<label class="se-field te-run"><span>{${esc(p.k)}}${p.ask ? ` · ${esc(p.ask)}` : ''}${p.optional || p.default != null ? ' (optional)' : ''}</span><input data-trun="${esc(p.k)}" value="${esc(t.test?.[p.k] ?? '')}" placeholder="${esc(p.default ?? '')}" autocapitalize="off"></label>`).join('')}`,
+      [['Run (watch)', () => {
+        const vals = {}; for (const el of $$('[data-trun]')) if (el.value.trim()) vals[el.dataset.trun] = el.value.trim();
+        const miss = ins.find(p => !vals[p.k] && !p.optional && p.default == null); if (miss) { toast(`A value for {${miss.k}}, please`); return false; }
+        saveBack?.(vals); go(vals);
+      }], ['Cancel']]);
+  },
+  async test() {
+    const t = this.task();
+    this.runForm(t, vals => { for (const [k, v] of Object.entries(vals)) { const el = $(`[data-tv="${CSS.escape(k)}"]`); if (el) el.value = v; } // the editor's boxes too, so the form's values win
+      const next = this.task(); if (this.editId) Agent.put(next); this.render(); });
+  },
   cmd(c) {
     const [k, ...r] = c.split(':'), v = r.join(':'), d = this.draft;
     if (k === 'back') { this.draft = null; ScriptUI.page = 'list'; return renderSettings(); }
     if (k === 'save') return this.save();
     if (k === 'test') return this.test();
     if (k === 'edit') return this.open(v);
-    if (k === 'run') { AgentWatch.force = true; return Agent.start(v).finally(() => { AgentWatch.force = false; }); }
+    if (k === 'run') { const t = Agent.get(v); return t && this.runForm(t, vals => { if (Agent.mine().some(x => x.id === t.id)) Agent.put({ ...t, test: { ...(t.test || {}), ...vals } }); }); }
     if (k === 'del') { const built = AGENT_TASKS.some(b => b.id === v); return sheet(built ? 'Reset this task?' : 'Delete this task?', `<p>${built ? 'Your changes go and the built-in task comes back.' : 'It can’t be undone.'}</p>`, [[built ? 'Reset' : 'Delete', () => { Agent.del(v); renderSettings(); }], ['Cancel']]); }
     if (k === 'guided') return TaskTeach.wizard();
     if (k === 'teach') return TaskTeach.wizard(true);

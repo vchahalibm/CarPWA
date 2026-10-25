@@ -46,8 +46,8 @@ const BUILD_ENGINES = [
       const text = `${system}\n\n---\nConversation so far:\n${msgs.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')}\n\nReply as the assistant, following the prompt above (only your next message).`;
       return String(await OsTasks.run('shell', cmd, [text, c.ollamaModel], `Build a task with ${BUILD_CLIS[c.cli]?.name || 'your command'}`, 300));
     } },
-  { id: 'ollama', name: 'Ollama (open-weight, on this Mac)', how: 'A model running on this Mac: nothing leaves it', r: { build: 3, ask: 3, speed: 3, offline: 5 },
-    note: 'Private and free. Recommended: gpt-oss 20b (16 GB Macs and up); weaker at selectors than Claude, so expect the check run to ask for Show me more often.',
+  { id: 'ollama', name: 'Ollama (open-weight, on this Mac)', how: 'A model running on this Mac: nothing leaves it', r: { build: 3, ask: 2, speed: 2, offline: 5 },
+    note: 'Private and free. Recommended: gpt-oss 20b (16 GB Macs and up): asks properly, 1–3 min a task, sometimes makes up test values. qwen3 14b is faster (~1 min) but tends to skip the questions. Their tasks pass the check less sturdily than Claude’s.',
     can: () => true, why: '',
     async ask(system, msgs) {
       const c = BUILD_CFG(), r = await fetch(`${c.ollamaUrl.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' },

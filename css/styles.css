@@ -1754,3 +1754,6 @@ table.bench small{color:var(--text-2)}
 #sheet .se-field{display:flex;flex-direction:column;gap:4px;margin:8px 0}
 #sheet .se-field>span{color:var(--text-2);font-size:14px}
 #sheet .se-field input,#sheet .se-field textarea,#sheet .se-field select,#sheet .te-in input:not([type=checkbox]){width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:9px 12px;font:inherit;font-size:16px}
+.tllm-res{padding-left:22px;margin:6px 0}.tllm-res li{margin:6px 0}.tllm-res li small{display:block;color:var(--text-2)}
+.tllm-res li.ok::marker{content:'✓ ';color:var(--green)}.tllm-res li.bad{color:var(--red)}.tllm-res li.bad::marker{content:'✗ '}.tllm-res li.skip{color:var(--text-3)}.tllm-res li.skip::marker{content:'– '}
+.tllm-res li .chip{margin-top:4px}

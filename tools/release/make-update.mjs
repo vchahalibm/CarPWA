@@ -13,7 +13,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { folderHash, LAZY } = require('../../desktop/updater.js');
 
-const APP_FILES = ['index.html', 'manifest.webmanifest', 'sw.js', 'presenter.html', 'css', 'js', 'icons', 'samples', 'bridge', 'web-version.json'];
+const APP_FILES = ['index.html', 'manifest.webmanifest', 'sw.js', 'presenter.html', 'css', 'js', 'icons', 'samples', 'bridge', 'labs', 'docs/llm', 'web-version.json']; // labs: practice sites; docs/llm: the LLM build prompt
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const entry = file => { const b = fs.readFileSync(file); return { file: path.basename(file), sha256: sha256(b), size: b.length }; };
 const tar = (out, files) => execFileSync('tar', ['--format', 'ustar', '--no-xattrs', '-czf', out, ...files], { env: { ...process.env, COPYFILE_DISABLE: '1' }, stdio: 'inherit' });

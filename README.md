@@ -10,7 +10,7 @@ A car-friendly Progressive Web App dashboard: live map, drive stats, media, phon
 
 The original single-file prototype lives in [`docs/prototype.html`](docs/prototype.html) for reference.
 
-**User guide** (for people using the apps): [docs/user-guide.html](docs/user-guide.html). **Making scripts and agent tasks**, step by step with recipes: [docs/scripts-and-tasks-guide.html](docs/scripts-and-tasks-guide.html) (practice on `labs/practice/inbox.html`).
+**User guide** (for people using the apps): [docs/user-guide.html](docs/user-guide.html). **Making scripts and agent tasks**, step by step with recipes: [docs/scripts-and-tasks-guide.html](docs/scripts-and-tasks-guide.html) (practice on the made-up `labs/practice/inbox.html`, `slack.html` and `whatsapp.html`). **Building with an LLM**: [docs/llm/build-prompt.md](docs/llm/build-prompt.md) is the prompt that has Claude (or another LLM, in a chat or a terminal) interview you and write a task or script as JSON, to import in Settings › Scripts & tasks › Build with an LLM; on a Mac, Apple's on-device model can plan one there too.
 
 ## Getting started
 

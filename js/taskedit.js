@@ -15,15 +15,16 @@ const TASK_STEPS = {
   'agent.click': { name: 'Click', icon: 'locate', fields: [['value', 'The text on it', 'Send'], ['sel', 'or a CSS selector (|| between choices)', 'button[aria-label="Send"]']] },
   'agent.type': { name: 'Type into a field', icon: 'keypad', fields: [['value', 'The field’s label or placeholder', 'Search'], ['text', 'What to type ({input} words allowed)', '{person}'], ['enter', 'Press Enter after', 'check'], ['sel', 'or a CSS selector', '']] },
   'agent.key': { name: 'Press a key', icon: 'keypad', fields: [['value', 'Key', 'Enter'], ['sel', 'Focus this first (CSS selector, optional)', '']] },
-  'agent.read': { name: 'Read part of the page', icon: 'doc', as: 'read', fields: [['value', 'What to read (CSS selectors, || between; the whole page if none fit)', '[role="main"]']] },
-  'ai.card': { name: 'Make the answer card (the model)', icon: 'star', as: 'card', fields: [['value', 'What to tell me', 'Sum up the unread emails: who and what they want'], ['from', 'From', '{read}']] },
+  'agent.read': { name: 'Read part of the page', icon: 'doc', as: 'read', fields: [['value', 'What to read (CSS selectors, || between; the whole page if none fit)', '[role="main"]'], ['keep', 'Only lines with these words (optional, || between)', 'Unread']] },
+  'ai.card': { name: 'Make the answer card (the model)', icon: 'star', as: 'card', fields: [['value', 'What to tell me', 'Sum up the unread emails: who and what they want'], ['from', 'From', '{read}'], ['as', 'Keep it as (card = the answer; another name to put cards together)', 'card']] },
+  'card.join': { name: 'Put cards together', icon: 'grid', as: 'card', fields: [['value', 'Headline (empty: the counts)', ''], ['inputs', 'One line per source: Label=card name', 'WhatsApp=wa_card\nSlack=slack_card']] },
   'agent.task': { name: 'Run another task', icon: 'grid', fields: [['value', 'Task', '', 'task'], ['inputs', 'Its inputs (name=value, one a line)', 'person={person}']] },
   'wait': { name: 'Pause', icon: 'clock', fields: [['value', 'Seconds', '2']] },
   'agent.fail': { name: 'Stop with a message', icon: 'alert', fields: [['value', 'What to say', 'I couldn’t find that.']] },
   'say': { name: 'Say something', icon: 'speaker', fields: [['value', 'What to say ({input} words allowed)', 'Looking now.']] },
   'raw': { name: 'Advanced step (JSON)', icon: 'sliders', fields: [['json', 'The step as JSON (if, set, repeat or any action)', '{"if": "{read} is empty", "then": [{"do": "agent.fail", "value": "Nothing there"}]}']] },
 };
-const stepArgs = s => { const o = { rest: [], order: [] }; for (const a of s.args || []) { const t = String(a), i = t.indexOf('='); if (!t.startsWith('?') && i > 0 && /^(wait|site|ms|sel|text)$/.test(t.slice(0, i))) { o[t.slice(0, i)] = t.slice(i + 1); o.order.push(t.slice(0, i)); } else if (t === 'enter') o.enter = true; else o.rest.push(t); } return o; };
+const stepArgs = s => { const o = { rest: [], order: [] }; for (const a of s.args || []) { const t = String(a), i = t.indexOf('='); if (!t.startsWith('?') && i > 0 && /^(wait|site|ms|sel|text|keep)$/.test(t.slice(0, i))) { o[t.slice(0, i)] = t.slice(i + 1); o.order.push(t.slice(0, i)); } else if (t === 'enter') o.enter = true; else o.rest.push(t); } return o; };
 /** A script step → the editor's fields. */
 function stepFields(s) {
   if (s.say != null && !s.do) return { type: 'say', value: s.say };
@@ -31,9 +32,9 @@ function stepFields(s) {
   const a = stepArgs(s), f = { type: s.do, value: s.value ?? '', as: s.as || '' };
   if (s.do === 'agent.type') { f.text = a.rest.shift() ?? ''; f.enter = !!a.enter; f.sel = a.sel || ''; }
   else if (s.do === 'ai.card') f.from = a.rest.shift() ?? '{read}';
-  else if (s.do === 'agent.task') f.inputs = a.rest.join('\n');
-  else Object.assign(f, { wait: a.wait || '', site: a.site || '', ms: a.ms || '', sel: a.sel || '', text: a.text || '', order: a.order });
-  f.more = (s.do === 'agent.task' || s.do === 'ai.card' || s.do === 'agent.type') ? '' : a.rest.join('\n'); // ?name=value address inputs and others
+  else if (s.do === 'agent.task' || s.do === 'card.join') f.inputs = a.rest.join('\n');
+  else Object.assign(f, { wait: a.wait || '', site: a.site || '', ms: a.ms || '', sel: a.sel || '', text: a.text || '', keep: a.keep || '', order: a.order });
+  f.more = (s.do === 'agent.task' || s.do === 'card.join' || s.do === 'ai.card' || s.do === 'agent.type') ? '' : a.rest.join('\n'); // ?name=value address inputs and others
   return f;
 }
 /** The editor's fields → a script step. */
@@ -43,8 +44,8 @@ function fieldsStep(f) {
   const s = { do: f.type, ...(f.value !== '' && f.value != null ? { value: f.value } : {}) }, args = [], more = String(f.more || '').split('\n').map(x => x.trim()).filter(Boolean);
   if (f.type === 'agent.type') { args.push(f.text || ''); if (f.enter) args.push('enter'); if (f.sel) args.push(`sel=${f.sel}`); }
   else if (f.type === 'ai.card') args.push(f.from || '{read}');
-  else if (f.type === 'agent.task') args.push(...String(f.inputs || '').split('\n').map(x => x.trim()).filter(Boolean));
-  else for (const k of [...new Set([...(f.order || []), 'wait', 'site', 'ms', 'sel', 'text'])]) if (f[k]) args.push(`${k}=${f[k]}`); // in the order they were written
+  else if (f.type === 'agent.task' || f.type === 'card.join') args.push(...String(f.inputs || '').split('\n').map(x => x.trim()).filter(Boolean));
+  else for (const k of [...new Set([...(f.order || []), 'wait', 'site', 'ms', 'sel', 'text', 'keep'])]) if (f[k]) args.push(`${k}=${f[k]}`); // in the order they were written
   args.push(...more); if (args.length) s.args = args;
   const as = f.as || TASK_STEPS[f.type]?.as; if (as) s.as = as;
   return s;
@@ -82,7 +83,7 @@ const TaskUI = {
     const card = (s, i) => { const T = TASK_STEPS[s.type] || { name: s.type, icon: 'grid', fields: [['value', 'Value', '']] };
       return `<div class="te-step"><div class="te-step-h"><span class="te-n">${i + 1}</span>${svg(T.icon)}<b>${esc(T.name)}</b><span class="te-sp"></span>
         <button class="icon-btn" data-tui="up:${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg('chevUp')}</button><button class="icon-btn" data-tui="down:${i}" aria-label="Move down" ${i < d.steps.length - 1 ? '' : 'disabled'}>${svg('chevDown')}</button><button class="icon-btn" data-tui="rm:${i}" aria-label="Remove">${svg('del')}</button></div>
-        ${T.fields.map(f => field(i, f)).join('')}${!['say', 'agent.task', 'ai.card', 'agent.type', 'raw'].includes(s.type) ? `<details class="te-more"><summary>More inputs</summary>${field(i, ['more', 'One a line (e.g. ?q={topic} adds to the address)', ''])}</details>` : ''}</div>`; };
+        ${T.fields.map(f => field(i, f)).join('')}${!['say', 'agent.task', 'card.join', 'ai.card', 'agent.type', 'raw'].includes(s.type) ? `<details class="te-more"><summary>More inputs</summary>${field(i, ['more', 'One a line (e.g. ?q={topic} adds to the address)', ''])}</details>` : ''}</div>`; };
     $('#settingsBody').innerHTML = `<div class="te">
       <div class="te-top"><button class="chip" data-tui="back">${svg('back')} Tasks</button><span class="te-sp"></span>${AgentWeb.can() ? `<button class="chip" data-tui="teachmore"><i class="rec-dot"></i>Teach more steps</button>` : ''}<button class="chip" data-tui="test">${svg('play')} Test (watch)</button><button class="chip accent" data-tui="save">Save</button></div>
       <label class="se-field"><span>Name</span><input data-td="name" value="${esc(d.name)}"></label>

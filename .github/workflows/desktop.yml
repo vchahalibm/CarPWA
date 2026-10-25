@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
     tags: ['desktop-v*']
-    paths: ['index.html', 'manifest.webmanifest', 'sw.js', 'presenter.html', 'css/**', 'js/**', 'vendor/**', 'icons/**', 'samples/**', 'bridge/**',
+    paths: ['index.html', 'manifest.webmanifest', 'sw.js', 'presenter.html', 'css/**', 'js/**', 'vendor/**', 'icons/**', 'samples/**', 'bridge/**', 'labs/**', 'docs/llm/**',
             'desktop/**', 'tools/release/**', '.github/workflows/desktop.yml']
   pull_request:
     paths: ['desktop/**', 'tools/release/**', '.github/workflows/desktop.yml']

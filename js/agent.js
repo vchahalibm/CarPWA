@@ -38,7 +38,7 @@ const AGENT_TASKS = [
   /* ---------- Mail (Outlook on the web) ---------- */
   { id: 'mail.unread', group: 'Mail', name: 'Summarise unread mail', runs: 'mac', about: 'Reads your Outlook inbox and sums up what is unread',
     examples: ['summarise my unread mail', 'summarize my unread emails', 'any new mail', 'what is in my inbox', 'read my new emails'],
-    steps: [outlookOpen('/mail/inbox'), { do: 'agent.read', value: MAIL_LIST, as: 'read' },
+    steps: [outlookOpen('/mail/inbox'), { do: 'agent.read', value: MAIL_LIST, args: ['keep=Unread'], as: 'read' },
       card('Sum up the UNREAD emails (rows that say Unread). Headline: how many and from whom. One item per email: title = sender and the subject in a few words; detail = what they want, in one line.')] },
   { id: 'mail.urgent', group: 'Mail', name: 'Anything urgent in my mail?', runs: 'mac', about: 'Picks out mails that need you today',
     examples: ['anything urgent in my mail', 'any urgent emails', 'what needs my reply today', 'urgent mail'],
@@ -126,7 +126,9 @@ const AGENT_TASKS = [
       { do: 'agent.read', value: SLACK.unread, as: 'unread' },
       { do: 'agent.click', args: [`sel=${SLACK.activity}`, 'optional'] }, { do: 'agent.wait', value: SLACK.activityList, args: ['ms=8000'] },
       { do: 'agent.read', value: `${SLACK.activityList}||[role="main"]`, as: 'read' },
-      card('Slack. First the channels and people with unread messages, then the mentions. Headline: how many unread and how many mentions, and the most important. Items: a channel or person with what they said or asked, mentions first.', 'Unread: {unread}\nMentions: {read}')] },
+      { ...card('Slack mentions of me, one per line: who, the channel, the time, the message. Headline: how many and from whom. Items: one per mention; title = who and the channel; detail = what they want, in a few words; when = the time.'), as: 'mention_card' },
+      { ...card('Slack channels and people with unread messages, one per line, with the count. Headline: how many. Items: title = the channel or person; detail = the count.', '{unread}'), as: 'slack_card' },
+      { do: 'card.join', value: '', args: ['Mentions=mention_card', 'Unread=slack_card'], as: 'card' }] },
   { id: 'slack.channel', group: 'Messaging', name: 'Read a Slack channel', runs: 'mac', about: 'The latest messages in a channel or from a person',
     params: { channel: { ask: 'Which channel or person?' } },
     examples: ['read the {channel} channel on slack', 'whats new in {channel} on slack', 'read slack {channel}', 'what did {channel} say on slack'],
@@ -144,8 +146,8 @@ const AGENT_TASKS = [
   { id: 'whatsapp.read', group: 'Messaging', name: 'Unread WhatsApp chats', runs: 'mac', about: 'Chats with unread messages on WhatsApp Web',
     examples: ['any whatsapp messages', 'read my whatsapp', 'unread whatsapp', 'whats new on whatsapp', 'unread whatsapp messages'],
     steps: [{ do: 'agent.open', value: '{whatsapp}', args: ['site=WhatsApp', `wait=${WA.list}`, 'ms=40000'] }, { do: 'wait', value: '1.5' },
-      { do: 'agent.read', value: WA.rows, as: 'read' },
-      card('These are WhatsApp chats, one per line: the name, the time, the last message and, when there are unread messages, their number at the end. Headline: how many chats have unread messages and from whom. Items: only the chats with unread messages; title = person or group; detail = the last message in a few words; when = the number of unread messages.')] },
+      { do: 'agent.read', value: WA.rows, args: ['keep=unread message'], as: 'read' },
+      card('WhatsApp chats with unread messages, one per line: the name, the time, the last message, then (N unread messages). Headline: how many chats and from whom. Items: one per chat; title = person or group; detail = the last message in a few words; when = the number of unread messages.')] },
   { id: 'whatsapp.from', group: 'Messaging', name: 'Read WhatsApp messages from someone', runs: 'mac', about: 'The latest messages in a chat',
     params: { person: { ask: 'Whose chat?' } },
     examples: ['read my whatsapp from {person}', 'what did {person} say on whatsapp', 'read whatsapp messages from {person}', 'whatsapp messages from {person}'],
@@ -286,7 +288,7 @@ const AgentWatch = {
     const short = s => String(s || '').replace(/^https?:\/\//, '').slice(0, 70);
     return ({ 'agent.open': () => `Open ${short(v)}`, 'agent.read': () => `Read the page (${short(String(v).split('||')[0])})`, 'agent.wait': () => `Wait for ${short(v)}`,
       'agent.click': () => `Click ${v ? `“${short(v)}”` : short(agentArgs(a.args).sel?.split('||')[0])}`, 'agent.type': () => `Type into “${short(v)}”`, 'agent.key': () => `Press ${v || 'Enter'}`,
-      'ai.card': () => 'Ask the model for the card', 'ai.when': () => `Work out the time “${short(v)}”` })[id]?.() || id;
+      'ai.card': () => 'Ask the model for the card', 'card.join': () => 'Put the cards together', 'ai.when': () => `Work out the time “${short(v)}”` })[id]?.() || id;
   },
   async step(id, v, ev) {
     if (!this.on() || !$('#agentWeb')?.classList.contains('watch')) return null;
@@ -434,7 +436,9 @@ const Agent = {
       const r = await Link.task({ id: t.id, params, confirmed: !!o.confirmed });
       if (r?.error) throw new Error(r.error); return r?.card ?? r;
     }
-    const prev = this.ctx, run = this.runner(t, params);
+    // never run with a needed input blank or unfilled (“{person}”): a send would go to whoever is first in the list
+    for (const [k, d] of Object.entries(this.params(t))) { const v = String(params?.[k] ?? d.default ?? '').trim(); if (!d.optional && (!v || /^\{\w+\}$/.test(v))) throw new Error(`I need the ${k} for that`); }
+    const prev = this.ctx, run = this.runner(t, params); if (prev?.check) run.ctx.check = true; // a check run carries into the tasks it runs
     // one task at a time in the agent browser (a composite's own tasks run inside it)
     const go = async () => { this.ctx = run.ctx; if (!prev) AgentWatch.begin(t); try { await run.steps(t.steps || [], { tok: 1 }); } finally { this.ctx = prev; if (!prev) AgentWatch.end(!run.ctx.failed, run.ctx.failed); } };
     if (prev || t.runs !== 'mac') await go(); else { const q = this.queue.then(go); this.queue = q.catch(() => {}); await q; }
@@ -451,7 +455,7 @@ const Agent = {
       if (email) vars[`${k}_email`] = email; if (phone) vars[`${k}_phone`] = phone; // left unset when unknown: “{person_email} is empty”
       if (p) vars[k] = p.name;
     }
-    const r = Object.assign(Object.create(Script), { cur: { name: t.name, intents: [], beats: [], end: { steps: [] } }, running: true, token: 1, vars, jobs: [], ask: null, busy: false, ctx: { task: t }, paint() {}, remote: null });
+    const r = Object.assign(Object.create(Script), { cur: { name: t.name, intents: [], beats: [], end: { steps: [] } }, running: true, token: 1, vars, jobs: [], ask: null, busy: false, ctx: { task: t, vars }, paint() {}, remote: null });
     return r;
   },
   /** Whatever a task gave back → a card. */
@@ -504,6 +508,10 @@ const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
   try { li = await AgentWatch.step(id, a[0], a[2]); const r = await def.run(...a);
     AgentWatch.done(li, true, typeof r === 'string' && id === 'agent.read' ? `${r.length} characters read` : id === 'ai.card' && r?.headline ? r.headline : ''); return r; }
   catch (e) { AgentWatch.done(li, false, e.message); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
+/** A check run (an imported task, js/taskllm.js) of a task that acts: the step that would send, post or confirm only checks
+    that its button or field is there. */
+const checkOnly = (kind, v, a) => { const c = Agent.ctx; if (!c?.check || !c.task?.acts) return false;
+  return kind === 'key' ? /enter/i.test(v || 'Enter') : kind === 'type' ? a.flags.includes('enter') : /send|post|reply|submit|save|delete|remove|book|pay|confirm|publish/i.test(`${v} ${a.sel || ''}`); };
 const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs StudioGen on a Mac (its agent browser)'); };
 agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
@@ -524,8 +532,10 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); } // a sign-in page can pass for the page (an account list is a listbox too)
   return here();
 } });
-agentAction('agent.read', { group: 'Agent', name: 'Agent browser: read the page', arg: 'CSS selectors to read, tried in order (|| between them); the whole page if none fit', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const r = await AgentWeb.call('read', [v || 'body', +agentArgs(ev.args).max || 5000]);
+agentAction('agent.read', { group: 'Agent', name: 'Agent browser: read the page', arg: 'CSS selectors to read, tried in order (|| between them); the whole page if none fit; inputs: keep=words (only the lines that have them, || between choices), max=5000', async run(v, say, ev = {}) {
+  agentCtx(); needWeb(); const a = agentArgs(ev.args), r = await AgentWeb.call('read', [v || 'body', +a.max || 5000]);
+  // keep=Unread: the lines are picked here, not by the model (it lets read rows in)
+  if (a.keep && r.text) { const ks = a.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); r.text = r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)'; }
   if (SIGNIN.test(r.url || '')) { AgentWeb.show(true); throw new Error(`SIGNIN:${new URL(r.url).hostname}`); }
   if (/unusual traffic|are you a robot|not a robot|verify you are human|captcha/i.test((r.text || '').slice(0, 800))) { AgentWeb.show(true); throw new Error('The site wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.'); }
   Log.d('agent', `Read ${r.text?.length || 0} characters (${r.sel})`); return r.text || '';
@@ -535,7 +545,8 @@ agentAction('agent.wait', { group: 'Agent', name: 'Agent browser: wait for somet
 } });
 agentAction('agent.click', { group: 'Agent', name: 'Agent browser: click', arg: 'The text on it; inputs: sel=CSS selector (|| between choices), optional', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args); let r = { ok: false };
-  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('clickOn', [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
+  const op = checkOnly('click', v, a) ? 'exists' : 'clickOn';
+  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call(op, [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok && !a.flags.includes('optional')) throw new Error(r.error || `Couldn’t click ${v || a.sel}`);
   return r.ok;
 } });
@@ -544,12 +555,13 @@ agentAction('agent.type', { group: 'Agent', name: 'Agent browser: type into a fi
   let r = { ok: false };
   for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('focus', [{ sel: sel || undefined, label: v }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok) throw new Error(r.error || `No field ${v}`);
+  if (checkOnly('type', v, a)) return true; // a check run: the message box is there, nothing typed or sent
   if (text) await AgentWeb.insert(text);
   if (a.flags.includes('enter')) { await new Promise(x => setTimeout(x, 200)); AgentWeb.key('Enter'); }
   return true;
 } });
 agentAction('agent.key', { group: 'Agent', name: 'Agent browser: press a key', arg: 'Enter, Escape, Tab…; inputs: sel=field to focus first', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args); if (a.sel) await AgentWeb.call('focus', [{ sel: a.sel.split('||')[0], clear: false }]); AgentWeb.key(v || 'Enter'); return true;
+  agentCtx(); needWeb(); const a = agentArgs(ev.args); if (a.sel) await AgentWeb.call('focus', [{ sel: a.sel.split('||')[0], clear: false }]); if (!checkOnly('key', v, a)) AgentWeb.key(v || 'Enter'); return true;
 } });
 Actions.define('agent.show', { group: 'Agent', name: 'Show the agent browser (to sign in)', arg: '', run: () => { needWeb(); AgentWeb.show(true); } });
 Actions.define('agent.fail', { group: 'Agent', name: 'Stop the task with a message', arg: 'What to say', run(v) { const c = Agent.ctx; if (c) c.failed ||= v || 'That didn’t work.'; else throw new Error(v); } });
@@ -564,19 +576,26 @@ Actions.define('agent.scripts', { group: 'Agent', name: 'The scripts I can prese
 /** The model's card: { headline, items: [{ title, detail, when, place, person }] } from the page text. */
 const CARD_SCHEMA = { type: 'object', required: ['headline', 'items'], properties: {
   headline: { type: 'string', description: 'one short sentence a driver can take in at a glance' },
-  items: { type: 'array', description: 'at most five', items: { type: 'object', required: ['title'], properties: {
-    title: { type: 'string', description: 'under eight words' }, detail: { type: 'string', description: 'one short line, or empty' },
-    when: { type: 'string', description: 'a time or date if there is one, else empty' }, place: { type: 'string', description: 'a room, address or “online”, else empty' },
+  items: { type: 'array', description: 'at most five', items: { type: 'object', required: ['title', 'detail'], properties: {
+    title: { type: 'string', description: 'under eight words' }, detail: { type: 'string', description: 'what the request says this item\'s detail holds, in one short line' },
+    when: { type: 'string', description: 'a time or date from the text for this item, else empty' }, place: { type: 'string', description: 'a room, address or “online”, else empty' },
     person: { type: 'string', description: 'the person concerned (sender, organiser), else empty' } } } } } };
 /** Empty fields dropped (a step's “{x.items.0.place} is empty” then holds), at most five items. */
+/** The small model sometimes answers with the request's own words (“how many chats are unread”): then the headline is made from the items. */
+const echoFix = (c, ask) => { const w = plain(c.headline).split(' ').filter(x => x.length > 3), q = ` ${plain(ask)} `;
+  if (c.items.length && w.length && w.filter(x => q.includes(` ${x} `)).length / w.length >= 0.6) { const t = c.items.map(i => i.title).filter(Boolean).slice(0, 4); c.headline = t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0] || c.headline; }
+  return c; };
 const tidyCard = j => ({ ...j, headline: String(j.headline || ''), items: (Array.isArray(j.items) ? j.items : []).slice(0, 5).map(i => Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x && !/^(none|n\/a|empty|unknown)$/i.test(String(x).trim())))) });
 agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model)', arg: 'What to pull out; input: the text ({read})', async run(v, say, ev = {}) {
   agentCtx(); const text = String((ev.args || [])[0] ?? '').slice(0, 5000);
+  if (text.trim() === '(none)') return { headline: 'Nothing', items: [] }; // agent.read's keep= found no lines
   if (/^\{read\}$/.test(text.trim()) || (ev.args?.length && text.trim().length < 40 && !/^(Topic|Meeting):/.test(text))) return { headline: 'I couldn’t read anything on that page', items: [] };
-  const instructions = `You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Today is ${new Date().toDateString()}. Rules: use only facts that are in the text; never invent names, numbers, dates or times; never use words from the request as values; leave a field empty when the text doesn't say. If the text doesn't answer the request, the headline says so and items is empty. Plain words, no markdown.`;
+  // the small on-device model copies whatever it is given (today's date went into every “when”), so the date only comes with requests about dates
+  const dated = /\b(today|tomorrow|yesterday|this week|next week|date|day|calendar|meeting|deadline|due)\b/i.test(v);
+  const instructions = `You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Follow the request: it says what the headline and each item's title, detail and when hold. Rules: use only facts that are in the text; never invent names, numbers, dates or times; the request's words describe what to write, they are not values; write each field in your own short words, never copy whole lines; leave when empty unless the text gives a time for that item. If the text doesn't answer the request, the headline says so and items is empty. Plain words, no markdown.${dated ? ` Today is ${new Date().toDateString()}.` : ''}`;
   const prompt = `Request: ${v}\n\nText:\n${text || '(none)'}`;
   if (typeof MacAI !== 'undefined' && MacAI.can()) {
-    try { const r = await MacAI.ask({ instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 500 }); return tidyCard(JSON.parse(r.json || '{}')); }
+    try { const r = await MacAI.ask({ instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 500 }); return echoFix(tidyCard(JSON.parse(r.json || '{}')), v); }
     catch (e) { Log.w('agent', 'The on-device model didn’t make the card', { error: e.message }); }
   }
   if (typeof Brain !== 'undefined' && Brain.ready() && Brain.cfg().provider !== 'mac') {
@@ -585,6 +604,16 @@ agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model
   }
   const lines = text.split('\n').map(x => x.trim()).filter(Boolean);
   return { headline: lines.length ? `No model here to sum this up (Apple’s on-device model on your Mac, or Settings › Assistant). What I found:` : 'Nothing found', items: lines.slice(0, 5).map(l => ({ title: l.slice(0, 90) })) };
+} });
+/** Cards put together without the model (it gets totals wrong): one item per source with its count and names. */
+agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line per source)', arg: 'The headline (empty: the counts); inputs: Label=card name, one per source', run(v, say, ev = {}) {
+  const vars = agentCtx()?.vars || {}, parts = (ev.args || []).map(a => String(a).match(/^(.+?)=\{?([\w.]+)\}?$/)).filter(Boolean);
+  const items = parts.map(([, label, name]) => { const c = name.split('.').reduce((o, k) => o?.[k], vars), list = Array.isArray(c?.items) ? c.items : [];
+    // a part that is itself put together (its items carry counts): its lines and their sum
+    const joined = c?.type === 'summary' && list.length && list.every(i => /^\d+$/.test(i.when || ''));
+    return { title: label.trim(), detail: joined ? list.map(i => `${i.when} ${i.title}`).join(', ') : list.length ? list.map(i => i.title).filter(Boolean).join(', ') : c?.headline || 'nothing', when: String(joined ? list.reduce((n, i) => n + +i.when, 0) : list.length) }; });
+  const head = items.map(i => `${i.when} ${i.title}`).join(', ');
+  return { type: 'summary', headline: v || (items.every(i => i.when === '0') ? 'Nothing new' : head), items: items.slice(0, 5) };
 } });
 agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v) {
   agentCtx(); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;

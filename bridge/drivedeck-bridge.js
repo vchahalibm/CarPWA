@@ -115,30 +115,41 @@
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
           // (WhatsApp keeps a message's time and sender in data-pre-plain-text, outside the text: put it in front)
-          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; return pre + (l.length > t.length ? l : t); }).filter(Boolean);
+          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; // a bare number badge (an unread count) is said in its label: “5 unread messages”
+            const badges = [...(e.querySelectorAll?.('[aria-label]') || [])].filter(b => /^\d{1,4}$/.test((b.innerText || '').trim())).map(b => b.getAttribute('aria-label').trim()).filter(x => /[a-z]/i.test(x));
+            // a row's state words that only its label has (Outlook: “Unread …”): put them in front of the text
+            const state = l.length <= t.length && (l.match(/^((?:unread|flagged|pinned|important|urgent|replied|forwarded|has attachments?)[,\s]+)+/i)?.[0] || '').replace(/[,\s]+$/, '');
+            return pre + (state && !t.toLowerCase().startsWith(state.toLowerCase()) ? `${state} ` : '') + (l.length > t.length ? l : t) + (badges.length ? ` (${badges.join(', ')})` : ''); }).filter(Boolean);
           if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title };
         }
         return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };
       },
       /** Teaching an agent task: the next element you click is picked, not clicked (outlined while you hover), and returned
           with a selector to read it by. Times out after `ms`. */
-      pick(ms = 120000) {
+      /** Is it there (a selector, comma/|| list, or a text), without clicking: for checking a task that would send. */
+      exists(o = {}) {
+        const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase(), q = clean(o.text || '').toLowerCase();
+        for (const sel of String(o.sel || '').split('||').filter(Boolean)) { try { const m = [...doc.querySelectorAll(sel.trim())].filter(visible); const el = q ? m.find(x => words(x).includes(q)) : m[0]; if (el) return { ok: true, rect: rect(el) }; } catch {} }
+        if (!o.sel && q) { const f = this.findText(o.text); if (f.ok) return f; }
+        return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
+      },
+      pick(ms = 120000, exact = false) {
         return new Promise(res => {
           let hov = null; const prev = [];
           const mark = e => { const el = e.target; if (hov === el) return; if (hov) hov.style.outline = prev.pop() || ''; hov = el; prev.push(el.style.outline); el.style.outline = '3px solid #ff375f'; };
           const done = r => { doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
-          const take = e => { e.preventDefault(); e.stopPropagation(); const el = e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
-            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', text: clean(el.innerText || '') }); };
+          const take = e => { e.preventDefault(); e.stopPropagation(); const el = exact ? (e.target.closest(INTERACTIVE + ',[contenteditable=true],[role=textbox],[role=listitem],[role=row],[role=treeitem]') || e.target) : e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
+            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(el.innerText || '') }); };
           doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true);
           const t = setTimeout(() => done({ ok: false, error: 'Nothing picked' }), ms);
         });
       },
-      /** Wait until a selector (comma list) or a text shows, up to `ms`. */
+      /** Wait until a selector (choices between ||, or a comma list) or a text shows, up to `ms`. */
       async waitFor(o = {}, ms = 15000) {
-        const t0 = Date.now(), q = clean(o.text || '').toLowerCase();
+        const t0 = Date.now(), q = clean(o.text || '').toLowerCase(), sels = o.sel ? String(o.sel).split('||').map(s => s.trim()).filter(Boolean) : [];
         for (;;) {
           let hit = false;
-          if (o.sel) { try { hit = [...doc.querySelectorAll(o.sel)].some(visible); } catch {} }
+          for (const s of sels) { try { if ([...doc.querySelectorAll(s)].some(visible)) { hit = true; break; } } catch {} }
           if (!hit && q) hit = (doc.body?.innerText || '').toLowerCase().includes(q);
           if (hit) return { ok: true, url: win.location.href };
           if (Date.now() - t0 > ms) return { ok: false, error: 'not there', url: win.location.href };
@@ -148,7 +159,7 @@
       /** Focus a field found by its label, placeholder or a selector (never a secret field), for real typing. */
       focus(o = {}) {
         let el = null; const q = clean(o.label || '').toLowerCase();
-        if (o.sel) { try { el = [...doc.querySelectorAll(o.sel)].find(visible); } catch {} }
+        if (o.sel) for (const s of String(o.sel).split('||')) { try { el = [...doc.querySelectorAll(s.trim())].find(visible); } catch {} if (el) break; }
         if (!el && q) el = [...doc.querySelectorAll('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox],[role=combobox],[role=searchbox]')].find(e => visible(e) && clean(label(e) || e.getAttribute('aria-label') || '').toLowerCase().includes(q));
         if (!el) return { ok: false, error: `No field “${o.label || o.sel}” on the page` };
         if (secret(el)) return { ok: false, error: 'That is a password, payment or code field: type it yourself' };
@@ -161,7 +172,7 @@
         let el = null;
         // a selector and a text: the match of the selector whose text (or label) has those words, e.g. a channel by name
         const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase();
-        if (o.sel) { try { const m = [...doc.querySelectorAll(o.sel)].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).includes(q)) : m[0]; } catch {} }
+        if (o.sel) for (const s of String(o.sel).split('||')) { try { const m = [...doc.querySelectorAll(s.trim())].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).includes(q)) : m[0]; } catch {} if (el) break; }
         if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(a.innerText || '').length - clean(b.innerText || '').length).find(e => clean(e.innerText || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
         if (!el) return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
         el.scrollIntoView({ block: 'center' }); await wait(150);

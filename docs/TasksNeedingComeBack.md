@@ -40,6 +40,10 @@ Things started or decided but not finished, and things to perform together later
 - [ ] **Web Push wake-ups** (requirement L-10, the part still to do).
 - [ ] Data rows from a script on StudioGen shown on the phone, checked end to end (DataViz from `mac.run` results).
 
+- [ ] **A practice calendar** (labs/practice): the calendar tasks (cal.today, cal.next) can't be tried on the practice sites yet (`{outlook}/calendar/…` lands on the practice inbox).
+- [ ] **The Stage assistant builds tasks by voice** (asked 25 Oct, once the LLM build is mature): the assistant interviews you with “person is Priya” answers, plans on the Mac's model (`TaskLocal`), opens the result in the editor, asks you to point at anything unclear (Teach me / Show me), then runs it watched.
+- [ ] **Try the build prompt on the real Slack and WhatsApp** (the selectors were checked on the practice copies, which follow the real pages' structure).
+
 ## Tests
 
 - [ ] Add to the Demo Day journey: changing the secret phrase (Mac, then phone), data rows coming back, a captured motion shared and fetched, the journal back-fill after a device was away (history gap filled), the history export file, a second phone.

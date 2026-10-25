@@ -9,6 +9,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Build tasks by describing them: copy the prompt into Claude, or plan one with your Mac’s own model, then check it on the real pages (Settings › Scripts & tasks › Build with an LLM)',
+  'Practice Slack and WhatsApp beside the practice inbox, to try tasks safely (Agent › Library › Settings › Use the practice sites)',
   'Make and change agent tasks in Settings › Scripts & tasks › Agent tasks, or Teach me: do it once in the agent browser',
   'While presenting, weather, messages, “what can I say” and other screens open as cards over the slides; say “close card”',
   'Agent tasks can be watched step by step (Agent › Library › Settings › Show the browser while tasks run)',

@@ -17,6 +17,7 @@
 #pane-side{flex:1;overflow:auto}
 [role=listitem]{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
 [role=listitem][aria-selected=true]{background:var(--hdr)}
+.av::before{content:attr(data-l)} /* a picture on WhatsApp: not part of the row's text */
 .av{width:46px;height:46px;border-radius:50%;background:#dfe5e7;display:grid;place-items:center;font-weight:700;color:#54656f;flex:0 0 auto}
 .cell{flex:1;min-width:0}.r1,.r2{display:flex;gap:8px;align-items:center}.r1 span[title]{font-size:16px;flex:1}
 .r2 span.last{flex:1;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -68,7 +69,7 @@ function landing() {
 function rows() {
   const f = filter.toLowerCase();
   return S.filter(c => !f || c.name.toLowerCase().includes(f) || c.msgs.some(m => m[2].toLowerCase().includes(f))).map(c => { const last = c.msgs.at(-1);
-    return `<div role="listitem" tabindex="0" data-id="${c.id}" class="${c.unread ? 'unread' : ''}" aria-selected="${cur === c}"><div class="av">${esc(c.name[0])}</div><div class="cell">
+    return `<div role="listitem" tabindex="0" data-id="${c.id}" class="${c.unread ? 'unread' : ''}" aria-selected="${cur === c}"><div class="av" data-l="${esc(c.name[0])}"></div><div class="cell">
       <div class="r1"><span title="${esc(c.name)}" dir="auto">${esc(c.name)}</span><span class="time">${esc(last[1])}</span></div>
       <div class="r2"><span class="last" title="${esc(last[2])}">${last[0] === 'out' ? '✓✓ ' : ''}${esc(last[2])}</span>${c.unread ? `<span class="badge" aria-label="${c.unread} unread message${c.unread > 1 ? 's' : ''}">${c.unread}</span>` : ''}</div></div></div>`; }).join('') || '<p class="empty">No chats, contacts or messages found</p>';
 }
@@ -76,7 +77,7 @@ function draw(draft = '') {
   root.innerHTML = `<div id="app"><div id="side"><header>WhatsApp</header>
     <div class="search"><div contenteditable="true" role="textbox" aria-label="Search input textbox" data-tab="3" title="Search input textbox"></div></div>
     <div id="pane-side"><div aria-label="Chat list" role="grid">${rows()}</div></div></div>
-    <div id="main">${cur ? `<header><div class="av">${esc(cur.name[0])}</div><span title="${esc(cur.name)}">${esc(cur.name)}</span></header>
+    <div id="main">${cur ? `<header><div class="av" data-l="${esc(cur.name[0])}"></div><span title="${esc(cur.name)}">${esc(cur.name)}</span></header>
       <div class="msgs" role="application" aria-label="Messages">${cur.msgs.map(m => `<div role="row"><div class="${m[0] === 'out' ? 'message-out' : 'message-in'}"><div class="copyable-text" data-pre-plain-text="[${esc(m[1])}] ${esc(m[0] === 'out' ? 'You' : cur.group ? m[2].split(':')[0] : cur.name)}: "><span class="selectable-text" dir="ltr">${esc(m[2])}</span></div><div class="meta">${esc(m[1])}</div></div></div>`).join('')}</div>
       <footer><div contenteditable="true" role="textbox" aria-label="Type a message" data-tab="10" title="Type a message">${esc(draft)}</div><button aria-label="Send" data-icon="send">➤</button></footer>`
       : '<div class="empty"><h2>WhatsApp Web (practice)</h2><p>Send and receive messages without keeping your phone online.</p></div>'}</div></div>`;

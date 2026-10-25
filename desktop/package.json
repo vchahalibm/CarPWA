@@ -61,6 +61,8 @@
           "presenter.html",
           "samples/**",
           "bridge/**",
+          "labs/**",
+          "docs/llm/**",
           "web-version.json",
           "!vendor/models/*.vrm",
           "!vendor/mediapipe/models/*.task",

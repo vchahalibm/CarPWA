@@ -53,7 +53,7 @@ ol li,ul li{margin:5px 0}
 <nav aria-label="Contents">
   <b>Start</b>
   <a href="#which">Script or task?</a>
-  <a href="#practice">The practice inbox</a>
+  <a href="#practice">The practice sites</a>
   <b>Scripts</b>
   <a href="#s-make">Make a script</a>
   <a href="#s-wizard">Add a step (wizard)</a>
@@ -71,6 +71,7 @@ ol li,ul li{margin:5px 0}
   <a href="#t-steps">Task steps, one by one</a>
   <a href="#t-test">Test, watch, fix</a>
   <a href="#t-act">Acting for you, People, sharing</a>
+  <a href="#t-llm">Build with an LLM</a>
   <b>Finding things on a page</b>
   <a href="#find">Text, labels, selectors, position</a>
   <b>Recipes</b>
@@ -81,6 +82,7 @@ ol li,ul li{margin:5px 0}
   <a href="#r-slow">Slow pages and pop-ups</a>
   <a href="#r-changing">Elements whose text changes</a>
   <a href="#r-chain">Use one task's result in another</a>
+  <a href="#r-combine">Several sources in one answer</a>
   <a href="#r-send">Send something, safely</a>
   <a href="#r-scripts">Script recipes</a>
   <b>When it doesn't work</b>
@@ -101,8 +103,9 @@ ol li,ul li{margin:5px 0}
 </table>
 <div class="tip"><b>They work together</b>A task can run a script (step <i>Run one of my scripts</i>: “present the keynote” from the car starts it on the Mac). A script can run a task (the action <i>Run another task</i>, in the Agent group of the script editor's action list). And a task can run other tasks in order. Both use the same step language, so what you learn here works in both.</div>
 
-<h2 id="practice">The practice inbox</h2>
-<p>To try things safely, use the made-up mailbox at <b>https://vchahalibm.github.io/CarPWA/labs/practice/inbox.html</b>: a search box, a message list and a reading pane, built like Outlook on the web (the same kinds of labels and roles), with nothing behind it. The recipes below were run on it; the pictures are from those runs.</p>
+<h2 id="practice">The practice sites</h2>
+<p>To try things safely, use the made-up sites in <b>labs/practice/</b> (served by the app, and at https://vchahalibm.github.io/CarPWA/labs/practice/): <b>inbox.html</b>, a mailbox built like Outlook on the web; <b>slack.html</b>, a Slack with channels, direct messages, Activity (mentions) and a message box; <b>whatsapp.html</b>, a WhatsApp Web with chats, unread badges, search and a message box. They use the same kinds of labels, roles and page structure as the real sites, so a task made on them carries over, and nothing you send leaves your browser (the people in them are made up). Signing in is simulated: <i>Sign in with email (simulated)</i> on Slack, <i>Simulate scanning with your phone</i> on WhatsApp. Add <code>?reset</code> to an address to start over.</p>
+<p>Tick <span class="path">Agent › Library › Settings › Use the practice sites</span> and <code>{outlook}</code>, <code>{slack}</code> and <code>{whatsapp}</code> point at them, so the built-in tasks and yours run there; untick it for the real sites. The recipes below were run on them; the pictures are from those runs.</p>
 
 <h2 id="s-make">Make a script</h2>
 <ol>
@@ -229,11 +232,12 @@ ol li,ul li{margin:5px 0}
 <tr><th>Step</th><th>What it does</th><th>How to fill it</th><th>When to use it</th></tr>
 <tr><td>Open a page</td><td>Loads an address in the agent browser and waits for it</td><td>The address (inputs allowed: <code>https://site/orders/{order}</code>); <b>Wait until this shows</b>: something that's there once the page is ready (<code>[role="listbox"]</code>); <b>Site name</b>, to ask you to sign in when a sign-in page appears; <b>More inputs</b>: <code>?q={topic}</code> adds to the address</td><td>The first step of most tasks</td></tr>
 <tr><td>Wait for something</td><td>Waits until an element or a text shows</td><td>A CSS selector, or a text; at most so many ms</td><td>After a click that loads something; slow pages</td></tr>
-<tr><td>Click</td><td>Clicks an element</td><td>The text on it (<code>Send</code>), or a CSS selector (<code>button[aria-label="Send"]</code>); several choices with <code>||</code>; <code>optional</code> in More inputs: carry on if it isn't there</td><td>Buttons, links, rows of a list</td></tr>
+<tr><td>Click</td><td>Clicks an element</td><td>The text on it (<code>Send</code>), or a CSS selector (<code>button[aria-label="Send"]</code>); several choices with <code>||</code>; <code>optional</code> in More inputs: carry on if it isn't there. Without it, a miss stops the task with “Nothing called …”; to say your own message, make it optional, keep it (<code>as</code>) and test it with an <i>if</i></td><td>Buttons, links, rows of a list</td></tr>
 <tr><td>Type into a field</td><td>Focuses a field and types for real (works in rich editors like Teams, WhatsApp and Outlook's message box)</td><td>The field's label or placeholder (<code>Search</code>), what to type (<code>{person}</code>), Press Enter after; or a selector</td><td>Searches, replies, forms</td></tr>
 <tr><td>Press a key</td><td>Enter, Escape, Tab…</td><td>The key; a field to focus first</td><td>Sending a chat message; closing a pop-up</td></tr>
-<tr><td>Read part of the page</td><td>Reads text into <code>{read}</code></td><td>What to read: selectors, tried in order, <code>||</code> between (<code>[role="document"]||[role="main"]</code>); the whole page if none fit. Each matching element is one line (a list gives one line per row)</td><td>Before every answer</td></tr>
-<tr><td>Make the answer card</td><td>The model turns text into the card you see and hear: a headline and up to five items</td><td>What to tell you (<i>“Sum up the unread emails: who and what they want”</i>), from <code>{read}</code> (or any value)</td><td>The last step of reading tasks</td></tr>
+<tr><td>Read part of the page</td><td>Reads text into <code>{read}</code></td><td>What to read: selectors, tried in order, <code>||</code> between (<code>[role="document"]||[role="main"]</code>); the whole page if none fit. Each matching element is one line (a list gives one line per row; a row's unread count reads as “(5 unread messages)”, and Outlook's “Unread” comes first). <b>Only lines with these words</b> keeps just those lines (<code>Unread</code>; <code>unread message</code> on WhatsApp): the picking is exact, not left to the model</td><td>Before every answer</td></tr>
+<tr><td>Make the answer card</td><td>The model turns text into the card you see and hear: a headline and up to five items</td><td>What to tell you: say what the headline is and what each item's title, detail and time hold (<i>“Headline: how many and from whom. Items: one per mail; title = sender; detail = what they want”</i>), from <code>{read}</code> (or any value). Keep it to 2–4 sentences about one kind of text: on a Mac it's Apple's small on-device model, which gets totals and mixed lists wrong. <b>Keep it as</b>: <code>card</code> for the answer, or another name to put several cards together</td><td>The last step of reading tasks</td></tr>
+<tr><td>Put cards together</td><td>One answer from several cards, without the model: one item per source with its count and names, the counts in the headline (<i>“4 Outlook, 3 WhatsApp, 2 Slack mentions”</i>)</td><td>The headline (empty: the counts); one line per source, <code>Label=card name</code> (<code>WhatsApp=wa_card</code>)</td><td>Catch-ups across sites (<a href="#r-combine">recipe</a>)</td></tr>
 <tr><td>Run another task</td><td>Runs a task, shows its card, keeps its result</td><td>The task; its inputs, one a line (<code>person={next.items.0.person}</code>)</td><td>Building bigger tasks from smaller ones</td></tr>
 <tr><td>Pause</td><td>Waits some seconds</td><td>Seconds</td><td>Letting a page settle after a click</td></tr>
 <tr><td>Stop with a message</td><td>Ends the task and says why</td><td>The message (<code>No mail from {person}</code>)</td><td>Inside an <i>if</i>, when something is missing</td></tr>
@@ -257,6 +261,29 @@ ol li,ul li{margin:5px 0}
 <li><b>People</b> (Agent › Library › People): names with an email (mail, Teams) and a number with country code (WhatsApp). Inputs marked “a person” fill <code>{person_email}</code> and <code>{person_phone}</code> from here.</li>
 <li><b>Sharing</b>: tick <b>Share in the mesh</b>; your other StudioGens see it in Mesh › Shared and can get a copy.</li>
 </ul>
+
+<h2 id="t-llm">Build with an LLM</h2>
+<p>Instead of the editor, you can describe a task in words and let a language model write it. <span class="path">Settings › Scripts &amp; tasks › Build with an LLM</span> has two ways.</p>
+<h3>With Claude (or another chat LLM)</h3>
+<ol>
+<li><b>Copy the prompt</b> and paste it into Claude. It's the full description of tasks and scripts (steps, site notes, rules learned from testing), also in the repository as <code>docs/llm/build-prompt.md</code>, so it works from a terminal too.</li>
+<li>Say what you want (<q class="say">a task that tells me what's unread on WhatsApp and Slack</q>). It asks a few numbered questions at a time: how you'd ask for it, which inputs and test values, what to read, what the answer says, what it should do when something is missing. Answer as <q class="say">person is Priya Nair</q>, <q class="say">channel is sales</q>.</li>
+<li>It sums up what it will build, then writes one JSON block, with a <code>verify</code> list of anything it guessed.</li>
+<li>Paste the JSON (or <b>Import a file</b>) and <b>Import</b>. It's checked: unknown steps, inputs missing from the ways to ask, a click an <i>if</i> tests without <code>optional</code> (fixed for you), a way to ask another task already has.</li>
+<li><b>Check it now</b> runs it step by step on the real pages with its test values, watched. A step that would send, post or confirm only checks that its button or field is there: nothing is sent. Each step shows ✓, ✗ with why, or – (skipped), and “It would answer: …”.
+<figure><img src="guide/llm-check.jpg" alt="A check run's report"><figcaption>The morning catch-up Claude wrote, checked on the practice sites: every step ✓ and what it would answer.</figcaption></figure></li>
+<li>A ✗ on a click, typing, wait or read gets <b>Show me</b>: the agent browser opens where it stopped; click the right thing and its selector replaces the step's, then it checks again. Then <b>Save</b>, or <b>Open in the editor</b>.</li>
+</ol>
+<p>Tested on the practice sites: tasks Claude wrote for unread WhatsApp and Slack (with mentions), a reply on WhatsApp, a Slack channel summary and a morning catch-up across Outlook, WhatsApp and Slack all passed the check and ran right the first time, without editing.</p>
+<h3>With your Mac's own model</h3>
+<p>Apple's on-device model (StudioGen on a Mac, or a phone paired with one) is too small for the whole prompt, so it's done in steps that feed each other:</p>
+<ol>
+<li>Type (or say) what the task should do under <b>Or build it here with your Mac's own model</b> and press <b>Plan it</b>. The model picks the building blocks: up to three tested tasks (the library's and your own) or reading a web page, with their inputs. It chooses from a shortlist that fits your words; parts from sites you didn't name, inputs it swapped and stand-in values (“someone”) are corrected.</li>
+<li>A form shows the plan: name, ways to ask, the parts and their inputs (<code>person={person}</code> is asked each time, <code>person=Mom</code> is fixed), and the test values to type or say as <q class="say">person is Mom, message is running late</q>. Change anything.
+<figure><img src="guide/llm-local-form.jpg" alt="The planned task"><figcaption>“Tell Mom on WhatsApp that I am running late”, planned by the Mac's model: one part, Send a WhatsApp message.</figcaption></figure></li>
+<li><b>Build and check</b> puts the task together (a <i>Run another task</i> step per part, <i>Put cards together</i> when there are several) and imports it like an LLM's task, with the same check run.</li>
+</ol>
+<p>Tasks can't run with a needed input blank: <q class="say">I need the person for that</q>.</p>
 
 <h2 id="find">Finding things on a page</h2>
 <p>Every click, type, wait and read needs to find something on the page again, next time, when the page may look a little different. From most to least reliable:</p>
@@ -343,6 +370,14 @@ ol li,ul li{margin:5px 0}
 <ol><li><b>Run another task</b> <i>My next meeting</i>, kept as <code>next</code>.</li>
 <li><b>Advanced</b>: <code>{ "if": "{next.items.0.person} is empty", "then": [ { "set": "card", "value": "{next}" } ], "else": [ … ] }</code></li>
 <li>In the else: <b>Run another task</b> <i>Read the latest mail from someone</i> with <code>person={next.items.0.person}</code>, kept as <code>mail</code>, then <b>Make the answer card</b> from <code>Meeting: {next} Latest mail: {mail}</code>.</li></ol>
+</div>
+
+<h2 id="r-combine">Recipe: several sources in one answer <span class="tag ok">tested</span></h2>
+<div class="recipe">
+<p>A morning catch-up: unread mail, unread WhatsApp chats and your Slack mentions in one card.</p>
+<ol><li>For each site: <b>Open a page</b>, <b>Read part of the page</b> with <b>Only lines with these words</b> (<code>Unread</code> for Outlook, <code>unread message</code> for WhatsApp), then <b>Make the answer card</b> about that one source, kept as its own name (<code>mail_card</code>, <code>wa_card</code>, <code>mention_card</code>).</li>
+<li>Last: <b>Put cards together</b> with <code>Outlook=mail_card</code>, <code>WhatsApp=wa_card</code>, <code>Slack mentions=mention_card</code>.</li></ol>
+<p>Result on the practice sites: <i>“4 Outlook, 3 WhatsApp, 2 Slack mentions”</i>, with the names under each. One card over all three sources gets the counts wrong on the on-device model; one card per source and putting them together in code keeps them right. Simpler still: <b>Run another task</b> for each built-in task (<i>Summarise unread mail</i>, <i>Unread WhatsApp chats</i>, <i>Slack mentions and unread</i>) and put their cards together; that's what building with your Mac's model does.</p>
 </div>
 
 <h2 id="r-send">Recipe: send something, safely</h2>

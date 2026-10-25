@@ -733,6 +733,7 @@ const ScriptUI = {
       <p class="cmd-help">The assistant leads a presentation or demo on Stage: it says each step with an expression and a motion, turns your slides, opens and works web pages, and moves on when you say “next”, show a hand gesture, press the clicker or after a pause.</p>
       ${sec('scripts', 'Scripts', `${Scripts.all().length} · make, record, run`, scripts)}
       ${typeof TaskUI !== 'undefined' ? sec('tasks', 'Agent tasks', `${Agent.all().filter(t => !t.remoteOnly).length} · what the agent does when you ask; make your own, or teach it`, TaskUI.listHtml()) : ''}
+      ${typeof TaskLLM !== 'undefined' ? sec('llm', 'Build with an LLM', 'Copy the prompt for Claude or another LLM, or plan a task with your Mac’s own model; import and check it here', TaskLLM.sectionHtml()) : ''}
       ${motions ? sec('motions', 'Assistant motions', `${Object.keys(MOTIONS).length} · preview them, or capture your own with the camera`, motions) : ''}
       ${recs ? sec('recs', 'Web page recordings', `${WebDrive.recs().length} · page-only sequences`, recs) : ''}
       ${desk && typeof WebDrive !== 'undefined' ? sec('helpers', 'Site helpers', `${WebDrive.helperList().length} · your CSS and JavaScript for chosen sites`, WebDrive.helpersHtml()) : ''}

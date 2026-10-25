@@ -63,6 +63,7 @@ Each step is `{ "do": <id>, "value": "…", "args": ["…"], "as": "name" }` unl
 | `card.join` | headline (empty: the counts) | `Label=card name` per source, no braces | `"card"` | combine per-source cards (rule 10) |
 | `agent.task` | another task's id | `name=value` per input | any | combine tasks |
 | `wait` | seconds | | | let a page settle after a click |
+| `agent.confirm` | the question; values read so far allowed (`Priya said “{last}”. Send “{message}”?`) | | | a yes/no in the middle, after reading something; no stops the task. Use it (and leave `confirm` empty) when the question needs what the task read |
 | `agent.fail` | message | | | stop with a reason (inside an `if`) |
 | `{ "say": "…" }` | | | | a spoken line |
 | `{ "set": "x", "value": "…" }` | | | | remember a value |
@@ -78,7 +79,7 @@ Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites,
 4. A row of a list (a mail, a chat) is found by role and position, not by its words; to open a specific one, search first, then click the first row.
 5. Pop-ups/banners: a `agent.click` with `optional`. Sign-ins: always set `site=`.
 6. In `ai.card`, say exactly what the headline is and what title/detail/when each item carries; ask it to use only the text. A card has **one headline and at most 5 items in all** (not per section). Keep each request to 2–4 short sentences about **one** kind of text: a small on-device model may write it, and it gets totals and mixed lists wrong.
-7. Acting tasks: `"acts": true` and a `confirm` with inputs; the sending step is the last one.
+7. Acting tasks: `"acts": true` and a `confirm`. The app asks “Shall I …?” with it **before any step runs**, so write it as what follows “Shall I” and use only inputs: `send “{message}” to {person} on WhatsApp`. A question that needs something read (their last message) is an `agent.confirm` step after the read, with `confirm` left empty. The sending step is the last one.
 8. Repeat over items with `each` + `:nth-of-type({n})`; gather with `{ "set": "all", "value": "{all}\n---\n{read}" }` (start with `{ "set": "all", "value": "" }`).
 9. Never type passwords or payment details; never put credentials in a task.
 10. Combining sources (WhatsApp + Slack, mail + calendar): read each source and give it its own `ai.card` with its own name (`"as": "wa_card"`, `"as": "slack_card"`), then finish with `{ "do": "card.join", "value": "", "args": ["Slack mentions=mention_card", "Slack=slack_card", "WhatsApp=wa_card"], "as": "card" }`: one item per source with its count and names, no model (counts stay right). Names without braces.

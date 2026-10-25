@@ -1589,7 +1589,7 @@ table.bench small{color:var(--text-2)}
 /* The window moves by a strip along the top of the start page only: a big drag area swallowed clicks (macOS gives drag areas
    precedence over anything drawn above them, and a hidden one could linger). Everything floating stays clickable. */
 .desktop-app .sp-root::before{content:'';position:absolute;left:0;right:0;top:0;height:30px;z-index:5;-webkit-app-region:drag}
-.desktop-app :is(#sheet,#toast,#assistant,.ag-web,.mesh-pill,.sp-custom,.sp-handle){-webkit-app-region:no-drag}
+.desktop-app :is(#sheet,#toast,#assistant,#buildCard,.ag-web,.mesh-pill,.sp-custom,.sp-handle){-webkit-app-region:no-drag}
 @media (orientation:portrait){
   /* the start page on a phone: headline, the assistant, the cards, scrolling */
   .sp-root{display:flex;flex-direction:column;overflow-y:auto;padding:max(18px,env(safe-area-inset-top)) 16px 20px;gap:14px}
@@ -1757,3 +1757,21 @@ table.bench small{color:var(--text-2)}
 .tllm-res{padding-left:22px;margin:6px 0}.tllm-res li{margin:6px 0}.tllm-res li small{display:block;color:var(--text-2)}
 .tllm-res li.ok::marker{content:'✓ ';color:var(--green)}.tllm-res li.bad{color:var(--red)}.tllm-res li.bad::marker{content:'✗ '}.tllm-res li.skip{color:var(--text-3)}.tllm-res li.skip::marker{content:'– '}
 .tllm-res li .chip{margin-top:4px}
+
+/* Build a task (js/taskbuild.js): a panel beside the assistant, over Stage too */
+#buildCard{position:fixed;right:16px;top:max(56px,env(safe-area-inset-top));width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;z-index:960;background:var(--glass-strong);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color:var(--text);border:1px solid var(--surface-3);border-radius:22px;padding:14px 16px 16px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+#buildCard[hidden]{display:none}
+#buildCard.bc-left{right:auto;left:max(112px,env(safe-area-inset-left))}
+.bc-head{display:flex;align-items:center;gap:8px}.bc-head b{font-size:17px}.bc-eng{flex:1;color:var(--text-2);font-size:13px}.bc-head .chip{min-height:40px;min-width:40px;justify-content:center}
+.bc-what{margin:8px 0 4px;color:var(--text-2);font-style:italic}
+.bc-taken{margin:4px 0 8px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.bc-taken li{background:var(--surface-2);border-radius:10px;padding:6px 10px;font-size:14px}.bc-taken li b{color:var(--text-2);margin-right:6px}.bc-taken li small{display:block;color:var(--text-2);font-size:12px}
+.bc-q{font-size:19px;font-weight:600;margin:10px 0 8px;line-height:1.3}.bc-q small{font-size:13px;color:var(--text-2);font-weight:500}
+.bc-busy::after{content:'';display:inline-block;width:14px;height:14px;margin-left:10px;border-radius:50%;border:2px solid var(--text-3);border-top-color:var(--text);animation:spin 0.9s linear infinite;vertical-align:-2px}
+.bc-in{display:flex;gap:8px;margin-top:10px;align-items:flex-end}.bc-in input,.bc-in textarea{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--surface-3);background:var(--surface);color:var(--text);padding:10px 12px;font:inherit}
+.bc-in .chip{min-height:48px}
+#buildCard .chip-row .chip{white-space:normal;text-align:left;height:auto;min-height:48px;max-width:100%}
+.bc-engines{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.bc-eng-row{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border-radius:14px;padding:10px 12px;cursor:pointer}.bc-eng-row input{margin-top:4px;width:20px;height:20px}
+.bc-eng-row small{color:var(--text-2)}.bc-eng-row.off{opacity:.55}.bc-stars{letter-spacing:.5px;color:var(--text)!important}
+@media (max-width:600px){#buildCard{left:8px;right:8px;width:auto;top:auto;bottom:max(8px,env(safe-area-inset-bottom));max-height:70vh}}

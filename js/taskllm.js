@@ -12,12 +12,12 @@ const LOGIC_KEYS = ['say', 'set', 'if', 'each', 'repeat', 'until', 'wait', 'awai
 const TaskLLM = {
   last: null, // { task, results }
   sectionHtml() {
-    return `<p class="se-note">Build a task or script by talking to an LLM (Claude, ChatGPT…): copy the prompt, paste it into the LLM, answer its questions, then paste its JSON here. Tasks are checked on the real page step by step; a step that doesn't find its target gets <b>Show me</b>.</p>
+    return `${typeof BuildCard !== 'undefined' ? BuildCard.html() : ''}
+      <p class="se-note"><b>Or in any chat or terminal:</b> copy the prompt, paste it into the LLM, answer its questions, then paste its JSON here. Tasks are checked on the real page step by step; a step that doesn't find its target gets <b>Show me</b>.</p>
       <div class="chip-row"><button class="chip accent" data-tllm="copy">${svg('doc')} Copy the prompt</button><button class="chip" data-tllm="file">${svg('upload')} Import a file</button></div>
       <label class="se-field te-run"><span>Paste what the LLM wrote</span><textarea id="tllmIn" rows="5" placeholder='{ "format": "studiogen-task", "version": 1, "task": { … } }'></textarea></label>
       <div class="chip-row"><button class="chip accent" data-tllm="import">Import</button></div>
-      ${typeof TaskLocal !== 'undefined' && TaskLocal.can() ? `<label class="se-field te-run"><span>Or build it here with your Mac’s own model: say what it should do</span><textarea id="tlocIn" rows="2" placeholder="Catch me up: unread mail, WhatsApp and my Slack mentions"></textarea></label>
-      <div class="chip-row"><button class="chip accent" data-tllm="local">${svg('star')} Plan it</button></div>` : ''}`;
+`;
   },
   async prompt() {
     for (const u of ['docs/llm/build-prompt.md', 'https://vchahalibm.github.io/CarPWA/docs/llm/build-prompt.md']) { try { const r = await fetch(u, { cache: 'no-store' }); if (r.ok) return await r.text(); } catch {} }
@@ -54,24 +54,33 @@ const TaskLLM = {
       if (s.do === 'ai.card' && String(s.value || '').length > 600) warnings.push(`${where} ${i + 1}: a long card request; the on-device model follows 2–4 short sentences best`);
     });
     walk(t.steps, 'Step');
-    if (t.acts && !t.confirm) warnings.push('It acts for you but has no question to ask first: its name is used');
+    const asksInSteps = JSON.stringify(t.steps || []).includes('"agent.confirm"');
+    if (t.acts && !t.confirm && !asksInSteps) warnings.push('It acts for you but has no question to ask first: its name is used');
+    // the question before acting is asked before any step runs: only inputs are known then
+    const unknown = [...String(t.confirm || '').matchAll(/\{(\w+)\}/g)].map(m => m[1]).filter(k => !P[k] && !said.has(k));
+    if (unknown.length) warnings.push(`The question before acting uses ${unknown.map(k => `{${k}}`).join(', ')}, which isn’t known until the task runs: ask with an “Ask yes or no” step after reading it instead`);
     for (const e of t.examples || []) { const o = Agent.all().find(x => x.id !== t.id && (x.examples || []).some(y => plain(y) === plain(e))); if (o) warnings.push(`“${e}” is also how you ask for “${o.name}”: change one of them`); }
     return { errors, warnings };
   },
-  import(text) {
-    let o; try { o = this.parse(text); } catch (e) { return sheet('Didn’t import', `<p>${esc(e.message)}</p>`, [['Close']]); }
+  /** Import what an LLM wrote. With `opt.auto` (the builder, js/taskbuild.js) a task goes straight to its check run and
+      the results go to `opt.onReport(last)` instead of sheets; problems to `opt.onError(list)`. */
+  import(text, opt = {}) {
+    let o; try { o = this.parse(text); } catch (e) { return opt.auto ? opt.onError?.([e.message]) : sheet('Didn’t import', `<p>${esc(e.message)}</p>`, [['Close']]); }
     const kind = o.format === 'studiogen-script' || o.script || o.beats || o.intents ? 'script' : 'task';
     if (kind === 'script') {
       const s = o.script || o, chk = scriptCheck(s);
+      if (chk.errors.length && opt.auto) return opt.onError?.(chk.errors.map(e => e.msg || e));
       if (chk.errors.length) return sheet('The script has problems', `<ul>${chk.errors.map(e => `<li>${esc(e.msg || e)}</li>`).join('')}</ul>`, [['Close']]);
-      const saved = Scripts.add(s); toast(`Imported the script “${saved.name}”`); return ScriptUI.edit(saved.id, JSON.parse(JSON.stringify(saved.json)));
+      const saved = Scripts.add(s); toast(`Imported the script “${saved.name}”`); opt.onScript?.(saved); return ScriptUI.edit(saved.id, JSON.parse(JSON.stringify(saved.json)));
     }
     const t = o.task || o, chk = this.checkTask(t);
+    if (chk.errors.length && opt.auto) return opt.onError?.(chk.errors);
     if (chk.errors.length) return sheet('The task has problems', `<ul>${chk.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul><p class="se-note">Ask the LLM to fix these, or paste it again.</p>`, [['Close']]);
     t.params ||= {}; for (const k of new Set((t.examples || []).flatMap(e => [...String(e).matchAll(/\{(\w+)\}/g)].map(m => m[1])))) t.params[k] ||= { ask: `What ${k}?` };
     t.id = !t.id || Agent.get(t.id) ? `my.${Date.now().toString(36)}` : String(t.id).startsWith('my.') ? t.id : `my.${t.id}`;
     t.group ||= 'Mine'; t.runs ||= /"agent\./.test(JSON.stringify(t.steps)) ? 'mac' : 'here';
-    this.last = { task: t, verify: o.verify || [], results: null };
+    this.last = { task: t, verify: o.verify || [], results: null, warnings: chk.warnings, opt };
+    if (opt.auto) return AgentWeb.can() ? this.check(t) : opt.onReport?.(this.last); // no agent browser here: saved unchecked
     sheet(`Imported: ${t.name}`, `<p class="se-note">${t.steps.length} steps · asked as “${esc(t.examples[0])}”${Object.keys(t.params).length ? ` · inputs ${Object.keys(t.params).map(k => `{${esc(k)}}`).join(', ')}` : ''}${t.acts ? ' · acts for you (asked first)' : ''}</p>
       ${chk.warnings.length ? `<ul class="se-note">${chk.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
       ${(o.verify || []).length ? `<p class="se-note"><b>The LLM wasn’t sure of</b>: ${o.verify.map(v => `step ${esc(v.step)} (${esc(v.what || '')})`).join(', ')}. The check run tests them.</p>` : ''}
@@ -97,22 +106,24 @@ const TaskLLM = {
           if (run.ctx.failed) { failed = run.ctx.failed; results.push({ i, state: 'bad', why: failed }); } else results.push({ i, state: 'ok' });
         }
       } finally { Agent.ctx = null; AgentWatch.end(!failed, failed); AgentWatch.force = false; }
-      this.last = { task: t, verify: this.last?.verify || [], results, card: run.vars.card };
+      this.last = { ...this.last, task: t, results, card: run.vars.card };
       Log.i('agent', `Check run: ${t.name}`, { results: results.map(r => r.state), failed });
       this.report();
     });
   },
   report() {
-    const { task: t, results, card } = this.last, ok = results.every(r => r.state === 'ok');
+    const { task: t, results, card, opt } = this.last, ok = results.every(r => r.state === 'ok');
     if (AgentWeb.can()) { AgentWeb.watch(false); AgentWeb.show(false); } // the report lists the steps: the watch panel would cover it
-    const name = s => s.do ? AgentWatch.label(s.do, s.value, s) : s.say != null ? `Say “${String(s.say).slice(0, 40)}”` : Object.keys(s)[0] === 'set' ? `Remember {${s.set}}` : `${Object.keys(s)[0]} …`;
-    const fixable = s => ['agent.click', 'agent.type', 'agent.wait', 'agent.read', 'agent.key'].includes(s.do);
+    if (opt?.onReport) return opt.onReport(this.last);
+    const name = s => this.stepName(s), fixable = s => this.fixable(s);
     sheet(ok ? 'Every step works' : 'A step needs you', `<ol class="tllm-res">${results.map(r => { const s = t.steps[r.i];
       return `<li class="${r.state}"><span>${esc(name(s))}</span>${r.why ? `<small>${esc(r.why)}</small>` : ''}${r.state === 'bad' && fixable(s) ? `<button class="chip accent" data-tllm="showme:${r.i}">Show me</button>` : ''}</li>`; }).join('')}</ol>
       ${ok && card?.headline ? `<p class="se-note">It would answer: <b>${esc(card.headline)}</b></p>` : ''}
       ${!ok ? '<p class="se-note">Show me opens the page where it stopped: click the right thing, and it checks again. Or open it in the editor.</p>' : ''}`,
       [...(ok ? [['Save', () => { Agent.put(t); toast(`Saved: say “${t.examples[0]}”`); }]] : [['Check again', () => this.check(t)]]), ['Open in the editor', () => { Agent.put(t); TaskUI.open(t.id); }], ['Close']]);
   },
+  stepName: s => s.do ? AgentWatch.label(s.do, s.value, s) : s.say != null ? `Say “${String(s.say).slice(0, 40)}”` : Object.keys(s)[0] === 'set' ? `Remember {${s.set}}` : `${Object.keys(s)[0]} …`,
+  fixable: s => ['agent.click', 'agent.type', 'agent.wait', 'agent.read', 'agent.key'].includes(s?.do),
   /** Point at the right element where the check stopped; its selector replaces the step's, then check again. */
   async showMe(i) {
     const t = this.last.task, s = t.steps[i]; closeSheet();
@@ -140,5 +151,4 @@ document.addEventListener('click', e => {
   if (k === 'file') return TaskLLM.file();
   if (k === 'import') return TaskLLM.import($('#tllmIn')?.value || '');
   if (k === 'showme') return TaskLLM.showMe(+v);
-  if (k === 'local') return TaskLocal.start($('#tlocIn')?.value || '');
 }, true);

@@ -20,6 +20,7 @@ const TASK_STEPS = {
   'card.join': { name: 'Put cards together', icon: 'grid', as: 'card', fields: [['value', 'Headline (empty: the counts)', ''], ['inputs', 'One line per source: Label=card name', 'WhatsApp=wa_card\nSlack=slack_card']] },
   'agent.task': { name: 'Run another task', icon: 'grid', fields: [['value', 'Task', '', 'task'], ['inputs', 'Its inputs (name=value, one a line)', 'person={person}']] },
   'wait': { name: 'Pause', icon: 'clock', fields: [['value', 'Seconds', '2']] },
+  'agent.confirm': { name: 'Ask yes or no', icon: 'alert', fields: [['value', 'The question (values read so far allowed)', 'Priya said “{last}”. Send “{message}”?']] },
   'agent.fail': { name: 'Stop with a message', icon: 'alert', fields: [['value', 'What to say', 'I couldn’t find that.']] },
   'say': { name: 'Say something', icon: 'speaker', fields: [['value', 'What to say ({input} words allowed)', 'Looking now.']] },
   'raw': { name: 'Advanced step (JSON)', icon: 'sliders', fields: [['json', 'The step as JSON (if, set, repeat or any action)', '{"if": "{read} is empty", "then": [{"do": "agent.fail", "value": "Nothing there"}]}']] },

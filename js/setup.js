@@ -9,6 +9,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'On Stage, say “help me build a task”: the assistant asks, you answer by voice or typing, and it builds, checks and runs the task (Claude, a command-line AI, Ollama, IBM Bob or the Mac’s model)',
+  'Tasks can ask yes or no in the middle (“Priya said … Send ‘on my way’?”)',
   'Build tasks by describing them: copy the prompt into Claude, or plan one with your Mac’s own model, then check it on the real pages (Settings › Scripts & tasks › Build with an LLM)',
   'Practice Slack and WhatsApp beside the practice inbox, to try tasks safely (Agent › Library › Settings › Use the practice sites)',
   'Make and change agent tasks in Settings › Scripts & tasks › Agent tasks, or Teach me: do it once in the agent browser',

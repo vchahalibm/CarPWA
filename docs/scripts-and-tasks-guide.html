@@ -240,6 +240,7 @@ ol li,ul li{margin:5px 0}
 <tr><td>Put cards together</td><td>One answer from several cards, without the model: one item per source with its count and names, the counts in the headline (<i>“4 Outlook, 3 WhatsApp, 2 Slack mentions”</i>)</td><td>The headline (empty: the counts); one line per source, <code>Label=card name</code> (<code>WhatsApp=wa_card</code>)</td><td>Catch-ups across sites (<a href="#r-combine">recipe</a>)</td></tr>
 <tr><td>Run another task</td><td>Runs a task, shows its card, keeps its result</td><td>The task; its inputs, one a line (<code>person={next.items.0.person}</code>)</td><td>Building bigger tasks from smaller ones</td></tr>
 <tr><td>Pause</td><td>Waits some seconds</td><td>Seconds</td><td>Letting a page settle after a click</td></tr>
+<tr><td>Ask yes or no</td><td>Asks you in the middle of a task, after it has read something; no stops the task (a check run and a trusted task go on without asking)</td><td>The question, with what was read (<code>Priya said “{last}”. Send “{message}”?</code>)</td><td>Showing what you're replying to before it sends; leave <b>Question before acting</b> empty then</td></tr>
 <tr><td>Stop with a message</td><td>Ends the task and says why</td><td>The message (<code>No mail from {person}</code>)</td><td>Inside an <i>if</i>, when something is missing</td></tr>
 <tr><td>Say something</td><td>A spoken line</td><td>The line (inputs allowed)</td><td>Progress in long tasks</td></tr>
 <tr><td>Advanced step (JSON)</td><td>Any script step: if, set, repeat, for each, any action</td><td>The step as JSON (see <a href="#s-logic">Logic</a> and the recipes)</td><td>Repetition, conditions, gathering results</td></tr>
@@ -263,8 +264,25 @@ ol li,ul li{margin:5px 0}
 </ul>
 
 <h2 id="t-llm">Build with an LLM</h2>
-<p>Instead of the editor, you can describe a task in words and let a language model write it. <span class="path">Settings › Scripts &amp; tasks › Build with an LLM</span> has two ways.</p>
-<h3>With Claude (or another chat LLM)</h3>
+<p>Instead of the editor, you can describe a task in words and let a language model write it, in the app (typed, or by voice on Stage) or in any chat or terminal.</p>
+<h3>Build a task in the app</h3>
+<ol>
+<li>In <span class="path">Settings › Scripts &amp; tasks › Build with an LLM</span>, pick the AI (below) and press <b>Build a task</b>. On Stage, just say <q class="say">help me build a task</q>.</li>
+<li>A card opens beside the assistant (on Stage, on the side away from it). Say or type what the task should do.</li>
+<li>The AI's questions come one at a time; on Stage the assistant says them. Answer by voice or by typing in the card: a choice (<q class="say">b</q>, or tap it), <q class="say">default</q>, or values as <q class="say">person is Priya Nair, message is on my way</q>. Each answer stays listed in the card under its question.</li>
+<li>The plan is read out: say <q class="say">build it</q> (or tap), or say what to change.</li>
+<li>It's checked on the real pages, step by step (nothing is sent), and the results show in the card. A step that misses: <q class="say">show me</q>, then click the right thing. Then <q class="say">run it</q> (watched; a task that acts still asks first) and <q class="say">save it</q>; or <q class="say">open it in the editor</q>. <q class="say">Stop building</q> closes it.</li>
+</ol>
+<p>The AI is told which tasks already exist, so it gives a new task its own ways to ask and can run existing tasks as steps.</p>
+<table>
+<tr><th>AI</th><th>Builds</th><th>Asks</th><th>Speed</th><th>Private</th><th>Notes</th></tr>
+<tr><td>Claude (your Anthropic key, Settings › Assistant)</td><td>★★★★★</td><td>★★★★★</td><td>★★★★☆</td><td>★☆☆☆☆</td><td>New steps, selectors and checks; every task it wrote in the tests ran first time</td></tr>
+<tr><td>A command-line AI: Claude Code, Ollama, IBM Bob Shell or your own command</td><td>★★★★★</td><td>★★★★★</td><td>★★★☆☆</td><td>★★☆☆☆</td><td>As good as the tool; Claude Code uses your subscription, about 15 s a turn. You allow the command once (it gets the conversation as <code>$1</code>)</td></tr>
+<tr><td>Ollama, an open-weight model on this Mac</td><td>★★★☆☆</td><td>★★★☆☆</td><td>★★★☆☆</td><td>★★★★★</td><td>Nothing leaves the Mac; see the recommended model below</td></tr>
+<tr><td>IBM Bob (hand-off)</td><td>★★★★☆</td><td>★★★★☆</td><td>★★☆☆☆</td><td>★★☆☆☆</td><td>Bob's chat opens with the prompt attached; you talk to Bob there and paste its JSON into the card. Not spoken</td></tr>
+<tr><td>The Mac's own model</td><td>★☆☆☆☆</td><td>☆☆☆☆☆</td><td>★★★★☆</td><td>★★★★★</td><td>Only puts existing tasks together and asks nothing back: you correct its plan in a form (below)</td></tr>
+</table>
+<h3>In any chat or terminal</h3>
 <ol>
 <li><b>Copy the prompt</b> and paste it into Claude. It's the full description of tasks and scripts (steps, site notes, rules learned from testing), also in the repository as <code>docs/llm/build-prompt.md</code>, so it works from a terminal too.</li>
 <li>Say what you want (<q class="say">a task that tells me what's unread on WhatsApp and Slack</q>). It asks a few numbered questions at a time: how you'd ask for it, which inputs and test values, what to read, what the answer says, what it should do when something is missing. Answer as <q class="say">person is Priya Nair</q>, <q class="say">channel is sales</q>.</li>
@@ -275,10 +293,10 @@ ol li,ul li{margin:5px 0}
 <li>A ✗ on a click, typing, wait or read gets <b>Show me</b>: the agent browser opens where it stopped; click the right thing and its selector replaces the step's, then it checks again. Then <b>Save</b>, or <b>Open in the editor</b>.</li>
 </ol>
 <p>Tested on the practice sites: tasks Claude wrote for unread WhatsApp and Slack (with mentions), a reply on WhatsApp, a Slack channel summary and a morning catch-up across Outlook, WhatsApp and Slack all passed the check and ran right the first time, without editing.</p>
-<h3>With your Mac's own model</h3>
+<h3>With the Mac's own model</h3>
 <p>Apple's on-device model (StudioGen on a Mac, or a phone paired with one) is too small for the whole prompt, so it's done in steps that feed each other:</p>
 <ol>
-<li>Type (or say) what the task should do under <b>Or build it here with your Mac's own model</b> and press <b>Plan it</b>. The model picks the building blocks: up to three tested tasks (the library's and your own) or reading a web page, with their inputs. It chooses from a shortlist that fits your words; parts from sites you didn't name, inputs it swapped and stand-in values (“someone”) are corrected.</li>
+<li>Pick <b>The Mac's own model</b> and press <b>Build a task</b> (or say <q class="say">help me build a task</q>), then say what the task should do. The model picks the building blocks: up to three tested tasks (the library's and your own) or reading a web page, with their inputs. It chooses from a shortlist that fits your words; parts from sites you didn't name, inputs it swapped and stand-in values (“someone”) are corrected.</li>
 <li>A form shows the plan: name, ways to ask, the parts and their inputs (<code>person={person}</code> is asked each time, <code>person=Mom</code> is fixed), and the test values to type or say as <q class="say">person is Mom, message is running late</q>. Change anything.
 <figure><img src="guide/llm-local-form.jpg" alt="The planned task"><figcaption>“Tell Mom on WhatsApp that I am running late”, planned by the Mac's model: one part, Send a WhatsApp message.</figcaption></figure></li>
 <li><b>Build and check</b> puts the task together (a <i>Run another task</i> step per part, <i>Put cards together</i> when there are several) and imports it like an LLM's task, with the same check run.</li>

@@ -278,17 +278,17 @@ document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) 
    step at a time (Next step / Run the rest / Stop), for finding out why a task doesn't work and fixing it. ---------- */
 const AgentWatch = {
   force: false, // the editor's Test (watch) and Run
-  on() { return AgentWeb.can() && (this.force || !!Agent.cfg().watch); },
-  stepMode: false, gate: null,
+  on() { return AgentWeb.can() && (this.force || this.next || !!Agent.cfg().watch); },
+  stepMode: false, gate: null, next: false, // next: watch the next task that runs (the builder's Run it, which may ask first)
   begin(t) {
-    if (!this.on()) return; this.stepMode = !!Agent.cfg().stepMode; AgentWeb.watch(true);
+    if (!this.on()) return; this.next = false; this.stepMode = !!Agent.cfg().stepMode; AgentWeb.watch(true);
     $('#agentWeb .ag-web-title').textContent = `Watching: ${t.name}`; $('#agentWeb .ag-watch-log ol').innerHTML = '';
   },
   label(id, v, a = {}) {
     const short = s => String(s || '').replace(/^https?:\/\//, '').slice(0, 70);
     return ({ 'agent.open': () => `Open ${short(v)}`, 'agent.read': () => `Read the page (${short(String(v).split('||')[0])})`, 'agent.wait': () => `Wait for ${short(v)}`,
       'agent.click': () => `Click ${v ? `“${short(v)}”` : short(agentArgs(a.args).sel?.split('||')[0])}`, 'agent.type': () => `Type into “${short(v)}”`, 'agent.key': () => `Press ${v || 'Enter'}`,
-      'ai.card': () => 'Ask the model for the card', 'card.join': () => 'Put the cards together', 'ai.when': () => `Work out the time “${short(v)}”` })[id]?.() || id;
+      'agent.confirm': () => `Ask “${short(v)}”`, 'ai.card': () => 'Ask the model for the card', 'card.join': () => 'Put the cards together', 'ai.when': () => `Work out the time “${short(v)}”` })[id]?.() || id;
   },
   async step(id, v, ev) {
     if (!this.on() || !$('#agentWeb')?.classList.contains('watch')) return null;
@@ -406,8 +406,9 @@ const Agent = {
       Commands.pending = this.pend; return say(P[need].ask || `What ${need}?`, null, { ask: true });
     }
     for (const [k, v] of Object.entries(P)) if ((params[k] == null || params[k] === '') && v.default != null) params[k] = v.default.replace(/\{(\w+)\}/g, (m, x) => params[x] ?? '');
-    if (this.acts(t) && !o.confirmed && !this.trusted(t.id)) {
-      const what = (t.confirm || t.name).replace(/\{(\w+)\}/g, (m, k) => params[k] ?? m);
+    // a task that asks in its own steps (agent.confirm, after reading something) isn't asked up front as well
+    if (this.acts(t) && !o.confirmed && !this.trusted(t.id) && !(t.confirm === '' && JSON.stringify(t.steps || []).includes('"agent.confirm"'))) {
+      const what = (t.confirm || t.name).replace(/^\s*shall i\s+/i, '').replace(/\?\s*$/, '').replace(/\{(\w+)\}/g, (m, k) => params[k] ?? m); // “Shall I” is added here
       const c = this.post({ task: t.id, title: t.name, type: 'question', headline: `Shall I ${what}?`, status: 'ask' });
       this.pend = { at: Date.now(), card: c.id, yes: always => { if (always) { this.trust(t.id, true); toast(`“${t.name}” is trusted from now on (Agent › Library to change)`); } this.drop(c.id); this.start(t, params, { ...o, confirmed: true }); }, no: () => this.drop(c.id) };
       Commands.pending = this.pend; return say(`Shall I ${what}? Say yes, or “yes, always”.`, null, { ask: true });
@@ -564,6 +565,16 @@ agentAction('agent.key', { group: 'Agent', name: 'Agent browser: press a key', a
   agentCtx(); needWeb(); const a = agentArgs(ev.args); if (a.sel) await AgentWeb.call('focus', [{ sel: a.sel.split('||')[0], clear: false }]); if (!checkOnly('key', v, a)) AgentWeb.key(v || 'Enter'); return true;
 } });
 Actions.define('agent.show', { group: 'Agent', name: 'Show the agent browser (to sign in)', arg: '', run: () => { needWeb(); AgentWeb.show(true); } });
+/** A yes/no in the middle of a task, after it has read something (“Priya said … Send ‘on my way’?”): no stops the task.
+    A check run and a trusted task (“yes, always”) carry on without asking. */
+agentAction('agent.confirm', { group: 'Agent', name: 'Ask yes or no before going on', arg: 'The question (values the task read allowed)', run(v) {
+  const c = agentCtx(); if (!c || c.check || Agent.trusted(c.task?.id)) return true;
+  return new Promise(res => {
+    const p = { at: Date.now(), yes: always => { clearInterval(keep); if (always) Agent.trust(c.task.id, true); res(true); }, no: () => { clearInterval(keep); c.failed ||= 'Okay, I didn’t.'; res(false); } };
+    const keep = setInterval(() => { if (Commands.pending === p) p.at = Date.now(); else { clearInterval(keep); if (!c.failed) { c.failed = 'No answer, so I stopped.'; res(false); } } }, 5000); // kept open while you think
+    Commands.pending = p; Voice.respond(`${v} Say yes or no.`, null, { ask: true });
+  });
+} });
 Actions.define('agent.fail', { group: 'Agent', name: 'Stop the task with a message', arg: 'What to say', run(v) { const c = Agent.ctx; if (c) c.failed ||= v || 'That didn’t work.'; else throw new Error(v); } });
 Actions.define('agent.task', { group: 'Agent', name: 'Run another task', arg: 'Task id; inputs: name=value', async run(v, say, ev = {}) {
   agentCtx(); const t = Agent.get(v); if (!t) throw new Error(`No task ${v}`);

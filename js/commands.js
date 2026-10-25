@@ -195,6 +195,7 @@ const BUILTINS = {
     say(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
   } },
   time: { group: 'Info', name: 'The time', run: (v, say) => say(`It’s ${fmtClock(new Date())}.`) },
+  buildTask: { group: 'Agent', name: 'Build a task with me', run: (v, say) => { if (typeof BuildCard === 'undefined') return say('Building tasks needs a newer version.'); BuildCard.open({ voice: true }); } },
   closeCard: { group: 'Screens', name: 'Close the card', run: (v, say) => { if (typeof Peek !== 'undefined' && Peek.open) { Peek.close(); say('Closed.'); } else say('There’s no card open.'); } },
   date: { group: 'Info', name: 'Today’s date', run: (v, say) => say(`It’s ${new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}.`) },
   help: { group: 'Info', name: 'What can I say?', run: (v, say) => say('Try “take me home”, “play music from Maroon 5”, “call Mom” or “what’s my ETA”. Every command is in Settings, Voice commands.', () => CmdUI.open()) },
@@ -321,6 +322,7 @@ const DEFAULT_COMMANDS = [
   { id: 'phone.read', name: 'Read my messages', match: 'keywords', say: ['read, message|messages|texts|text', 'new messages|any messages|unread', 'check, messages|texts'], do: { type: 'builtin', fn: 'readMessages' } },
   // Information
   { id: 'info.weather', name: 'Weather', match: 'keywords', say: ['weather', 'temperature', 'rain|raining|umbrella', 'forecast', 'how hot|how cold'], do: { type: 'builtin', fn: 'weather' } },
+  { id: 'agent.build', name: 'Build a task with me', say: ['help me build a task', 'build a [new] task', 'make a new task [with me]', 'create a [new] task', 'lets build a task'], do: { type: 'builtin', fn: 'buildTask' } },
   { id: 'screen.closecard', name: 'Close the card', say: ['close [the] card', 'hide [the] card', 'close that card', 'dismiss [the] card'], do: { type: 'builtin', fn: 'closeCard' } },
   { id: 'info.time', name: 'What time is it?', match: 'keywords', say: ['time is it', 'what’s the time|whats the time|what is the time|current time|the time now|tell me the time'], do: { type: 'builtin', fn: 'time' } },
   { id: 'info.date', name: 'What’s the date?', match: 'keywords', say: ['what’s the date|whats the date|what is the date|the date today|today’s date|todays date|what date', 'what day is|which day is'], do: { type: 'builtin', fn: 'date' } },
@@ -598,6 +600,7 @@ const Commands = {
       if (p.yes && /\balways\b/.test(t) && t.split(' ').length <= 5) return p.yes(true);
       if (YES.test(t) && t.split(' ').length <= 4) { if (p.yes) return p.yes(false); Log.i('cmd', `Confirmed: ${p.r.cmd.name}`); return this.exec(p.r, p.raw, say); }
     }
+    if (typeof BuildCard !== 'undefined' && BuildCard.hear(raw)) return; // building a task: the answer to its question (js/taskbuild.js)
     if (typeof Script !== 'undefined' && Script.hear(raw)) return; // a running script's own words ("next", "go back"…) come first
     const r = this.match(raw, alts);
     // a task of the agent's library said in one of its ways (js/agent.js), when no command matched for sure

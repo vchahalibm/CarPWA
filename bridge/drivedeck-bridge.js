@@ -112,7 +112,9 @@
       read(sels, max = 6000) {
         for (const s of [].concat(sels || []).flatMap(x => String(x).split('||'))) {
           let els = []; try { els = [...doc.querySelectorAll(s.trim())].filter(visible); } catch {}
-          const lines = els.map(e => (e.getAttribute('aria-label') || e.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+          // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
+          // area's label is just its name (“Message body”) and the text is what matters
+          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(); return l.length > t.length ? l : t; }).filter(Boolean);
           if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title };
         }
         return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };

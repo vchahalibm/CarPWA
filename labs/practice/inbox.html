@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Inbox</title>
+<style>
+:root{--bg:#f3f4f7;--panel:#fff;--ink:#1d1d1f;--ink2:#5f6368;--line:#e2e4e9;--acc:#0f6cbd;--sel:#e8f1fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111214;--panel:#1c1d20;--ink:#f1f1f3;--ink2:#a3a6ad;--line:#2c2e33;--acc:#5aa3ff;--sel:#1d2b3d}}
+:root[data-theme="dark"]{--bg:#111214;--panel:#1c1d20;--ink:#f1f1f3;--ink2:#a3a6ad;--line:#2c2e33;--acc:#5aa3ff;--sel:#1d2b3d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,system-ui,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--acc);color:#fff}
+header b{font-size:17px}header input{flex:1;max-width:520px;height:34px;border-radius:8px;border:0;padding:0 12px;font:inherit}
+main{flex:1;display:grid;grid-template-columns:minmax(260px,380px) 1fr;min-height:0}
+[role=listbox]{border-right:1px solid var(--line);overflow:auto;background:var(--panel)}
+[role=option]{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+[role=option][aria-selected=true]{background:var(--sel)}
+[role=option] .from{font-weight:600}[role=option].unread .from::before{content:'● ';color:var(--acc)}
+[role=option] .subj{display:block}[role=option] .prev{display:block;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[role=option] .when{float:right;color:var(--ink2);font-size:13px}
+#pane{padding:22px 28px;overflow:auto}#pane h1{font-size:22px;margin:0 0 4px}#pane .meta{color:var(--ink2);margin-bottom:16px}
+.empty{color:var(--ink2);padding:40px}
+.tools{display:flex;gap:8px;margin:14px 0}.tools button{height:34px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 14px;font:inherit;cursor:pointer}
+@media (max-width:700px){main{grid-template-columns:1fr}#pane{display:none}main.reading [role=listbox]{display:none}main.reading #pane{display:block}}
+</style>
+</head>
+<body>
+<header><b>Practice Inbox</b><input id="search" type="search" aria-label="Search" placeholder="Search mail"></header>
+<main id="main">
+  <div role="listbox" aria-label="Message list" id="list"></div>
+  <section id="pane" aria-label="Reading Pane"><p class="empty">Select a message to read it.</p></section>
+</main>
+<script>
+/* A made-up mailbox for practising scripts and agent tasks (docs/scripts-and-tasks-guide.html). Nothing is sent anywhere. */
+const MAIL = [
+  { id: 1, from: 'Priya Nair', subj: 'Revised contract for Acme', when: '9:12', unread: true, body: 'Hi, attached is the revised contract for the Acme deal. Legal approved the changes to clause 7. Could you sign it by Friday so we can send it to their team on Monday? Thanks, Priya' },
+  { id: 2, from: 'IT Service Desk', subj: 'Your password expires in 3 days', when: '8:40', unread: true, body: 'Your network password expires in 3 days. Reset it from the self-service portal before then to avoid being locked out of email and VPN.' },
+  { id: 3, from: 'Rahul Mehta', subj: 'Can we move the quarterly review?', when: 'Yesterday', unread: true, body: 'Two people are travelling on Wednesday. Can we move the quarterly review to Thursday afternoon, 3 pm? Let me know and I will update the invite.' },
+  { id: 4, from: 'Finance', subj: 'Expense report for September', when: 'Yesterday', unread: false, body: 'September expenses are 12 percent over budget, mostly travel. Please review the attached report and flag anything that should be recharged to clients.' },
+  { id: 5, from: 'Design Team', subj: 'New brand guidelines', when: 'Mon', unread: false, body: 'The new brand guidelines are live: updated logo spacing, a darker blue and new slide templates. Old templates retire at the end of the month.' },
+  { id: 6, from: 'Asha Rao', subj: 'Pilot update before Monday', when: 'Mon', unread: true, body: 'Could you send me a short update on the pilot before Monday’s meeting? Three bullet points are enough: progress, risks and next steps.' },
+];
+const list = document.getElementById('list'), pane = document.getElementById('pane'), main = document.getElementById('main');
+function draw(q = '') {
+  const s = q.trim().toLowerCase(), rows = MAIL.filter(m => !s || `${m.from} ${m.subj} ${m.body}`.toLowerCase().includes(s.replace(/^from:/, '')));
+  list.innerHTML = rows.map(m => `<div role="option" tabindex="0" data-id="${m.id}" class="${m.unread ? 'unread' : ''}" aria-label="${m.unread ? 'Unread ' : ''}${m.from}, ${m.subj}, ${m.when}"><span class="when">${m.when}</span><span class="from">${m.from}</span><span class="subj">${m.subj}</span><span class="prev">${m.body}</span></div>`).join('') || '<p class="empty">No messages match.</p>';
+}
+function open(id) {
+  const m = MAIL.find(x => x.id === id); if (!m) return; m.unread = false;
+  list.querySelectorAll('[role=option]').forEach(o => o.setAttribute('aria-selected', String(+o.dataset.id === id)));
+  pane.innerHTML = `<h1>${m.subj}</h1><div class="meta">${m.from} · ${m.when}</div><div role="document" aria-label="Message body">${m.body}</div>
+    <div class="tools"><button aria-label="Reply">Reply</button><button aria-label="Forward">Forward</button><button onclick="main.classList.remove('reading')">Back</button></div>`;
+  main.classList.add('reading'); draw(document.getElementById('search').value);
+  list.querySelector(`[data-id="${id}"]`)?.setAttribute('aria-selected', 'true');
+}
+list.addEventListener('click', e => { const o = e.target.closest('[role=option]'); if (o) open(+o.dataset.id); });
+document.getElementById('search').addEventListener('keydown', e => { if (e.key === 'Enter') draw(e.target.value); });
+document.getElementById('search').addEventListener('input', e => { if (!e.target.value) draw(); });
+draw();
+</script>
+</body>
+</html>

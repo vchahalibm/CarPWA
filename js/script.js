@@ -158,7 +158,7 @@ const Script = {
   test(c) {
     return String(c || '').split(/\s+or\s+/i).some(part => part.split(/\s+and\s+/i).every(e => {
       e = this.fill(e).trim(); let m;
-      if ((m = e.match(/^(.*?)\s+is\s+(not\s+)?empty$/i))) { const empty = !m[1].trim() || /^\{[\w.]+\}$/.test(m[1].trim()); return m[2] ? !empty : empty; }
+      if ((m = e.match(/^(.*?)\s*\bis\s+(not\s+)?empty$/i)))  { /* an empty value fills in as nothing, leaving just “is empty” */ const empty = !m[1].trim() || /^\{[\w.]+\}$/.test(m[1].trim()); return m[2] ? !empty : empty; }
       if ((m = e.match(/^(.*?)\s+(not\s+)?contains\s+(.*)$/i))) return plain(m[1]).includes(plain(m[3])) === !m[2];
       if ((m = e.match(/^(.*?)\s*(==|!=|>=|<=|>|<|=|\bis not\b|\bis\b)\s*(.*)$/i))) {
         const [a, b] = [m[1].trim(), m[3].trim()], n = !isNaN(parseFloat(a)) && !isNaN(parseFloat(b)), A = n ? parseFloat(a) : plain(a), B = n ? parseFloat(b) : plain(b);

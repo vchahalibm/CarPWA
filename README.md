@@ -10,7 +10,7 @@ A car-friendly Progressive Web App dashboard: live map, drive stats, media, phon
 
 The original single-file prototype lives in [`docs/prototype.html`](docs/prototype.html) for reference.
 
-**User guide** (for people using the apps): [docs/user-guide.html](docs/user-guide.html).
+**User guide** (for people using the apps): [docs/user-guide.html](docs/user-guide.html). **Making scripts and agent tasks**, step by step with recipes: [docs/scripts-and-tasks-guide.html](docs/scripts-and-tasks-guide.html) (practice on `labs/practice/inbox.html`).
 
 ## Getting started
 

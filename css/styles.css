@@ -1751,3 +1751,6 @@ table.bench small{color:var(--text-2)}
 .te-top .chip{white-space:nowrap}
 .te-run{display:flex;flex-direction:column;gap:4px;margin:10px 0}.te-run>span{color:var(--text-2);font-size:14px}
 .te-run input{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:9px 12px;font:inherit;font-size:17px}
+#sheet .se-field{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+#sheet .se-field>span{color:var(--text-2);font-size:14px}
+#sheet .se-field input,#sheet .se-field textarea,#sheet .se-field select,#sheet .te-in input:not([type=checkbox]){width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);padding:9px 12px;font:inherit;font-size:16px}

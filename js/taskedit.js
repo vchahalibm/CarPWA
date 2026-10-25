@@ -57,7 +57,7 @@ const TaskUI = {
     const desk = AgentWeb.can(), mine = new Set(Agent.mine().map(t => t.id)), groups = {};
     for (const t of Agent.all().filter(t => !t.remoteOnly)) (groups[t.group || 'Mine'] ||= []).push(t);
     const ic = (n, label, attr) => `<button class="icon-btn" ${attr} aria-label="${esc(label)}" title="${esc(label)}">${svg(n)}</button>`;
-    return `<p class="se-note">Tasks are what the agent does when you ask in your own words (“summarise my unread mail”). Each is a short list of steps on a web page or your Mac, with inputs filled from what you said. Scripts are presentations and longer sequences; a task can run a script, and a script step can run a task.</p>
+    return `<p class="se-note">Tasks are what the agent does when you ask in your own words (“summarise my unread mail”). Each is a short list of steps on a web page or your Mac, with inputs filled from what you said. Scripts are presentations and longer sequences; a task can run a script, and a script step can run a task. <button class="link-btn" data-tui="guide">The step-by-step guide</button></p>
       <div class="chip-row"><button class="chip accent" data-tui="guided">${svg('plus')}New task (guided)</button>${desk ? `<button class="chip" data-tui="teach"><i class="rec-dot"></i>Teach me</button>` : ''}<button class="chip" data-tui="blank">${svg('plus')}Blank task</button></div>
       ${Object.entries(groups).map(([g, l]) => `<p class="se-note"><b>${esc(g)}</b></p>${l.map(t => `<div class="sui-item"><div class="main"><div class="t">${esc(t.name)} ${t.acts ? '<span class="ag-tag">acts</span>' : ''}${mine.has(t.id) && AGENT_TASKS.some(b => b.id === t.id) ? '<span class="ag-tag">edited</span>' : ''}${t.share ? '<span class="ag-tag on">shared</span>' : ''}</div><div class="s">“${esc((t.examples || [])[0] || '')}”</div></div>
         ${ic('play', 'Run (watch it)', `data-tui="run:${esc(t.id)}"`)}${ic('sliders', 'Edit', `data-tui="edit:${esc(t.id)}"`)}${mine.has(t.id) ? ic('del', AGENT_TASKS.some(b => b.id === t.id) ? 'Reset to the built-in task' : 'Delete', `data-tui="del:${esc(t.id)}"`) : ''}</div>`).join('')}`).join('')}`;
@@ -91,6 +91,7 @@ const TaskUI = {
       <div class="chip-row"><label class="se-check"><input type="checkbox" data-td="acts" ${d.acts ? 'checked' : ''}> It acts for me (sends, books, posts): ask before running</label>
         <label class="se-check"><input type="checkbox" data-td="mac" ${d.runs === 'mac' ? 'checked' : ''}> Runs on my Mac (its agent browser)</label>
         ${LINK_HOST ? `<label class="se-check"><input type="checkbox" data-td="share" ${d.share ? 'checked' : ''}> Share in the mesh</label>` : ''}</div>
+      ${d.acts ? `<label class="se-field"><span>Question before acting (inputs allowed; “Shall I …?” is added)</span><input data-td="confirm" value="${esc(d.confirm || '')}" placeholder="send “{message}” to {person}"></label>` : ''}
       <p class="se-note"><b>Steps</b> · run in order; the answer is the last “Make the answer card” (or what a step keeps as {card}).</p>
       <div class="te-steps">${d.steps.map(card).join('') || '<p class="se-empty">No steps yet: Teach me, or add one.</p>'}</div>
       <div class="chip-row te-add">${Object.entries(TASK_STEPS).map(([k, T]) => `<button class="chip" data-tui="add:${k}">${svg(T.icon)} ${esc(T.name)}</button>`).join('')}</div></div>`;
@@ -138,6 +139,7 @@ const TaskUI = {
     if (k === 'edit') return this.open(v);
     if (k === 'run') { const t = Agent.get(v); return t && this.runForm(t, vals => { if (Agent.mine().some(x => x.id === t.id)) Agent.put({ ...t, test: { ...(t.test || {}), ...vals } }); }); }
     if (k === 'del') { const built = AGENT_TASKS.some(b => b.id === v); return sheet(built ? 'Reset this task?' : 'Delete this task?', `<p>${built ? 'Your changes go and the built-in task comes back.' : 'It can’t be undone.'}</p>`, [[built ? 'Reset' : 'Delete', () => { Agent.del(v); renderSettings(); }], ['Cancel']]); }
+    if (k === 'guide') return openExternal('', 'https://vchahalibm.github.io/CarPWA/docs/scripts-and-tasks-guide.html');
     if (k === 'guided') return TaskTeach.wizard();
     if (k === 'teach') return TaskTeach.wizard(true);
     if (k === 'blank') return this.open();
@@ -235,3 +237,5 @@ const TaskTeach = {
   },
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-teach]'); if (!b) return; e.stopPropagation(); const k = b.dataset.teach; if (k === 'read') TaskTeach.read(); else TaskTeach.done(k === 'cancel'); }, true);
+// “It acts for me” shows the question to ask before acting: redraw when it changes.
+document.addEventListener('change', e => { if (e.target.matches?.('[data-td="acts"]') && TaskUI.draft) { TaskUI.read(); TaskUI.render(); } });

@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scripts and Tasks Guide</title>
+<style>
+:root{--bg:#fbfbfd;--panel:#fff;--ink:#1d1d1f;--ink2:#515154;--line:#e3e3e8;--acc:#0a6cff;--acc2:#b84df0;--tip:#eef5ff;--warn:#fff4e5;--code:#f2f2f5;--ok:#1f9d55}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228;--ok:#3ccf7a}}
+:root[data-theme="dark"]{--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228;--ok:#3ccf7a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1320px;margin:0 auto}
+nav{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 16px;border-right:1px solid var(--line)}
+nav b{display:block;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);margin:18px 0 6px}
+nav a{display:block;color:var(--ink);text-decoration:none;padding:3px 8px;border-radius:8px;font-size:14.5px}
+nav a:hover{background:var(--code)}
+main{padding:38px clamp(16px,4vw,60px) 90px;min-width:0}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.1;margin:0 0 10px;letter-spacing:-.02em;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:27px;margin:58px 0 8px;letter-spacing:-.01em;scroll-margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+h3{font-size:20px;margin:32px 0 6px;scroll-margin-top:16px}
+h4{font-size:16.5px;margin:22px 0 4px}
+.lead{font-size:18.5px;color:var(--ink2);max-width:780px}
+a{color:var(--acc)}
+.path{font-weight:600}
+q.say{quotes:"“" "”";font-style:italic;background:var(--code);padding:1px 6px;border-radius:6px}
+code{background:var(--code);padding:1px 6px;border-radius:6px;font-size:14px}
+pre{background:var(--code);border-radius:12px;padding:12px 14px;overflow-x:auto;font-size:13.5px;line-height:1.5}
+.tip,.warn{border-radius:12px;padding:12px 16px;margin:16px 0}
+.tip{background:var(--tip)}.warn{background:var(--warn)}
+.tip b:first-child,.warn b:first-child{display:block;margin-bottom:2px}
+figure{margin:18px 0}
+figure img{max-width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+figcaption{font-size:14px;color:var(--ink2);margin-top:6px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:15px;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600;white-space:nowrap}
+td:first-child{font-weight:600;white-space:nowrap}
+ol li,ul li{margin:5px 0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.card h4{margin:0 0 6px}
+.recipe{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:6px 20px 14px;margin:18px 0}
+.recipe h3{margin-top:16px}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:6px;background:var(--code);color:var(--ink2);vertical-align:3px;margin-left:6px}
+.tag.ok{color:var(--ok)}
+@media (max-width:880px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);columns:2;padding:14px}}
+@media (max-width:480px){nav{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <b>Start</b>
+  <a href="#which">Script or task?</a>
+  <a href="#practice">The practice inbox</a>
+  <b>Scripts</b>
+  <a href="#s-make">Make a script</a>
+  <a href="#s-wizard">Add a step (wizard)</a>
+  <a href="#s-do">What a step can show or do</a>
+  <a href="#s-next">Moving on</a>
+  <a href="#s-record">Record a new script</a>
+  <a href="#s-interactive">Interactive scripts</a>
+  <a href="#s-logic">Logic: values, if, loops, jobs</a>
+  <a href="#s-more">Data, your Mac, tasks</a>
+  <a href="#s-run">Run, rehearse, share</a>
+  <b>Agent tasks</b>
+  <a href="#t-list">The task list</a>
+  <a href="#t-teach">Teach me</a>
+  <a href="#t-edit">The editor and inputs</a>
+  <a href="#t-steps">Task steps, one by one</a>
+  <a href="#t-test">Test, watch, fix</a>
+  <a href="#t-act">Acting for you, People, sharing</a>
+  <b>Finding things on a page</b>
+  <a href="#find">Text, labels, selectors, position</a>
+  <b>Recipes</b>
+  <a href="#r-repeat">Repeat over items in a list</a>
+  <a href="#r-more">Repeat until nothing is left</a>
+  <a href="#r-search">Search, open, read</a>
+  <a href="#r-empty">Stop when nothing is found</a>
+  <a href="#r-slow">Slow pages and pop-ups</a>
+  <a href="#r-changing">Elements whose text changes</a>
+  <a href="#r-chain">Use one task's result in another</a>
+  <a href="#r-send">Send something, safely</a>
+  <a href="#r-scripts">Script recipes</a>
+  <b>When it doesn't work</b>
+  <a href="#trouble">Troubleshooting</a>
+</nav>
+<main>
+<h1>Scripts and agent tasks: the step-by-step guide</h1>
+<p class="lead">How to make, change and fix scripts (presentations and sequences the assistant performs) and agent tasks (jobs the agent does when you ask in your own words), with what each step is for, how to set it up and when to use it, plus recipes for the harder cases. Both are made in <span class="path">Settings › Scripts &amp; tasks</span> in StudioGen; tasks that use web pages run on your Mac.</p>
+
+<h2 id="which">Script or task?</h2>
+<table>
+<tr><th></th><th>Script</th><th>Agent task</th></tr>
+<tr><td>What it is</td><td>Something the assistant presents or performs over time: slides, lines it says, gestures, web pages, recorded clicks</td><td>A short job: open a page, click, type, read, and give you an answer card that's read aloud</td></tr>
+<tr><td>Started by</td><td>Its name (<q class="say">present the keynote</q>), the list, the start page, a show on several screens</td><td>What you say, in your own words (<q class="say">read the mail from Priya</q>); the words in braces fill its inputs</td></tr>
+<tr><td>Moves on</td><td>Step by step: the clicker, a phrase, a hand gesture, a pause, an app event</td><td>All at once, start to finish (or one step at a time while you test it)</td></tr>
+<tr><td>Ends with</td><td>The last step (or “that's all” in an interactive script)</td><td>A result card on the Agent screen, spoken</td></tr>
+<tr><td>Good for</td><td>Presentations, demos, kiosks, rehearsed flows, guided sessions</td><td>Mail, calendar, chats, web look-ups, anything you'd ask an assistant for</td></tr>
+</table>
+<div class="tip"><b>They work together</b>A task can run a script (step <i>Run one of my scripts</i>: “present the keynote” from the car starts it on the Mac). A script can run a task (the action <i>Run another task</i>, in the Agent group of the script editor's action list). And a task can run other tasks in order. Both use the same step language, so what you learn here works in both.</div>
+
+<h2 id="practice">The practice inbox</h2>
+<p>To try things safely, use the made-up mailbox at <b>https://vchahalibm.github.io/CarPWA/labs/practice/inbox.html</b>: a search box, a message list and a reading pane, built like Outlook on the web (the same kinds of labels and roles), with nothing behind it. The recipes below were run on it; the pictures are from those runs.</p>
+
+<h2 id="s-make">Make a script</h2>
+<ol>
+  <li><span class="path">Settings › Scripts &amp; tasks › Scripts › New script</span> (or <b>Record a new script</b>, below).</li>
+  <li>The editor opens. At the top: <b>Run</b>, <b>Save</b> and <b>More…</b> (check it for problems, edit it as JSON, export it with what it uses, read how scripts work). <b>How a script runs</b> explains it in one page.</li>
+  <li><b>Before it starts</b> sets the stage once: Stage mode, the layout, the deck, the web page. These are replayed quietly when you go back, so the screen is right at every step.</li>
+  <li>Each <b>step</b> is a card with three lanes, in the order they happen:
+    <ul><li><b>Show</b>: what happens on screen (chips: tap one to change it, <b>+ Add</b> for more);</li>
+        <li><b>Say</b>: the assistant's line (<code>{notes}</code> reads the slide's speaker notes), its face and its motion;</li>
+        <li><b>Next</b>: what moves it on.</li></ul></li>
+  <li>The buttons on a step: ▶ try just this step, ↑ ↓ move it, ⋯ more (save its id, duplicate, delete).</li>
+</ol>
+<figure><img src="guide/script-editor.jpg" alt="The script editor"><figcaption>The editor: <b>Before it starts</b>, then a step with its Show and Say lanes.</figcaption></figure>
+
+<h2 id="s-wizard">Add a step (the wizard)</h2>
+<p><b>Add a step</b> (at the end, or ⊕ between steps) asks three questions:</p>
+<ol><li><b>On screen</b>: a slide, a web page, something done on screen (clicks and typing, added on the card next), or nothing new;</li>
+<li><b>The assistant says</b>: a line or the slide's notes, with a face and a motion;</li>
+<li><b>Moving on</b>: the clicker, a phrase, a gesture, after some seconds.</li></ol>
+<figure><img src="guide/script-wizard.jpg" alt="The new-step wizard"><figcaption>The wizard's first question.</figcaption></figure>
+
+<h2 id="s-do">What a step can show or do</h2>
+<p><b>+ Add</b> in a Show lane opens the picker. Each kind, what it's for and when to use it:</p>
+<figure><img src="guide/script-add.jpg" alt="The add picker"><figcaption>The picker, grouped by kind.</figcaption></figure>
+<table>
+<tr><th>Step</th><th>What it does</th><th>How</th><th>When to use it</th></tr>
+<tr><td>Say something</td><td>A spoken line with lip-sync and a caption</td><td>Type the line; <code>{notes}</code>, <code>{page}</code> and your values like <code>{name}</code> are filled in</td><td>Narration between actions; reading a result (<code>Revenue is {total}</code>)</td></tr>
+<tr><td>A motion</td><td>The assistant moves: wave, point, present, think, typing, bow…, or one you captured</td><td>Pick from the list</td><td>To draw eyes to something, greet, react</td></tr>
+<tr><td>Point at a widget</td><td>Points at a widget (the deck, a web page) from wherever it stands</td><td>Pick the widget</td><td>“Look at this chart”</td></tr>
+<tr><td>Go to a slide / Next slide</td><td>Turns the deck or PDF</td><td>A page number (prefer this: going back lands right) or one page on</td><td>Every presentation step</td></tr>
+<tr><td>Show a document</td><td>Opens a deck, PDF or file by its link</td><td>Paste the link</td><td>Switching decks mid-show</td></tr>
+<tr><td>Open a web page</td><td>Shows a page in the web widget</td><td>The address</td><td>Live demos, dashboards</td></tr>
+<tr><td>Run a site helper</td><td>Your CSS/JavaScript on that page (hide banners, zoom)</td><td>Pick a helper (Settings › Scripts &amp; tasks › Site helpers)</td><td>Tidying a site before the audience sees it</td></tr>
+<tr><td>Record clicks on the page</td><td>Records clicks and typing on the web page, replays them with a visible pointer</td><td>Do it once; add as separate steps or one sequence</td><td>Demo flows on websites</td></tr>
+<tr><td>Click some text</td><td>Clicks words on screen, anywhere in the app</td><td>Pick the words on screen</td><td>Buttons with stable labels</td></tr>
+<tr><td>Click a screen area</td><td>Clicks a place found again by its picture</td><td>Drag a box around it</td><td>Unlabelled icons</td></tr>
+<tr><td>Click something described</td><td>The screen model finds “the Search button”</td><td>Describe it (downloads Florence-2 once)</td><td>When the label changes but it looks the same</td></tr>
+<tr><td>Type text / Press a key / Scroll</td><td>Typing into a field found by its text; Enter, Escape, arrows; a screenful or to the top/bottom</td><td>The field's label and the text; the key; how far</td><td>Forms, searches, long pages</td></tr>
+<tr><td>Record what I do</td><td>Records clicks, typing, keys, scrolls and drags anywhere in the app</td><td>Do it, then Done</td><td>Complex app flows (resizing widgets, settings)</td></tr>
+<tr><td>Wait</td><td>A pause</td><td>Seconds</td><td>Letting a page load or a point land</td></tr>
+<tr><td>Any action</td><td>Everything else the app can do: radio, navigation, data, your Mac, agent tasks…</td><td>Pick from the action list</td><td>When there's no special card for it</td></tr>
+</table>
+
+<h2 id="s-next">Moving on</h2>
+<p>The <b>Next</b> lane says what moves a step on; whichever comes first wins:</p>
+<ul>
+<li><b>The clicker or →</b> (on by default) and a <b>phrase</b> (<q class="say">next</q>, or your own words);</li>
+<li><b>a hand gesture</b> of the presenter (open palm, thumb up, swipe…; needs Follow the presenter);</li>
+<li><b>automatically</b>, some seconds after the step is done;</li>
+<li><b>when something happens</b> in the app (a video ends, a page changes, a route starts);</li>
+<li><b>a jump</b> to another step instead of the next one.</li>
+</ul>
+<p><b>Choices</b> (+ in the Next lane › <i>A choice</i>) jump elsewhere on other phrases or gestures: <q class="say">show me the live data</q> → the live-data step. While a script runs, <q class="say">go back</q>, <q class="say">back two steps</q>, <q class="say">start over</q>, <q class="say">repeat that</q> and <q class="say">stop the demo</q> always work, and the step dots on Stage list every step to jump to.</p>
+
+<h2 id="s-record">Record a new script</h2>
+<ol><li><span class="path">Scripts › Record a new script</span>.</li>
+<li>Use the app as you would in the demo: click widgets and buttons, type, press keys, scroll, drag, and click and type on web pages in web widgets. A recording bar stays on screen.</li>
+<li><b>Done</b>. The recording becomes a script whose steps are your actions, with waits where you paused. Save it, or save and run it.</li></ol>
+<div class="tip"><b>Passwords</b>Password, payment and one-time-code fields are never recorded; replays stop there for you.</div>
+
+<h2 id="s-interactive">Interactive scripts</h2>
+<p>No timeline: the assistant greets you, listens, does what you ask from its list, and listens again until you say you're done. <span class="path">Scripts › New interactive script</span>.</p>
+<figure><img src="guide/script-interactive.jpg" alt="An interactive script"><figcaption>The sample “Desk helper”: what it can do, each with the ways to ask.</figcaption></figure>
+<ul>
+<li><b>Things it can do (intents)</b>: each has phrases (<code>show sales for {month}</code>: <code>{month}</code> catches the words), an optional hand gesture or app event, a question for each missing word (<q class="say">Which month?</q>), what it says, and its steps.</li>
+<li><b>When nothing matches</b>: the fallback steps; with Understanding (Settings › Assistant) a language model picks the intent instead.</li>
+<li><b>Idle</b> steps after some quiet, and <b>end</b> phrases (<q class="say">that's all</q>).</li>
+</ul>
+
+<h2 id="s-logic">Logic: values, if, loops, background jobs</h2>
+<p>Add these from <b>+ Add › Logic</b> (Set a value, If…, Repeat, For each, Wait for a background step), or in <b>More… › Edit as JSON</b>. Any text in a step can use <code>{name}</code>; dots reach inside (<code>{result.rows}</code>, <code>{card.items.0.title}</code>); <code>{time}</code> and <code>{date}</code> are built in.</p>
+<table>
+<tr><th>Step</th><th>What it does</th><th>Example</th><th>When</th></tr>
+<tr><td>Remember a value</td><td>Keeps a value (numbers stay numbers, JSON is parsed, <code>{n} - 1</code> is worked out)</td><td><code>{ "set": "n", "value": "3" }</code></td><td>Counters, gathering text</td></tr>
+<tr><td>Keep what a step gives back</td><td><code>"as"</code> on any action keeps its result; a failure goes into <code>{name_error}</code></td><td><code>{ "do": "brain.ask", "value": "…", "as": "answer" }</code></td><td>Using a result in the next steps</td></tr>
+<tr><td>If</td><td>Runs <code>then</code> or <code>else</code>: <code>== != &gt; &lt; is</code>, <code>contains</code>, <code>is empty</code>, joined with <code>and</code>/<code>or</code></td><td><code>{ "if": "{n} &gt; 3", "then": [ … ], "else": [ … ] }</code></td><td>Different paths</td></tr>
+<tr><td>Repeat / until / for each</td><td>A number of times; until a condition; over a list (<code>{index}</code> counts, at most 1000)</td><td><code>{ "each": "1, 2, 3", "as": "n", "steps": [ … ] }</code></td><td>Lists, retries, slideshows</td></tr>
+<tr><td>Go to / stop</td><td>Jump to a step (also backwards); end the script</td><td><code>{ "goto": "intro" }</code></td><td>Loops over steps</td></tr>
+<tr><td>In the background</td><td><code>"background": true</code> runs an action as a job while the script carries on; <code>"then"</code> when it's done; <code>{ "await": "name" }</code> waits</td><td>An export while the assistant keeps talking</td><td>Long jobs</td></tr>
+</table>
+
+<h2 id="s-more">Data, your Mac, and tasks from scripts</h2>
+<ul>
+<li><b>Data</b>: load a CSV/JSON (or a SQLite query on the Mac) into the data widget, change the chart, have the assistant say a summary. Actions <i>Load a CSV…</i>, <i>Change the chart</i>, <i>Summarize the data</i>.</li>
+<li><b>Your Mac</b>: AppleScript, a Shortcut, JavaScript for Automation or a shell command (group <i>This computer</i>). Values go in as arguments, never into the code, and each piece of code asks you once before it runs.</li>
+<li><b>Agent tasks</b>: the action <i>Run another task</i> (group Agent) runs a task and shows its card; keep its result with <code>as</code> to use in the next lines.</li>
+</ul>
+
+<h2 id="s-run">Run, rehearse, share</h2>
+<ul>
+<li><b>Run</b> in the editor, ▶ in the list, the start page's cards, or by voice. ▶ on a step tries just that step.</li>
+<li><b>Presenter view</b> (Settings › Stage) shows notes, what's next and a timer on your own screen.</li>
+<li><b>Share</b>: ⬇ downloads a bundle with everything the script uses; <b>Import</b>; <b>Library</b>; in a mesh, scripts are shared with your devices unless marked private.</li>
+</ul>
+<figure><img src="guide/script-list.jpg" alt="The scripts list"><figcaption>Settings › Scripts &amp; tasks: Scripts, then Agent tasks below.</figcaption></figure>
+
+<h2 id="t-list">Agent tasks: the list</h2>
+<p><span class="path">Settings › Scripts &amp; tasks › Agent tasks</span>: every task, grouped, with ▶ (run it and watch), the sliders (edit), and, for your own, delete (or Reset, for a built-in task you changed). At the top: <b>New task (guided)</b>, <b>Teach me</b> and <b>Blank task</b>.</p>
+<figure><img src="guide/task-list.jpg" alt="The task list"><figcaption>The task list.</figcaption></figure>
+
+<h2 id="t-teach">Teach me</h2>
+<ol>
+<li><b>Teach me</b> (or New task › “I'll show you”). Give it a name, the ways you'll ask (words in braces become inputs) and the address it starts at.
+<figure><img src="guide/task-teach-wizard.jpg" alt="Teach me: the first questions"></figure></li>
+<li>The agent browser opens with a red <b>Teaching</b> bar. Sign in if the site asks (sign-ins are kept; passwords are never recorded). Then do the task once, the way you always do: click the search box, type, press Enter, open the first result…</li>
+<li>When the answer is on screen, tap <b>Read this part</b> and click the part to read: the message, the list, the table. It's outlined as you hover.</li>
+<li><b>Done</b>. It asks <b>what to tell you</b> from what it read, and which <b>words you typed</b> change each time: tick them and name them (<code>search</code>, <code>person</code>); they become inputs, asked for when you don't say them.
+<figure><img src="guide/task-teach-finish.jpg" alt="Finish teaching"></figure></li>
+<li>The steps appear in the editor. <b>Test (watch)</b>, fix what needs fixing, <b>Save</b>.</li>
+</ol>
+<div class="tip"><b>Rows of a list</b>A click on a row of a list (a mail, a chat) is recorded by its place (“the first row”), not its words, because those change every time. To pick a row by its words instead, change the step to <i>Click</i> with the text.</div>
+
+<h2 id="t-edit">The editor and inputs</h2>
+<figure><img src="guide/task-editor.jpg" alt="The task editor"><figcaption>The top of the editor: name, ways to ask, inputs, and what kind of task it is.</figcaption></figure>
+<ul>
+<li><b>Name</b> and <b>Ways to ask</b>: one way a line. <code>{person}</code> in a line becomes an input filled from what you say (<q class="say">read the mail from Priya</q> → person = Priya). Several ways help it understand you; Apple's on-device model also matches by meaning.</li>
+<li><b>Inputs</b>: for each, the <b>question</b> when it's missing (<q class="say">From whom?</q>), a <b>default</b> (used when it's not said), a <b>test value</b> (for Test), and “a person”, which looks up their email and number in People.</li>
+<li><b>It acts for me</b>: asked before every run (unless you trust it), with your <b>Question before acting</b> (inputs filled in). <b>Runs on my Mac</b>: uses the agent browser (a phone asks the Mac). <b>Share in the mesh</b>: your other devices can get it.</li>
+</ul>
+
+<h2 id="t-steps">Task steps, one by one</h2>
+<figure><img src="guide/task-steps.jpg" alt="Steps as cards"><figcaption>Steps as cards: ↑ ↓ move, the bin removes, the buttons below add.</figcaption></figure>
+<table>
+<tr><th>Step</th><th>What it does</th><th>How to fill it</th><th>When to use it</th></tr>
+<tr><td>Open a page</td><td>Loads an address in the agent browser and waits for it</td><td>The address (inputs allowed: <code>https://site/orders/{order}</code>); <b>Wait until this shows</b>: something that's there once the page is ready (<code>[role="listbox"]</code>); <b>Site name</b>, to ask you to sign in when a sign-in page appears; <b>More inputs</b>: <code>?q={topic}</code> adds to the address</td><td>The first step of most tasks</td></tr>
+<tr><td>Wait for something</td><td>Waits until an element or a text shows</td><td>A CSS selector, or a text; at most so many ms</td><td>After a click that loads something; slow pages</td></tr>
+<tr><td>Click</td><td>Clicks an element</td><td>The text on it (<code>Send</code>), or a CSS selector (<code>button[aria-label="Send"]</code>); several choices with <code>||</code>; <code>optional</code> in More inputs: carry on if it isn't there</td><td>Buttons, links, rows of a list</td></tr>
+<tr><td>Type into a field</td><td>Focuses a field and types for real (works in rich editors like Teams, WhatsApp and Outlook's message box)</td><td>The field's label or placeholder (<code>Search</code>), what to type (<code>{person}</code>), Press Enter after; or a selector</td><td>Searches, replies, forms</td></tr>
+<tr><td>Press a key</td><td>Enter, Escape, Tab…</td><td>The key; a field to focus first</td><td>Sending a chat message; closing a pop-up</td></tr>
+<tr><td>Read part of the page</td><td>Reads text into <code>{read}</code></td><td>What to read: selectors, tried in order, <code>||</code> between (<code>[role="document"]||[role="main"]</code>); the whole page if none fit. Each matching element is one line (a list gives one line per row)</td><td>Before every answer</td></tr>
+<tr><td>Make the answer card</td><td>The model turns text into the card you see and hear: a headline and up to five items</td><td>What to tell you (<i>“Sum up the unread emails: who and what they want”</i>), from <code>{read}</code> (or any value)</td><td>The last step of reading tasks</td></tr>
+<tr><td>Run another task</td><td>Runs a task, shows its card, keeps its result</td><td>The task; its inputs, one a line (<code>person={next.items.0.person}</code>)</td><td>Building bigger tasks from smaller ones</td></tr>
+<tr><td>Pause</td><td>Waits some seconds</td><td>Seconds</td><td>Letting a page settle after a click</td></tr>
+<tr><td>Stop with a message</td><td>Ends the task and says why</td><td>The message (<code>No mail from {person}</code>)</td><td>Inside an <i>if</i>, when something is missing</td></tr>
+<tr><td>Say something</td><td>A spoken line</td><td>The line (inputs allowed)</td><td>Progress in long tasks</td></tr>
+<tr><td>Advanced step (JSON)</td><td>Any script step: if, set, repeat, for each, any action</td><td>The step as JSON (see <a href="#s-logic">Logic</a> and the recipes)</td><td>Repetition, conditions, gathering results</td></tr>
+</table>
+
+<h2 id="t-test">Test, watch, fix</h2>
+<ol>
+<li><b>Test (watch)</b> in the editor (or ▶ in the list) opens a form with every input, filled with its test value; change any, then <b>Run (watch)</b>. The values you ran with are kept for next time.
+<figure><img src="guide/task-runform.jpg" alt="The run form"></figure></li>
+<li>The agent browser shows in a side panel: the page as the agent sees it, each step listed as it runs, ✓ with what it got (“208 characters read”) or ✗ with why, the element it clicks or types into ringed in red.
+<figure><img src="guide/recipe-2.jpg" alt="Watching a task"><figcaption>Watching the repetition recipe: three messages opened and read in turn, then summed up.</figcaption></figure></li>
+<li>To go slower: <span class="path">Agent › Library › Settings › One step at a time</span> pauses before each step: <b>Next step</b>, <b>Run the rest</b>, <b>Stop the task</b>. <b>Show the browser while tasks run</b> watches every run, not only tests.</li>
+<li>Fix the step marked ✗ in the editor (often a selector or a wait), test again, <b>Save</b>.</li>
+</ol>
+
+<h2 id="t-act">Acting for you, People, sharing</h2>
+<ul>
+<li><b>Acting</b>: a task marked “acts for me” (or that runs one that does) asks <q class="say">Shall I …?</q> every time: <b>Yes</b>, <b>Yes, always</b> (trust it from now on), or <b>No</b>. Take trust back in Agent › Library.</li>
+<li><b>People</b> (Agent › Library › People): names with an email (mail, Teams) and a number with country code (WhatsApp). Inputs marked “a person” fill <code>{person_email}</code> and <code>{person_phone}</code> from here.</li>
+<li><b>Sharing</b>: tick <b>Share in the mesh</b>; your other StudioGens see it in Mesh › Shared and can get a copy.</li>
+</ul>
+
+<h2 id="find">Finding things on a page</h2>
+<p>Every click, type, wait and read needs to find something on the page again, next time, when the page may look a little different. From most to least reliable:</p>
+<table>
+<tr><th>Way</th><th>Looks like</th><th>Use it for</th></tr>
+<tr><td>A role</td><td><code>[role="listbox"]</code>, <code>[role="option"]</code>, <code>[role="document"]</code>, <code>[role="main"]</code></td><td>The big parts of web apps (Outlook, Teams, Slack, WhatsApp use them): the message list, a row, the message, the main area</td></tr>
+<tr><td>A label</td><td><code>button[aria-label="Send"]</code>, <code>[aria-label="Message body"]</code></td><td>Buttons and areas named for screen readers; stable across languages less so</td></tr>
+<tr><td>A test id</td><td><code>[data-testid="search"]</code></td><td>Pages that have them (your own pages: add them)</td></tr>
+<tr><td>Its text</td><td>Click <code>Send</code>, type into <code>Search</code></td><td>Buttons and fields with a fixed label</td></tr>
+<tr><td>Its place</td><td><code>[role="option"]:nth-of-type(2)</code></td><td>“The second row”, whatever it says; loops over rows</td></tr>
+<tr><td>Its id or path</td><td><code>#topSearchInput</code>, <code>main &gt; div:nth-of-type(3)</code></td><td>Last resort: ids with long numbers and deep paths change when the site updates</td></tr>
+</table>
+<p><b>How to find one</b>: Teach me records the best it can for each click and typing; <b>Read this part</b> picks an area and gives its selector; in the editor you can try another choice and Test. Several choices with <code>||</code> are tried in order, so <code>button[aria-label="Send"]||button[title="Send"]</code> works on both versions of a page. In scripts on Stage there are more ways: the words on screen, a picture of an area, a description for the screen model, or your own trained detector.</p>
+
+<h2 id="r-repeat">Recipe: repeat over items in a list <span class="tag ok">tested</span></h2>
+<div class="recipe">
+<p><b>Goal</b>: open the first three messages one after the other, read each, and sum them up together. <b>When</b>: anything that repeats over rows: messages, search results, orders, tickets.</p>
+<ol>
+<li><b>Open a page</b> at the inbox, waiting for <code>[role="listbox"]</code>.</li>
+<li><b>Advanced step</b>: start an empty collection: <code>{ "set": "all", "value": "" }</code></li>
+<li><b>Advanced step</b>: for each of 1, 2 and 3: click that row by its place, wait for the message, read it, add it to the collection:
+<pre>{ "each": "1, 2, 3", "as": "n", "steps": [
+  { "do": "agent.click", "args": ["sel=[role=\"listbox\"] [role=\"option\"]:nth-of-type({n})"] },
+  { "do": "agent.wait", "value": "[role=\"document\"]", "args": ["ms=8000"] },
+  { "do": "agent.read", "value": "[role=\"document\"]||#pane", "as": "read" },
+  { "set": "all", "value": "{all}\n---\n{read}" }
+] }</pre></li>
+<li><b>Make the answer card</b> from <code>{all}</code>: <i>“These are three emails separated by ---. One item per email: title = sender and subject; detail = what they want.”</i></li>
+</ol>
+<p><b>Variations</b>: more rows: <code>"each": "1, 2, 3, 4, 5"</code>. Only rows marked unread: read the list first (<i>Read part of the page</i> on <code>[role="option"]</code>, one line per row) and let the card pick the unread ones, which needs no clicks at all. Over values you said: <code>"each": "{people}"</code> with <q class="say">… for Priya, Rahul</q>.</p>
+<p><b>Result on the practice inbox</b>: <i>“Contract sign requested by Friday; password reset needed; review time change asked”</i>, one item per mail (picture in <a href="#t-test">Test, watch, fix</a>).</p>
+</div>
+
+<h2 id="r-more">Recipe: repeat until nothing is left <span class="tag ok">tested</span></h2>
+<div class="recipe">
+<p><b>Goal</b>: press “Load more” until it's gone, then read everything. <b>When</b>: pages that show a few results at a time.</p>
+<pre>{ "until": "{more} is false", "steps": [
+  { "do": "agent.click", "value": "Load more", "args": ["optional"], "as": "more" },
+  { "wait": 1500 }
+] }</pre>
+<p><code>optional</code> makes the click carry on when the button isn't there, and <code>"as": "more"</code> keeps whether it clicked; the loop stops the first time it didn't (and after 1000 rounds at most). The next steps (a read, the card) run once it's all loaded. For a fixed number of rounds use <code>{ "repeat": "5", "steps": [ … ] }</code>.</p>
+</div>
+
+<h2 id="r-search">Recipe: search, open the first result, read it <span class="tag ok">tested</span></h2>
+<div class="recipe">
+<p><b>Goal</b>: <q class="say">read the mail from Rahul</q>. <b>When</b>: anything that starts with a search.</p>
+<ol>
+<li><b>Open a page</b> (inbox), wait for <code>[role="listbox"]</code>.</li>
+<li><b>Type into a field</b> <code>Search</code>, what to type <code>{person}</code>, Press Enter after.</li>
+<li><b>Pause</b> 1 s (the list redraws).</li>
+<li><b>Click</b> selector <code>[role="listbox"] [role="option"]</code> (the first row).</li>
+<li><b>Wait for</b> <code>[role="document"]</code>, then <b>Read</b> <code>[role="document"]</code>.</li>
+<li><b>Make the answer card</b>: <i>“Sum up this email: who wrote, what it is about and what they ask for.”</i></li>
+</ol>
+<p>On the practice inbox, with person = Rahul: <i>“Two people are travelling on Wednesday. Can we move the quarterly review to Thursday afternoon, 3 pm?”</i></p>
+<figure><img src="guide/recipe-1.jpg" alt="Search and read"></figure>
+</div>
+
+<h2 id="r-empty">Recipe: stop when nothing is found <span class="tag ok">tested</span></h2>
+<div class="recipe">
+<p>After a read, stop with a clear message instead of an empty card:</p>
+<pre>{ "if": "{read} is empty", "then": [ { "do": "agent.fail", "value": "There's no mail from {person}." } ] }</pre>
+<p>Or check what the page says (on the practice inbox a search for someone with no mail shows “No messages match”; the task then stops with <i>“There is no mail from Zebedee.”</i>): <code>{ "if": "{read} contains No messages match", "then": [ … ] }</code>. Conditions can be joined: <code>{count} &gt; 0 and {read} contains invoice</code>.</p>
+</div>
+
+<h2 id="r-slow">Recipe: slow pages, pop-ups and sign-ins</h2>
+<div class="recipe">
+<ul>
+<li><b>Slow pages</b>: give <i>Open a page</i> a <b>Wait until this shows</b>, and put a <b>Wait for something</b> after clicks that load content. Waiting for the thing you need beats a fixed pause: it goes on as soon as it's there.</li>
+<li><b>Pop-ups and banners</b>: a <b>Click</b> on <code>Close</code> or <code>Accept essential</code> with <code>optional</code>, so the task carries on when there's none; or a site helper that clicks it for every page.</li>
+<li><b>Sign-ins</b>: the <b>Site name</b> on <i>Open a page</i> makes a sign-in page stop the task with “Sign in to Outlook once in the agent browser”; sign in there once and it's kept.</li>
+<li><b>Robot checks</b> (“unusual traffic”) stop the task and open the agent browser so you can answer them.</li>
+</ul>
+</div>
+
+<h2 id="r-changing">Recipe: elements whose text changes</h2>
+<div class="recipe">
+<p>Rows of a list, counters (<i>Inbox (12)</i>) and dates change every time. Find them by what doesn't change: the role and place (<code>[role="option"]:nth-of-type(1)</code>), a label (<code>[aria-label^="Inbox"]</code>: starts with), or the area around them. <code>^=</code> starts with, <code>*=</code> contains, <code>$=</code> ends with.</p>
+</div>
+
+<h2 id="r-chain">Recipe: use one task's result in another</h2>
+<div class="recipe">
+<p>A task's card is kept with <code>as</code>, and its parts are reachable by dots: <code>{next.headline}</code>, <code>{next.items.0.title}</code>, <code>{next.items.0.person}</code>, <code>{next.items.0.place}</code>. The built-in <i>Brief me for my next meeting</i> does exactly this:</p>
+<ol><li><b>Run another task</b> <i>My next meeting</i>, kept as <code>next</code>.</li>
+<li><b>Advanced</b>: <code>{ "if": "{next.items.0.person} is empty", "then": [ { "set": "card", "value": "{next}" } ], "else": [ … ] }</code></li>
+<li>In the else: <b>Run another task</b> <i>Read the latest mail from someone</i> with <code>person={next.items.0.person}</code>, kept as <code>mail</code>, then <b>Make the answer card</b> from <code>Meeting: {next} Latest mail: {mail}</code>.</li></ol>
+</div>
+
+<h2 id="r-send">Recipe: send something, safely</h2>
+<div class="recipe">
+<ol><li>Tick <b>It acts for me</b>, and write the <b>Question before acting</b> with inputs in it: <code>send “{message}” to {person}</code> becomes <q class="say">Shall I send “running late” to Priya?</q></li>
+<li>For mail, open the compose page with the values in the address: <i>Open a page</i> <code>{outlook}/mail/deeplink/compose</code> with More inputs <code>?to={person_email}</code>, <code>?subject={subject}</code>, <code>?body={message}</code>.</li>
+<li><b>Click</b> <code>Send</code> (selector <code>button[aria-label="Send"]||button[title="Send"]</code>).</li>
+<li>Test on yourself first: put your own address in People.</li></ol>
+</div>
+
+<h2 id="r-scripts">Script recipes</h2>
+<div class="recipe">
+<h4>A slideshow that loops until a gesture</h4>
+<p>Steps “Slide 1”…“Slide 5”, each <b>moving on automatically</b> after 8 s; the last jumps back to the first (<b>Next › jump</b>); a <b>branch</b> on the presenter's thumb up jumps to the talk. Good for a lobby screen that waits for the speaker.</p>
+<h4>Say every row of a table</h4>
+<pre>{ "do": "data.csv", "value": "samples/sales.csv", "as": "rows" },
+{ "each": "{rows}", "as": "row", "steps": [ { "say": "{row.month}: {row.revenue} in revenue." } ] }</pre>
+<h4>A long job while the assistant keeps talking</h4>
+<p>An action with <b>In the background</b> on (an export, a report task), named; the next steps keep presenting; <code>{ "await": "export" }</code> before the step that needs it; its <code>then</code> steps say “The export is done”.</p>
+<h4>Fetch something live in the middle of a talk</h4>
+<p>The action <b>Run another task</b> (<i>What's my day?</i>, <i>Flight status</i>) as a step: on Stage its card shows over the slides while the assistant reads it, and the talk carries on at the next step.</p>
+<h4>An interactive helper that runs tasks</h4>
+<p>An interactive script whose intents each run a task: <code>show the mail from {person}</code> → <b>Run another task</b> with <code>person={person}</code>; the assistant listens again after each.</p>
+</div>
+
+<h2 id="trouble">Troubleshooting</h2>
+<table>
+<tr><th>What you see</th><th>What to do</th></tr>
+<tr><td>A step ✗ “Couldn't click…” / “No field…”</td><td>The selector or text no longer matches. Teach that part again (Teach more steps), or give two choices with <code>||</code>.</td></tr>
+<tr><td>“I couldn't read anything on that page”</td><td>The read found nothing: check <b>What to read</b>, add a <b>Wait for something</b> before it, or read <code>[role="main"]</code>.</td></tr>
+<tr><td>The card has the wrong facts</td><td>Read a smaller area (only the message, not the whole page), and be specific in <b>What to tell me</b>. Watch it: the panel shows what was read.</td></tr>
+<tr><td>“Sign in to … in the agent browser”</td><td>Agent › Library › Agent browser, sign in once, Done, run again.</td></tr>
+<tr><td>It works when watched but not hidden</td><td>Pages behave the same (same size); usually it's timing: add a wait.</td></tr>
+<tr><td>A script step doesn't find its element</td><td>Use “Its text on screen”, a picture of the area, or the screen model's description instead of the recorded element.</td></tr>
+<tr><td>Something else</td><td>Settings › Logs (debug mode) shows each step; share the log.</td></tr>
+</table>
+</main>
+</div>
+</body>
+</html>

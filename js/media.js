@@ -10,6 +10,9 @@
    A source is a link or a file from the device; files are kept in the
    app's own storage (IndexedDB). Loaded after radio.js.
    ============================================================ */
+/** What the desktop app's browsers say they are: plain Chrome. Sites such as WhatsApp Web refuse a browser that also names
+    StudioGen or Electron (“WhatsApp works with Google Chrome 100+”), though it is Chrome underneath. */
+const BROWSER_UA = navigator.userAgent.replace(/\s(StudioGen|Electron|DriveDeck)\/\S+/gi, '');
 const PDFJS = 'vendor/pdfjs/', PPTX = 'vendor/pptx/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
@@ -123,7 +126,7 @@ const Media = {
     body.innerHTML = `<div class="mw-browser"><div class="mw-nav"><button class="ctl" data-wv="back" aria-label="Back">${svg('back')}</button>
       <button class="ctl" data-wv="fwd" aria-label="Forward">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button>
       <button class="ctl" data-wv="reload" aria-label="Reload">${svg('restart')}</button><input class="mw-addr" value="${esc(src)}" spellcheck="false" autocomplete="off" enterkeyhint="go" aria-label="Address"></div>
-      <webview class="mw-frame" src="${esc(new URL(src, location.href).href)}" partition="persist:browse" allowpopups></webview></div>`;
+      <webview class="mw-frame" src="${esc(new URL(src, location.href).href)}" partition="persist:browse" useragent="${esc(BROWSER_UA)}" allowpopups></webview></div>`;
     const wv = $('webview', body), addr = $('.mw-addr', body);
     const show = () => { try { if (document.activeElement !== addr) addr.value = wv.getURL(); } catch {} };
     wv.addEventListener('did-navigate', show); wv.addEventListener('did-navigate-in-page', show);

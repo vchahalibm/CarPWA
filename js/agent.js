@@ -240,7 +240,7 @@ const AgentWeb = {
     if (this.wv) return this.wv;
     const box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
     box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
-      <div class="ag-web-view"><webview partition="persist:browse" src="about:blank" allowpopups webpreferences="backgroundThrottling=no"></webview><i class="ag-ring" hidden></i></div>
+      <div class="ag-web-view"><webview partition="persist:browse" useragent="${esc(BROWSER_UA)}" src="about:blank" allowpopups webpreferences="backgroundThrottling=no"></webview><i class="ag-ring" hidden></i></div>
       <div class="ag-watch-log" hidden><ol></ol><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
     document.body.appendChild(box);
     const wv = this.wv = box.querySelector('webview');
@@ -343,6 +343,8 @@ const Working = {
 };
 
 /* ---------- The library, matching, asking, running ---------- */
+/** Words of a sign-in page, for sites whose address doesn't change while you sign in (WhatsApp, single-page apps). */
+const SIGNIN_WORDS = /\b(scan the qr( code)?|use whatsapp on your computer|link with phone|log into whatsapp|sign in to (continue|your account)|sign in with|log in to (continue|your account)|enter your (email|password)|continue with (google|email|microsoft|apple)|forgot (your )?password)\b/i;
 const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.com|signin|\/login|slack\.com\/(signin|get-started)/i;
 const Agent = {
   ctx: null, queue: Promise.resolve(), pend: null,
@@ -508,7 +510,7 @@ const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
   let li = null;
   try { li = await AgentWatch.step(id, a[0], a[2]); const r = await def.run(...a);
     AgentWatch.done(li, true, typeof r === 'string' && id === 'agent.read' ? `${r.length} characters read` : id === 'ai.card' && r?.headline ? r.headline : ''); return r; }
-  catch (e) { AgentWatch.done(li, false, e.message); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
+  catch (e) { AgentWatch.done(li, false, e.message.replace(/^SIGNIN:(.+)$/, 'Sign in to $1 here, then ask again')); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
 /** A check run (an imported task, js/taskllm.js) of a task that acts: the step that would send, post or confirm only checks
     that its button or field is there. */
 const checkOnly = (kind, v, a) => { const c = Agent.ctx; if (!c?.check || !c.task?.acts) return false;
@@ -521,13 +523,24 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   const site = a.site || u.hostname, here = () => AgentWeb.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); }
   if (a.wait) {
-    let w = await AgentWeb.call('waitFor', [{ sel: a.wait }, +a.ms || 15000], (+a.ms || 15000) + 3000);
-    if (!w.ok && !SIGNIN.test(here())) w = await AgentWeb.call('waitFor', [{ sel: a.wait }, 5000], 8000); // the page may have moved on while the first wait ran
+    // wait in short turns, looking for a sign-in or refusal page in between, so it's caught in seconds, not after the full wait
+    const total = +a.ms || 15000, t0 = Date.now(), BLOCKED = /works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser/i;
+    let w = { ok: false };
+    while (Date.now() - t0 < total) {
+      w = await AgentWeb.call('waitFor', [{ sel: a.wait }, Math.min(3000, total - (Date.now() - t0))], 6000); if (w.ok) break;
+      if (SIGNIN.test(here()) || (Date.now() - t0 > 4000 && (t => SIGNIN_WORDS.test(t) || BLOCKED.test(t))((await AgentWeb.call('read', ['body', 2500])).text || ''))) break;
+    }
+    if (!w.ok && !SIGNIN.test(here())) w = await AgentWeb.call('waitFor', [{ sel: a.wait }, 1500], 4000); // it may have just come
     if (!w.ok) {
-      const txt = (await AgentWeb.call('read', ['body', 2000])).text || '';
-      // a sign-in page by its address; WhatsApp's by its words (its page stays at web.whatsapp.com until the phone is linked)
-      if (SIGNIN.test(here()) || /\b(scan the qr|use whatsapp on your computer|link with phone|log into whatsapp)\b/i.test(txt)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); }
-      Log.w('agent', `The page didn’t show ${a.wait}`, { url: here() });
+      // the page never got ready: never carry on (the task would answer “Nothing”); show the agent browser and say why
+      const txt = ((await AgentWeb.call('read', ['body', 2500])).text || '').slice(0, 2500);
+      Log.w('agent', `The page didn’t show ${a.wait}`, { url: here(), text: txt.slice(0, 200) });
+      AgentWeb.show(true);
+      // a sign-in page, on any site: by its address, or by its words (WhatsApp's stays at web.whatsapp.com until linked)
+      if (SIGNIN.test(here()) || SIGNIN_WORDS.test(txt)) throw new Error(`SIGNIN:${site}`);
+      if (/works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser|switch to a supported browser/i.test(txt)) throw new Error(`${site} says this browser isn’t supported. Update StudioGen, then ask again.`);
+      if (/are you a robot|not a robot|verify you are human|captcha|unusual traffic/i.test(txt)) throw new Error(`${site} wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.`);
+      throw new Error(`${site} didn’t open as expected. Have a look in the agent browser on your Mac (sign in if it asks), then ask again.`);
     }
   }
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); } // a sign-in page can pass for the page (an account list is a listbox too)

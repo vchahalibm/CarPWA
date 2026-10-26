@@ -1191,7 +1191,7 @@ const SETTINGS_TABS = [['assistant', 'Assistant'], ['stage', 'Stage'], ['drive',
 const SETTINGS_TAB_OF = { Assistant: 'assistant', Voice: 'assistant', Cameras: 'stage', 'Scripts & tasks': 'scripts', Connections: 'connections', Display: 'system', System: 'system',
   Dashboard: 'drive', 'Camera & objects': 'drive', Driving: 'drive', Navigation: 'drive', 'Phone & apps': 'drive', Location: 'drive' };
 function settingsTabs() {
-  const body = $('#settingsBody'), titles = $$(':scope > .group-title', body); if (!titles.length || $('.set-tabs', body)) return;
+  const body = $('#settingsBody'), titles = $$(':scope > .group-title', body); if (!titles.length || $('.set-tabs:not(.dbg-tabs)', body)) return; // built already (the debug log's Settings/Logs switch is a .set-tabs too)
   const drive = APP_NAME !== 'StudioGen' || settings.driveTabs, tabs = SETTINGS_TABS.filter(([k]) => k !== 'drive' || drive);
   let cur = store.get('setTab', null); if (!tabs.some(t => t[0] === cur)) cur = settings.appMode === 'stage' ? 'stage' : APP_NAME === 'StudioGen' ? 'stage' : 'drive';
   let mode = null;

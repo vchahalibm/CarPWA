@@ -111,7 +111,7 @@ const LOG_CATS = { voice: ['voice', 'stt', 'tts', 'audio', 'mic', 'reply', 'mode
 const DebugUI = {
   tab: 'main', filter: 'all', q: '', paused: false, unsub: null, taps: [],
   tabs() {
-    return `<div class="set-tabs"><div class="seg"><button class="${this.tab === 'main' ? 'on' : ''}" data-dbg="tab:main">Settings</button>
+    return `<div class="set-tabs dbg-tabs"><div class="seg"><button class="${this.tab === 'main' ? 'on' : ''}" data-dbg="tab:main">Settings</button>
       <button class="${this.tab === 'logs' ? 'on' : ''}" data-dbg="tab:logs">Logs</button></div></div>`;
   },
   shown(e) {

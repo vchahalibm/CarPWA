@@ -1515,7 +1515,7 @@ const ACTIONS = {
 const CLICK = {
   action: v => ACTIONS[v]?.(),
   cmd: v => handleCommand(v),
-  app: v => { closeAssistant(); openApp(v); },
+  app: v => { if (typeof Voice !== 'undefined') Voice.close({ keepTalking: true }); openApp(v); }, // another screen: the reply finishes
   open: v => openView(v),
   go: v => startNav(destinations().find(d => d.id === v)),
   call: v => openCall(contact(v)),

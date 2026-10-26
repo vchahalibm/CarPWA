@@ -9,6 +9,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Answers are read in full: up to five items as “who: the gist”, then how many more are on the card; going to another screen lets the reply finish',
   'Sign-ins in the agent browser are kept when StudioGen restarts or updates',
   'Containers for the agent browser, like Firefox’s: Work and Personal sign-ins kept apart (Agent › Library › Settings)',
   'Settings › System › Debug log: turn on the log with the key, to send it with a problem',

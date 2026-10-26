@@ -433,10 +433,11 @@ const Voice = {
     const box = $('#assistant'); box.hidden = false;
     $('#vReply').hidden = true; $('#vProg').hidden = true; clearTimeout(this.closeT);
   },
-  close() {
+  /** Close the assistant: the microphone, and the reply too unless `keepTalking` (going to another screen lets it finish). */
+  close(o = {}) {
     if (typeof Convo !== 'undefined' && Convo.active) return Convo.end('closed');
     this.startTok = (this.startTok || 0) + 1; // a listen still waiting for its model must not start after this
-    this.hush(); this.stopRec(true); try { this.sr?.abort(); } catch {} this.sr = null;
+    if (!o.keepTalking) this.hush(); this.stopRec(true); try { this.sr?.abort(); } catch {} this.sr = null;
     $('#assistant').hidden = true; $('#vOrb').classList.remove('live');
     Bus.emit('voice.idle');
   },

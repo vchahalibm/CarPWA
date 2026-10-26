@@ -488,10 +488,17 @@ const Agent = {
     if (r == null || r === '') return { type: 'status', headline: 'Done' };
     return { type: 'summary', headline: String(r).slice(0, 400) };
   },
+  /** A card as it's said: the headline, then up to five items (three while driving) as “who: the gist”, each a short sentence,
+      and how many more are on the card. Links, long dates and pasted text read badly aloud, so they're tidied; times are
+      said only where they matter (calendar, the car). */
   spoken(c) {
     if (c.say) return c.say;
-    const items = (c.items || []).slice(0, 3).map(i => [i.title, i.when, i.detail].filter(Boolean).join(', '));
-    return [c.headline, ...items].filter(Boolean).join('. ').replace(/\.\./g, '.');
+    const all = c.items || [], max = AgentHome.moving() ? 3 : 5, withWhen = /^(cal|car)\./.test(c.task || '');
+    const M = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const clean = t => String(t || '').replace(/https?:\/\/\S+|www\.\S+/g, 'a link').replace(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})\b/g, (m, d, mo) => (+d > 12 && M[+mo - 1] ? `${+d} ${M[+mo - 1]}` : m)).replace(/\s+/g, ' ').trim();
+    const short = t => { t = clean(t); if (t.length <= 110) return t; const cut = t.slice(0, 110); return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 60))}…`; };
+    const line = i => [short(i.title), withWhen && i.when ? clean(i.when) : '', short(i.detail)].filter(Boolean).join(withWhen ? ', ' : ': ');
+    return [clean(c.headline), ...all.slice(0, max).map(line), all.length > max ? `And ${all.length - max} more on the card` : ''].filter(Boolean).join('. ').replace(/\.\s*\./g, '.').replace(/…\./g, '…');
   },
   /** On the Mac: a paired phone's request to run a task of this library (asked and confirmed on the phone). */
   async answer(p = {}) {

@@ -44,6 +44,8 @@ Things started or decided but not finished, and things to perform together later
 - [ ] **The Stage assistant builds tasks by voice** (asked 25 Oct, once the LLM build is mature): the assistant interviews you with “person is Priya” answers, plans on the Mac's model (`TaskLocal`), opens the result in the editor, asks you to point at anything unclear (Teach me / Show me), then runs it watched.
 - [ ] **Try the build prompt on the real Slack and WhatsApp** (the selectors were checked on the practice copies, which follow the real pages' structure).
 
+- [ ] **A reply still cut off on the user's Mac** (26 Oct): not reproducible here (the mail summary plays in full by tap and by voice). `Voice.hush` now logs who stopped a reply; ask for a debug log (Settings › System › Debug log) from the next one.
+
 ## Tests
 
 - [ ] Add to the Demo Day journey: changing the secret phrase (Mac, then phone), data rows coming back, a captured motion shared and fetched, the journal back-fill after a device was away (history gap filled), the history export file, a second phone.

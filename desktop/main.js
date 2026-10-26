@@ -68,11 +68,23 @@ const webPrefs = { contextIsolation: true, nodeIntegration: false, sandbox: true
    isolated world (the page can't see or reach it): the recorder/player from bridge/drivedeck-bridge.js, so clicks can be
    recorded and replayed on any site. The page itself never gets Node or the app's powers. */
 const BROWSE = 'persist:browse';
+const Browse = require('./browse')(); // containers, and sign-ins kept across restarts (desktop/browse.js)
+/** A browsing session (Default or a container), set up once: the app's own pages served, and no camera, microphone,
+    location or notifications for web pages. */
+const browseReady = new Set();
+function browseSession(p) {
+  if (browseReady.has(p)) return; browseReady.add(p);
+  const s = session.fromPartition(p);
+  if (serveWeb) s.protocol.handle(SCHEME, serveWeb); // the app's own pages (samples, labs/practice) in browsers
+  s.setPermissionRequestHandler((wc, perm, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(perm)));
+  s.setPermissionCheckHandler((wc, perm) => ['fullscreen', 'clipboard-sanitized-write'].includes(perm));
+}
+let serveWeb = null;
 function guestRules(contents) {
   contents.on('will-attach-webview', (e, wp, params) => {
     if (!/^https?:\/\//.test(params.src || '') && !String(params.src || '').startsWith(ORIGIN) && params.src !== 'about:blank') { e.preventDefault(); return; }
     delete wp.preloadURL; Object.assign(wp, { preload: path.join(__dirname, 'webview-preload.js'), nodeIntegration: false, nodeIntegrationInSubFrames: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false });
-    params.partition = BROWSE; // its own session (logins kept), apart from the app's; it serves the app's pages too (samples)
+    params.partition = Browse.use(params.partition); browseSession(params.partition); // Default or a container (logins kept), apart from the app's own session
   });
   contents.on('did-attach-webview', (e, guest) => {
     // Pop-ups and new tabs open in the same widget; other apps' links open outside.
@@ -180,7 +192,9 @@ function makeTray() {
 // The direct link to DriveGen (js/direct.js): the Mac's real local address in its WebRTC code instead of an mDNS name, which
 // some networks (hotspots, office Wi-Fi) don't resolve. The code is only ever shown as a QR on this screen.
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // last session's sign-ins back before any page loads (desktop/browse.js)
+  await Browse.restore().then(n => n && console.log(`browse: ${n} session cookies restored`)).catch(e => console.warn('browse restore', e.message));
   // Serve the web files; anything outside the web folder is refused.
   useWeb();
   // vendor/ may come from its own folder (libraries update separately from the app's files).
@@ -196,7 +210,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString());
   };
   protocol.handle(SCHEME, serve);
-  session.fromPartition(BROWSE).protocol.handle(SCHEME, serve); // the app's own pages (samples/demo-page.html) in browser widgets
+  serveWeb = serve; browseSession(BROWSE);
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, perm, cb) => cb(ALLOWED.has(perm) && wc.getURL().startsWith(ORIGIN)));
   ses.setPermissionCheckHandler((wc, perm, origin) => ALLOWED.has(perm) && String(origin || wc?.getURL() || '').startsWith(ORIGIN));
@@ -264,6 +278,7 @@ app.whenReady().then(() => {
   ipcMain.handle('dd:capture', async e => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? (await e.sender.capturePage()).toDataURL() : null);
   ipcMain.handle('dd:insert-text', (e, text) => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? e.sender.insertText(String(text || '')).then(() => true) : false);
   ipcMain.handle('dd:bridge-src', () => readBridge());
+  ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
   // Updates (desktop/updater.js): state, check now, and apply (web: reload on the new files; shell: install and restart).
   ipcMain.handle('dd:update-status', own(() => Updates.status()));
   ipcMain.handle('dd:update-check', own(() => Updates.check(true)));
@@ -273,10 +288,6 @@ app.whenReady().then(() => {
     Updates.applied(); app.relaunch(); app.quit(); return true;
   }));
   Updates.on(s => { for (const w of [mainWin, presWin]) w?.webContents.send('dd:update', s); }); // for webview-preload.js; a public file of the app
-  // The browsing session: no camera, microphone, location or notifications for web pages in widgets.
-  const browse = session.fromPartition(BROWSE);
-  browse.setPermissionRequestHandler((wc, perm, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(perm)));
-  browse.setPermissionCheckHandler((wc, perm) => ['fullscreen', 'clipboard-sanitized-write'].includes(perm));
   if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' }, { role: 'editMenu' },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },
@@ -288,5 +299,11 @@ app.whenReady().then(() => {
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+// Quitting (also for an update): the browsers' session cookies saved first, at most 3 s (desktop/browse.js)
+let browseSaved = false;
+app.on('before-quit', e => {
+  if (browseSaved) return; e.preventDefault();
+  Promise.race([Browse.save(), new Promise(r => setTimeout(r, 3000))]).catch(err => console.warn('browse save', err.message)).finally(() => { browseSaved = true; app.quit(); });
+});
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
 app.on('will-quit', () => { Speech.quit(); AI.quit(); Updates.installShell(false); });

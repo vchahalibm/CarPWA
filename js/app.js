@@ -1333,6 +1333,7 @@ function renderSettings() {
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? DesktopUpdates.row() + btn('offlineAll', 'Download everything for offline use', 'Avatars and camera models download the first time they’re needed; this fetches them all now') : ''}
+      ${btn('debugLog', 'Debug log', typeof Log !== 'undefined' && Log.on ? 'On: in Settings › Logs' : 'Off: turn it on with the key, to send a log for a problem')}
       <button class="row" data-action="versionTap"><div class="main"><div class="t">${APP_NAME}</div></div><span class="val">${window.DriveDeckDesktop?.updates && typeof DesktopUpdates !== 'undefined' && DesktopUpdates?.s?.shell ? `app ${DesktopUpdates.s.shell} · files ${DesktopUpdates.s.serving || 'built-in'}` : `version ${webVer || '…'}${swReg?.waiting ? ' · update ready' : ''}`}${typeof Log !== 'undefined' && Log.on ? ' · debug' : ''}</span></button>
     </div>`;
   settingsTabs();
@@ -1452,6 +1453,7 @@ const ACTIONS = {
   radio: () => Radio.browse(),
   ttsGpu: () => { Diag.set('device', 'webgpu'); ACTIONS.ttsModel(); },
   versionTap: () => typeof DebugUI !== 'undefined' && DebugUI.versionTap(),
+  debugLog: () => typeof DebugUI !== 'undefined' && DebugUI.askKey(),
   startAvatar: () => StartPage.customize(),
   phoneVoice: async () => {
     await PhoneVoices.ready(1500);

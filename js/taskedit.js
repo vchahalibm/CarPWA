@@ -93,6 +93,7 @@ const TaskUI = {
       <div class="chip-row"><label class="se-check"><input type="checkbox" data-td="acts" ${d.acts ? 'checked' : ''}> It acts for me (sends, books, posts): ask before running</label>
         <label class="se-check"><input type="checkbox" data-td="mac" ${d.runs === 'mac' ? 'checked' : ''}> Runs on my Mac (its agent browser)</label>
         ${LINK_HOST ? `<label class="se-check"><input type="checkbox" data-td="share" ${d.share ? 'checked' : ''}> Share in the mesh</label>` : ''}</div>
+      ${d.runs === 'mac' && typeof Containers !== 'undefined' ? `<label class="se-field"><span>Container (whose sign-ins it uses)</span><select data-td="container"><option value="">By site (Agent › Library › Settings › Containers)</option>${Containers.all().map(c => `<option value="${esc(c.id)}"${d.container === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
       ${d.acts ? `<label class="se-field"><span>Question before acting (inputs allowed; “Shall I …?” is added)</span><input data-td="confirm" value="${esc(d.confirm || '')}" placeholder="send “{message}” to {person}"></label>` : ''}
       <p class="se-note"><b>Steps</b> · run in order; the answer is the last “Make the answer card” (or what a step keeps as {card}).</p>
       <div class="te-steps">${d.steps.map(card).join('') || '<p class="se-empty">No steps yet: Teach me, or add one.</p>'}</div>

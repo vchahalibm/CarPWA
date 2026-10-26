@@ -224,9 +224,15 @@ const DebugUI = {
     const now = Date.now(); this.taps = [...this.taps.filter(t => now - t < 4000), now];
     if (this.taps.length < 7) return;
     this.taps = [];
-    if (Log.on) return toast('Debug mode is already on: see the Logs tab');
-    const key = prompt('Debug key'); if (!key) return;
-    Log.unlock(key).then(ok => { toast(ok ? 'Debug mode on' : 'That key isn’t right'); if (ok) { this.tab = 'logs'; renderSettings(); } });
+    this.askKey();
+  },
+  /** The debug key, in the app's own sheet (StudioGen's Electron has no window.prompt: it silently did nothing). */
+  askKey() {
+    if (Log.on) { this.tab = 'logs'; return renderSettings(); }
+    sheet('Debug log', '<p class="se-note">For chasing a problem with support: it records what the app does (never your keys or passwords) on this device, in Settings › Logs.</p><label class="se-field"><span>Debug key</span><input id="dbgKey" type="password" autocomplete="off" autocapitalize="off"></label>',
+      [['Turn on', () => { const key = $('#dbgKey').value.trim(); if (!key) return false;
+        Log.unlock(key).then(ok => { toast(ok ? 'Debug mode on: see Settings › Logs' : 'That key isn’t right'); if (ok) { this.tab = 'logs'; renderSettings(); } }); }], ['Cancel']]);
+    setTimeout(() => $('#dbgKey')?.focus(), 80);
   },
 };
 document.addEventListener('click', e => {

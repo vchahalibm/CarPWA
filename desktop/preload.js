@@ -6,7 +6,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   version: 1,
   /** Web widgets are real browsers here (<webview>, see webview-preload.js). */
-  browser: true,
+  browser: {
+    /** Sign out of everything in one container of the browsers ('persist:browse' or 'persist:c-<id>'). */
+    forget: p => ipcRenderer.invoke('dd:browser-forget', p),
+  },
   /** The screens attached: [{ id, label, primary, here, w, h }] (`here`: the one the main window is on). */
   displays: () => ipcRenderer.invoke('dd:displays'),
   /** Show DriveDeck full screen on a screen (the wall), and the presenter view on another one if there is one. */

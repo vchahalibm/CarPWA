@@ -44,6 +44,7 @@ or `"format": "studiogen-script", "version": 1, "script": { … }`. Put in `veri
   "examples": ["any slack messages", "read slack {channel}"],
   "steps": [ … ] }
 ```
+- `container` (optional): the name of the container whose sign-ins it uses (`Work`, `Personal`), when the user has two accounts of one site; leave it out otherwise (the site's container is used).
 - `id`: `my.` + short kebab words. `runs`: `"mac"` for anything using web pages (the phone asks the Mac), `"here"` for steps that don't. `type: "person"` makes `{name_email}` and `{name_phone}` available from People.
 - Every `{word}` in `examples` must be in `params`, and vice versa.
 - The answer is the last step that keeps `"as": "card"` (usually `ai.card`), or a status card: `{ "set": "card", "value": "{\"type\":\"status\",\"headline\":\"Sent to {person}\"}" }`.

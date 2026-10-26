@@ -200,12 +200,13 @@ Object.assign(Voice, {
       if (stopped || id !== this.sayId) return job?.cancel();
       firstAt ||= performance.now(); made += pcm.length; pending.push(pcm); pendingN += pcm.length; flush(false);
     });
-    this.stopNeural = () => { stopped = true; job.cancel(); for (const s of sources) { try { s.stop(); } catch {} } sources.clear(); finish(); };
+    const stopMe = this.stopNeural = () => { stopped = true; job.cancel(); for (const s of sources) { try { s.stop(); } catch {} } sources.clear(); finish(); };
     // No sound within 8 s: the device's voice takes over (speak() catches the throw).
     const watchdog = setTimeout(() => { if (!firstAt) { stopped = true; job.cancel(); finish(new Error('The natural voice took too long')); } }, 8000);
     job.done.then(() => { genMs = performance.now() - t0; genDone = true; flush(true); pump(); if (!blocks.length && !sources.size && !playing) finish(); },
       e => { Log.e('tts', 'Phonon generation failed', e); genDone = true; if (!started) { stopped = true; finish(e); } else { flush(true); pump(); } });
     const err = await done; clearInterval(tick); clearTimeout(watchdog);
+    if (this.stopNeural === stopMe) this.stopNeural = null; // finished: nothing left to stop (hush logs only real cut-offs)
     Bus.emit('voice.audio.end');
     if (ctx) { clearTimeout(this.acIdle); this.acIdle = setTimeout(() => ctx.state === 'running' && ctx.suspend().catch(() => {}), 4000); }
     if (id === this.sayId) this.session('auto');

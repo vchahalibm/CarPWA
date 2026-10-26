@@ -234,25 +234,42 @@ const AGENT_TASKS = [
 
 /* ---------- The Mac's agent browser: a hidden browser widget kept signed in ---------- */
 const AgentWeb = {
-  wv: null, seq: 0, waits: new Map(), up: null,
+  wv: null, seq: 0, waits: new Map(), up: null, views: new Map(), box: null, cur: 'browse', // one browser per container (Containers, js/media.js)
   can: () => !!window.DriveDeckDesktop?.browser,
   el() {
-    if (this.wv) return this.wv;
-    const box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
-    box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
-      <div class="ag-web-view"><webview partition="persist:browse" useragent="${esc(BROWSER_UA)}" src="about:blank" allowpopups webpreferences="backgroundThrottling=no"></webview><i class="ag-ring" hidden></i></div>
+    if (!this.box) {
+      const box = this.box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
+      box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-box"></span><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
+      <div class="ag-web-view"><i class="ag-ring" hidden></i></div>
       <div class="ag-watch-log" hidden><ol></ol><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
-    document.body.appendChild(box);
-    const wv = this.wv = box.querySelector('webview');
-    this.up = new Promise(r => wv.addEventListener('dom-ready', r, { once: true }));
-    wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); return h(m); }
-      if (typeof TaskTeach !== 'undefined') { if (m.type === 'step') TaskTeach.step(m.step); else if (m.type === 'ready') TaskTeach.page(m.url); } }); // Teach me: what you do becomes steps
-    wv.addEventListener('did-navigate', e => { const u = $('.ag-web-url', box); if (u) u.textContent = e.url; });
-    return wv;
+      document.body.appendChild(box);
+    }
+    if (!this.wv) this.use(this.cur);
+    return this.wv;
   },
-  async go(url) {
-    const wv = this.el(); await this.up;
-    Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`);
+  /** The browser of a container (made the first time), shown in the panel; the others wait hidden, still signed in. */
+  use(id) {
+    const c = Containers.get(id); let v = this.views.get(c.id);
+    if (!v) {
+      const wv = document.createElement('webview');
+      Object.entries({ partition: Containers.part(c.id), useragent: BROWSER_UA, src: 'about:blank', allowpopups: '', webpreferences: 'backgroundThrottling=no' }).forEach(([k, x]) => wv.setAttribute(k, x));
+      $('.ag-web-view', this.box).prepend(wv);
+      v = { wv, up: new Promise(r => wv.addEventListener('dom-ready', r, { once: true })) };
+      wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); return h(m); }
+        if (typeof TaskTeach !== 'undefined') { if (m.type === 'step') TaskTeach.step(m.step); else if (m.type === 'ready') TaskTeach.page(m.url); } }); // Teach me: what you do becomes steps
+      wv.addEventListener('did-navigate', e => { if (this.wv === wv) { const u = $('.ag-web-url', this.box); if (u) u.textContent = e.url; } });
+      this.views.set(c.id, v);
+    }
+    for (const [k, x] of this.views) x.wv.hidden = k !== c.id;
+    this.cur = c.id; this.wv = v.wv; this.up = v.up;
+    const tag = $('.ag-web-box', this.box); if (tag) { tag.textContent = c.id === 'browse' && Containers.all().length < 2 ? '' : c.name; tag.style.setProperty('--c', c.color); tag.hidden = !tag.textContent; }
+    return v.wv;
+  },
+  /** Open a page in the container its site belongs to (or the one asked for). */
+  async go(url, container) {
+    this.el(); const c = Containers.for(url, container); if (c.id !== this.cur) this.use(c.id);
+    const wv = this.wv; await this.up;
+    Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`, { container: c.name });
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
   },
   url() { try { return this.wv?.getURL() || ''; } catch { return ''; } },
@@ -519,10 +536,10 @@ const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
 const checkOnly = (kind, v, a) => { const c = Agent.ctx; if (!c?.check || !c.task?.acts) return false;
   return kind === 'key' ? /enter/i.test(v || 'Enter') : kind === 'type' ? a.flags.includes('enter') : /send|post|reply|submit|save|delete|remove|book|pay|confirm|publish/i.test(`${v} ${a.sel || ''}`); };
 const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs StudioGen on a Mac (its agent browser)'); };
-agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000', async run(v, say, ev = {}) {
+agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000, container=name (else the site’s container)', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
   for (const [k, x] of a.q) if (x !== '') u.searchParams.set(k, x);
-  await AgentWeb.go(u.href);
+  await AgentWeb.go(u.href, a.container || Agent.ctx?.task?.container); // container=Work, or the task's own
   const site = a.site || u.hostname, here = () => AgentWeb.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); }
   if (a.wait) {
@@ -739,8 +756,28 @@ const AgentHome = {
       ${AgentWeb.can() ? `<label class="se-check"><input type="checkbox" id="agWatch" ${c.watch ? 'checked' : ''}> Show the browser while tasks run (watch each step, to see why one doesn’t work)</label>
       <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>` : ''}
       ${LINK_HOST ? `<label class="se-check"><input type="checkbox" id="agRemote" ${c.remote ? 'checked' : ''}> Paired phones may run this Mac’s tasks (acting ones are confirmed on the phone)</label>` : ''}
+      ${AgentWeb.can() ? `<div class="chip-row"><button class="chip" data-ag="containers">Containers and sign-ins (${Containers.all().length})</button></div>` : ''}
       <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>`,
       [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); toast('Saved'); }], ['Close']]);
+  },
+  /** Containers, like Firefox's (js/media.js Containers, desktop/browse.js): each keeps its own sign-ins; sites go into one. */
+  containers() {
+    sheet('Containers and sign-ins', `<p class="se-note">Like Firefox containers: each keeps its own sign-ins, so a work and a personal account of the same site can both stay signed in. Put sites in a container, one a line (<code>outlook.office.com</code>); a site in none opens in Default. A task can also name its container. Sign-ins are kept when StudioGen restarts or updates.</p>
+      <div id="ctList">${Containers.all().map(c => this.ctRow(c)).join('')}</div>
+      <div class="chip-row"><button class="chip" data-ag="ctadd">+ Container</button></div>`,
+      [['Save', () => { this.ctSave(); toast('Containers saved'); }], ['Cancel']]);
+  },
+  ctRow(c) {
+    return `<div class="ct-row" data-ct="${esc(c.id)}"><div class="ct-head"><input type="color" value="${esc(c.color)}" data-k="color" aria-label="Colour"><input type="text" value="${esc(c.name)}" data-k="name" aria-label="Name">
+      <button class="chip" data-ag="ctsign:${esc(c.id)}">Sign in…</button><button class="chip" data-ag="ctforget:${esc(c.id)}">Forget sign-ins</button>${c.id === 'browse' ? '' : `<button class="chip" data-ag="ctdel:${esc(c.id)}" aria-label="Delete ${esc(c.name)}">${svg('close')}</button>`}</div>
+      <textarea data-k="sites" placeholder="Sites, one a line: outlook.office.com">${esc(Containers.sites(c.id).join('\n'))}</textarea></div>`;
+  },
+  ctSave() {
+    const rows = $$('#ctList .ct-row'); if (!rows.length) return;
+    const list = rows.map(r => ({ id: r.dataset.ct, name: $('[data-k="name"]', r).value.trim() || 'Container', color: $('[data-k="color"]', r).value }));
+    const rules = {}; for (const r of rows) for (const d of $('[data-k="sites"]', r).value.split(/[\n,\s]+/).map(x => x.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/^www\./, '')).filter(Boolean)) rules[d] = r.dataset.ct;
+    store.set('containers', list); store.set('containerSites', rules);
+    if (AgentWeb.box) AgentWeb.use(AgentWeb.cur); // the bar's name and colour
   },
   /** Your own task: a web page and a question, a script, or other tasks in order (a composite). */
   edit(id) {
@@ -799,6 +836,13 @@ document.addEventListener('click', e => {
   if (k === 'addperson') return $('#agPeople').insertAdjacentHTML('beforeend', '<div class="se-row ag-person"><input placeholder="Name" data-k="name"><input placeholder="email@work.com" data-k="email" autocapitalize="off"><input placeholder="+91 98…" data-k="phone" inputmode="tel"></div>');
   if (k === 'addstep') { const s = $('[data-agc]'); return s && s.parentElement.appendChild(Object.assign(s.cloneNode(true), { value: '' })); }
   if (k === 'cfg') return AgentHome.cfg();
+  if (k === 'containers') return AgentHome.containers();
+  if (k === 'ctadd') { const id = `c${Date.now().toString(36)}`; $('#ctList')?.insertAdjacentHTML('beforeend', AgentHome.ctRow({ id, name: 'New container', color: '#ff9f0a' })); return; }
+  if (k === 'ctdel') { const row = b.closest('.ct-row'); if (b.dataset.sure) { row.remove(); window.DriveDeckDesktop?.browser?.forget?.(Containers.part(v)); return; } b.dataset.sure = '1'; b.textContent = 'Delete, and sign out?'; return; }
+  if (k === 'ctforget') { if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Tap again: sign out of all'; return; }
+    window.DriveDeckDesktop?.browser?.forget?.(Containers.part(v)).then(() => { b.textContent = 'Signed out'; toast(`Signed out of everything in ${Containers.get(v).name}`); }); return; }
+  if (k === 'ctsign') { AgentHome.ctSave(); const site = Containers.sites(v)[0]; if (!site) return toast('Add a site to this container first, then Sign in');
+    closeSheet(); AgentWeb.go(`https://${site}`, v).then(() => AgentWeb.show(true)); return; }
 }, true);
 document.addEventListener('change', e => { if (e.target.id === 'agK') $$('[data-agk]').forEach(d => { d.hidden = d.dataset.agk !== e.target.value; }); });
 document.addEventListener('submit', e => {

@@ -13,6 +13,24 @@
 /** What the desktop app's browsers say they are: plain Chrome. Sites such as WhatsApp Web refuse a browser that also names
     StudioGen or Electron (“WhatsApp works with Google Chrome 100+”), though it is Chrome underneath. */
 const BROWSER_UA = navigator.userAgent.replace(/\s(StudioGen|Electron|DriveDeck)\/\S+/gi, '');
+/** Containers for the desktop app's browsers, like Firefox's: each its own sign-ins (a session: 'persist:browse' is Default,
+    'persist:c-<id>' the others; desktop/browse.js keeps them across restarts). Sites go into a container by rule
+    (`dd.containerSites`: domain → id); a task can name its own (`container`). */
+const Containers = {
+  DEF: [{ id: 'browse', name: 'Default', color: '#8e8e93' }, { id: 'work', name: 'Work', color: '#0a84ff' }, { id: 'personal', name: 'Personal', color: '#30d158' }],
+  all() { const l = store.get('containers', null); return Array.isArray(l) && l.some(c => c.id === 'browse') ? l : this.DEF; },
+  get(id) { return this.all().find(c => c.id === id) || this.all().find(c => c.id === 'browse'); },
+  part: id => !id || id === 'browse' ? 'persist:browse' : `persist:c-${id}`,
+  rules: () => store.get('containerSites', {}),
+  /** Which container: the one asked for (a task's, by id or name), else the site's rule (the longest domain that fits), else Default. */
+  for(url, want) {
+    if (want) { const c = this.all().find(x => x.id === want || plain(x.name) === plain(want)); if (c) return c; }
+    let h = ''; try { h = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+    const r = this.rules(), k = Object.keys(r).filter(d => h === d || h.endsWith(`.${d}`)).sort((a, b) => b.length - a.length)[0];
+    return this.get(k ? r[k] : 'browse');
+  },
+  sites(id) { return Object.entries(this.rules()).filter(([, c]) => c === id).map(([d]) => d); },
+};
 const PDFJS = 'vendor/pdfjs/', PPTX = 'vendor/pptx/', MODEL_VIEWER = 'vendor/model-viewer/model-viewer-umd.min.js';
 // 3D models that come with the app (see vendor/models/LICENSE.md). A 3D widget with no link or file shows the first one.
 const BUILTIN_MODELS = {
@@ -126,7 +144,7 @@ const Media = {
     body.innerHTML = `<div class="mw-browser"><div class="mw-nav"><button class="ctl" data-wv="back" aria-label="Back">${svg('back')}</button>
       <button class="ctl" data-wv="fwd" aria-label="Forward">${svg('back').replace('<svg', '<svg style="transform:rotate(180deg)"')}</button>
       <button class="ctl" data-wv="reload" aria-label="Reload">${svg('restart')}</button><input class="mw-addr" value="${esc(src)}" spellcheck="false" autocomplete="off" enterkeyhint="go" aria-label="Address"></div>
-      <webview class="mw-frame" src="${esc(new URL(src, location.href).href)}" partition="persist:browse" useragent="${esc(BROWSER_UA)}" allowpopups></webview></div>`;
+      <webview class="mw-frame" src="${esc(new URL(src, location.href).href)}" partition="${esc(Containers.part(Containers.for(new URL(src, location.href).href).id))}" useragent="${esc(BROWSER_UA)}" allowpopups></webview></div>`;
     const wv = $('webview', body), addr = $('.mw-addr', body);
     const show = () => { try { if (document.activeElement !== addr) addr.value = wv.getURL(); } catch {} };
     wv.addEventListener('did-navigate', show); wv.addEventListener('did-navigate-in-page', show);

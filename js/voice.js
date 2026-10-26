@@ -675,6 +675,9 @@ const Voice = {
     });
   },
   hush() {
+    // a reply stopped while it plays: say who stopped it (chasing replies cut off; the log shows the caller)
+    const busy = !!this.stopNeural || (this.el && !this.el.paused && this.el.src !== silenceUrl) || (() => { try { return speechSynthesis.speaking; } catch { return false; } })();
+    if (busy && Log.on) Log.w('tts', 'Reply stopped while speaking', { by: String(new Error().stack || '').split('\n').slice(2, 6).map(l => l.trim().replace(/\(?app:\/\/drivedeck\//, '').replace(/\)$/, '')).join(' ← ') });
     this.sayId++; this.stopNeural?.(); this.stopNeural = null;
     if (this.el && !this.el.paused && this.el.src !== silenceUrl) try { this.el.pause(); Log.d('tts', 'Reply cut off'); } catch {}
     try { this.src?.stop(); } catch {} this.src = null;

@@ -9,6 +9,9 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Sign-ins in the agent browser are kept when StudioGen restarts or updates',
+  'Containers for the agent browser, like Firefox’s: Work and Personal sign-ins kept apart (Agent › Library › Settings)',
+  'Settings › System › Debug log: turn on the log with the key, to send it with a problem',
   'The Agent screen shows the assistant beside your cards (and beside the watch panel while a task runs)',
   'Fixed: the window can be dragged again after a task has run; the mail summary is spoken in full, with the right count',
   'WhatsApp Web works in the agent browser, and any task whose page needs a sign-in now stops and opens the agent browser for you',

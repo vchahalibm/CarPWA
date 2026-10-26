@@ -9,6 +9,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'The Agent screen shows the assistant beside your cards (and beside the watch panel while a task runs)',
+  'Fixed: the window can be dragged again after a task has run; the mail summary is spoken in full, with the right count',
   'WhatsApp Web works in the agent browser, and any task whose page needs a sign-in now stops and opens the agent browser for you',
   'On Stage, say “help me build a task”: the assistant asks, you answer by voice or typing, and it builds, checks and runs the task (Claude, a command-line AI, Ollama, IBM Bob or the Mac’s model)',
   'Tasks can ask yes or no in the middle (“Priya said … Send ‘on my way’?”)',

@@ -1589,7 +1589,7 @@ table.bench small{color:var(--text-2)}
 /* The window moves by a strip along the top of the start page only: a big drag area swallowed clicks (macOS gives drag areas
    precedence over anything drawn above them, and a hidden one could linger). Everything floating stays clickable. */
 .desktop-app .sp-root::before{content:'';position:absolute;left:0;right:0;top:0;height:30px;z-index:5;-webkit-app-region:drag}
-.desktop-app :is(#sheet,#toast,#assistant,#buildCard,.ag-web,.mesh-pill,.sp-custom,.sp-handle){-webkit-app-region:no-drag}
+.desktop-app :is(#sheet,#toast,#assistant,#buildCard,.ag-web.show,.ag-web.watch,.mesh-pill,.sp-custom,.sp-handle){-webkit-app-region:no-drag}
 @media (orientation:portrait){
   /* the start page on a phone: headline, the assistant, the cards, scrolling */
   .sp-root{display:flex;flex-direction:column;overflow-y:auto;padding:max(18px,env(safe-area-inset-top)) 16px 20px;gap:14px}
@@ -1648,7 +1648,8 @@ table.bench small{color:var(--text-2)}
 .ag-person input{min-width:0;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:0 10px}
 @media (max-width:560px){.ag-person{grid-template-columns:1fr}.ag-list{grid-template-columns:1fr}}
 /* The Mac's agent browser: hidden (still running) until a sign-in is needed */
-.ag-web{position:fixed;right:0;bottom:0;width:1280px;height:860px;opacity:0;pointer-events:none;z-index:-1;display:flex;flex-direction:column;background:var(--bg)}
+/* hidden, it stays below the window's drag strip (top 10px): a webview there, or a no-drag box, stops the window being dragged */
+.ag-web{position:fixed;right:0;top:12px;width:1280px;height:860px;opacity:0;pointer-events:none;z-index:-1;display:flex;flex-direction:column;background:var(--bg)}
 .ag-web-view{flex:1;position:relative;min-height:0}
 .ag-web webview{position:absolute;inset:0;width:100%;height:100%}
 .ag-web.watch{opacity:1;pointer-events:auto;z-index:2000;left:auto;right:12px;top:56px;bottom:auto;width:calc(1280px * var(--s,.5));height:auto;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);border:1px solid var(--line)}
@@ -1775,3 +1776,10 @@ table.bench small{color:var(--text-2)}
 .bc-eng-row{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border-radius:14px;padding:10px 12px;cursor:pointer}.bc-eng-row input{margin-top:4px;width:20px;height:20px}
 .bc-eng-row small{color:var(--text-2)}.bc-eng-row.off{opacity:.55}.bc-stars{letter-spacing:.5px;color:var(--text)!important}
 @media (max-width:600px){#buildCard{left:8px;right:8px;width:auto;top:auto;bottom:max(8px,env(safe-area-inset-bottom));max-height:70vh}}
+
+/* The Agent screen on a wide screen: the assistant on the left, a card's width, the cards beside it (js/agent.js avatarSide) */
+.ag-root.ag-has-av{display:grid;grid-template-columns:clamp(220px,24vw,380px) minmax(0,1fr);gap:clamp(14px,2vw,28px);max-width:1440px;align-items:start}
+.ag-avatar{position:sticky;top:0;height:min(calc(100vh - 80px),820px);border-radius:24px;background:radial-gradient(120% 80% at 50% 100%,var(--surface) 0%,transparent 70%);overflow:hidden}
+.ag-avatar .mw-body{width:100%;height:100%}.ag-avatar canvas{width:100%!important;height:100%!important;display:block}
+.ag-main{display:flex;flex-direction:column;gap:14px;min-width:0}.ag-main>*{flex-shrink:0;min-width:0;max-width:100%}
+.ag-watching .ag-root.ag-has-av{grid-template-columns:clamp(180px,17vw,340px) minmax(260px,1fr) var(--ag-ws,560px);max-width:none}.ag-watching .ag-has-av .ag-list{grid-template-columns:1fr}

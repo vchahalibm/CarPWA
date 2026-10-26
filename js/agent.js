@@ -267,10 +267,13 @@ const AgentWeb = {
   async insert(text) { await this.wv.insertText(text); },
   key(k = 'Enter') { const wv = this.wv; wv.sendInputEvent({ type: 'keyDown', keyCode: k }); if (k === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r' }); wv.sendInputEvent({ type: 'keyUp', keyCode: k }); },
   /** Shown to sign in (full size, interactive). */
-  show(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); },
+  show(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); document.documentElement.classList.remove('ag-watching'); },
   /** Shown to watch a task: a side panel, the page at its usual size (1280×860) drawn smaller, with the steps below. */
   watch(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('show'); b.classList.toggle('watch', on); $('.ag-watch-log', b).hidden = !on;
-    if (on) b.style.setProperty('--s', String(Math.min(0.62, (Math.min(innerWidth * 0.5, 820)) / 1280).toFixed(3))); },
+    // on the Agent screen with the assistant beside the cards, the panel takes 40% so the cards stay in view between them
+    const s = Math.min(0.62, Math.min(innerWidth * (current === 'agent' && $('#agentRoot.ag-has-av') ? 0.4 : 0.5), 820) / 1280);
+    if (on) { b.style.setProperty('--s', s.toFixed(3)); document.documentElement.style.setProperty('--ag-ws', `${Math.round(1280 * s) + 24}px`); }
+    document.documentElement.classList.toggle('ag-watching', on); },
 };
 document.addEventListener('click', e => { if (e.target.closest('[data-agweb]')) { AgentWeb.show(false); AgentWeb.watch(false); } });
 
@@ -386,7 +389,7 @@ const Agent = {
         const re = new RegExp('^' + plain(e.replace(/\{(\w+)\}/g, ' SLOT$1 ')).split(' ').map(w => /^slot\w+$/.test(w) ? '(.+?)' : w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+') + '$', 'i');
         const m = said.match(re); if (m) { params = Object.fromEntries(slots.map((k, i) => [k, m[i + 1].trim()])); score = n + 3; }
       } else if (Script.matchPhrase(e, t)) { params = {}; score = n + (plain(e) === t ? 3 : 0); }
-      if (params && (!best || score > best.score)) best = { task, params, score };
+      if (params && (!best || score > best.score)) best = { task, params, score, exact: !!slots.length || plain(e) === t }; // exact: one of its ways to ask, word for word
     }
     return best && best.score >= 2 ? best : null;
   },
@@ -549,7 +552,8 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
 agentAction('agent.read', { group: 'Agent', name: 'Agent browser: read the page', arg: 'CSS selectors to read, tried in order (|| between them); the whole page if none fit; inputs: keep=words (only the lines that have them, || between choices), max=5000', async run(v, say, ev = {}) {
   agentCtx(); needWeb(); const a = agentArgs(ev.args), r = await AgentWeb.call('read', [v || 'body', +a.max || 5000]);
   // keep=Unread: the lines are picked here, not by the model (it lets read rows in)
-  if (a.keep && r.text) { const ks = a.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); r.text = r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)'; }
+  if (a.keep && r.text) { const ks = a.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); r.text = r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)';
+    const c = Agent.ctx; if (c) (c.kept ||= new Map()).set(r.text, r.text === '(none)' ? 0 : r.text.split('\n').length); } // how many lines were kept: the card's count (js ai.card)
   if (SIGNIN.test(r.url || '')) { AgentWeb.show(true); throw new Error(`SIGNIN:${new URL(r.url).hostname}`); }
   if (/unusual traffic|are you a robot|not a robot|verify you are human|captcha/i.test((r.text || '').slice(0, 800))) { AgentWeb.show(true); throw new Error('The site wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.'); }
   Log.d('agent', `Read ${r.text?.length || 0} characters (${r.sel})`); return r.text || '';
@@ -617,14 +621,17 @@ agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model
   // the small on-device model copies whatever it is given (today's date went into every “when”), so the date only comes with requests about dates
   const dated = /\b(today|tomorrow|yesterday|this week|next week|date|day|calendar|meeting|deadline|due)\b/i.test(v);
   const instructions = `You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Follow the request: it says what the headline and each item's title, detail and when hold. Rules: use only facts that are in the text; never invent names, numbers, dates or times; the request's words describe what to write, they are not values; write each field in your own short words, never copy whole lines; leave when empty unless the text gives a time for that item. If the text doesn't answer the request, the headline says so and items is empty. Plain words, no markdown.${dated ? ` Today is ${new Date().toDateString()}.` : ''}`;
-  const prompt = `Request: ${v}\n\nText:\n${text || '(none)'}`;
+  // lines picked by agent.read keep=: their number is known, so the model is told it and its headline's number is put right
+  const n = Agent.ctx?.kept?.get(text.trim()) ?? Agent.ctx?.kept?.get(text);
+  const prompt = `Request: ${v}${n != null ? `\n\nThere are exactly ${n} of them, one per line.` : ''}\n\nText:\n${text || '(none)'}`;
+  const counted = c => { if (n != null && c?.headline) c.headline = c.headline.replace(/^\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i, String(n)); return c; };
   if (typeof MacAI !== 'undefined' && MacAI.can()) {
-    try { const r = await MacAI.ask({ instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 500 }); return echoFix(tidyCard(JSON.parse(r.json || '{}')), v); }
+    try { const r = await MacAI.ask({ instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 500 }); return counted(echoFix(tidyCard(JSON.parse(r.json || '{}')), v)); }
     catch (e) { Log.w('agent', 'The on-device model didn’t make the card', { error: e.message }); }
   }
   if (typeof Brain !== 'undefined' && Brain.ready() && Brain.cfg().provider !== 'mac') {
     const t = await Brain.complete(`${instructions} Answer only with JSON: {"headline": "...", "items": [{"title": "...", "detail": "..."}]}`, prompt, 500);
-    try { return tidyCard(JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1))); } catch { return { headline: t.slice(0, 300), items: [] }; }
+    try { return counted(tidyCard(JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)))); } catch { return { headline: t.slice(0, 300), items: [] }; }
   }
   const lines = text.split('\n').map(x => x.trim()).filter(Boolean);
   return { headline: lines.length ? `No model here to sum this up (Apple’s on-device model on your Mac, or Settings › Assistant). What I found:` : 'Nothing found', items: lines.slice(0, 5).map(l => ({ title: l.slice(0, 90) })) };
@@ -683,15 +690,29 @@ const AgentHome = {
       ${c.type === 'number' && c.value ? `<div class="ag-value">${esc(c.value)}<small>${esc(c.unit || '')}</small></div>` : ''}
       <h3 class="ag-head">${esc(c.headline || '')}</h3>${items ? `<ul class="ag-items">${items}</ul>` : ''}${btns}</article>`;
   },
+  /** The assistant beside the cards on a wide screen (the watch panel takes the right): Stage's character, head to toe,
+      moved in like the start page does and handed back on leaving. Not on a phone, nor while driving. */
+  avatarSide() { return innerWidth >= 900 && !this.moving() && typeof StartPage !== 'undefined' && typeof Media !== 'undefined'; },
   draw() {
     const root = $('#agentRoot'); if (!root || current !== 'agent') return;
     const feed = Agent.feed(), [top, ...rest] = feed, hello = (h => h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')(new Date().getHours());
-    root.innerHTML = `<header class="ag-hdr"><div><h1>${hello}</h1><p class="se-note">${this.moving() ? 'Driving: short cards, read aloud.' : `Ask by voice or type. ${AgentWeb.can() ? 'Tasks run on this Mac.' : Link.ready() ? `Mail, calendar and chats run on ${esc(Link.macName())}.` : 'Pair with your Mac for mail, calendar and chats.'}`}</p></div>
+    const side = this.avatarSide(), id = side ? StartPage.avatarId() : '';
+    if (side && !$('.ag-avatar', root)) { root.innerHTML = `<aside class="ag-avatar mw" data-media="${esc(id)}"><div class="mw-body"></div></aside><div class="ag-main"></div>`; root.classList.add('ag-has-av');
+      Media.mount(id, $('.ag-avatar', root)).then(() => { this.av = id; this.frame(true); }).catch(() => {}); }
+    else if (!side && $('.ag-avatar', root)) { this.giveBack(); root.innerHTML = ''; root.classList.remove('ag-has-av'); }
+    (side ? $('.ag-main', root) : root).innerHTML = `<header class="ag-hdr"><div><h1>${hello}</h1><p class="se-note">${this.moving() ? 'Driving: short cards, read aloud.' : `Ask by voice or type. ${AgentWeb.can() ? 'Tasks run on this Mac.' : Link.ready() ? `Mail, calendar and chats run on ${esc(Link.macName())}.` : 'Pair with your Mac for mail, calendar and chats.'}`}</p></div>
       <button class="chip" data-ag="lib">${svg('grid')} Library</button></header>
       <form class="ag-ask" data-agform><input id="agAsk" placeholder="Ask, e.g. “what’s my day?”" autocomplete="off" enterkeyhint="go"><button class="big-btn accent" aria-label="Ask">${svg('mic')}</button></form>
       <div class="ag-sugg">${this.suggestions().map(t => `<button class="chip" data-ag="run:${esc(t.id)}">${esc(t.name)}</button>`).join('')}</div>
       ${top ? this.cardHtml(top, true) : `<div class="ag-empty"><h3>Nothing yet</h3><p class="se-note">Results of what you ask show here: mail summaries, your day, messages, arrival times, tasks on your Mac.</p></div>`}
       <div class="ag-list">${(this.moving() ? rest.slice(0, 2) : rest.slice(0, 12)).map(c => this.cardHtml(c)).join('')}</div>`;
+  },
+  /** Head to toe in a tall, narrow column (the start page's framing leaves room for the arms, which makes her small here). */
+  frame(on) { const i = typeof VrmAvatar !== 'undefined' && VrmAvatar.all.get(this.av); if (i) { i.fullBody = on; i.wide = false; i.frame(); } },
+  /** Leaving the Agent screen: the assistant goes back to its Stage widget (the start page takes it itself). */
+  giveBack(to) {
+    const id = this.av; if (!id) return; this.frame(false); this.av = null;
+    if (to !== 'start' && $(`#dashRoot .mw[data-media="${CSS.escape(id)}"]`)) Media.mount(id).catch(() => {});
   },
   /* The library: every task, run, trust, add your own */
   lib(group) {
@@ -785,4 +806,4 @@ document.addEventListener('submit', e => {
   const q = $('#agAsk').value.trim(); if (!q) return openAssistant();
   $('#agAsk').value = ''; Commands.run(q, false);
 });
-Bus.on('view.open', d => { if (d.value === 'agent') AgentHome.show(); });
+Bus.on('view.open', d => { if (d.value === 'agent') AgentHome.show(); else { AgentHome.giveBack(d.value); const r = $('#agentRoot'); if (r?.classList.contains('ag-has-av')) { r.innerHTML = ''; r.classList.remove('ag-has-av'); } } });

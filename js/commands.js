@@ -185,8 +185,9 @@ const BUILTINS = {
   text: { group: 'Phone', name: 'Text a contact', run: (v, say) => message(v, say, false) },
   whatsapp: { group: 'Phone', name: 'WhatsApp a contact', run: (v, say) => message(v, say, true) },
   readMessages: { group: 'Phone', name: 'Read my messages', run(v, say) {
-    const th = THREADS.find(x => x.unread) || THREADS[0];
-    say(`Reading your messages from ${contact(th.id)?.n || 'your inbox'}.`, () => { openView('messages'); openThread(th.id, true); });
+    // one reply: a second line spoken while the first plays would cut it off (the natural voice stops one for the next)
+    const th = THREADS.find(x => x.unread) || THREADS[0], c = contact(th.id), last = th.msgs.filter(m => !m.me).slice(-2).map(m => m.t).join('. ');
+    say(`${c?.n || 'Your inbox'} said: ${last}`, () => { openView('messages'); openThread(th.id, false); });
   } },
 
   // Information
@@ -604,7 +605,8 @@ const Commands = {
     if (typeof Script !== 'undefined' && Script.hear(raw)) return; // a running script's own words ("next", "go back"…) come first
     const r = this.match(raw, alts);
     // a task of the agent's library said in one of its ways (js/agent.js), when no command matched for sure
-    if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id))) { const m = Agent.match(raw); if (m) { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
+    // a task asked for in one of its own ways, word for word, beats a command found by keywords or loosely (“summarise my unread mail” isn't “read my messages”)
+    if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id) || ((r.cmd.match === 'keywords' || /^(loose|fuzzy)$/.test(r.how || '')) && Agent.match(raw)?.exact))) { const m = Agent.match(raw); if (m) { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
     if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();

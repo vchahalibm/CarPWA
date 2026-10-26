@@ -74,7 +74,7 @@
     "mac": {
       "category": "public.app-category.navigation",
       "icon": "../icons/studiogen-1024.png",
-      "identity": "-",
+      "identity": null,
       "hardenedRuntime": false,
       "extendInfo": {
         "NSMicrophoneUsageDescription": "StudioGen listens for your voice commands.",
@@ -103,6 +103,7 @@
     "publish": null,
     "electronLanguages": [
       "en"
-    ]
+    ],
+    "afterPack": "build/sign.js"
   }
 }

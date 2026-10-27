@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profiles and StudioGBee</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb; --ok:#0f8a4b; --mid:#b7791f; --no:#c2262e; --vio:#7c3aed; --panel:#0f1218; --pink:#fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; --vio:#a78bfa; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; --vio:#a78bfa; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:27px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 10px; padding-top:8px; border-top:1px solid var(--line); } h3 { font-size:16px; margin:18px 0 6px; }
+  .mut { color:var(--mut); } a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:14px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); } th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  .wrap { overflow-x:auto; } .toc { columns:2 260px; padding-left:18px; }
+  /* the mockup */
+  .mock { background:#0d1016; color:#e8eaee; border-radius:16px; border:1px solid #262b36; overflow:hidden; margin:14px 0; }
+  .mock-top { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #262b36; font-size:14px; flex-wrap:wrap; }
+  .mock-top b { font-size:16px; } .tab { padding:4px 10px; border-radius:999px; background:#1b2030; color:#b8c0d0; font-size:13px; } .tab.on { background:#2b6cff; color:#fff; }
+  .mock-body { display:grid; grid-template-columns: 1fr 300px; min-height:460px; }
+  .mock-graph { position:relative; border-right:1px solid #262b36; overflow:hidden; } .mock-graph svg { width:100%; height:100%; min-width:520px; display:block; }
+  .mock-side { padding:12px; font-size:13px; display:flex; flex-direction:column; gap:10px; overflow:auto; }
+  .mock-side h4 { margin:0 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#8f99ab; }
+  .ev { padding:6px 8px; border-radius:8px; background:#151a24; } .ev i { font-style:normal; color:#8f99ab; font-size:12px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .g { background:#34c47c; } .y { background:#e0a84a; } .r { background:#f2646b; } .s { background:#6b7280; }
+  .lanes { padding:12px 14px; border-top:1px solid #262b36; font-size:12px; }
+  .lane { display:grid; grid-template-columns:150px 1fr 70px; gap:8px; align-items:center; margin:5px 0; }
+  .bar { height:16px; border-radius:6px; background:#1b2030; position:relative; overflow:hidden; } .bar span { position:absolute; top:0; bottom:0; border-radius:6px; }
+  @media (max-width:820px) { .mock-body { grid-template-columns:1fr; } .mock-graph { border-right:0; border-bottom:1px solid #262b36; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Profiles, StudioGBee and working from anywhere</h1>
+<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9.</p>
+<ol class="toc">
+  <li><a href="#rule">The rule: what is private, what is shared</a></li>
+  <li><a href="#who">Who is asking: my devices</a></li>
+  <li><a href="#profiles">Profiles: an owner's sign-ins</a></li>
+  <li><a href="#signin">Signing in: at the Mac, then remotely</a></li>
+  <li><a href="#bee">StudioGBee: the optional always-on hive</a></li>
+  <li><a href="#stale">Waiting requests and when they go stale</a></li>
+  <li><a href="#dash">The StudioGBee dashboard</a></li>
+  <li><a href="#worker">StudioGen Worker: StudioGen in a container</a></li>
+  <li><a href="#phases">Phases</a></li>
+</ol>
+
+<h2 id="rule">1. The rule: what is private, what is shared</h2>
+<p>A StudioGen is its owner's agent. Its sign-ins (Outlook, Teams, Slack, WhatsApp…) and personal data are for its owner only. Everything else it can do is what the mesh is for.</p>
+<table>
+<tr><th>Kind of actionable</th><th>Who may run it</th><th>Examples</th></tr>
+<tr><td><b>Needs a sign-in or personal data</b> (“only my devices”)</td><td>The owner's own devices only: their paired phones and iPads, and the StudioGens they marked as theirs. Never another member, whatever the mesh roster says.</td><td>Unread mail, Teams and Slack chats, WhatsApp, calendar, sending anything as the owner; tasks in a signed-in container; AppleScript/Shortcuts/shell on the Mac; the Mac's databases</td></tr>
+<tr><td><b>Shared</b></td><td>Any mesh member, when the owner shared it (the task's or script's Share tick), unless the owner blocked that member (Mesh › Devices).</td><td>Web search, flight status, prices, capturing data from public web pages, Stage presentations and shows, scripts</td></tr>
+</table>
+<p>A task needs a sign-in when it opens <code>{outlook}</code> <code>{teams}</code> <code>{slack}</code> <code>{whatsapp}</code> (or those sites' addresses), runs in a container other than Default, runs an <code>os.*</code> or <code>data.sql</code> step, or runs another task that does. The task editor shows the result and lets the owner tick <b>Only my devices</b> by hand too (never the other way round: a task that opens a sign-in site stays private). A shared script is checked the same way before it runs for someone else.</p>
+
+<h2 id="who">2. Who is asking: my devices</h2>
+<p>Every request arrives through a channel only one device can use, so StudioGen knows who sent it without trusting what the request says about itself:</p>
+<table>
+<tr><th>Channel</th><th>Proves</th><th>Counts as mine</th></tr>
+<tr><td>Pairing room (relay, the <code>SG3…</code> code)</td><td>the device that scanned the code (only it has the room's key)</td><td>yes: pairing is shown only to your own devices (“Anyone who can scan this code can pair”)</td></tr>
+<tr><td>Direct link set up through a pairing room</td><td>the same device</td><td>yes</td></tr>
+<tr><td>Direct link by QR both ways (no relay)</td><td>the device in front of the Mac</td><td>yes</td></tr>
+<tr><td>Mesh pair room / mesh direct link</td><td>a mesh member (its ECDH key)</td><td>only if this StudioGen lists it under <b>My devices</b>: automatically when it is a paired device's mesh identity, or ticked by the owner (e.g. their second StudioGen)</td></tr>
+</table>
+<p><b>My devices is kept on each StudioGen</b>, not in the mesh roster: the mesh owner signs the roster, so if the roster decided, a mesh owner could add their own phone as “yours”. Settings › Connections › My devices lists them; removing one takes effect at once.</p>
+
+<h2 id="profiles">3. Profiles: an owner's sign-ins</h2>
+<ul>
+<li>A <b>profile</b> is one of the owner's accounts kept signed in: a container of the agent browser (Default, Work, Personal, or new ones) with the sites it is for. One person, many profiles (“Work”: Outlook, Teams, Slack; “Personal”: WhatsApp).</li>
+<li><b>One profile lives on exactly one StudioGen.</b> An owner may have several StudioGens (a Mac and a StudioGen Worker in Docker), each holding different profiles; a request goes to the one holding the profile for its site. Sign-ins are never copied between machines (they are locked with that machine's key, and sites distrust moved sessions).</li>
+<li>Stored: cookies and site data in the container's own folder inside StudioGen's data folder, encrypted with the key in “StudioGen Safe Storage” (Keychain; in a Worker, a container secret). Profile names and sites are ordinary settings. Passwords are never stored.</li>
+<li>Each StudioGen announces, in its mesh presence, the <i>names</i> of the sites its profiles cover, to its owner's devices only, so their phones know where to send what.</li>
+</ul>
+
+<h2 id="signin">4. Signing in: at the Mac, then remotely</h2>
+<ol>
+<li><b>At the Mac (first choice):</b> as today, the task stops, the Mac shows the sign-in page in the agent browser, and the phone says “Sign in to Outlook on your Mac”.</li>
+<li><b>Remotely (second):</b> the phone offers “Sign in from here”: the agent browser's page is shown live on the phone over the direct link (pictures one way, taps and typing the other, end-to-end encrypted). Two-factor codes on the phone just work. The password goes straight into the page and is never recorded or kept; this screen is the only thing that may type into a password field, and only what you type live. Needs a direct link (relays are too slow for a live picture); a StudioGen Worker can only be signed in this way.</li>
+</ol>
+
+<h2 id="bee">5. StudioGBee: the optional always-on hive</h2>
+<p>Without StudioGBee everything works as now: StudioGens and DriveGens find each other through the relays and direct links. StudioGBee adds an always-on place for when you want requests and cards to wait instead of failing.</p>
+<div class="grid">
+<div class="card"><h3>What it does</h3><ul><li><b>Queue:</b> requests for a StudioGen that is offline; cards for a requester that is offline</li><li><b>Who's around:</b> presence and which StudioGen serves what, even while every Mac sleeps</li><li><b>Push:</b> “your card is ready” to DriveGen (Web Push; iPhone home-screen apps support it)</li><li><b>Backup:</b> a sealed copy of the mesh roster and of each owner's task library, so a new Mac can recover them</li><li><b>Dashboard</b> for mesh owners (section 7)</li><li><b>TURN</b> (optional, off unless switched on): carries a connection when hole punching fails</li></ul></div>
+<div class="card"><h3>What it never does</h3><ul><li>Hold sign-ins or run tasks</li><li>Read what it carries: requests, cards, backups are sealed end to end with keys the mesh already has (pairwise ECDH, the group key); StudioGBee sees “sealed, from A to B, expires 10:12”</li><li>Decide who is in the mesh: the roster stays signed by its owners</li></ul></div>
+</div>
+<h3>Shape</h3>
+<pre>
+ DriveGen ──sealed request──► StudioGBee (team A) ◄──── federates ────► StudioGBee (team B)
+    ▲                          queue · presence · push · backup · dashboard · TURN (opt.)
+    │ card: direct, or                │  (Docker anywhere, or a Cloudflare Worker)
+    │ queued + push                   ▼
+    └──────────────────── owner's StudioGen (Mac, or Worker in Docker): fetches its queue on coming online,
+                          runs, sends the cards back (direct if the requester is reachable, else via StudioGBee)
+</pre>
+<ul>
+<li><b>Hosting:</b> one codebase, two ways: a Docker container (a VPS, a NAS, a Mac) or a Cloudflare Worker with a Durable Object (no machine). A page can't receive connections, so StudioGBee is a small server process, not a PWA.</li>
+<li><b>Run by a team, optional:</b> a mesh lists its StudioGBees (like its relays); with none, nothing changes.</li>
+<li><b>Federation:</b> StudioGBees join separate teams' meshes. Each team keeps its own roster; a person in two teams' meshes is reached through either StudioGBee, which forwards sealed messages addressed to device ids it doesn't host to the StudioGBee that does.</li>
+<li><b>Connecting:</b> devices keep using the relays and direct links (WebRTC with STUN: hole punching through home routers) as the main way; StudioGBee's WebSocket is one more path; its TURN is an option in Settings › Connections, used only when nothing else connects (strict routers, mobile networks).</li>
+</ul>
+
+<h2 id="stale">6. Waiting requests and when they go stale</h2>
+<p>When the StudioGen a request is for is offline, the request waits: on StudioGBee when there is one, else on the asking device while it is open. Each request carries its own rule, chosen by the asker (who, for anything private, is the owner):</p>
+<table>
+<tr><th>Kind</th><th>Wait at most (default)</th><th>Then</th></tr>
+<tr><td>Email (Outlook)</td><td>10 min</td><td>give up and say so</td></tr>
+<tr><td>Teams</td><td>10 min</td><td>give up</td></tr>
+<tr><td>Slack</td><td>10 min</td><td>give up</td></tr>
+<tr><td>WhatsApp</td><td>10 min</td><td>give up</td></tr>
+<tr><td>Calendar</td><td>10 min</td><td>give up</td></tr>
+<tr><td>Web and other</td><td>10 min</td><td>give up</td></tr>
+<tr><td>Acting (send, reply, book), any site</td><td>10 min</td><td>ask me again before it runs, if it waited</td></tr>
+</table>
+<p>Each kind: “don't wait”, a number of minutes, or “until it comes online”. Asked in the startup checklist of both apps (“When your Mac is offline…”), changed later in Settings › Agent › Waiting requests.</p>
+
+<h2 id="dash">7. The StudioGBee dashboard</h2>
+<p>For <b>mesh owners</b>. A high-level view of the mesh built only from the <b>metadata</b> that flows through (who, to whom, kind, size, timing, status, path); never contents, which StudioGBee can't read anyway. Login: the owner's browser joins as a viewer device once (scan a QR code from StudioGen), then a passkey (Face ID / Touch ID) unlocks it; the roster's owner signature is what makes it an owner's view.</p>
+<div class="mock">
+  <div class="mock-top"><b>🐝 StudioGBee · Acme team</b><span class="tab on">Overview</span><span class="tab">Live</span><span class="tab">Queue</span><span class="tab">Devices</span><span class="tab">Activity</span><span class="tab">Bees</span><span class="tab">History</span><span class="tab">Settings</span><span class="mut" style="margin-left:auto">owner · passkey</span></div>
+  <div class="mock-body">
+    <div class="mock-graph"><svg viewBox="0 0 560 420" font-family="-apple-system,sans-serif" font-size="12">
+      <g stroke-width="2" fill="none">
+        <line x1="280" y1="70" x2="120" y2="200" stroke="#e0a84a" stroke-dasharray="6 5"/><line x1="280" y1="70" x2="440" y2="200" stroke="#e0a84a" stroke-dasharray="6 5"/>
+        <line x1="280" y1="70" x2="470" y2="60" stroke="#a78bfa"/><line x1="120" y1="200" x2="200" y2="340" stroke="#34c47c"/><line x1="440" y1="200" x2="360" y2="340" stroke="#34c47c"/><line x1="120" y1="200" x2="440" y2="200" stroke="#34c47c"/>
+        <line x1="280" y1="70" x2="200" y2="340" stroke="#6b7280" stroke-dasharray="2 5"/>
+      </g>
+      <g fill="#e8eaee" text-anchor="middle">
+        <circle cx="280" cy="70" r="26" fill="#2b2410" stroke="#e0a84a" stroke-width="3"/><text x="280" y="75" font-size="18">🐝</text><text x="280" y="112">StudioGBee · queue 3</text>
+        <circle cx="470" cy="60" r="18" fill="#1d1830" stroke="#a78bfa" stroke-width="2"/><text x="470" y="65">🐝</text><text x="470" y="94" fill="#8f99ab">Team B bee</text>
+        <circle cx="120" cy="200" r="24" fill="#132a1f" stroke="#34c47c" stroke-width="3"/><text x="120" y="205" font-size="16">💻</text><text x="120" y="240">Priya's Mac · running 1</text>
+        <circle cx="440" cy="200" r="24" fill="#1b2030" stroke="#6b7280" stroke-width="3"/><text x="440" y="205" font-size="16">💻</text><text x="440" y="240" fill="#8f99ab">Office Mac · offline 40 min</text>
+        <circle cx="200" cy="340" r="20" fill="#132a1f" stroke="#34c47c" stroke-width="3"/><text x="200" y="345">📱</text><text x="200" y="375">Priya's iPhone</text>
+        <circle cx="360" cy="340" r="20" fill="#132a1f" stroke="#34c47c" stroke-width="3"/><text x="360" y="345">🐳</text><text x="360" y="375">Leo's Worker (Docker)</text>
+      </g></svg></div>
+    <div class="mock-side">
+      <div><h4>Now</h4><div class="ev"><span class="dot g"></span>5 of 7 devices online · 2 shows idle</div><div class="ev"><span class="dot y"></span>Queue: 3 waiting for Office Mac, oldest 6 min, next expiry 4 min</div><div class="ev"><span class="dot r"></span>1 failed today: sign-in needed (Office Mac, a profile)</div></div>
+      <div><h4>Activity</h4>
+        <div class="ev">Priya's iPhone → Priya's Mac · task (private) ✓ 3.1 s, 1.2 KB <i>10:42</i></div>
+        <div class="ev">Leo's iPhone → Office Mac · queued at the bee <i>10:39</i></div>
+        <div class="ev">Team B bee forwarded 2 sealed messages <i>10:35</i></div>
+        <div class="ev">Office Mac went offline · 3 waiting <i>10:02</i></div></div>
+      <div><h4>Paths</h4><div class="ev">direct 71% · relay 24% · bee 5% · TURN 0%</div></div>
+    </div>
+  </div>
+  <div class="lanes"><div class="lane"><span>Queue · Office Mac</span><div class="bar"><span style="left:0;width:60%;background:#e0a84a"></span></div><span>3 · 6 min</span></div><div class="lane"><span>Queue · Leo's Worker</span><div class="bar"><span style="left:0;width:0"></span></div><span>0</span></div></div>
+</div>
+<table>
+<tr><th>Screen</th><th>Shows (metadata only)</th></tr>
+<tr><td>Overview</td><td>Devices online, queued, running, failed today; the bees and their health; alerts (a StudioGen offline with requests waiting, a profile needing sign-in, a bee down)</td></tr>
+<tr><td>Live</td><td>The mesh graph of the Mesh screen, plus bees as nodes and paths as line styles (direct, relay, bee, TURN); dots for messages flowing</td></tr>
+<tr><td>Queue</td><td>Per StudioGen: how many wait, their age and expiry, kind (private / shared, acting or not), from which device; an owner can drop a request (not read it)</td></tr>
+<tr><td>Devices</td><td>The roster: app, version, OS, person, role, last seen, network type, bee it is homed on; Worker or Mac; profile <i>count</i> and sign-in health (not which accounts)</td></tr>
+<tr><td>Activity</td><td>The feed: joins and leaves, requests (who → whom, kind, private or shared, ms, bytes, ok/failed/expired), queue events, forwards between bees</td></tr>
+<tr><td>Bees</td><td>Each StudioGBee: up since, federated bees, storage, queue sizes, push and TURN use</td></tr>
+<tr><td>History</td><td>Over days: who was online when, waits and expiries, paths, busiest devices, failures by cause; retention as on the Mesh screen</td></tr>
+<tr><td>Settings</td><td>Retention, the team's default waiting rules, push and TURN on/off, backups kept, the bees this one federates with</td></tr>
+</table>
+
+<h2 id="worker">8. StudioGen Worker: StudioGen in a container</h2>
+<ul>
+<li>StudioGen's own code on Linux in Docker (Docker on a Mac first), headless (a virtual screen): the agent browser, containers, tasks, scripts, the mesh, the bee.</li>
+<li>Not there: Apple's on-device model (AI steps use Claude with a key, or Ollama), Apple speech, AppleScript/Shortcuts, the Keychain (the key that locks sign-ins comes from a Docker secret).</li>
+<li>Signed in only remotely (section 4). Some sites ask for extra checks from data-centre addresses; at home on Docker for Mac this doesn't arise.</li>
+<li>Its owner pairs it like a phone, so it is one of their devices; it holds its own profiles.</li>
+</ul>
+
+<h2 id="phases">9. Phases</h2>
+<table>
+<tr><th>Phase</th><th>What</th><th>Status</th></tr>
+<tr><td>1</td><td>The rule (private / shared), My devices, checks on every request (tasks, scripts, the mesh's <code>perms.tasks</code>), running shared tasks on another member's StudioGen, Teams practice site and tasks, waiting rules (startup checklist, Settings) with waiting on the asking device</td><td>building</td></tr>
+<tr><td>2</td><td>StudioGBee: queue, presence, push, backup, federation; Docker and Cloudflare</td><td>next</td></tr>
+<tr><td>3</td><td>The dashboard</td><td></td></tr>
+<tr><td>4</td><td>Remote sign-in</td><td></td></tr>
+<tr><td>5</td><td>StudioGen Worker (Docker)</td><td></td></tr>
+<tr><td>6</td><td>Tasks in parallel: one queue per profile, a cap of 3–4, watch lanes</td><td></td></tr>
+<tr><td>7</td><td>TURN on StudioGBee (optional)</td><td></td></tr>
+</table>
+</main>
+</body>
+</html>

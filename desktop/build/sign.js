@@ -1,6 +1,6 @@
 'use strict';
 /* Signing StudioGen (electron-builder's afterPack: after the app is put together, before the DMG and zip are made).
-   With the build's certificate (MAC_SIGN_ID, in the keychain MAC_SIGN_KEYCHAIN; the workflow imports it from the secrets
+   With the build's certificate (your own self-made code-signing certificate, any name; MAC_SIGN_ID, in the keychain MAC_SIGN_KEYCHAIN; the workflow imports it from the secrets
    MAC_CERT_P12 / MAC_CERT_PASSWORD) every version carries the same signature identity, so macOS sees each update as the
    same app: the Keychain's “Always Allow” for “StudioGen Safe Storage” (which encrypts the browser's cookies and kept
    sign-ins) carries over, instead of asking for the login password after every app update. Without it: ad-hoc, as before.

@@ -50,7 +50,7 @@ jobs:
           printf '%s' "$MAC_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cs.p12"
           security import "$RUNNER_TEMP/cs.p12" -k "$KC" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign >/dev/null; rm -f "$RUNNER_TEMP/cs.p12"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KP" "$KC" >/dev/null
-          ID="$(security find-certificate -c 'StudioGen Code Signing' -Z "$KC" | awk '/SHA-1/{print $NF}')"
+          ID="$(security find-certificate -a -Z "$KC" | awk '/SHA-1/{print $NF; exit}')" # the only certificate in this keychain, whatever its name
           [ -n "$ID" ] || { echo "The certificate didn't import"; exit 1; }
           echo "MAC_SIGN_ID=$ID" >> "$GITHUB_ENV"; echo "MAC_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
       - name: Build the DMGs and zipped apps (signed by desktop/build/sign.js)

@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 // Tandem journeys: acts of steps the runner (run.mjs) walks through. Add acts here as features land.
 // A step: title; you (what you do: html, or a function returning it); auto (what the runner does instead in --auto);
 // always (the runner always does it: setup); check (true, or a short text saying what it's still waiting for);
@@ -110,6 +111,36 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => (await st(A)).agent?.[0]?.status === 'waiting' || `card: ${JSON.stringify((await st(A)).agent?.[0] || null)}`, wait: 30 },
       { title: 'Studio B comes back: the waiting request runs and the card arrives', always: true, auto: () => B.restart(),
         check: async () => { const c = (await st(A)).agent?.[0]; return c?.status === 'done' && /mesh view/i.test(c.headline || '') || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 240 },
+    ],
+    bee: [
+      { title: 'Two StudioGBees start in Docker (this team’s and another team’s)', always: true,
+        auto: async () => { for (const [n, p, nm] of [[1, 8841, 'Team bee'], [2, 8842, 'Other team bee']]) { try { execFileSync('docker', ['rm', '-f', `sg-bee-${n}`], { stdio: 'ignore' }); } catch {} execFileSync('docker', ['run', '-d', '--name', `sg-bee-${n}`, '-p', `${p}:8840`, '-e', `BEE_ADMIN_CODE=TESTBEE${n}`, '-e', `BEE_NAME=${nm}`, 'studiogbee'], { stdio: 'ignore' }); } await sleep(2500); },
+        check: async () => { try { const [a, b] = await Promise.all([8841, 8842].map(p => fetch(`http://localhost:${p}/healthz`).then(r => r.json()))); return a.ok && b.ok || 'not up'; } catch (e) { return `not up: ${e.message}`; } }, wait: 30 },
+      { title: 'Studio A (owner) adds the team bee; Studio B and the phone connect by themselves', always: true,
+        auto: () => A.eval(`Bee.add('http://localhost:8841', 'TESTBEE1')`, 30000),
+        check: async () => { const ups = await Promise.all([A, B, P].map(d => d.eval('Bee.up()').catch(() => false))); return ups.every(Boolean) || `connected: A ${ups[0]}, B ${ups[1]}, phone ${ups[2]}`; }, wait: 60 },
+      { title: 'Studio B quits; the phone asks for its page title: it waits at the bee', always: true,
+        auto: async () => { await B.stop(); await sleep(70000); await P.step('command', 'title of the mesh page'); },
+        check: async () => { const c = (await st(P)).agent?.[0]; return c?.status === 'waiting' && /StudioGBee/.test(c.headline) || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 40 },
+      { title: 'The phone app is closed and opened again (the answer must still find it)', always: true,
+        auto: async () => { await P.eval('location.reload(), 1').catch(() => {}); await sleep(6000); }, check: async () => (await P.eval('typeof Bee !== "undefined" && Object.keys(store.get("beePending", {})).length')) >= 1 || 'nothing pending after the reload', wait: 30 },
+      { title: 'Studio B comes back: it takes the waiting request from the bee, and the answer lands on the phone’s card', always: true, auto: () => B.restart(),
+        check: async () => { const c = (await st(P)).agent?.find(x => x.title === 'Mesh page title'); return c?.status === 'done' && /mesh view/i.test(c.headline || '') || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 240 },
+      { title: 'The dashboard: Studio A gets a code, the owner signs in, sees the three devices and what waited', always: true,
+        auto: async () => { const code = await A.eval('Bee.dashCode()'); const r = await fetch('http://localhost:8841/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) }); S.cookie = (r.headers.get('set-cookie') || '').split(';')[0]; },
+        check: async () => { const d = await (await fetch('http://localhost:8841/api/state', { headers: { cookie: S.cookie || '' } })).json(); const k = new Set((d.events || []).map(e => e.kind)); return d.devices?.length === 3 && k.has('queued') && k.has('delivered') || `devices ${d.devices?.length}, events: ${[...k].join(', ') || d.error}`; }, wait: 30 },
+      { title: 'Studio A backs up its library; Studio B restores from it', always: true,
+        auto: async () => { await A.eval('Bee.backup(true)', 60000); S.restored = await B.eval(`Bee.restore(${JSON.stringify(await id(A))})`, 60000).catch(e => e.message); },
+        check: async () => typeof S.restored === 'number' && S.restored > 0 || `restored: ${S.restored}` },
+      { title: 'Another team’s bee: added to the mesh, linked with a code, and accepted on the team bee’s dashboard', always: true,
+        auto: async () => { await A.eval(`Bee.add('http://localhost:8842', 'TESTBEE2')`, 30000); const code = await A.eval(`Bee.linkCode('http://localhost:8841', 'http://host.docker.internal:8841')`); /* the other bee runs in its own container */ await A.eval(`Bee.linkJoin(${JSON.stringify(code)}, 'http://localhost:8842')`); await sleep(3000);
+          const d = await (await fetch('http://localhost:8841/api/state', { headers: { cookie: S.cookie } })).json(); const p = d.peers?.find(x => x.state === 'pending'); if (p) await fetch('http://localhost:8841/api/link/accept', { method: 'POST', headers: { cookie: S.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ peer: p.id }) }); },
+        check: async () => { const d = await (await fetch('http://localhost:8841/api/state', { headers: { cookie: S.cookie } })).json(); return d.peers?.some(p => p.state === 'active' && p.up) || `peers: ${JSON.stringify(d.peers)}`; }, wait: 30 },
+      { title: 'Studio B uses only the other bee, the phone only the team bee: a request from the phone is passed between the bees', always: true,
+        auto: async () => { await B.eval(`store.set('beeHome', 'http://localhost:8842'), Bee.start(), 1`); await P.eval(`store.set('beeHome', 'http://localhost:8841'), Bee.start(), 1`); await sleep(5000);
+          S.fwd = await P.eval(`Bee.call(${JSON.stringify(await id(B))}, 'task', { id: 'my.title', params: {}, confirmed: true }, 60000).then(r => JSON.stringify(r), e => 'ERR ' + e.message)`, 90000); },
+        check: async () => /mesh view/i.test(S.fwd || '') || `answer: ${S.fwd}` },
+      { title: 'The bees stop', always: true, auto: async () => { for (const n of [1, 2]) try { execFileSync('docker', ['rm', '-f', `sg-bee-${n}`], { stdio: 'ignore' }); } catch {} await B.eval(`store.set('beeHome', ''), 1`).catch(() => {}); await P.eval(`store.set('beeHome', ''), 1`).catch(() => {}); }, check: async () => true },
     ],
     show: [
       { title: 'The phone starts the Keynote on all screens', ...say(P, 'start the keynote on all screens'),

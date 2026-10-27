@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Profiles, StudioGBee and working from anywhere</h1>
-<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9. Phase 1 is built.</p>
+<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9. Phases 1–3 are built; the bee: <a href="../bee/README.md">bee/README.md</a>.</p>
 <ol class="toc">
   <li><a href="#rule">The rule: what is private, what is shared</a></li>
   <li><a href="#who">Who is asking: my devices</a></li>
@@ -122,7 +122,7 @@
 <p>Each kind: “don't wait”, a number of minutes, or “until it comes online”. Asked in the startup checklist of both apps (“When your Mac is offline…”), changed later in Settings › Agent › Waiting requests.</p>
 
 <h2 id="dash">7. The StudioGBee dashboard</h2>
-<p>For <b>mesh owners</b>. A high-level view of the mesh built only from the <b>metadata</b> that flows through (who, to whom, kind, size, timing, status, path); never contents, which StudioGBee can't read anyway. Login: the owner's browser joins as a viewer device once (scan a QR code from StudioGen), then a passkey (Face ID / Touch ID) unlocks it; the roster's owner signature is what makes it an owner's view.</p>
+<p>For <b>mesh owners</b>. A high-level view of the mesh built only from the <b>metadata</b> that flows through (who, to whom, kind, size, timing, status, path); never contents, which StudioGBee can't read anyway. Login (as built): a one-time code from a mesh owner's StudioGen (StudioGBee › Dashboard code), then optionally a passkey added in the dashboard's Settings for Face ID / Touch ID next time; the code stays the fallback. The bee knows who is an owner from the owner-signed roster.</p>
 <div class="mock">
   <div class="mock-top"><b>🐝 StudioGBee · Acme team</b><span class="tab on">Overview</span><span class="tab">Live</span><span class="tab">Queue</span><span class="tab">Devices</span><span class="tab">Activity</span><span class="tab">Bees</span><span class="tab">History</span><span class="tab">Settings</span><span class="mut" style="margin-left:auto">owner · passkey</span></div>
   <div class="mock-body">
@@ -176,8 +176,8 @@
 <table>
 <tr><th>Phase</th><th>What</th><th>Status</th></tr>
 <tr><td>1</td><td>The rule (private / shared), My devices, checks on every request (tasks, scripts, the mesh's <code>perms.tasks</code>), running shared tasks on another member's StudioGen, Teams practice site and tasks, waiting rules (startup checklist, Settings) with waiting on the asking device</td><td>built 27 Oct (tandem act “own”: 18 checks)</td></tr>
-<tr><td>2</td><td>StudioGBee: queue, presence, push, backup, federation; Docker and Cloudflare</td><td>next</td></tr>
-<tr><td>3</td><td>The dashboard</td><td></td></tr>
+<tr><td>2</td><td>StudioGBee: queue, presence, push, backup, federation; Docker (bee/), Cloudflare later</td><td>built 27 Oct (tandem act “bee”)</td></tr>
+<tr><td>3</td><td>The dashboard (passkey, or a code from StudioGen as the fallback)</td><td>built 27 Oct</td></tr>
 <tr><td>4</td><td>Remote sign-in</td><td></td></tr>
 <tr><td>5</td><td>StudioGen Worker (Docker)</td><td></td></tr>
 <tr><td>6</td><td>Tasks in parallel: one queue per profile, a cap of 3–4, watch lanes</td><td></td></tr>

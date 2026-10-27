@@ -1,0 +1,14 @@
+{
+  "name": "studiogbee",
+  "version": "0.1.0",
+  "private": true,
+  "description": "StudioGBee: the optional always-on hive for a StudioGen mesh (queue, push, backup, dashboard). Design: docs/studiogbee.html",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": { "start": "node server.mjs" },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "web-push": "3.6.7",
+    "ws": "8.18.0"
+  }
+}

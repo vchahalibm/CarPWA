@@ -410,8 +410,9 @@ const Agent = {
   where(t) { return t.on ? 'mac' : t.runs !== 'mac' || (AgentWeb.can() && !t.remoteOnly) ? 'here' : 'mac'; },
   /** Where a 'mac' task goes: the paired Mac, or the StudioGen in the mesh that offers it. */
   target(t) {
-    if (t?.on) return { name: t.onName || 'that StudioGen', ready: () => typeof Mesh !== 'undefined' && Date.now() - (Mesh.presence[t.on]?.at || 0) < 60000, call: o => Mesh.call(t.on, 'task', o, 300000), paired: true };
-    return { name: Link.macName(), ready: () => Link.ready(), call: o => Link.task(o), paired: !!(typeof Relay !== 'undefined' && Relay.mac()) || !!Link.mac()?.token };
+    if (t?.on) return { meshId: t.on, name: t.onName || 'that StudioGen', ready: () => typeof Mesh !== 'undefined' && Date.now() - (Mesh.presence[t.on]?.at || 0) < 60000, call: o => Mesh.call(t.on, 'task', o, 300000), paired: true };
+    const mid = typeof Relay !== 'undefined' ? Relay.mac()?.meshId : null;
+    return { meshId: typeof Mesh !== 'undefined' && Mesh.member(mid) ? mid : null, name: Link.macName(), ready: () => Link.ready(), call: o => Link.task(o), paired: !!(typeof Relay !== 'undefined' && Relay.mac()) || !!Link.mac()?.token };
   },
   asking(t) { return this.where(t) === 'mac' ? `Asking ${this.target(t).name}…` : 'Working on it…'; },
 
@@ -451,6 +452,23 @@ const Agent = {
     while (!to.ready()) { if (Date.now() > until) throw new Error(`${to.name} stayed offline, so I gave up on “${t.name}” (Agent › Library › Settings › Waiting requests)`); await new Promise(r => setTimeout(r, 2000)); }
     if (card) this.post({ id: card, status: 'running', headline: `Asking ${to.name}…` });
     return true;
+  },
+  /** Through StudioGBee (js/bee.js): the request waits there for the Mac (or StudioGen) as long as this kind may, and the
+      answer comes back here, or onto its card later (Agent.late) if this screen has gone meanwhile. */
+  async viaBee(t, to, params, o) {
+    const min = +this.waitRules()[this.waitKind(t)] || 0;
+    if (!min) throw new Error(`${to.name} is offline right now. Is StudioGen open?`);
+    const ttl = min < 0 ? 7 * 86400000 : min * 60000, hm = min < 0 ? '' : new Date(Date.now() + ttl).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (o.card) { this.post({ id: o.card, status: 'waiting', headline: `Waiting at StudioGBee for ${to.name}${hm ? ` (until ${hm})` : ''}` }); Voice.respond(`${to.name} is offline. StudioGBee keeps your request until it’s back${hm ? `, until ${hm}` : ''}; you can close the app.`); }
+    Log.i('agent', `Queued at StudioGBee for ${to.name}`, { task: t.name, min });
+    const r = await Bee.call(to.meshId, 'task', { id: t.origId || t.id, params, confirmed: !!o.confirmed }, ttl, o.card ? { card: o.card, task: t.id, title: t.name } : {});
+    if (r?.error) throw new Error(r.error); return r?.card ?? r;
+  },
+  /** An answer that came through StudioGBee after the screen that asked had gone (the app was closed or reloaded). */
+  late(p, a) {
+    const ok = !a.error, k = ok ? this.asCard(a.result?.card ?? a.result) : null;
+    this.post({ id: p.card, task: p.task, title: p.title, ...(ok ? { ...k, status: 'done' } : { type: 'summary', status: 'failed', headline: a.error }), at: Date.now() });
+    toast(`${p.title}: ${ok ? 'the answer came' : a.error}`); Log.i('agent', `Late answer for ${p.title}`, { ok });
   },
   /** After waiting, an acting task asks again: what was right ten minutes ago may not be now. */
   askAgain(t, params, to) {
@@ -528,6 +546,8 @@ const Agent = {
       const to = this.target(t);
       if (!to.ready()) {
         if (!to.paired) throw new Error('This needs StudioGen on your Mac: pair in Settings › Connections.');
+        // a StudioGBee in the mesh keeps it while the app is closed (not something that sends and should be asked again)
+        if (typeof Bee !== 'undefined' && Bee.up() && to.meshId && !(this.acts(t) && this.waitRules().ask)) return this.viaBee(t, to, params, o);
         await this.wait(t, to, o.card);
         if (this.acts(t) && this.waitRules().ask && !(await this.askAgain(t, params, to))) throw new Error('Okay, I didn’t.');
       }

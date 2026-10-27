@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v117';
+const VERSION = 'v118';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -30,7 +30,7 @@ const SHELL = [
   'js/radio.js',
   'js/media.js',
   'js/motions.js', 'js/avatar.js', 'js/avatars.js',
-  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/ostasks.js', 'js/dataviz.js', 'js/link.js', 'js/direct.js', 'js/relay.js', 'js/linktest.js', 'js/mesh.js', 'js/meshdirect.js', 'js/meshview.js', 'js/startpage.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'js/agent.js', 'js/taskedit.js', 'js/taskllm.js', 'js/tasklocal.js', 'js/taskbuild.js', 'js/peek.js', 'js/setup.js', 'bridge/drivedeck-bridge.js',
+  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/ostasks.js', 'js/dataviz.js', 'js/link.js', 'js/direct.js', 'js/relay.js', 'js/linktest.js', 'js/mesh.js', 'js/meshdirect.js', 'js/meshview.js', 'js/bee.js', 'js/startpage.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'js/agent.js', 'js/taskedit.js', 'js/taskllm.js', 'js/tasklocal.js', 'js/taskbuild.js', 'js/peek.js', 'js/setup.js', 'bridge/drivedeck-bridge.js',
   'js/debug.js',
   'vendor/fonts/inter-latin-wght.woff2',
   'manifest.webmanifest',
@@ -103,6 +103,15 @@ async function shell(req) {
   return net;
 }
 
+// StudioGBee's “your answer is ready” (js/bee.js): no contents, the answer itself comes when the app opens
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data?.json() || {}; } catch {}
+  e.waitUntil(self.registration.showNotification(d.title || 'DriveGen', { body: d.body || 'An answer is ready', tag: d.tag || 'bee', icon: 'icons/pwa-192x192.png', data: { url: './?view=agent' } }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(l => l[0] ? l[0].focus() : self.clients.openWindow(e.notification.data?.url || './')));
+});
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;

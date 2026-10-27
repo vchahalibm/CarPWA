@@ -1,0 +1,14 @@
+# StudioGBee with Docker Compose: docker compose -f bee/docker-compose.yml up -d   (then: docker logs studiogbee for the admin code)
+services:
+  studiogbee:
+    build: .
+    container_name: studiogbee
+    restart: unless-stopped
+    ports: ["8840:8840"]
+    environment:
+      BEE_NAME: "StudioGBee"          # shown in the apps and the dashboard
+      # BEE_ADMIN_CODE: "choose-one"  # else one is made and printed at the first start
+      # BEE_CONTACT: "mailto:you@example.com"  # for the push services
+    volumes: ["studiogbee:/data"]
+volumes:
+  studiogbee:

@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'StudioGBee (optional, one Docker command, bee/README.md): requests for an offline Mac wait there and the answer comes even if the app was closed, with a notification; backups; a dashboard for mesh owners (Settings › Connections › StudioGBee)',
   'Your sign-ins stay yours: tasks that use your mail, chats or Mac run only for your own devices; shared tasks without a sign-in (a web search) can be run on your StudioGen by anyone in the mesh, just by asking',
   'If your Mac is offline, a request waits for it (10 minutes to start with) and runs when it’s back (Agent › Library › Settings › Waiting requests)',
   'Practice Teams beside the practice inbox, Slack and WhatsApp, and a new task: “what did Priya say on Teams?”',

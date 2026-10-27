@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StudioGBee Dashboard</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#15181d;--mut:#5b6472;--line:#e1e4ea;--acc:#2563eb;--ok:#0f8a4b;--mid:#b7791f;--no:#c2262e;--vio:#7c3aed;--hon:#b7791f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a21;--ink:#e8eaee;--mut:#9aa3b2;--line:#2a2f3a;--acc:#6ea0ff;--ok:#34c47c;--mid:#e0a84a;--no:#f2646b;--vio:#a78bfa;--hon:#e0a84a}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#171a21;--ink:#e8eaee;--mut:#9aa3b2;--line:#2a2f3a;--acc:#6ea0ff;--ok:#34c47c;--mid:#e0a84a;--no:#f2646b;--vio:#a78bfa;--hon:#e0a84a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:2}
+header b{font-size:17px}.tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{border:0;background:transparent;color:var(--mut);padding:6px 12px;border-radius:999px;font:inherit;cursor:pointer}.tab.on{background:var(--acc);color:#fff}
+.sp{flex:1}main{max-width:1180px;margin:0 auto;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px}.card h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+.big{font-size:30px;font-weight:700}.mut{color:var(--mut)}.ok{color:var(--ok)}.mid{color:var(--mid)}.no{color:var(--no)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.wrap{overflow-x:auto}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--mut)}.dot.on{background:var(--ok)}
+button.b{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}button.b.acc{background:var(--acc);border-color:var(--acc);color:#fff}
+.login{max-width:420px;margin:12vh auto;text-align:center}.login input{width:100%;font:600 22px ui-monospace,Menlo,monospace;letter-spacing:.2em;text-align:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);margin:10px 0}
+.ev{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.ev time{color:var(--mut);min-width:64px;font-variant-numeric:tabular-nums}
+svg text{fill:var(--ink);font-size:12px}.bar{fill:var(--acc)}
+.pill{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--line);color:var(--mut)}
+select{font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+@media (max-width:600px){header{padding:10px 16px}.big{font-size:24px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* The StudioGBee dashboard (docs/studiogbee.html § 7): for mesh owners, metadata only (who, to whom, kind, size, when,
+   what waits); the bee can't read the contents and doesn't show them. Signed in with a code from a mesh owner's StudioGen
+   (Settings › Connections › StudioGBee › Dashboard code), or a passkey added after that. */
+const $ = s => document.querySelector(s), esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const api = async (p, b) => { const r = await fetch(p, b ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) } : {}); const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status }); return j; };
+const ago = t => { if (!t) return '–'; const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`; };
+const hm = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const kb = n => n > 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`;
+let D = null, tab = 'overview', live = null;
+const name = id => D?.devices.find(d => d.id === id)?.name || (id ? id.slice(0, 6) : '?');
+const KIND = { ask: 'request', re: 'answer' };
+
+async function start() {
+  try { D = await api('/api/state'); draw(); connectLive(); setInterval(refresh, 10000); }
+  catch (e) { if (e.status === 401) loginView(); else $('#app').innerHTML = `<p class="login">${esc(e.message)}</p>`; }
+}
+async function refresh() { try { D = await api('/api/state'); draw(); } catch (e) { if (e.status === 401) loginView(); } }
+function connectLive() { try { live?.close(); live = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/live'); live.onmessage = m => { const e = JSON.parse(m.data).e; if (!e || !D) return; D.events.push(e); if (tab === 'overview' || tab === 'activity') clearTimeout(live._t), live._t = setTimeout(refresh, 400); }; live.onclose = () => setTimeout(connectLive, 5000); } catch {} }
+
+function loginView() {
+  $('#app').innerHTML = `<div class="login card"><b style="font-size:20px">🐝 StudioGBee</b><p class="mut">For mesh owners: the mesh's activity, never its contents.</p>
+    ${window.PublicKeyCredential ? '<button class="b acc" id="pk" style="width:100%;padding:10px">Sign in with a passkey</button><p class="mut">or</p>' : ''}
+    <p class="mut" style="margin:0">Type the code from StudioGen › Settings › Connections › StudioGBee › <b>Dashboard code</b></p>
+    <input id="code" maxlength="10" autocomplete="one-time-code" autocapitalize="characters" placeholder="ABCD2345"><button class="b acc" id="go" style="width:100%;padding:10px">Sign in with the code</button><p id="err" class="no"></p></div>`;
+  $('#go').onclick = async () => { try { await api('/api/login', { code: $('#code').value }); start(); } catch (e) { $('#err').textContent = e.message; } };
+  $('#code').onkeydown = e => { if (e.key === 'Enter') $('#go').click(); };
+  if ($('#pk')) $('#pk').onclick = async () => {
+    try {
+      const o = await api('/api/passkey/options', {});
+      if (!o.allow.length) throw new Error('No passkey here yet: sign in with a code, then add one in Settings');
+      const c = await navigator.credentials.get({ publicKey: { challenge: unb64u(o.challenge), rpId: o.rpId, allowCredentials: o.allow.map(id => ({ type: 'public-key', id: unb64u(id) })), userVerification: 'preferred' } });
+      await api('/api/passkey/login', { id: c.id, authenticatorData: b64u(c.response.authenticatorData), clientDataJSON: b64u(c.response.clientDataJSON), signature: b64u(c.response.signature) }); start();
+    } catch (e) { $('#err').textContent = e.name === 'NotAllowedError' ? 'No passkey was used: sign in with a code' : e.message; }
+  };
+}
+async function addPasskey() {
+  try {
+    const o = await api('/api/passkey/options', {});
+    const c = await navigator.credentials.create({ publicKey: { challenge: unb64u(o.challenge), rp: { id: o.rpId, name: o.name }, user: { id: unb64u(o.user.id), name: o.user.name, displayName: `${o.user.name} (owner)` }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }], authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' }, attestation: 'none' } });
+    const spki = c.response.getPublicKey?.(); if (!spki) throw new Error('This browser can’t add a passkey here');
+    await api('/api/passkey/register', { id: c.id, spki: b64u(spki), clientDataJSON: b64u(c.response.clientDataJSON), name: navigator.platform || 'Passkey' }); alert('Passkey added: next time, sign in with it'); refresh();
+  } catch (e) { alert(e.name === 'NotAllowedError' ? 'No passkey was added' : e.message); }
+}
+
+const TABS = [['overview', 'Overview'], ['live', 'Live'], ['queue', 'Queue'], ['devices', 'Devices'], ['activity', 'Activity'], ['bees', 'Bees'], ['history', 'History'], ['settings', 'Settings']];
+function draw() {
+  if (!D) return;
+  $('#app').innerHTML = `<header><b>🐝 ${esc(D.bee.name)}</b><span class="mut">· ${esc(D.mesh.name)}</span><nav class="tabs">${TABS.map(([k, l]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</nav><span class="sp"></span><span class="mut">owner</span><button class="b" id="out">Sign out</button></header><main>${VIEW[tab]()}</main>`;
+}
+const onl = () => D.devices.filter(d => d.online);
+const today = k => D.events.filter(e => e.kind === k && e.at > new Date().setHours(0, 0, 0, 0)).length;
+const evText = e => ({
+  delivered: `${esc(name(e.from))} → ${esc(name(e.to))} · ${KIND[e.k] || esc(e.k)} delivered, ${kb(e.size)}${e.waited > 5000 ? ` after waiting ${Math.round(e.waited / 60000)} min` : ''}`,
+  queued: `${esc(name(e.from))} → ${esc(name(e.to))} · ${KIND[e.k] || esc(e.k)} waits (${esc(name(e.to))} is offline)${e.via ? ` · from ${esc(e.via)}` : ''}`,
+  forwarded: `${esc(name(e.from))} → ${esc(name(e.to))} · forwarded to ${esc(e.peer)}`, expired: `${esc(name(e.from))} → ${esc(name(e.to))} · ${KIND[e.k] || esc(e.k)} expired unanswered`,
+  dropped: `${esc(name(e.from))} → ${esc(name(e.to))} · dropped by an owner`, online: `${esc(name(e.dev))} came online${e.app ? ` (${esc(e.app)}${e.ver ? ' ' + esc(e.ver) : ''})` : ''}`, offline: `${esc(name(e.dev))} went offline`,
+  push: `Push sent to ${esc(name(e.to))}`, 'push-failed': `Push to ${esc(name(e.to))} failed (${esc(e.note)})`, 'push-on': `${esc(name(e.dev))} turned on notifications`,
+  backup: `${esc(name(e.dev))} backed up its library (${kb(e.size)})`, roster: `Member list updated (revision ${e.rev})`, registered: `The mesh was added to this bee`,
+  'link-request': `${esc(e.peer)} asks to link: accept it in Bees`, 'link-asked': `Asked ${esc(e.peer)} to link`, linked: `Linked with ${esc(e.peer)}`, unlinked: `Link with ${esc(e.peer)} ended`,
+  'dashboard-login': 'An owner signed in to the dashboard', 'passkey-added': 'A passkey was added',
+}[e.kind] || esc(e.kind));
+const evList = l => l.length ? l.slice().reverse().map(e => `<div class="ev"><time>${hm(e.at)}</time><span>${evText(e)}</span></div>`).join('') : '<p class="mut">Nothing yet.</p>';
+const VIEW = {
+  overview: () => { const q = D.queue, alerts = [];
+    for (const d of D.devices) { const n = q.filter(x => x.to === d.id).length; if (n && !d.online) alerts.push(`<span class="mid">${esc(d.name)} is offline with ${n} waiting</span>`); }
+    for (const p of D.peers) { if (p.state === 'pending') alerts.push(`<span class="mid">${esc(p.name)} asks to link (Bees)</span>`); else if (p.state === 'active' && !p.up) alerts.push(`<span class="no">Linked bee ${esc(p.name)} is unreachable</span>`); }
+    if (today('expired')) alerts.push(`<span class="no">${today('expired')} expired unanswered today</span>`);
+    return `<div class="grid"><div class="card"><h3>Online</h3><div class="big">${onl().length} <span class="mut" style="font-size:16px">of ${D.devices.length}</span></div></div>
+      <div class="card"><h3>Waiting</h3><div class="big ${q.length ? 'mid' : ''}">${q.length}</div><span class="mut">${q.length ? `oldest ${ago(Math.min(...q.map(x => x.at)))}, next expiry ${hm(Math.min(...q.map(x => x.until)))}` : 'nothing waits'}</span></div>
+      <div class="card"><h3>Today</h3><div class="big">${today('delivered')}</div><span class="mut">delivered · ${today('forwarded')} forwarded · ${today('expired')} expired</span></div>
+      <div class="card"><h3>Bees</h3><div class="big">${1 + D.peers.filter(p => p.state === 'active').length}</div><span class="mut">this one${D.peers.length ? ` + ${D.peers.filter(p => p.state === 'active').length} linked` : ''} · up ${ago(D.bee.since).replace(' ago', '')}</span></div></div>
+      ${alerts.length ? `<div class="card"><h3>Needs a look</h3>${alerts.map(a => `<div>${a}</div>`).join('')}</div>` : ''}
+      <div class="grid"><div class="card"><h3>Live</h3>${graph(320)}</div><div class="card"><h3>Activity</h3>${evList(D.events.slice(-12))}</div></div>`; },
+  live: () => `<div class="card"><h3>Who's connected, and through which bee</h3>${graph(520)}<p class="mut">Solid: connected to this bee · dashed: through a linked bee · grey: offline. Devices also talk directly and through the relays; this bee only sees what goes through it.</p></div>`,
+  queue: () => `<div class="card"><h3>Waiting for a device to come online</h3>${D.queue.length ? `<div class="wrap"><table><tr><th>From</th><th>To</th><th>Kind</th><th>Waiting</th><th>Expires</th><th>Size</th><th></th></tr>${D.queue.map(q => `<tr><td>${esc(name(q.from))}</td><td>${esc(name(q.to))}</td><td>${KIND[q.k] || esc(q.k)}</td><td>${ago(q.at)}</td><td>${hm(q.until)}</td><td>${kb(q.size)}</td><td><button class="b" data-drop="${esc(q.id)}">Drop</button></td></tr>`).join('')}</table></div>` : '<p class="mut">Nothing waits.</p>'}<p class="mut">Sealed end to end: the bee can drop a waiting message, never read it.</p></div>`,
+  devices: () => `<div class="card"><h3>Members</h3><div class="wrap"><table><tr><th>Device</th><th>App</th><th>Role</th><th>Status</th><th>Through</th><th>Notifications</th></tr>${D.devices.map(d => `<tr><td><span class="dot ${d.online ? 'on' : ''}"></span>${esc(d.name)}</td><td>${esc(d.app)}${d.ver ? ` <span class="mut">${esc(d.ver)}</span>` : ''}</td><td>${esc(d.role)}</td><td>${d.online ? 'online' : `seen ${ago(d.seen)}`}</td><td>${esc(d.via || '–')}</td><td>${d.push ? 'on' : '–'}</td></tr>`).join('')}</table></div></div>`,
+  activity: () => `<div class="card"><h3>Activity</h3><input id="q" placeholder="Search (a name, “expired”…)" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;margin-bottom:8px"><div id="evs">${evList(D.events.slice(-300))}</div></div>`,
+  bees: () => `<div class="card"><h3>This bee</h3><p><b>${esc(D.bee.name)}</b> <span class="mut">${esc(D.bee.id)} · up since ${new Date(D.bee.since).toLocaleString()} · ${D.backups} backups kept</span></p></div>
+    <div class="card"><h3>Linked bees (other teams)</h3>${D.peers.length ? `<table><tr><th>Bee</th><th>State</th><th>Connection</th><th>Their devices online</th><th></th></tr>${D.peers.map(p => `<tr><td>${esc(p.name)}</td><td>${p.state === 'active' ? '<span class="ok">linked</span>' : p.state === 'pending' ? '<span class="mid">asks to link</span>' : '<span class="mut">waiting for them to accept</span>'}</td><td>${p.up ? 'up' : 'down'}</td><td>${p.online}</td><td>${p.state === 'pending' ? `<button class="b acc" data-accept="${esc(p.id)}">Accept</button> ` : ''}<button class="b" data-unlink="${esc(p.id)}">${p.state === 'pending' ? 'Refuse' : 'Unlink'}</button></td></tr>`).join('')}</table>` : '<p class="mut">None. To link another team’s bee: in StudioGen › Settings › Connections › StudioGBee, make a link code and give it to their owner (or paste theirs).</p>'}</div>`,
+  history: () => { const days = 7, start = new Date().setHours(0, 0, 0, 0) - (days - 1) * 86400000, rows = [];
+    for (let i = 0; i < days; i++) { const a = start + i * 86400000, b = a + 86400000, ev = D.events.filter(e => e.at >= a && e.at < b); rows.push({ d: new Date(a).toLocaleDateString([], { weekday: 'short' }), del: ev.filter(e => e.kind === 'delivered').length, q: ev.filter(e => e.kind === 'queued').length, x: ev.filter(e => e.kind === 'expired').length, on: new Set(ev.filter(e => e.kind === 'online').map(e => e.dev)).size }); }
+    const max = Math.max(1, ...rows.map(r => r.del + r.q)), W = 560, H = 160, bw = W / days;
+    return `<div class="card"><h3>The last ${days} days</h3><svg viewBox="0 0 ${W} ${H + 24}" style="width:100%;max-width:680px">${rows.map((r, i) => { const h1 = r.del / max * H, h2 = r.q / max * H; return `<rect class="bar" x="${i * bw + 8}" y="${H - h1}" width="${bw - 16}" height="${h1}"><title>${r.del} delivered</title></rect><rect x="${i * bw + 8}" y="${H - h1 - h2}" width="${bw - 16}" height="${h2}" fill="var(--hon)"><title>${r.q} waited</title></rect><text x="${i * bw + bw / 2}" y="${H + 16}" text-anchor="middle">${r.d}</text>`; }).join('')}</svg>
+      <table><tr><th>Day</th><th>Delivered</th><th>Waited</th><th>Expired</th><th>Devices online</th></tr>${rows.map(r => `<tr><td>${r.d}</td><td>${r.del}</td><td>${r.q}</td><td class="${r.x ? 'no' : ''}">${r.x}</td><td>${r.on}</td></tr>`).join('')}</table><p class="mut">Kept ${D.settings.keepDays} days (Settings).</p></div>`; },
+  settings: () => `<div class="card"><h3>Keep the activity</h3><select id="keep">${[1, 7, 30, 90].map(n => `<option value="${n}" ${D.settings.keepDays === n ? 'selected' : ''}>${n} day${n > 1 ? 's' : ''}</option>`).join('')}</select></div>
+    <div class="card"><h3>Notifications</h3><label><input type="checkbox" id="push" ${D.settings.push ? 'checked' : ''}> Send “your answer is ready” to DriveGens that turned notifications on</label></div>
+    <div class="card"><h3>Passkeys</h3>${D.passkeys.length ? D.passkeys.map(p => `<div>${esc(p.name)} <span class="mut">added ${ago(p.at)}</span> <button class="b" data-pkdel="${esc(p.id)}">Remove</button></div>`).join('') : '<p class="mut">None yet.</p>'}<p><button class="b acc" id="addpk">Add a passkey for this browser</button></p><p class="mut">Then sign in with Face ID or Touch ID instead of a code. Passkeys need this page on https (or localhost).</p></div>`,
+};
+function graph(h) {
+  const W = 640, cx = W / 2, cy = h / 2, R = Math.min(cx, cy) - 50, ds = D.devices, n = ds.length || 1;
+  const pos = ds.map((d, i) => ({ d, x: cx + R * Math.cos(-Math.PI / 2 + 2 * Math.PI * i / n), y: cy + R * Math.sin(-Math.PI / 2 + 2 * Math.PI * i / n) }));
+  const ic = d => d.app === 'StudioGen' ? '💻' : '📱';
+  return `<svg viewBox="0 0 ${W} ${h}" style="width:100%">${pos.map(p => `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="${p.d.online ? 'var(--ok)' : 'var(--line)'}" stroke-width="2" ${p.d.online && !p.d.here ? 'stroke-dasharray="6 5"' : ''}/>`).join('')}
+    <circle cx="${cx}" cy="${cy}" r="24" fill="var(--card)" stroke="var(--hon)" stroke-width="3"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" style="font-size:18px">🐝</text><text x="${cx}" y="${cy + 42}" text-anchor="middle">${D.queue.length ? `${D.queue.length} waiting` : ''}</text>
+    ${pos.map(p => `<circle cx="${p.x}" cy="${p.y}" r="18" fill="var(--card)" stroke="${p.d.online ? 'var(--ok)' : 'var(--mut)'}" stroke-width="2.5"/><text x="${p.x}" y="${p.y + 5}" text-anchor="middle" style="font-size:15px">${ic(p.d)}</text><text x="${p.x}" y="${p.y + 34}" text-anchor="middle">${esc(p.d.name)}</text>`).join('')}</svg>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; return draw(); }
+  if (e.target.id === 'out') { await api('/api/logout', {}).catch(() => {}); return loginView(); }
+  if (e.target.id === 'addpk') return addPasskey();
+  const dr = e.target.closest('[data-drop]'); if (dr && confirm('Drop this waiting message? It won’t be delivered.')) { await api('/api/drop', { id: dr.dataset.drop }); return refresh(); }
+  const ac = e.target.closest('[data-accept]'); if (ac) { await api('/api/link/accept', { peer: ac.dataset.accept }).catch(err => alert(err.message)); return refresh(); }
+  const ul = e.target.closest('[data-unlink]'); if (ul && confirm('End the link with this bee?')) { await api('/api/link/drop', { peer: ul.dataset.unlink }); return refresh(); }
+  const pd = e.target.closest('[data-pkdel]'); if (pd) { await api('/api/passkey/delete', { id: pd.dataset.pkdel }); return refresh(); }
+});
+document.addEventListener('change', async e => {
+  if (e.target.id === 'keep') { D.settings = await api('/api/settings', { keepDays: +e.target.value }); }
+  if (e.target.id === 'push') { D.settings = await api('/api/settings', { push: e.target.checked }); }
+});
+document.addEventListener('input', e => { if (e.target.id !== 'q') return; const q = e.target.value.toLowerCase(); $('#evs').innerHTML = evList(D.events.slice(-1000).filter(x => evText(x).toLowerCase().includes(q)).slice(-300)); });
+start();
+</script>
+</body>
+</html>

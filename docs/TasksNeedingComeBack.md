@@ -40,6 +40,9 @@ Things started or decided but not finished, and things to perform together later
 - [ ] **Web Push wake-ups** (requirement L-10, the part still to do).
 - [ ] Data rows from a script on StudioGen shown on the phone, checked end to end (DataViz from `mac.run` results).
 
+- [ ] **Teams on the real site**: the Teams tasks (unread chats, read a chat, send) are checked on labs/practice/teams.html only; the real Teams' `data-tid` names are best guesses. Sign in to Teams in the agent browser and try “any teams messages”, “what did <someone> say on teams”.
+- [ ] **Profiles and StudioGBee, phases 2–7** (design agreed 27 Oct, docs/studiogbee.html): StudioGBee (queue, push, backup, federation, Docker + Cloudflare), its dashboard, remote sign-in, StudioGen Worker in Docker, tasks in parallel, TURN on the bee. Phase 1 (only my devices, shared tasks in the mesh, waiting requests, Teams) is built.
+- [ ] **Only my devices with real devices**: a second person's phone in your mesh asks your StudioGen for “unread mail” (refused) and a shared web task (runs); your own iPhone gets both.
 - [ ] **A practice calendar** (labs/practice): the calendar tasks (cal.today, cal.next) can't be tried on the practice sites yet (`{outlook}/calendar/…` lands on the practice inbox).
 - [ ] **The Stage assistant builds tasks by voice** (asked 25 Oct, once the LLM build is mature): the assistant interviews you with “person is Priya” answers, plans on the Mac's model (`TaskLocal`), opens the result in the editor, asks you to point at anything unclear (Teach me / Show me), then runs it watched.
 - [ ] **Try the build prompt on the real Slack and WhatsApp** (the selectors were checked on the practice copies, which follow the real pages' structure).

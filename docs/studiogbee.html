@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Profiles, StudioGBee and working from anywhere</h1>
-<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9.</p>
+<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9. Phase 1 is built.</p>
 <ol class="toc">
   <li><a href="#rule">The rule: what is private, what is shared</a></li>
   <li><a href="#who">Who is asking: my devices</a></li>
@@ -69,7 +69,7 @@
 <tr><td>Direct link by QR both ways (no relay)</td><td>the device in front of the Mac</td><td>yes</td></tr>
 <tr><td>Mesh pair room / mesh direct link</td><td>a mesh member (its ECDH key)</td><td>only if this StudioGen lists it under <b>My devices</b>: automatically when it is a paired device's mesh identity, or ticked by the owner (e.g. their second StudioGen)</td></tr>
 </table>
-<p><b>My devices is kept on each StudioGen</b>, not in the mesh roster: the mesh owner signs the roster, so if the roster decided, a mesh owner could add their own phone as “yours”. Settings › Connections › My devices lists them; removing one takes effect at once.</p>
+<p><b>My devices is kept on each StudioGen</b>, not in the mesh roster: the mesh owner signs the roster, so if the roster decided, a mesh owner could add their own phone as “yours”. Mesh › Devices › <b>Yours</b> shows and changes them (paired devices are always yours); unticking takes effect at once.</p>
 
 <h2 id="profiles">3. Profiles: an owner's sign-ins</h2>
 <ul>
@@ -175,7 +175,7 @@
 <h2 id="phases">9. Phases</h2>
 <table>
 <tr><th>Phase</th><th>What</th><th>Status</th></tr>
-<tr><td>1</td><td>The rule (private / shared), My devices, checks on every request (tasks, scripts, the mesh's <code>perms.tasks</code>), running shared tasks on another member's StudioGen, Teams practice site and tasks, waiting rules (startup checklist, Settings) with waiting on the asking device</td><td>building</td></tr>
+<tr><td>1</td><td>The rule (private / shared), My devices, checks on every request (tasks, scripts, the mesh's <code>perms.tasks</code>), running shared tasks on another member's StudioGen, Teams practice site and tasks, waiting rules (startup checklist, Settings) with waiting on the asking device</td><td>built 27 Oct (tandem act “own”: 18 checks)</td></tr>
 <tr><td>2</td><td>StudioGBee: queue, presence, push, backup, federation; Docker and Cloudflare</td><td>next</td></tr>
 <tr><td>3</td><td>The dashboard</td><td></td></tr>
 <tr><td>4</td><td>Remote sign-in</td><td></td></tr>

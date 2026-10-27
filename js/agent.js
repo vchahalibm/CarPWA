@@ -23,7 +23,7 @@ const MAIL_LIST = '[role="listbox"] [role="option"]||[aria-label*="Message list"
 const MAIL_BODY = '[aria-label="Message body"]||[role="document"]||#ReadingPaneContainerId||[aria-label="Reading Pane"]||[role="main"]';
 const CAL_VIEW = '[role="main"]';
 const SEND_BTN = 'button[aria-label="Send"]||button[title="Send"]||button[aria-label^="Send"]';
-// Where things are on Slack and WhatsApp Web (the practice copies in labs/practice follow the same structure); choices
+// Where things are on Slack, WhatsApp Web and Teams (the practice copies in labs/practice follow the same structure); choices
 // with || are tried in order. Also listed for LLMs in docs/llm/build-prompt.md: keep the two in step.
 const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]', item: '.p-channel_sidebar__channel||[role="treeitem"]',
   unread: '.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]', activity: '[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]',
@@ -31,6 +31,8 @@ const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="
   input: '[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]' };
 const WA = { list: '#pane-side', rows: '#pane-side [role="listitem"]||#pane-side [role="row"]', search: '[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]',
   msgs: '#main [data-pre-plain-text]||#main [role="row"]', input: 'footer [contenteditable="true"]||[aria-label="Type a message"]' };
+const TEAMS = { list: '[data-tid="chat-list"]||[role="tree"]', rows: '[data-tid="chat-list-item"]||[role="treeitem"]', msgs: '[data-tid="chat-pane-message"]||[data-tid="message-pane-list-viewport"]',
+  input: '[data-tid="ckeditor"]||div[role="textbox"][contenteditable="true"]', send: '[data-tid="newMessageCommands-send"]||button[name="send"]||button[aria-label^="Send"]' };
 const outlookOpen = (path, wait = MAIL_LIST) => ({ do: 'agent.open', value: `{outlook}${path}`, args: ['site=Outlook', `wait=${wait.split('||')[0]}`] });
 const card = (ask, from = '{read}') => ({ do: 'ai.card', value: ask, args: [from], as: 'card' });
 
@@ -109,16 +111,23 @@ const AGENT_TASKS = [
 
   /* ---------- Messaging (Teams, Slack, WhatsApp on the web) ---------- */
   { id: 'teams.read', group: 'Messaging', name: 'Unread Teams chats', runs: 'mac', about: 'Who wrote to you on Teams, and what',
-    examples: ['any teams messages', 'read my teams chats', 'unread teams messages', 'whats new on teams'],
-    steps: [{ do: 'agent.open', value: 'https://teams.microsoft.com/v2/', args: ['site=Teams', 'wait=[role="tree"]', 'ms=30000'] }, { do: 'wait', value: '2' },
-      { do: 'agent.read', value: '[data-tid="chat-list-item"]||[role="treeitem"]||[role="main"]', as: 'read' },
-      card('These are Teams chats. Headline: how many look unread and from whom. Items: person or group; detail: the last message in a few words.')] },
+    examples: ['any teams messages', 'read my teams chats', 'unread teams messages', 'whats new on teams', 'unread teams chats'],
+    steps: [{ do: 'agent.open', value: '{teams}', args: ['site=Teams', `wait=${TEAMS.list}`, 'ms=30000'] }, { do: 'wait', value: '1.5' },
+      { do: 'agent.read', value: TEAMS.rows, args: ['keep=Unread'], as: 'read' },
+      card('Teams chats with unread messages, one per line: Unread chat, the name, the time, the last message, then (N unread messages). Headline: how many chats and from whom. Items: one per chat; title = person or group; detail = the last message in a few words; when = the number of unread messages.')] },
+  { id: 'teams.from', group: 'Messaging', name: 'Read a Teams chat', runs: 'mac', about: 'The latest messages in a chat with a person or group',
+    params: { person: { ask: 'Which chat?' } },
+    examples: ['read my teams chat with {person}', 'what did {person} say on teams', 'read teams messages from {person}', 'teams messages from {person}'],
+    steps: [{ do: 'agent.open', value: '{teams}', args: ['site=Teams', `wait=${TEAMS.list}`, 'ms=30000'] },
+      { do: 'agent.click', value: '{person}', args: [`sel=${TEAMS.rows}`] }, { do: 'agent.wait', value: TEAMS.msgs, args: ['ms=8000'] }, { do: 'wait', value: '1' },
+      { do: 'agent.read', value: `${TEAMS.msgs}||[role="main"]`, as: 'read' },
+      card('The latest Teams messages with {person}, oldest first, one a line: the sender, the time, a colon, then the message. Headline: what the chat is about, in one line. Items: up to five recent messages; title = who; detail = what they said; when = the time.')] },
   { id: 'teams.send', group: 'Messaging', name: 'Send a Teams message', runs: 'mac', acts: true, confirm: 'send “{message}” to {person} on Teams', about: 'A chat message to one person (their work email in People)',
     params: { person: { ask: 'To whom?', type: 'person' }, message: { ask: 'What should it say?' } },
     examples: ['tell {person} on teams {message}', 'teams {person} saying {message}', 'send a teams message to {person} saying {message}', 'message {person} on teams {message}'],
     steps: [{ if: '{person_email} is empty', then: [{ do: 'agent.fail', value: 'Teams needs {person}’s work email: add it in Agent › Library › People.' }] },
-      { do: 'agent.open', value: 'https://teams.microsoft.com/l/chat/0/0', args: ['site=Teams', 'wait=[data-tid="newMessageCommands-send"]', 'ms=30000', '?users={person_email}', '?message={message}'] },
-      { do: 'wait', value: '1.5' }, { do: 'agent.click', value: 'Send', args: ['sel=[data-tid="newMessageCommands-send"]||button[name="send"]||button[aria-label^="Send"]'] }, { do: 'wait', value: '1.5' },
+      { do: 'agent.open', value: '{teamschat}', args: ['site=Teams', `wait=${TEAMS.send}`, 'ms=30000', '?users={person_email}', '?message={message}'] },
+      { do: 'wait', value: '1.5' }, { do: 'agent.click', value: 'Send', args: [`sel=${TEAMS.send}`] }, { do: 'wait', value: '1.5' },
       { set: 'card', value: '{"type":"status","headline":"Sent to {person} on Teams","items":[{"title":"{message}"}]}' }] },
   { id: 'slack.mentions', group: 'Messaging', name: 'Slack mentions and unread', runs: 'mac', about: 'What needs you on Slack: mentions, and channels and messages with something unread',
     examples: ['any slack messages', 'whats new on slack', 'slack mentions', 'did anyone mention me on slack', 'unread slack messages'],
@@ -369,16 +378,24 @@ const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.c
 const Agent = {
   ctx: null, queue: Promise.resolve(), pend: null,
   cfg: () => ({ outlook: 'https://outlook.office.com', remote: true, ...store.get('agentCfg', {}) }),
-  /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams}: the real ones, or the practice copies (labs/practice). */
+  /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams} ({teamschat}: a new chat, with ?users=email&message=text): the real ones, or the practice copies (labs/practice). */
   sites() {
     const c = this.cfg(), here = f => new URL(`labs/practice/${f}`, location.href).href;
-    return c.practice ? { outlook: here('inbox.html').replace(/\/inbox\.html$/, '/inbox.html#'), slack: here('slack.html'), whatsapp: here('whatsapp.html'), teams: 'https://teams.microsoft.com/v2/' }
-      : { outlook: c.outlook.replace(/\/$/, ''), slack: 'https://app.slack.com/client', whatsapp: 'https://web.whatsapp.com/', teams: 'https://teams.microsoft.com/v2/' };
+    return c.practice ? { outlook: here('inbox.html').replace(/\/inbox\.html$/, '/inbox.html#'), slack: here('slack.html'), whatsapp: here('whatsapp.html'), teams: here('teams.html'), teamschat: here('teams.html') }
+      : { outlook: c.outlook.replace(/\/$/, ''), slack: 'https://app.slack.com/client', whatsapp: 'https://web.whatsapp.com/', teams: 'https://teams.microsoft.com/v2/', teamschat: 'https://teams.microsoft.com/l/chat/0/0' };
   },
   mine: () => store.get('agentTasks', []),
   /** Tasks the paired Mac has made itself (fetched from it; run there by id). */
   macMine: () => store.get('macTasks', []),
-  all() { const own = this.mine(), ids = new Set(own.map(t => t.id)); return [...own, ...this.macMine().filter(t => !ids.has(t.id)).map(t => ({ ...t, runs: 'mac', remoteOnly: true })), ...AGENT_TASKS.filter(t => !ids.has(t.id))]; },
+  /** Tasks other StudioGens in the mesh let this device run (fetched from them; run there): their shared ones without
+      sign-ins, or all of them when this is one of their owner's own devices. */
+  meshMine: () => store.get('meshTasks', []),
+  all() {
+    const own = this.mine(), ids = new Set(own.map(t => t.id)), mesh = this.meshMine();
+    // no Mac of its own: a built-in another StudioGen shares runs there instead
+    const noMac = !LINK_HOST && !(typeof Relay !== 'undefined' && Relay.mac()) && !Link.mac()?.token, viaMesh = new Set(noMac ? mesh.map(t => t.origId) : []);
+    return [...own, ...this.macMine().filter(t => !ids.has(t.id)).map(t => ({ ...t, runs: 'mac', remoteOnly: true })), ...AGENT_TASKS.filter(t => !ids.has(t.id) && !viaMesh.has(t.id)), ...mesh];
+  },
   get(id) { return this.all().find(t => t.id === id); },
   put(t) { const l = this.mine(), i = l.findIndex(x => x.id === t.id); if (i >= 0) l[i] = t; else l.push(t); store.set('agentTasks', l); },
   del(id) { store.set('agentTasks', this.mine().filter(t => t.id !== id)); },
@@ -389,8 +406,61 @@ const Agent = {
   people: () => store.get('agentPeople', []),
   /** Whether a task (or a task it runs) acts for you. */
   acts(t, depth = 0) { if (!t || depth > 4) return false; if (t.acts) return true; return JSON.stringify(t.steps || []).match(/"agent\.task","value":"([\w.-]+)"/g)?.some(m => this.acts(this.get(m.match(/"value":"([\w.-]+)"/)[1]), depth + 1)) || false; },
-  /** Here or on the Mac: 'mac' tasks need the agent browser (StudioGen) or a paired Mac. */
-  where(t) { return t.runs !== 'mac' || (AgentWeb.can() && !t.remoteOnly) ? 'here' : 'mac'; },
+  /** Here or on the Mac: 'mac' tasks need the agent browser (StudioGen) or a paired Mac; a mesh task runs on its StudioGen. */
+  where(t) { return t.on ? 'mac' : t.runs !== 'mac' || (AgentWeb.can() && !t.remoteOnly) ? 'here' : 'mac'; },
+  /** Where a 'mac' task goes: the paired Mac, or the StudioGen in the mesh that offers it. */
+  target(t) {
+    if (t?.on) return { name: t.onName || 'that StudioGen', ready: () => typeof Mesh !== 'undefined' && Date.now() - (Mesh.presence[t.on]?.at || 0) < 60000, call: o => Mesh.call(t.on, 'task', o, 300000), paired: true };
+    return { name: Link.macName(), ready: () => Link.ready(), call: o => Link.task(o), paired: !!(typeof Relay !== 'undefined' && Relay.mac()) || !!Link.mac()?.token };
+  },
+  asking(t) { return this.where(t) === 'mac' ? `Asking ${this.target(t).name}…` : 'Working on it…'; },
+
+  /* ---------- Only my devices: what needs this Mac's sign-ins (docs/studiogbee.html) ---------- */
+  /** Whether a task needs its owner's sign-ins or personal data, so only their own devices may run it: it opens a sign-in
+      site, runs in a container of its own, runs os.* / data.sql / phone steps, or runs a task that does; or it's ticked. */
+  private(t, depth = 0) { if (!t || depth > 4) return false; if (t.private || (t.container && plain(t.container) !== 'default')) return true; return this.privateSteps(t.steps || [], depth); },
+  /** The same for any steps (a script's too). */
+  privateSteps(x, depth = 0) {
+    const j = JSON.stringify(x || '');
+    if (/\{(outlook|teams|teamschat|slack|whatsapp)\}|outlook\.(office|live)\.com|teams\.microsoft\.com|slack\.com|web\.whatsapp\.com/i.test(j)) return true;
+    if (/"(os\.\w+|data\.sql|phone\.\w+)"/.test(j) || /"container=(?!default")[^"]+"/i.test(j)) return true;
+    return (j.match(/"agent\.task","value":"([\w.-]+)"/g) || []).some(m => this.private(this.get(m.match(/"value":"([\w.-]+)"/)[1]), depth + 1));
+  },
+  /** A request from one of this Mac's owner's own devices: one paired with it (pairing room, direct link, Tailscale), or
+      a mesh member it lists as its owner's (Mesh.own); never because the request says so. */
+  ownDevice(who) { if (!who) return false; if (/^(pair|direct|tailscale)$/.test(who.via)) return true; return who.via === 'mesh' && typeof Mesh !== 'undefined' && Mesh.own(who.meshId); },
+
+  /* ---------- Waiting for the Mac (docs/studiogbee.html § 6) ---------- */
+  WAIT_KINDS: [['mail', 'Email (Outlook)'], ['cal', 'Calendar'], ['teams', 'Teams'], ['slack', 'Slack'], ['whatsapp', 'WhatsApp'], ['web', 'Web and other'], ['acts', 'Anything that sends, replies or books']],
+  /** Minutes a request may wait for its Mac to come online, per kind (0: don't wait, -1: until it does); ask: an acting one that waited asks again. */
+  waitRules: () => ({ mail: 10, cal: 10, teams: 10, slack: 10, whatsapp: 10, web: 10, acts: 10, ask: true, ...store.get('waitRules', {}) }),
+  waitKind(t) {
+    if (t.wait) return t.wait; if (this.acts(t)) return 'acts';
+    const k = { mail: 'mail', cal: 'cal', teams: 'teams', slack: 'slack', whatsapp: 'whatsapp' }[String(t.origId || t.id || '').split('.')[0]]; if (k) return k;
+    const j = JSON.stringify(t.steps || []);
+    return /\{teams/.test(j) ? 'teams' : /\{slack\}/.test(j) ? 'slack' : /\{whatsapp\}/.test(j) ? 'whatsapp' : /\{outlook\}[^"]*calendar/i.test(j) ? 'cal' : /\{outlook\}/.test(j) ? 'mail' : 'web';
+  },
+  waitLabel(m) { return m < 0 ? 'Until it’s back' : !m ? 'Don’t wait' : m < 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`; },
+  /** Wait for an offline Mac (or StudioGen) as long as this kind of request may; true once it's back. */
+  async wait(t, to, card) {
+    const min = +this.waitRules()[this.waitKind(t)] || 0;
+    if (!min) throw new Error(`${to.name} is offline right now. Is StudioGen open?`);
+    const until = min < 0 ? Infinity : Date.now() + min * 60000, hm = min < 0 ? '' : new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (card) { this.post({ id: card, status: 'waiting', headline: `Waiting for ${to.name}: it’s offline${hm ? ` (until ${hm})` : ''}` }); Voice.respond(`${to.name} is offline. I’ll send it when it’s back${hm ? `, until ${hm}` : ''}.`); }
+    Log.i('agent', `Waiting for ${to.name}`, { task: t.name, min });
+    while (!to.ready()) { if (Date.now() > until) throw new Error(`${to.name} stayed offline, so I gave up on “${t.name}” (Agent › Library › Settings › Waiting requests)`); await new Promise(r => setTimeout(r, 2000)); }
+    if (card) this.post({ id: card, status: 'running', headline: `Asking ${to.name}…` });
+    return true;
+  },
+  /** After waiting, an acting task asks again: what was right ten minutes ago may not be now. */
+  askAgain(t, params, to) {
+    const what = (t.confirm || t.name).replace(/^\s*shall i\s+/i, '').replace(/\?\s*$/, '').replace(/\{(\w+)\}/g, (m, k) => params[k] ?? m);
+    return new Promise(res => {
+      const p = { at: Date.now(), yes: () => { clearInterval(keep); res(true); }, no: () => { clearInterval(keep); res(false); } };
+      const keep = setInterval(() => { if (Commands.pending === p) p.at = Date.now(); else { clearInterval(keep); res(false); } }, 5000);
+      Commands.pending = p; Voice.respond(`${to.name} is back. Shall I still ${what}? Say yes or no.`, null, { ask: true });
+    });
+  },
   params(t) { const p = { ...(t.params || {}) }; for (const e of t.examples || []) for (const m of e.matchAll(/\{(\w+)\}/g)) p[m[1]] ||= { ask: `What ${m[1]}?` }; return p; },
 
   /** What was said → { task, params }, by the tasks' example sentences: with {inputs}, the whole sentence must fit (the
@@ -435,11 +505,11 @@ const Agent = {
       this.pend = { at: Date.now(), card: c.id, yes: always => { if (always) { this.trust(t.id, true); toast(`“${t.name}” is trusted from now on (Agent › Library to change)`); } this.drop(c.id); this.start(t, params, { ...o, confirmed: true }); }, no: () => this.drop(c.id) };
       Commands.pending = this.pend; return say(`Shall I ${what}? Say yes, or “yes, always”.`, null, { ask: true });
     }
-    const c = this.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: this.where(t) === 'mac' ? `Asking ${Link.macName()}…` : 'Working on it…' });
-    Voice.show?.(t.name, this.where(t) === 'mac' ? `Asking ${Link.macName()}…` : 'Working on it…');
+    const c = this.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: this.asking(t) });
+    Voice.show?.(t.name, this.asking(t));
     if (!o.quiet) Working.begin();
     try {
-      const r = await this.exec(t, params, { confirmed: true });
+      const r = await this.exec(t, params, { confirmed: true, card: c.id });
       const done = this.post({ ...this.asCard(r), id: c.id, task: t.id, title: t.name, status: 'done', at: Date.now() });
       await Working.end(true);
       // presenting: the result as a card over the slides (private ones only when allowed), the presentation carries on
@@ -455,8 +525,13 @@ const Agent = {
   /** Run a task (inputs complete, confirmed) and give back its result card. */
   async exec(t, params, o = {}) {
     if (this.where(t) === 'mac' && !o.here) {
-      if (!Link.ready()) throw new Error(typeof Relay !== 'undefined' && Relay.mac() ? 'I can’t reach your Mac right now. Is StudioGen open?' : 'This needs StudioGen on your Mac: pair in Settings › Connections.');
-      const r = await Link.task({ id: t.id, params, confirmed: !!o.confirmed });
+      const to = this.target(t);
+      if (!to.ready()) {
+        if (!to.paired) throw new Error('This needs StudioGen on your Mac: pair in Settings › Connections.');
+        await this.wait(t, to, o.card);
+        if (this.acts(t) && this.waitRules().ask && !(await this.askAgain(t, params, to))) throw new Error('Okay, I didn’t.');
+      }
+      const r = await to.call({ id: t.origId || t.id, params, confirmed: !!o.confirmed });
       if (r?.error) throw new Error(r.error); return r?.card ?? r;
     }
     // never run with a needed input blank or unfilled (“{person}”): a send would go to whoever is first in the list
@@ -500,11 +575,15 @@ const Agent = {
     const line = i => [short(i.title), withWhen && i.when ? clean(i.when) : '', short(i.detail)].filter(Boolean).join(withWhen ? ', ' : ': ');
     return [clean(c.headline), ...all.slice(0, max).map(line), all.length > max ? `And ${all.length - max} more on the card` : ''].filter(Boolean).join('. ').replace(/\.\s*\./g, '.').replace(/…\./g, '…');
   },
-  /** On the Mac: a paired phone's request to run a task of this library (asked and confirmed on the phone). */
-  async answer(p = {}) {
-    if (!this.cfg().remote) throw new Error('This Mac doesn’t run tasks for paired devices (Agent › Library)');
-    const t = this.mine().find(x => x.id === p.id) || AGENT_TASKS.find(x => x.id === p.id);
-    if (!t) throw new Error('That task isn’t in this Mac’s library');
+  /** On the Mac: a request to run a task of this library (asked and confirmed on the asking device). Its owner's own
+      devices may run any (when allowed in Agent settings); other mesh members only shared tasks that need no sign-in. */
+  async answer(p = {}, who) {
+    const own = this.ownDevice(who);
+    if (own && !this.cfg().remote) throw new Error('This Mac doesn’t run tasks for paired devices (Agent › Library)');
+    const t = this.mine().find(x => x.id === p.id) || (own ? AGENT_TASKS.find(x => x.id === p.id) : null);
+    if (!t) throw new Error(own ? 'That task isn’t in this Mac’s library' : 'That task isn’t shared by this Mac');
+    if (!own && !t.share) throw new Error('That task isn’t shared by this Mac');
+    if (!own && this.private(t)) throw new Error('That task uses this Mac’s sign-ins: only its owner’s devices may run it');
     if (this.acts(t) && !p.confirmed) throw new Error('That task acts for you: confirm it on the device first');
     const c = this.post({ task: t.id, title: `${t.name}${p.from ? ` · for ${p.from}` : ''}`, type: 'status', status: 'running', headline: 'Working on it…' });
     Working.begin({ silent: true }); // the phone says its line; here the assistant only works on it
@@ -512,11 +591,27 @@ const Agent = {
     catch (e) { Working.end(false); const signin = /^SIGNIN:/.test(e.message); this.post({ id: c.id, type: 'summary', status: signin ? 'signin' : 'failed', headline: signin ? `Sign in to ${e.message.slice(7)} in the agent browser` : e.message, at: Date.now() }); if (signin) AgentWeb.show(true); throw e; }
   },
   /** On the phone: the Mac's own tasks (names, examples, inputs), for matching and the model. */
-  async refresh() {
-    if (LINK_HOST || !Link.ready()) return;
-    try { const r = await Link.tasks(); if (Array.isArray(r?.tasks)) store.set('macTasks', r.tasks); } catch (e) { Log.d('agent', 'Mac tasks: not fetched', { error: e.message }); }
+  /** What the mesh's online StudioGens share, as their presence names it; meshStale: it changed since the last fetch. */
+  meshHash() { return typeof Mesh === 'undefined' || !Mesh.m ? '' : JSON.stringify(Object.entries(Mesh.presence).filter(([, x]) => x.app === 'StudioGen' && Date.now() - x.at < 60000).map(([id, x]) => [id, x.caps?.agent || []])); },
+  meshStale() { return this.meshHash() !== (this.meshSeen ?? ''); },
+  async refresh(force) {
+    if (force) { this.meshAt = 0; this.meshSeen = this.meshHash(); }
+    if (!LINK_HOST && Link.ready()) try { const r = await Link.tasks(); if (Array.isArray(r?.tasks)) store.set('macTasks', r.tasks); } catch (e) { Log.d('agent', 'Mac tasks: not fetched', { error: e.message }); }
+    // the other StudioGens in the mesh (at most once a minute): what each lets this device run; an offline one's are kept, to wait for it
+    if (typeof Mesh === 'undefined' || !Mesh.m || Date.now() - (this.meshAt || 0) < 60000) return; this.meshAt = Date.now();
+    const mac = typeof Relay !== 'undefined' ? Relay.mac()?.meshId : null, asked = new Set(), got = [];
+    for (const [id, x] of Object.entries(Mesh.presence)) {
+      if (id === Mesh._me?.id || id === mac || x.app !== 'StudioGen' || Date.now() - x.at > 60000) continue;
+      try { const r = await Mesh.call(id, 'tasks', {}, 15000); asked.add(id); for (const t of r?.tasks || []) got.push({ ...t, id: `mesh:${id.slice(0, 8)}:${t.id}`, origId: t.id, on: id, onName: x.name, runs: 'mac', remoteOnly: true }); }
+      catch (e) { Log.d('agent', `Mesh tasks: not fetched from ${x.name}`, { error: e.message }); }
+    }
+    store.set('meshTasks', [...this.meshMine().filter(t => !asked.has(t.on) && Mesh.member(t.on)), ...got]);
   },
-  offered() { return this.mine().filter(t => t.runs === 'mac').map(({ id, name, group, about, acts, confirm, params, examples }) => ({ id, name, group, about, acts, confirm, params, examples })); },
+  /** The tasks this Mac offers: for its owner's devices the ones made here; for others the shared ones that need no sign-in. */
+  offered(own = true) {
+    return this.mine().filter(t => own ? t.runs === 'mac' : t.share && !this.private(t))
+      .map(t => ({ id: t.id, name: t.name, group: t.group, about: t.about, acts: t.acts, confirm: t.confirm, params: t.params, examples: t.examples, wait: this.waitKind(t) }));
+  },
 
   /* ---------- The feed ---------- */
   feed: () => store.get('agentFeed', []),
@@ -528,6 +623,9 @@ const Agent = {
   },
   drop(id) { store.set('agentFeed', this.feed().filter(x => x.id !== id)); AgentHome.draw(); },
 };
+
+// the mesh's StudioGens change what they share (their presence names it), or five minutes went by: fetch what they offer again
+setInterval(() => { if (typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStale() || Date.now() - (Agent.meshAt || 0) > 300000)) Agent.refresh(true); }, 20000);
 
 /* ---------- Actions: the agent's steps (also usable in any script) ---------- */
 const agentArgs = args => { const o = { q: [], flags: [] }; for (const a of args || []) { const s = String(a), i = s.indexOf('='); if (s.startsWith('?') && i > 0) o.q.push([s.slice(1, i), s.slice(i + 1)]); else if (i > 0) o[s.slice(0, i).trim()] = s.slice(i + 1); else o.flags.push(s.trim()); } return o; };
@@ -620,7 +718,7 @@ Actions.define('agent.fail', { group: 'Agent', name: 'Stop the task with a messa
 Actions.define('agent.task', { group: 'Agent', name: 'Run another task', arg: 'Task id; inputs: name=value', async run(v, say, ev = {}) {
   agentCtx(); const t = Agent.get(v); if (!t) throw new Error(`No task ${v}`);
   const a = agentArgs(ev.args); delete a.q; delete a.flags;
-  const c = Agent.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: Agent.where(t) === 'mac' ? `Asking ${Link.macName()}…` : 'Working on it…' });
+  const c = Agent.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: Agent.asking(t) });
   try { const r = await Agent.exec(t, a, { confirmed: true }); const k = Agent.post({ ...Agent.asCard(r), id: c.id, status: 'done', at: Date.now() }); Voice.respond(Agent.spoken(k)); return k; }
   catch (e) { Agent.drop(c.id); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } // the task that ran it reports why
 } });
@@ -702,7 +800,7 @@ const AgentHome = {
     return ids.map(id => Agent.get(id)).filter(Boolean);
   },
   cardHtml(c, big) {
-    const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
+    const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', waiting: '🕓', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
     const items = (c.items || []).slice(0, max).map(i => `<li><b>${esc(i.title || '')}</b>${i.when ? ` <span class="ag-when">${esc(i.when)}</span>` : ''}${i.detail && !this.moving() ? `<div class="ag-detail">${esc(i.detail)}</div>` : ''}</li>`).join('');
     const btns = c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
       : c.status === 'signin' && AgentWeb.can() ? `<div class="ag-btns"><button class="big-btn accent" data-ag="signin:${c.id}">Open the agent browser</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
@@ -759,14 +857,23 @@ const AgentHome = {
   cfg() {
     const c = Agent.cfg();
     sheet('Agent settings', `<label class="se-field"><span>Outlook on the web</span><select id="agOl">${[['https://outlook.office.com', 'Work or school (outlook.office.com)'], ['https://outlook.live.com', 'Personal (outlook.live.com)']].map(([u, l]) => `<option value="${u}" ${c.outlook === u ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="se-check"><input type="checkbox" id="agPractice" ${c.practice ? 'checked' : ''}> Use the practice sites (made-up mail, Slack and WhatsApp, to try and test tasks safely)</label>
+      <label class="se-check"><input type="checkbox" id="agPractice" ${c.practice ? 'checked' : ''}> Use the practice sites (made-up mail, Slack, WhatsApp and Teams, to try and test tasks safely)</label>
       ${AgentWeb.can() ? `<label class="se-check"><input type="checkbox" id="agWatch" ${c.watch ? 'checked' : ''}> Show the browser while tasks run (watch each step, to see why one doesn’t work)</label>
       <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>` : ''}
       ${LINK_HOST ? `<label class="se-check"><input type="checkbox" id="agRemote" ${c.remote ? 'checked' : ''}> Paired phones may run this Mac’s tasks (acting ones are confirmed on the phone)</label>` : ''}
       ${AgentWeb.can() ? `<div class="chip-row"><button class="chip" data-ag="containers">Containers and sign-ins (${Containers.all().length})</button></div>` : ''}
-      <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>`,
-      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); toast('Saved'); }], ['Close']]);
+      <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>
+      ${this.waitHtml()}`,
+      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); this.waitSave(); toast('Saved'); }], ['Close']]);
   },
+  /** Waiting requests (Agent.waitRules): how long each kind may wait for an offline Mac or StudioGen. */
+  waitHtml() {
+    const w = Agent.waitRules(), opts = v => [0, 1, 5, 10, 30, 60, 240, -1].map(m => `<option value="${m}" ${+v === m ? 'selected' : ''}>${Agent.waitLabel(m)}</option>`).join('');
+    return `<p class="se-note"><b>Waiting requests</b> · when the Mac (or StudioGen) a request is for is offline, it waits on this device while ${APP_NAME} is open, then runs when it's back.</p>
+      <div class="ag-wait">${Agent.WAIT_KINDS.map(([k, l]) => `<label class="se-row"><span>${esc(l)}</span><select data-agwait="${k}">${opts(w[k])}</select></label>`).join('')}</div>
+      <label class="se-check"><input type="checkbox" id="agWaitAsk" ${w.ask ? 'checked' : ''}> Ask again before sending something that waited</label>`;
+  },
+  waitSave() { if (!$('[data-agwait]')) return; const w = { ask: !!$('#agWaitAsk')?.checked }; for (const el of $$('[data-agwait]')) w[el.dataset.agwait] = +el.value; store.set('waitRules', w); },
   /** Containers, like Firefox's (js/media.js Containers, desktop/browse.js): each keeps its own sign-ins; sites go into one. */
   containers() {
     sheet('Containers and sign-ins', `<p class="se-note">Like Firefox containers: each keeps its own sign-ins, so a work and a personal account of the same site can both stay signed in. Put sites in a container, one a line (<code>outlook.office.com</code>); a site in none opens in Default. A task can also name its container. Sign-ins are kept when StudioGen restarts or updates.</p>

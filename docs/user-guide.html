@@ -136,14 +136,14 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
 
 <h2 id="agent">The agent: tasks for you</h2>
 <p>On a Mac (or any wide screen) the assistant stands on the left of the Agent screen, beside your cards; while a task is watched, the watch panel takes the right and the cards stay between them.</p>
-<p>Ask for a task in your own words and the agent does it, most often on your Mac, and shows the result as a card. Tasks that send, book or post <b>always ask first</b>.</p>
+<p>Ask for a task in your own words and the agent does it, most often on your Mac, and shows the result as a card. Tasks that send, book or post <b>always ask first</b>. If your Mac is offline, the request waits (🕓 on the card) and runs when it's back: 10 minutes by default, per kind in <span class="path">Agent › Library › Settings › Waiting requests</span>.</p>
 <figure><img src="req/agent-screen.jpg" alt="The Agent screen with result cards"><figcaption>The Agent screen: ask box, suggestions for the time of day, the latest result big, earlier ones below.</figcaption></figure>
 <h3>What you can ask (first set)</h3>
 <table>
 <tr><th>Area</th><th>For example</th></tr>
 <tr><td>Mail (Outlook on the web)</td><td><q class="say">summarise my unread mail</q> · <q class="say">anything urgent in my mail?</q> · <q class="say">read the mail from Priya</q> · <q class="say">mails about the Acme deal</q> · <q class="say">find my PNR in my mail</q> · <q class="say">email Rahul saying the deck is ready</q> · <q class="say">reply to Priya saying I’ll call at five</q></td></tr>
 <tr><td>Calendar (Outlook on the web)</td><td><q class="say">what’s my day?</q> · <q class="say">when is my next meeting?</q> · <q class="say">brief me for my next meeting</q> · <q class="say">add team lunch to my calendar tomorrow at one</q> · <q class="say">I’m running ten minutes late</q></td></tr>
-<tr><td>Messaging (web)</td><td><q class="say">any Teams messages?</q> · <q class="say">tell Priya on Teams I’m on my way</q> · <q class="say">any Slack mentions?</q> · <q class="say">post in sales on Slack the numbers are out</q> · <q class="say">any WhatsApp messages?</q> · <q class="say">WhatsApp Mom saying I’m on my way</q></td></tr>
+<tr><td>Messaging (web)</td><td><q class="say">any Teams messages?</q> · <q class="say">what did Priya say on Teams?</q> · <q class="say">tell Priya on Teams I’m on my way</q> · <q class="say">any Slack mentions?</q> · <q class="say">post in sales on Slack the numbers are out</q> · <q class="say">any WhatsApp messages?</q> · <q class="say">WhatsApp Mom saying I’m on my way</q></td></tr>
 <tr><td>Presenting</td><td><q class="say">present the keynote</q> · <q class="say">outline a talk about electric cars</q> · <q class="say">what can I present?</q></td></tr>
 <tr><td>Web</td><td><q class="say">flight status of AI 101</q> · <q class="say">news about electric cars</q> · <q class="say">look up the population of Pune</q> · <q class="say">price of a MacBook Air</q></td></tr>
 <tr><td>Car</td><td><q class="say">commute brief</q> · <q class="say">remember where I parked</q> · <q class="say">where did I park?</q> · <q class="say">navigate to my next meeting</q> · <q class="say">when do I arrive?</q> · <q class="say">WhatsApp Mom my ETA</q> · <q class="say">take a note: call the bank</q></td></tr>
@@ -258,6 +258,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
   <li><b>Live</b>: who is connected to whom and how, what each is running. <b>Devices</b>: roles and permissions. <b>Activity</b> and <b>History</b> (a week, with replay and export).</li>
   <li><b>Shows</b>: one script across screens, in <b>steps</b> (every screen moves together) or in <b>tandem</b> (each runs its own part, waiting for your cues). From the phone: <q class="say">start the keynote on all screens</q>, <q class="say">next on every screen</q>, <q class="say">stop the show</q>. A small badge shows on every screen while a show runs.</li>
   <li><b>Shared</b>: scripts and motions from the mesh; mark yours private if they shouldn’t be shared.</li>
+  <li><b>Your sign-ins stay yours</b>: tasks that use your mail, chats, calendar or Mac (anything you sign in to) run on your StudioGen only for <b>your own devices</b>: those paired with it, and those you tick <b>Yours</b> in Mesh › Devices (kept on that Mac, so no mesh owner can change it). Shared tasks that need no sign-in, such as a web search, anyone in the mesh can run there by just asking (<q class="say">title of the mesh page</q>); untick <b>shared tasks</b> for a device to stop it.</li>
 </ul>
 <figure><img src="req/mesh-live.jpg" alt="Mesh live view"><figcaption>Mesh › Live.</figcaption></figure>
 

@@ -45,6 +45,7 @@ or `"format": "studiogen-script", "version": 1, "script": { … }`. Put in `veri
   "steps": [ … ] }
 ```
 - `container` (optional): the name of the container whose sign-ins it uses (`Work`, `Personal`), when the user has two accounts of one site; leave it out otherwise (the site's container is used).
+- `private` (optional): `true` when the task uses the user's own files or accounts in a way the app can't see from its steps (a site they sign in to other than the ones above). Tasks that open `{outlook}` `{teams}` `{slack}` `{whatsapp}`, use a container or run on the Mac's files are private anyway: only the user's own devices may run them, while shared tasks without sign-ins can be run by anyone in their mesh.
 - `id`: `my.` + short kebab words. `runs`: `"mac"` for anything using web pages (the phone asks the Mac), `"here"` for steps that don't. `type: "person"` makes `{name_email}` and `{name_phone}` available from People.
 - Every `{word}` in `examples` must be in `params`, and vice versa.
 - The answer is the last step that keeps `"as": "card"` (usually `ai.card`), or a status card: `{ "set": "card", "value": "{\"type\":\"status\",\"headline\":\"Sent to {person}\"}" }`.
@@ -71,7 +72,7 @@ Each step is `{ "do": <id>, "value": "…", "args": ["…"], "as": "name" }` unl
 | `{ "if": "<cond>", "then": [ … ], "else": [ … ] }` | conditions: `{x} is empty`, `{x} contains words`, `==`, `>`, `is false`, `and`/`or` | | | branches |
 | `{ "each": "1, 2, 3", "as": "n", "steps": [ … ] }` | also `"{list}"`; `{ "repeat": "5", … }`, `{ "until": "<cond>", … }` | | | repetition |
 
-Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites, or practice copies), `{time}`, `{date}`. Never use `{page}` (it's the slide number); read into `{read}`.
+Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites, or practice copies), `{teamschat}` (a new Teams chat: add `?users={person_email}` and `?message={message}`), `{time}`, `{date}`. Never use `{page}` (it's the slide number); read into `{read}`.
 
 ### Rules that make tasks work the first time
 1. Open with a `wait=` that only appears when the page is ready; put `agent.wait` (or `wait 1`–`2`) after every click that loads something.
@@ -95,7 +96,7 @@ Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites,
 
 **Google** (results to answer from): `https://www.google.com/search` with `?q={question}`, ready `#search`, read `#search||#rso`.
 
-**Teams** (`{teams}`): not checked yet: put every Teams selector in `verify`.
+**Teams** (`{teams}`; checked on the practice copy, the real Teams not yet: put the selectors you rely on in `verify`): ready `[data-tid="chat-list"]||[role="tree"]`; chat rows `[data-tid="chat-list-item"]||[role="treeitem"]` (click with the person's or group's name as text; unread rows start with “Unread”: read them with `keep=Unread`, each ends with “(N unread messages)”); messages in the open chat `[data-tid="chat-pane-message"]||[data-tid="message-pane-list-viewport"]` (each line: the sender, the time, a colon, then the message); message box `[data-tid="ckeditor"]||div[role="textbox"][contenteditable="true"]` (type with `enter` to send); send `[data-tid="newMessageCommands-send"]||button[name="send"]||button[aria-label^="Send"]`; a message to one person: open `{teamschat}` with `?users={person_email}` and `?message={message}` (a `person` input), wait for the send button, click it.
 
 ## 6. Script format
 ```json

@@ -99,8 +99,9 @@ const LinkHost = {
   offered: () => store.get('linkOffers', []),
   scripts() { return Scripts.all().filter(s => s.json?.mode !== 'interactive' && this.offered().includes(s.id)); },
   /** A script run for a paired device: what it says (it still shows and speaks here), {result} and the data rows. */
-  async run({ script, vars = {}, from }) {
+  async run({ script, vars = {}, from, own = true }) {
     const s = this.scripts().find(x => x.id === script || plain(x.name) === plain(script)); if (!s) throw new Error('That script isn’t offered to paired devices');
+    if (!own && typeof Agent !== 'undefined' && Agent.privateSteps(s.json)) throw new Error('That script uses this Mac’s sign-ins or files: only its owner’s devices may run it');
     if (Script.running) throw new Error(`StudioGen is busy with “${Script.cur?.name}”`);
     toast(`${from} runs “${s.name}”`); Log.i('link', `Remote run: ${s.name}`, { from });
     const rows0 = typeof DataViz !== 'undefined' ? JSON.stringify(Object.values(DataViz.sets).map(d => d.at)) : '';

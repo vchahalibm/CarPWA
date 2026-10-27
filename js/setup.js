@@ -2,13 +2,17 @@
 /* ============================================================
    Setup: the first start after installing, and the first start after an update. The agent sets the app up in front of
    you: a checklist that fills in live (this device, the natural voice downloading and its speed check, the chosen voice,
-   listening, camera recognition, the 3D assistant, the start screen, your Mac), each with where to change it in Settings.
+   listening, camera recognition, the 3D assistant, the start screen, your Mac, and one question: how long requests wait for
+   an offline Mac), each with where to change it in Settings.
    After an update the same screen shows what's new; what's already in place is ticked at once and anything new is
    downloaded. Start (a tap, which also lets iOS play sound) says hello in the chosen voice. Skipped in the tandem tests.
    Loaded after agent.js.
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Your sign-ins stay yours: tasks that use your mail, chats or Mac run only for your own devices; shared tasks without a sign-in (a web search) can be run on your StudioGen by anyone in the mesh, just by asking',
+  'If your Mac is offline, a request waits for it (10 minutes to start with) and runs when it’s back (Agent › Library › Settings › Waiting requests)',
+  'Practice Teams beside the practice inbox, Slack and WhatsApp, and a new task: “what did Priya say on Teams?”',
   'Answers are read in full: up to five items as “who: the gist”, then how many more are on the card; going to another screen lets the reply finish',
   'Sign-ins in the agent browser are kept when StudioGen restarts or updates',
   'Containers for the agent browser, like Firefox’s: Work and Personal sign-ins kept apart (Agent › Library › Settings)',
@@ -116,13 +120,22 @@ const Setup = {
     r = this.row('mac', IS_DESKTOP_APP ? 'Apple’s on-device model' : 'Your Mac'); await this.wait(gap);
     if (IS_DESKTOP_APP) { const st = await MacAI.status().catch(() => null); r.set(st?.available ? 'done' : 'info', st?.available ? 'Available: commands by meaning and summaries run on this Mac' : 'Not available on this Mac (macOS 26 and Apple Intelligence needed): everything else works', 'Settings › Voice › Understand commands by meaning'); }
     else r.set(Link.ready() ? 'done' : 'info', Link.ready() ? `Paired with ${Link.macName()}: mail, calendar and chats run there` : 'Pair with StudioGen on your Mac for mail, calendar and chats', 'Settings › Connections');
+    // Waiting requests: asked once (install, or the first update that has it), then in Agent settings
+    if (typeof Agent !== 'undefined' && !store.get('waitRules', null)) {
+      r = this.row('wait', 'When your Mac is offline'); await this.wait(gap); this.asked = true;
+      const pick = m => { store.set('waitRules', { ...Agent.waitRules(), ...Object.fromEntries(Agent.WAIT_KINDS.map(([k]) => [k, m])) }); r.set('done', `Requests wait ${m < 0 ? 'until it’s back' : m ? `up to ${Agent.waitLabel(m)}` : 'not at all'}; sending something that waited asks again`, 'Agent › Library › Settings › Waiting requests (each kind)'); };
+      r.set('info', 'How long should a request (mail, chats, a web search…) wait for it to come back?', '');
+      r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${[[0, 'Don’t wait'], [10, '10 minutes'], [60, '1 hour'], [-1, 'Until it’s back']].map(([m, l]) => `<button class="chip${m === 10 ? ' accent' : ''}" data-suwait="${m}">${l}</button>`).join('')}</div>`);
+      r.li.addEventListener('click', e => { const b = e.target.closest('[data-suwait]'); if (!b) return; this.touched = true; r.li.querySelector('.su-pick')?.remove(); pick(+b.dataset.suwait); });
+    }
     this.finished = true;
     document.querySelector('#setup .su-orb')?.classList.add('done');
     // After an update with nothing to decide, it closes by itself unless you've touched it.
-    if (this.mode === 'update' && !this.rows.some(x => /warn/.test(x.li.className))) setTimeout(() => { if (!this.touched && document.getElementById('setup')) this.close(false); }, 7000);
+    if (this.mode === 'update' && !this.asked && !this.rows.some(x => /warn/.test(x.li.className))) setTimeout(() => { if (!this.touched && document.getElementById('setup')) this.close(false); }, 7000);
   },
   close(greet) {
     store.set('setupDone', this.version || 'v0');
+    if (this.asked && !store.get('waitRules', null) && typeof Agent !== 'undefined') store.set('waitRules', Agent.waitRules()); // not picked: the defaults (10 minutes)
     const el = document.getElementById('setup'); if (!el) return;
     el.classList.add('out'); setTimeout(() => el.remove(), 350);
     if (greet) Voice.speak(this.mode === 'install' ? `Hi, I’m ready. Ask me anything.` : 'All set.');

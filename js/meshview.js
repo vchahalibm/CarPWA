@@ -81,11 +81,12 @@ const MeshView = {
   },
   devices(md) {
     const amO = Mesh.amOwner();
-    return `<table class="mv-tbl"><tr><th>Device</th><th>App</th><th>Role</th><th>Status</th><th>Doing</th><th>Links</th><th>May run</th><th></th></tr>${md.nodes.map(n => `<tr><td>${this.icon(n)} <b>${esc(n.name)}</b>${n.me ? ' (you)' : ''}<br><span class="mv-t">${esc(n.p.device || '')}</span></td><td>${esc(n.app)}${n.p.ver ? `<br><span class="mv-t">files ${n.p.ver}${n.p.shell ? ` · app ${esc(n.p.shell)}` : ''}</span>` : ''}</td><td>${esc(n.role)}</td>
+    return `<table class="mv-tbl"><tr><th>Device</th><th>App</th><th>Role</th><th>Status</th><th>Doing</th><th>Links</th><th>May run</th>${LINK_HOST ? '<th>Yours</th>' : ''}<th></th></tr>${md.nodes.map(n => `<tr><td>${this.icon(n)} <b>${esc(n.name)}</b>${n.me ? ' (you)' : ''}<br><span class="mv-t">${esc(n.p.device || '')}</span></td><td>${esc(n.app)}${n.p.ver ? `<br><span class="mv-t">files ${n.p.ver}${n.p.shell ? ` · app ${esc(n.p.shell)}` : ''}</span>` : ''}</td><td>${esc(n.role)}</td>
       <td>${n.online ? '🟢 online' : `⚪️ ${n.p.at ? `seen ${new Date(n.p.at).toLocaleTimeString()}` : 'offline'}`}</td><td>${esc(this.now(n))}</td><td>${(n.p.links || []).map(l => `${esc(l.name || '?')}: ${l.kind}`).join('<br>') || '–'}</td>
-      <td>${n.me ? '–' : `<label><input type="checkbox" data-mvperm="${esc(n.id)}" ${n.perms.run !== false ? 'checked' : ''} ${amO ? '' : 'disabled'}> scripts</label>`}</td>
+      <td>${n.me ? '–' : `<label><input type="checkbox" data-mvperm="${esc(n.id)}" ${n.perms.run !== false ? 'checked' : ''} ${amO ? '' : 'disabled'}> scripts</label><br><label><input type="checkbox" data-mvperm="${esc(n.id)}|agent" ${n.perms.agent !== false ? 'checked' : ''} ${amO ? '' : 'disabled'}> shared tasks</label>`}</td>
+      ${LINK_HOST ? `<td>${n.me ? '–' : `<label title="Your own device: it may run what needs this Mac’s sign-ins"><input type="checkbox" data-mvown="${esc(n.id)}" ${Mesh.own(n.id) ? 'checked' : ''} ${typeof Relay !== 'undefined' && Relay.peers().some(p => p.meshId === n.id) ? 'disabled' : ''}> mine</label>`}</td>` : ''}
       <td>${n.me ? `<button class="link-btn" data-mv="rename">Rename</button>` : `<button class="link-btn" data-mv="details:${esc(n.id)}">Fetch details</button>${amO ? ` <button class="link-btn" data-mv="remove:${esc(n.id)}">Remove</button>` : ''}`}</td></tr>`).join('')}</table>
-      <p class="se-note">Owners change permissions and remove devices (the mesh's key then changes). Pairing secrets and phrases: Settings › Connections.</p>`;
+      <p class="se-note">Owners change permissions and remove devices (the mesh's key then changes). Pairing secrets and phrases: Settings › Connections.${LINK_HOST ? ' <b>Yours</b>: your own devices (those paired with this Mac always are) may run what needs this Mac’s sign-ins (mail, chats, calendar); nobody else can, whatever their permissions. Kept on this Mac only.' : ''}</p>`;
   },
   activity() {
     const q = plain(this.filter), list = Mesh.events.filter(e => !q || plain(this.line(e).replace(/<[^>]+>/g, '')).includes(q)).slice(-300).reverse();
@@ -216,7 +217,8 @@ document.addEventListener('click', e => {
   const r = e.target.closest('[data-mvrun]'); if (r) { e.stopPropagation(); const [id, sc] = r.dataset.mvrun.split('|'); toast(`Running “${sc}”…`); Mesh.runOn(id, sc).then(j => Voice.respond((j.said || []).join(' ') || 'Done.'), err => toast(err.message)); }
 }, true);
 document.addEventListener('change', e => {
-  const p = e.target.closest?.('[data-mvperm]'); if (p) return Mesh.updateMember(p.dataset.mvperm, { perms: { ...(Mesh.member(p.dataset.mvperm)?.perms || {}), run: p.checked } }).catch(err => toast(err.message));
+  const p = e.target.closest?.('[data-mvperm]'); if (p) { const [id, k = 'run'] = p.dataset.mvperm.split('|'); return Mesh.updateMember(id, { perms: { ...(Mesh.member(id)?.perms || {}), [k]: p.checked } }).catch(err => toast(err.message)); }
+  const ow = e.target.closest?.('[data-mvown]'); if (ow) { Mesh.setOwn(ow.dataset.mvown, ow.checked); return toast(ow.checked ? 'Yours: it may run what needs your sign-ins here' : 'No longer yours here'); }
   const pr = e.target.closest?.('[data-mvpriv]'); if (pr) { const [k, n] = pr.dataset.mvpriv.split('|'); return Mesh.setPrivate(k, n, !pr.checked); }
   const k = e.target.closest?.('[data-mvkeep]'); if (k) { store.set('meshKeepDays', +k.value); MeshStore.prune(); return toast('Saved'); }
   if (e.target.id === 'mvSpan') MeshView.historyCharts();

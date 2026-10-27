@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Teams</title>
+<style>
+:root{--rail:#ebebeb;--side:#f5f5f5;--bg:#fff;--ink:#242424;--ink2:#616161;--line:#e0e0e0;--acc:#5b5fc7;--accInk:#fff;--me:#e8ebfa;--hl:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--rail:#0a0a0a;--side:#1f1f1f;--bg:#292929;--ink:#e8e8e8;--ink2:#adadad;--line:#3d3d3d;--me:#2f2f4a;--hl:#333}}
+:root[data-theme="dark"]{--rail:#0a0a0a;--side:#1f1f1f;--bg:#292929;--ink:#e8e8e8;--ink2:#adadad;--line:#3d3d3d;--me:#2f2f4a;--hl:#333}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,system-ui,Segoe UI,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--rail);border-bottom:1px solid var(--line)}
+.top b{font-size:15px;color:var(--acc)}.top input{flex:1;max-width:560px;margin:0 auto;height:30px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 10px;font:inherit}
+.app{flex:1;display:grid;grid-template-columns:64px 300px 1fr;min-height:0}
+.rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:8px;border-right:1px solid var(--line)}
+.rail button{width:52px;height:48px;border-radius:8px;border:0;background:transparent;color:var(--ink2);font-size:11px;cursor:pointer;position:relative}
+.rail button[aria-pressed=true]{color:var(--acc);background:var(--bg)}
+.rail .badge{position:absolute;top:2px;right:4px;background:#c4314b;color:#fff;border-radius:9px;font-size:10px;padding:0 5px}
+.side{background:var(--side);overflow:auto;border-right:1px solid var(--line)}
+.side h2{font-size:18px;margin:12px 16px}.side .sec{font-size:12px;color:var(--ink2);padding:10px 16px 4px;font-weight:600}
+[data-tid="chat-list-item"]{display:grid;grid-template-columns:34px 1fr auto;gap:2px 10px;padding:8px 16px;cursor:pointer;align-items:center}
+[data-tid="chat-list-item"][aria-selected=true]{background:var(--hl)}
+.av{grid-row:span 2;width:32px;height:32px;border-radius:50%;background:var(--acc);color:var(--accInk);display:grid;place-items:center;font-weight:600;font-size:13px}
+.av::before{content:attr(data-l)}
+.nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm{font-size:11.5px;color:var(--ink2)}
+.pv{grid-column:2 / span 2;font-size:12.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unread .nm,.unread .pv{font-weight:700;color:var(--ink)}
+main{display:flex;flex-direction:column;min-height:0}
+.head{padding:12px 20px;border-bottom:1px solid var(--line);font-weight:700;font-size:16px}
+.pane{flex:1;overflow:auto;padding:10px 20px}
+[data-tid="chat-pane-message"]{max-width:72%;margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--side)}
+[data-tid="chat-pane-message"].me{margin-left:auto;background:var(--me)}
+.who{font-weight:600;margin-right:4px}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.when{font-size:11.5px;color:var(--ink2)}
+.newline{color:#c4314b;font-size:12px;font-weight:600;border-top:1px solid #c4314b;margin:8px 0;padding-top:2px}
+.compose{margin:10px 20px 16px;border:1px solid var(--line);border-radius:6px;display:flex;align-items:flex-end;background:var(--bg)}
+[data-tid="ckeditor"]{flex:1;min-height:40px;padding:10px 12px;outline:none}
+[data-tid="ckeditor"]:empty::before{content:attr(data-placeholder);color:var(--ink2)}
+[data-tid="newMessageCommands-send"]{margin:6px;height:30px;border-radius:6px;border:0;background:var(--acc);color:#fff;padding:0 14px;cursor:pointer}
+.to{display:flex;gap:8px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line)}.to input{flex:1;height:30px;border:1px solid var(--line);border-radius:6px;padding:0 10px;font:inherit;background:var(--bg);color:var(--ink)}
+.signin{max-width:440px;margin:12vh auto;padding:24px;border:1px solid var(--line);border-radius:8px}
+.signin h1{font-size:24px;margin:8px 0 14px}.signin input{width:100%;height:38px;border:0;border-bottom:1px solid var(--ink2);padding:0 4px;font:inherit;margin:6px 0 16px;background:transparent;color:var(--ink)}
+.signin button{height:34px;border:0;border-radius:2px;background:#0067b8;color:#fff;font:600 14px system-ui;padding:0 30px;cursor:pointer;float:right}
+.act{padding:10px 20px}.act [data-tid="activity-item"]{padding:8px 0;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* A made-up Microsoft Teams for practising agent tasks (docs/scripts-and-tasks-guide.html). Its page structure follows
+   Teams' web app (data-tid attributes, roles, labels) so tasks made for it carry over: the chat list is a tree of
+   [data-tid="chat-list-item"] rows (an unread one's label starts with “Unread”), messages are [data-tid="chat-pane-message"],
+   the box is [data-tid="ckeditor"], the button [data-tid="newMessageCommands-send"]. Like Teams' own link
+   teams.microsoft.com/l/chat/0/0?users=<email>&message=<text>, ?users=…&message=… opens a chat with the message typed in.
+   The sign-in is simulated (no password); messages you send stay in this browser. ?reset starts over. */
+const KEY = 'practiceTeams', q = new URLSearchParams(location.search);
+if (q.has('reset')) { localStorage.removeItem(KEY); localStorage.removeItem(KEY + 'Auth'); location.replace(location.pathname); }
+const ME = 'You';
+const DEF = { chats: [
+  { id: 'T1', name: 'Priya Nair', email: 'priya.nair@bobworks.example', unread: 2, msgs: [['Priya Nair', '9:48', 'Morning! Did legal send back the Acme contract?', 1], ['Priya Nair', '10:04', 'Can you join the pricing call at 2 instead of 3?', 0], ['Priya Nair', '10:05', 'Asha is presenting the North figures.', 0]] },
+  { id: 'T2', name: 'Pilot project', group: true, unread: 3, msgs: [['Rahul Mehta', '8:30', 'Build 14 is on the test devices.', 1], ['Asha Rao', '9:12', 'Two crashes on the older tablets, logs in the channel.', 0], ['Rahul Mehta', '9:20', 'I’ll look at them after standup.', 0], ['Asha Rao', '9:35', 'Customer demo is confirmed for Thursday 11 am.', 0]] },
+  { id: 'T3', name: 'Rahul Mehta', email: 'rahul.mehta@bobworks.example', unread: 0, msgs: [['Rahul Mehta', 'Yesterday', 'Thanks for covering the review.', 1], [ME, 'Yesterday', 'Any time.', 1]] },
+  { id: 'T4', name: 'Asha Rao', email: 'asha.rao@bobworks.example', unread: 1, msgs: [['Asha Rao', '10:10', 'Could you send me the slides from Monday?', 0]] },
+  { id: 'T5', name: 'Leadership sync', group: true, unread: 0, msgs: [['Meera Iyer', 'Mon', 'Notes from the offsite are in the wiki.', 1]] },
+] };
+const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ini = n => n.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+let cur = null, view = 'chat', draft = '';
+function signin() {
+  history.replaceState(null, '', location.pathname + location.search + '#signin');
+  root.innerHTML = `<div class="signin"><b>Microsoft</b><h1>Sign in to continue to Microsoft Teams</h1><p>(practice: nothing is checked)</p>
+    <input aria-label="Email, phone or Skype" placeholder="Email, phone or Skype" value="you@bobworks.example"><button id="go">Next (simulated)</button><div style="clear:both"></div></div>`;
+  go.onclick = () => { localStorage.setItem(KEY + 'Auth', '1'); location.replace(location.pathname + location.search); };
+}
+const lastMsg = c => c.msgs[c.msgs.length - 1] || ['', '', ''];
+function row(c) {
+  const [, when, text] = lastMsg(c);
+  return `<div data-tid="chat-list-item" role="treeitem" tabindex="0" data-id="${c.id}" class="${c.unread ? 'unread' : ''}" aria-selected="${cur === c}" aria-label="${c.unread ? 'Unread chat' : 'Chat'} ${esc(c.name)}">
+    <span class="av" data-l="${esc(ini(c.name))}" aria-hidden="true"></span><span class="nm" data-tid="chat-list-item-title">${esc(c.name)}</span><span class="tm">${esc(when)}</span>
+    <span class="pv" data-tid="chat-list-item-preview">${esc(text)}${c.unread ? ` <span hidden aria-label="${c.unread} unread messages">${c.unread}</span>` : ''}</span></div>`;
+}
+function msgHtml(c, m, i) {
+  const [who, when, text, read] = m, first = !read && (i === 0 || c.msgs[i - 1][3]);
+  return `${first ? '<div class="newline" role="separator">Last read</div>' : ''}<div data-tid="chat-pane-message" role="listitem" class="${who === ME ? 'me' : ''}" aria-label="${esc(who)}, ${esc(when)}"><span class="who" data-tid="message-author-name">${esc(who)}</span> <span class="when">${esc(when)}</span><span class="sr">: </span><div data-tid="chat-pane-message-body">${esc(text)}</div></div>`;
+}
+function draw() {
+  const unread = S.chats.reduce((n, c) => n + (c.unread ? 1 : 0), 0), mentions = S.chats.flatMap(c => c.msgs.filter(m => !m[3] && m[0] !== ME).map(m => [c, m]));
+  root.innerHTML = `<div class="top"><b>Teams</b><input type="search" data-tid="searchInputField" aria-label="Search" placeholder="Search"></div>
+    <div class="app"><div class="rail" role="tablist"><button data-tid="app-bar-activity" aria-label="Activity" aria-pressed="${view === 'activity'}">Activity${mentions.length ? `<span class="badge">${mentions.length}</span>` : ''}</button><button data-tid="app-bar-chat" aria-label="Chat" aria-pressed="${view === 'chat'}">Chat${unread ? `<span class="badge">${unread}</span>` : ''}</button></div>
+    <div class="side"><h2>Chat</h2><div role="tree" data-tid="chat-list" aria-label="Chat list"><div class="sec">Recent</div>${S.chats.map(row).join('')}</div></div>
+    <main role="main" aria-label="${view === 'activity' ? 'Activity' : cur ? esc(cur.name) : view === 'new' ? 'New chat' : 'Chat'}">${view === 'activity'
+      ? `<div class="head">Activity</div><div class="act" role="list" data-tid="activity-feed">${mentions.map(([c, m]) => `<div role="listitem" data-tid="activity-item"><span class="who">${esc(m[0])}</span> in <b>${esc(c.name)}</b> <span class="when">${esc(m[1])}</span><div>${esc(m[2])}</div></div>`).join('') || '<p>Nothing new.</p>'}</div>`
+      : cur ? `<div class="head" data-tid="chat-title">${esc(cur.name)}</div><div class="pane" role="list" data-tid="message-pane-list-viewport" aria-label="Messages with ${esc(cur.name)}">${cur.msgs.map((m, i) => msgHtml(cur, m, i)).join('')}</div>${composer(cur.name)}`
+      : view === 'new' ? `<div class="to"><span>To:</span><input data-tid="people-picker-input" aria-label="To" value="${esc(q.get('users') || '')}"></div><div class="pane"></div>${composer('new chat')}`
+      : '<div class="head">Chat</div><p style="padding:20px">Pick a chat.</p>'}</main></div>`;
+  const ed = document.querySelector('[data-tid="ckeditor"]'); if (ed && draft) { ed.innerText = draft; draft = ''; }
+  if (cur && view === 'chat') { const p = document.querySelector('.pane'); p.scrollTop = p.scrollHeight; setTimeout(() => { cur.msgs.forEach(m => m[3] = 1); cur.unread = 0; save(); }, 1500); }
+}
+const composer = to => `<div class="compose"><div data-tid="ckeditor" contenteditable="true" role="textbox" aria-label="Type a message" data-placeholder="Type a message to ${esc(to)}"></div><button data-tid="newMessageCommands-send" name="send" aria-label="Send (Enter)">Send</button></div>`;
+function send() {
+  const ed = document.querySelector('[data-tid="ckeditor"]'), t = ed?.innerText.trim(); if (!t) return;
+  if (view === 'new') { // the people picker: by work email or name, a new chat when nobody matches
+    const who = (document.querySelector('[data-tid="people-picker-input"]')?.value || '').trim(); if (!who) return;
+    cur = S.chats.find(c => c.email?.toLowerCase() === who.toLowerCase() || c.name.toLowerCase() === who.toLowerCase());
+    if (!cur) { cur = { id: 'T' + Date.now(), name: who.replace(/@.*/, '').replace(/[._]/g, ' ').replace(/\b\w/g, x => x.toUpperCase()), email: /@/.test(who) ? who : '', unread: 0, msgs: [] }; S.chats.unshift(cur); }
+    view = 'chat'; history.replaceState(null, '', location.pathname);
+  }
+  cur.msgs.push([ME, new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t, 1]); S.chats = [cur, ...S.chats.filter(c => c !== cur)]; save(); draw();
+}
+function search(v) {
+  const s = v.toLowerCase(), hits = S.chats.flatMap(c => c.msgs.filter(m => m[2].toLowerCase().includes(s) || m[0].toLowerCase().includes(s)).map(m => [c, m]));
+  document.querySelector('main').innerHTML = `<div class="head">Results for “${esc(v)}”</div><div class="act" role="list" data-tid="search-results">${hits.map(([c, m]) => `<div role="listitem" data-tid="search-result-message"><span class="who">${esc(m[0])}</span> in <b>${esc(c.name)}</b> <span class="when">${esc(m[1])}</span><div>${esc(m[2])}</div></div>`).join('') || '<p>No results.</p>'}</div>`;
+}
+document.addEventListener('click', e => {
+  const it = e.target.closest('[data-tid="chat-list-item"]'); if (it) { cur = S.chats.find(c => c.id === it.dataset.id); view = 'chat'; return draw(); }
+  if (e.target.closest('[data-tid="app-bar-activity"]')) { view = 'activity'; cur = null; return draw(); }
+  if (e.target.closest('[data-tid="app-bar-chat"]')) { view = 'chat'; return draw(); }
+  if (e.target.closest('[data-tid="newMessageCommands-send"]')) return send();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('[data-tid="ckeditor"]') && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && e.target.matches('[data-tid="searchInputField"]')) search(e.target.value);
+});
+const root = document.getElementById('root');
+if (!localStorage.getItem(KEY + 'Auth')) signin();
+else if (q.get('users')) { view = 'new'; draft = q.get('message') || ''; draw(); }
+else { const want = (q.get('chat') || '').toLowerCase(); cur = want ? S.chats.find(c => c.name.toLowerCase() === want) || null : null; draw(); }
+</script>
+</body>
+</html>

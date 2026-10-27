@@ -86,6 +86,31 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: 'The owner allows it again', ...say(A, 'allow test iphone to run scripts', 'Mesh › Devices › Test iPhone › tick <b>scripts</b>'),
         check: async () => { const pid = await id(P), b = await st(B); return b.mesh?.perms?.[pid] === true || 'not allowed yet'; }, wait: 60 },
     ],
+    own: [
+      { title: 'Studio B shares two tasks: one needing no sign-in (a page title), one using its Slack', always: true,
+        auto: () => B.eval(`(()=>{ store.set('agentCfg', { ...Agent.cfg(), practice: true });
+          Agent.put({ id: 'my.title', name: 'Mesh page title', runs: 'mac', share: true, examples: ['title of the mesh page', 'mesh page title'], steps: [{ do: 'agent.open', value: location.origin + '/docs/mesh.html', args: ['wait=h1'] }, { do: 'agent.read', value: 'h1', as: 'read' }, { set: 'card', value: '{"type":"summary","headline":"{read}"}' }] });
+          Agent.put({ id: 'my.slack', name: 'My Slack mentions', runs: 'mac', share: true, examples: ['my slack mentions please'], steps: [{ do: 'agent.open', value: '{slack}', args: ['site=Slack', 'wait=[role="tree"]'] }, { do: 'agent.read', value: '[role="tree"]', as: 'read' }] });
+          return Agent.offered(false).map(t => t.id).join() })()`),
+        check: async () => { const o = await B.eval('Agent.offered(false).map(t => t.id).join()'); return o === 'my.title' || `offered to others: ${o}`; } },
+      { title: 'Studio A (not Studio B’s owner) sees only the one without a sign-in',
+        auto: () => A.eval('Agent.meshAt = 0, Agent.refresh().then(() => 1)'),
+        check: async () => { const l = await A.eval('Agent.meshMine().map(t => t.origId).join()'); return l === 'my.title' || `Studio A sees: ${l || 'nothing'}`; }, wait: 60 },
+      { title: 'The phone runs it on Studio B by asking in its own words', ...say(P, 'title of the mesh page'),
+        check: async () => since(await st(P), S.t0, /mesh view/i) || `last reply: ${lastReply(await st(P)) || 'none'}`, wait: 150 },
+      { title: 'Studio A asking for Studio B’s Slack task is refused', always: true,
+        auto: async () => { S.err = await A.eval(`Mesh.call(${JSON.stringify(await id(B))}, 'task', { id: 'my.slack', params: {}, confirmed: true }, 60000).then(() => 'ran', e => e.message)`, 90000); },
+        check: async () => /only its owner/.test(S.err || '') || `answer: ${S.err}` },
+      { title: 'Studio B marks Studio A as its owner’s: now it may (it stops at Slack’s sign-in instead)', always: true,
+        auto: async () => { await B.eval(`Mesh.setOwn(${JSON.stringify(await id(A))}, true)`); S.err = await A.eval(`Mesh.call(${JSON.stringify(await id(B))}, 'task', { id: 'my.slack', params: {}, confirmed: true }, 90000).then(() => 'ran', e => e.message)`, 120000); },
+        check: async () => !/only its owner/.test(S.err || 'x') || `answer: ${S.err}` },
+      { title: 'And back: Studio A isn’t Studio B’s owner’s', always: true, auto: async () => B.eval(`Mesh.setOwn(${JSON.stringify(await id(A))}, false), 1`), check: async () => (await B.eval(`Mesh.own(${JSON.stringify(await id(A))})`)) === false || 'still marked' },
+      { title: 'Studio B quits; Studio A asks for the page title: it waits', always: true,
+        auto: async () => { await B.stop(); await sleep(70000); await A.eval(`(()=>{ const t = Agent.meshMine().find(x => x.origId === 'my.title'); Agent.start(t, {}, { confirmed: true }); return 1 })()`); },
+        check: async () => (await st(A)).agent?.[0]?.status === 'waiting' || `card: ${JSON.stringify((await st(A)).agent?.[0] || null)}`, wait: 30 },
+      { title: 'Studio B comes back: the waiting request runs and the card arrives', always: true, auto: () => B.restart(),
+        check: async () => { const c = (await st(A)).agent?.[0]; return c?.status === 'done' && /mesh view/i.test(c.headline || '') || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 240 },
+    ],
     show: [
       { title: 'The phone starts the Keynote on all screens', ...say(P, 'start the keynote on all screens'),
         check: async () => { const [a, b] = await Promise.all([st(A), st(B)]); return a.mesh?.conducting && b.mesh?.show?.state === 'on' || 'screens not in the show yet'; }, wait: 90 },

@@ -348,7 +348,7 @@ const Relay = {
     if (type === 'ask' && this.isMac()) { // DriveGen's request; the answer is kept so a resent request gets it again
       if (this.answers.has(b.id)) { const a = this.answers.get(b.id); if (a !== 'busy') this.post(room, 're', a); return; }
       this.answers.set(b.id, 'busy'); setTimeout(() => this.answers.delete(b.id), 600000);
-      let a; const t0 = Date.now(); try { Direct.peer ||= room.name; a = { id: b.id, result: await Direct.handle(b.kind, { ...(b.payload || {}) }) }; } catch (e) { a = { id: b.id, error: e.message }; }
+      let a; const t0 = Date.now(); try { Direct.peer ||= room.name; a = { id: b.id, result: await Direct.handle(b.kind, { ...(b.payload || {}) }, { via: 'pair', meshId: room.meshId || null, name: room.name }) }; } catch (e) { a = { id: b.id, error: e.message }; }
       if (typeof Mesh !== 'undefined') Mesh.pairedRequest(b.kind, b.payload || {}, a.result, Date.now() - t0, room.meshId, room.name);
       this.answers.set(b.id, a); this.post(room, 're', a); return;
     }

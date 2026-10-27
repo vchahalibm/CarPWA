@@ -59,21 +59,26 @@ const Direct = {
     if (m.re) { const w = this.waits.get(m.re); if (w) { this.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
     if (m.ask) { // a request from the other side (StudioGen answers DriveGen's)
       const t0 = Date.now();
-      try { const r = await Direct.handle(m.ask, m.payload || {}); this.send({ re: m.id, result: r }); if (typeof Mesh !== 'undefined') Mesh.pairedRequest(m.ask, m.payload || {}, r, Date.now() - t0, this.peerMeshId, this.peer); }
+      try { const r = await Direct.handle(m.ask, m.payload || {}, { via: 'direct', meshId: this.peerMeshId, name: this.peer }); this.send({ re: m.id, result: r }); if (typeof Mesh !== 'undefined') Mesh.pairedRequest(m.ask, m.payload || {}, r, Date.now() - t0, this.peerMeshId, this.peer); }
       catch (e) { this.send({ re: m.id, error: e.message }); }
     }
   },
-  /** StudioGen's answers, the same as over Tailscale (LinkHost, js/link.js). */
-  async handle(kind, p) {
+  /** StudioGen's answers, the same as over Tailscale (LinkHost, js/link.js). who: how the request came, which proves who
+      sent it: 'pair' (a pairing room), 'direct' (this link) or 'mesh' (a mesh member's pair room or direct link, with its
+      meshId and permissions). What needs this Mac's sign-ins is only for its owner's own devices (Agent.ownDevice). */
+  async handle(kind, p, who = { via: 'unknown' }) {
     if (typeof LinkHost === 'undefined' || !LINK_HOST) throw new Error('Only StudioGen answers that');
-    const from = this.peer || 'A phone';
+    const from = who.name || this.peer || 'A phone', own = typeof Agent === 'undefined' || Agent.ownDevice(who);
     if (kind === 'echo') return { name: APP_NAME, at: Date.now(), rows: Array.from({ length: Math.min(1000, +p.n || 0) }, (_, i) => ({ i, region: ['North', 'South', 'East', 'West'][i % 4], value: (i * 37) % 1000 })) }; // the connection test (js/linktest.js)
     if (kind === 'offers') return { name: APP_NAME, scripts: LinkHost.scripts().map(s => ({ id: s.id, name: s.name, about: s.json.about || '' })) };
-    if (kind === 'run') return LinkHost.run({ ...p, from });
-    if (kind === 'say') return LinkHost.say({ ...p, from });
+    if (kind === 'run') return LinkHost.run({ ...p, from, own });
+    if (kind === 'say') { // words go to the voice commands, which reach everything: others only answer an interactive script that needs no sign-in
+      if (!own && !(Script.running && Script.cur?.mode === 'interactive' && !Agent.privateSteps(Script.cur))) throw new Error('Only this Mac’s owner’s devices can give it commands');
+      return LinkHost.say({ ...p, from });
+    }
     if (kind === 'ai') return MacAI.answer(p); // a paired phone uses this Mac's on-device model (js/brain.js)
-    if (kind === 'tasks') return { tasks: typeof Agent !== 'undefined' ? Agent.offered() : [] }; // the agent's tasks made on this Mac (js/agent.js)
-    if (kind === 'task') { if (typeof Agent === 'undefined') throw new Error('No agent here'); return Agent.answer({ ...p, from }); }
+    if (kind === 'tasks') return { tasks: typeof Agent !== 'undefined' ? Agent.offered(own) : [] }; // the agent's tasks made on this Mac (js/agent.js): all for its owner's devices, the shared ones without sign-ins for others
+    if (kind === 'task') { if (typeof Agent === 'undefined') throw new Error('No agent here'); return Agent.answer({ ...p, from }, who); }
     throw new Error(`Unknown request ${kind}`);
   },
   call(kind, payload = {}, ms = 600000) {

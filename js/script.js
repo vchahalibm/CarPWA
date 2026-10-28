@@ -195,7 +195,7 @@ const Script = {
       written, its values going in as arguments (`args`) so nothing heard can become code. */
   input(x, quiet = false, say = quietSay) {
     const raw = Actions.list[x.do]?.raw;
-    return [raw ? String(x.value ?? '') : this.fill(x.value), say, { quiet, args: (x.args || []).map(a => this.fill(a)), label: x.name || x.title || '', timeout: +x.timeout || 60, keep: !!x.as }];
+    return [raw ? String(x.value ?? '') : this.fill(x.value), say, { quiet, args: (x.args || []).map(a => this.fill(a)), label: x.name || x.title || '', timeout: +x.timeout || 60, keep: !!x.as, runner: this }]; // runner: an agent task's steps find their task (js/agent.js ctxOf)
   },
   /** repeat: n times · until: a condition (checked after each round) · each: a list ({var}, an array, or comma-separated), as `as` (default item). */
   async loop(x, { quiet, tok, depth }) {

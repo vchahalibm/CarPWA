@@ -98,14 +98,14 @@ const TaskLLM = {
   check(t) {
     this.values(t, async vals => {
       const run = Agent.runner(t, vals); run.ctx.check = true; const results = [];
-      AgentWatch.force = true; Agent.ctx = run.ctx; AgentWatch.begin(t); let failed = '';
+      AgentWatch.force = true; Agent.ctx = run.ctx; AgentWatch.begin(t, run.ctx); let failed = '';
       try {
         for (const [i, s] of t.steps.entries()) {
           if (failed) { results.push({ i, state: 'skip' }); continue; }
           await run.steps([s], { tok: 1 });
           if (run.ctx.failed) { failed = run.ctx.failed; results.push({ i, state: 'bad', why: failed }); } else results.push({ i, state: 'ok' });
         }
-      } finally { Agent.ctx = null; AgentWatch.end(!failed, failed); AgentWatch.force = false; }
+      } finally { Agent.ctx = null; AgentWatch.end(run.ctx, !failed, failed); AgentWatch.force = false; }
       this.last = { ...this.last, task: t, results, card: run.vars.card };
       Log.i('agent', `Check run: ${t.name}`, { results: results.map(r => r.state), failed });
       this.report();

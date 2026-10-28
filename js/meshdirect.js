@@ -74,7 +74,7 @@ const MeshDirect = {
     if (m.mev) return Mesh.ingest(m.mev, id, 'direct');
     if (m.re) { const w = l.waits.get(m.re); if (w) { l.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
     if (m.ask) { // the same requests as over the pair room, with the same permission checks (Mesh.answer)
-      let a; try { a = { re: m.id, result: await Mesh.answer(Mesh.pairRoom(id) || { peerId: id }, m.ask, m.payload || {}) }; } catch (e) { a = { re: m.id, error: e.message }; }
+      let a; try { a = { re: m.id, result: await Mesh.answer(Mesh.pairRoom(id) || { peerId: id }, m.ask, m.payload || {}, 'direct') }; } catch (e) { a = { re: m.id, error: e.message }; }
       this.send(id, a);
     }
   },

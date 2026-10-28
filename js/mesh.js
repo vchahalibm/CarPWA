@@ -75,20 +75,25 @@ const Mesh = {
     this.event('mesh', { what: 'created', name }); this.invitePaired(); return this.m;
   },
   /** An invite (any member who may invite): a code for a QR or a link, good for a day, once. */
-  async invite(role = 'member') {
+  /** mine: an invite for one of your own devices (a StudioGen Worker, your other Mac): this StudioGen treats whoever joins
+      with it as yours, and the invite says so, so the joiner may treat this one as its owner's (docs/studiogbee.html § 8). */
+  async invite(role = 'member', mine = false) {
     const me = await this.me(), m = this.m; if (!m) throw new Error('No mesh');
     const t = b64u.enc(crypto.getRandomValues(new Uint8Array(9))), x = Date.now() + 86400000;
+    if (mine) store.set('mineInvites', [...store.get('mineInvites', []), t].slice(-20));
     const owners = await Promise.all(this.members().filter(o => o.role === 'owner').map(o => meshHash(JSON.stringify([o.sigPub.x, o.sigPub.y]))));
     const s = await this.signStr(`${m.id}|${t}|${x}|${role}`);
-    return 'SGM' + b64u.enc(meshEnc(JSON.stringify({ m: m.id, n: m.name, k: m.key, b: m.brokers, i: me.id, t, x, r: role, s, o: owners })));
+    return 'SGM' + b64u.enc(meshEnc(JSON.stringify({ m: m.id, n: m.name, k: m.key, b: m.brokers, i: me.id, t, x, r: role, s, o: owners, ...(mine ? { y: 1 } : {}) })));
   },
   /** Join with an invite: keep the mesh's key and relays, and ask to be signed in (an owner does it when online). */
-  async join(code) {
+  /** trust: the invite is from one of your own devices (y), and you said so (a Worker's SG_MESH_INVITE, or a yes): the inviter is yours. */
+  async join(code, trust = false) {
     if (!/^SGM[\w-]+$/.test(code)) throw new Error('That isn’t a mesh invite');
     const j = JSON.parse(new TextDecoder().decode(b64u.dec(code.slice(3)))); if (j.x < Date.now()) throw new Error('This invite has expired');
     const me = await this.me();
     if (this.m?.id === j.m && this.member(me.id)) return this.m; // already in
     await this.save({ id: j.m, name: j.n, key: j.k, brokers: j.b, brokersRev: 1, roster: { rev: 0, members: [] }, ownerHashes: j.o, pendingInvite: { i: j.i, t: j.t, x: j.x, r: j.r, s: j.s }, joined: new Date().toISOString() });
+    if (j.y && trust) this.setOwn(j.i, true);
     setTimeout(() => this.sendJoin(), 2500); // once the relays are connected
     this.event('mesh', { what: 'joining', name: j.n }); return this.m;
   },
@@ -173,6 +178,8 @@ const Mesh = {
     if (type.startsWith('show-')) return this.onShow(type, d, from, b.ts);
   },
   async onJoin(d) {
+    // One of your own devices joining with your “mine” invite: yours here (whoever signs it in)
+    if (d.invite?.i === this._me?.id && d.entry?.id && store.get('mineInvites', []).includes(d.invite.t)) this.setOwn(d.entry.id, true);
     // An owner signs in a joiner whose invite was made by a member who may invite, unexpired, unused.
     if (!this.amOwner() || !d.entry || !d.invite) return;
     const inv = d.invite, inviter = this.member(inv.i);
@@ -254,10 +261,14 @@ const Mesh = {
   /** One of this StudioGen's owner's own devices (docs/studiogbee.html): a device paired with this Mac (pairing is only for
       your own devices), or one ticked “Yours” in Mesh › Devices. Kept on this Mac, not in the roster, so no mesh owner can
       make their device “yours”. Own devices may run what needs this Mac's sign-ins; the mesh's permissions don't limit them. */
-  own(id) { return !!id && (id === this._me?.id || store.get('myDevices', []).includes(id) || (typeof Relay !== 'undefined' && Relay.isMac() && Relay.peers().some(p => p.meshId === id))); },
+  own(id) { return this.ownHere(id) || Object.entries(store.get('myDevicesVia', {})).some(([by, l]) => this.ownHere(by) && l.includes(id)); },
+  /** Yours by this StudioGen's own knowledge (not by what another said): this one, paired, or ticked. */
+  ownHere(id) { return !!id && (id === this._me?.id || store.get('myDevices', []).includes(id) || (typeof Relay !== 'undefined' && Relay.isMac() && Relay.peers().some(p => p.meshId === id))); },
+  /** What this StudioGen tells its owner's other StudioGens (own-sync): the devices it knows are yours. */
+  ownList() { return this.members().map(x => x.id).filter(id => this.ownHere(id)); },
   setOwn(id, on) { const s = new Set(store.get('myDevices', [])); on ? s.add(id) : s.delete(id); store.set('myDevices', [...s]); },
   /** Requests a member may send here (mesh-* ones, and the link's run/say/offers when its permissions allow). */
-  async answer(room, kind, p) {
+  async answer(room, kind, p, via) { // via 'direct': it came over a direct link between the two (js/meshdirect.js)
     const who = this.member(room.peerId); if (!who) throw new Error('Not a member of the mesh');
     const own = this.own(who.id);
     if (kind === 'mesh-journal') return { events: this.journal.filter(e => e.ts >= (p.since || 0) && !e.private).slice(-400) };
@@ -266,7 +277,11 @@ const Mesh = {
     if ((kind === 'run' || kind === 'say') && !own && who.perms?.run === false) throw new Error('This device may not run scripts on this Mac (the mesh owner can allow it)');
     if (kind === 'task' && !own && who.perms?.agent === false) throw new Error('This device may not run tasks on this Mac (the mesh owner can allow it)');
     if (kind === 'tasks' && !own && who.perms?.agent === false) return { tasks: [] };
-    const t0 = Date.now(), r = await Direct.handle(kind, { ...p, from: who.name }, { via: 'mesh', meshId: who.id, name: who.name });
+    if (kind === 'own-sync') { // one of your own StudioGens says which devices are yours (a Worker learns your phone this way)
+      if (!this.ownHere(who.id)) throw new Error('Not one of this owner’s devices');
+      const l = (p.devs || []).filter(id => this.member(id)).slice(0, 100); store.set('myDevicesVia', { ...store.get('myDevicesVia', {}), [who.id]: l }); return { ok: true, n: l.length };
+    }
+    const t0 = Date.now(), r = await Direct.handle(kind, { ...p, from: who.name }, { via: 'mesh', meshId: who.id, name: who.name, direct: via === 'direct' });
     if (kind === 'run' || kind === 'say') this.event('request', { from: who.id, fromName: who.name, kind, script: p.script || '', text: p.text || '', ms: Date.now() - t0, rows: r?.rows?.length || 0, result: (r?.said || []).join(' ') });
     return r;
   },
@@ -471,3 +486,8 @@ const MeshCmd = {
     (p ? [p] : ps).forEach(x => Relay.rekey(x.id)); say(p ? `New secret sent to ${Mesh.member(p.meshId)?.name || p.name}.` : `New secrets sent to ${ps.length} device${ps.length === 1 ? '' : 's'}.`);
   },
 };
+// StudioGens tell their owner's other StudioGens (online ones they know are yours) which devices are yours, every minute
+setInterval(() => {
+  if (!LINK_HOST || !Mesh.m || !Mesh._me) return; const devs = Mesh.ownList();
+  for (const x of Mesh.members()) if (x.app === 'StudioGen' && x.id !== Mesh._me.id && Mesh.ownHere(x.id) && Date.now() - (Mesh.presence[x.id]?.at || 0) < 60000) Mesh.call(x.id, 'own-sync', { devs }, 15000).catch(() => {});
+}, 60000);

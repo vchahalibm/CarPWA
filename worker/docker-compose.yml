@@ -1,0 +1,22 @@
+# StudioGen Worker with Docker Compose (worker/README.md), from the repo root:
+#   docker compose -f worker/docker-compose.yml up -d --build
+services:
+  studiogen-worker:
+    build: { context: .., dockerfile: worker/Dockerfile }
+    container_name: studiogen-worker
+    restart: unless-stopped
+    shm_size: "1gb"                      # Chromium wants more than Docker's 64 MB
+    environment:
+      SG_NAME: "My Worker"               # its name in the mesh
+      SG_MESH_INVITE: ""                 # an invite for one of your own devices (StudioGen › Mesh › Invite › One of my own devices)
+      SG_LLM_PROVIDER: "openai"          # for cards: "anthropic" (with SG_LLM_KEY) or "openai" (an OpenAI-compatible server)
+      SG_LLM_URL: "http://host.docker.internal:11434/v1"   # Ollama on the Mac running Docker
+      SG_LLM_MODEL: "gpt-oss:20b"
+      # SG_LLM_KEY: ""                   # Claude: your Anthropic key
+      SG_SECRET_FILE: /run/secrets/sg_secret
+    secrets: [sg_secret]
+    volumes: ["studiogen-worker:/data"]
+secrets:
+  sg_secret: { file: ./sg_secret.txt }   # any long random text: it locks the kept sign-ins (make it once: openssl rand -hex 32 > worker/sg_secret.txt)
+volumes:
+  studiogen-worker:

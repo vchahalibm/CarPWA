@@ -250,7 +250,7 @@ const AgentWeb = {
       const box = this.box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
       box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-box"></span><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
       <div class="ag-web-view"><i class="ag-ring" hidden></i></div>
-      <div class="ag-watch-log" hidden><ol></ol><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
+      <div class="ag-watch-log" hidden><div class="ag-lanes"></div><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
       document.body.appendChild(box);
     }
     if (!this.wv) this.use(this.cur);
@@ -258,7 +258,20 @@ const AgentWeb = {
   },
   /** The browser of a container (made the first time), shown in the panel; the others wait hidden, still signed in. */
   use(id) {
-    const c = Containers.get(id); let v = this.views.get(c.id);
+    const key = String(id).includes('|') ? id : `${Containers.get(id).id}|`, v = this.make(key), c = Containers.get(v.cid);
+    for (const [k, x] of this.views) x.wv.hidden = k !== key;
+    this.cur = key; this.wv = v.wv; this.up = v.up;
+    const tag = $('.ag-web-box', this.box); if (tag) { tag.textContent = c.id === 'browse' && Containers.all().length < 2 ? '' : c.name; tag.style.setProperty('--c', c.color); tag.hidden = !tag.textContent; }
+    const u = $('.ag-web-url', this.box); if (u) u.textContent = this.url();
+    return v.wv;
+  },
+  /** A browser, made the first time (hidden until shown), keyed 'container|site': 'browse|' is the container's own (signing in,
+      Teach me), 'browse|web.whatsapp.com' a task's on that site. Browsers of one container share its sign-ins, so tasks on
+      different sites run side by side (each in its own browser, ctx.view), whichever one the panel shows. */
+  siteKey(url) { try { const u = new URL(url); return u.protocol === 'app:' ? u.pathname.split('/').pop() : u.hostname; } catch { return '*'; } },
+  make(key) {
+    if (!this.box) this.el();
+    const [cid, site = ''] = String(key).split('|'), c = Containers.get(cid); key = `${c.id}|${site}`; let v = this.views.get(key);
     if (!v) {
       const wv = document.createElement('webview');
       Object.entries({ partition: Containers.part(c.id), useragent: BROWSER_UA, src: 'about:blank', allowpopups: '', webpreferences: 'backgroundThrottling=no' }).forEach(([k, x]) => wv.setAttribute(k, x));
@@ -267,33 +280,37 @@ const AgentWeb = {
       wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); return h(m); }
         if (typeof TaskTeach !== 'undefined') { if (m.type === 'step') TaskTeach.step(m.step); else if (m.type === 'ready') TaskTeach.page(m.url); } }); // Teach me: what you do becomes steps
       wv.addEventListener('did-navigate', e => { if (this.wv === wv) { const u = $('.ag-web-url', this.box); if (u) u.textContent = e.url; } });
-      this.views.set(c.id, v);
+      v.wv.hidden = true; v.id = key; v.cid = c.id; this.views.set(key, v);
     }
-    for (const [k, x] of this.views) x.wv.hidden = k !== c.id;
-    this.cur = c.id; this.wv = v.wv; this.up = v.up;
-    const tag = $('.ag-web-box', this.box); if (tag) { tag.textContent = c.id === 'browse' && Containers.all().length < 2 ? '' : c.name; tag.style.setProperty('--c', c.color); tag.hidden = !tag.textContent; }
-    return v.wv;
+    return v;
   },
-  /** Open a page in the container its site belongs to (or the one asked for). */
-  async go(url, container) {
-    this.el(); const c = Containers.for(url, container); if (c.id !== this.cur) this.use(c.id);
-    const wv = this.wv; await this.up;
+  /** The calls a task's steps make, on its own browser. */
+  bound(ctx) { return { call: (op, args, ms) => this.call(op, args, ms, ctx), url: () => this.url(ctx), insert: t => this.insert(t, ctx), key: k => this.key(k, ctx), show: on => this.show(on, ctx), go: (u, c) => this.go(u, c, ctx) }; },
+  /** The browser a task drives (its ctx.view), else the one shown. */
+  view(ctx) { if (ctx?.view) return ctx.view; this.el(); return this.views.get(this.cur); },
+  /** Show a task's browser in the panel (watching, or to sign in). */
+  display(ctx) { const v = ctx?.view; if (v && v.id !== this.cur) this.use(v.id); },
+  /** Open a page in the container its site belongs to (or the one asked for); a task's own browser when ctx is given. */
+  async go(url, container, ctx) {
+    this.el(); const c = Containers.for(url, container), v = this.make(`${c.id}|${ctx ? this.siteKey(url) : ''}`);
+    if (ctx) { ctx.view = v; if (ctx === AgentWatch.shown || !AgentWatch.shown) this.display(ctx); } else if (v.id !== this.cur) this.use(v.id);
+    const wv = v.wv; await v.up;
     Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`, { container: c.name });
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
   },
-  url() { try { return this.wv?.getURL() || ''; } catch { return ''; } },
-  async call(op, args = [], ms = 20000) {
-    const wv = this.el(), id = `ag${++this.seq}`; await this.up; // the browser must be ready before it can be asked anything
+  url(ctx) { try { return this.view(ctx)?.wv.getURL() || ''; } catch { return ''; } },
+  async call(op, args = [], ms = 20000, ctx) {
+    const v = this.view(ctx), wv = v.wv, id = `ag${++this.seq}`; await v.up; // the browser must be ready before it can be asked anything
     return new Promise(res => {
       const t = setTimeout(() => { this.waits.delete(id); res({ ok: false, error: 'The page didn’t answer' }); }, ms);
       this.waits.set(id, m => { clearTimeout(t); res(m); });
       try { wv.send('dd-drive', { id, op, args }).catch?.(e => { this.waits.delete(id); clearTimeout(t); res({ ok: false, error: e.message }); }); } catch (e) { this.waits.delete(id); clearTimeout(t); res({ ok: false, error: e.message }); }
     });
   },
-  async insert(text) { await this.wv.insertText(text); },
-  key(k = 'Enter') { const wv = this.wv; wv.sendInputEvent({ type: 'keyDown', keyCode: k }); if (k === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r' }); wv.sendInputEvent({ type: 'keyUp', keyCode: k }); },
+  async insert(text, ctx) { await this.view(ctx).wv.insertText(text); },
+  key(k = 'Enter', ctx) { const wv = this.view(ctx).wv; wv.sendInputEvent({ type: 'keyDown', keyCode: k }); if (k === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r' }); wv.sendInputEvent({ type: 'keyUp', keyCode: k }); },
   /** Shown to sign in (full size, interactive). */
-  show(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); document.documentElement.classList.remove('ag-watching'); },
+  show(on = true, ctx) { this.el(); if (ctx) this.display(ctx); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); document.documentElement.classList.remove('ag-watching'); },
   /** Shown to watch a task: a side panel, the page at its usual size (1280×860) drawn smaller, with the steps below. */
   watch(on = true) { this.el(); const b = $('#agentWeb'); b.classList.remove('show'); b.classList.toggle('watch', on); $('.ag-watch-log', b).hidden = !on;
     // on the Agent screen with the assistant beside the cards, the panel takes 40% so the cards stay in view between them
@@ -309,10 +326,16 @@ const AgentWatch = {
   force: false, // the editor's Test (watch) and Run
   on() { return AgentWeb.can() && (this.force || this.next || !!Agent.cfg().watch); },
   stepMode: false, gate: null, next: false, // next: watch the next task that runs (the builder's Run it, which may ask first)
-  begin(t) {
+  lanes: [], shown: null, // a lane per task running (tasks run side by side); shown: the task whose browser the panel shows
+  /** The lane of a task (a task it runs uses its parent's). */
+  lane(ctx) { for (let c = ctx; c; c = c.parent) { const l = this.lanes.find(x => x.ctx === c); if (l) return l; } return null; },
+  begin(t, ctx) {
     if (!this.on()) return; this.next = false; this.stepMode = !!Agent.cfg().stepMode; AgentWeb.watch(true);
-    $('#agentWeb .ag-web-title').textContent = `Watching: ${t.name}`; $('#agentWeb .ag-watch-log ol').innerHTML = '';
+    if (!this.lanes.some(l => !l.done)) { this.lanes = []; $('#agentWeb .ag-lanes').innerHTML = ''; } // nothing else running: start afresh
+    const el = document.createElement('section'); el.className = 'ag-lane'; el.innerHTML = `<b>${esc(t.name)}</b><ol></ol>`;
+    $('#agentWeb .ag-lanes').appendChild(el); this.lanes.push({ ctx, t, el, done: false }); this.title();
   },
+  title() { const run = this.lanes.filter(l => !l.done); $('#agentWeb .ag-web-title').textContent = run.length > 1 ? `Watching ${run.length} tasks` : run.length ? `Watching: ${run[0].t.name}` : this.lanes.some(l => l.bad) ? 'A task didn’t work: see the steps' : 'Task done'; },
   label(id, v, a = {}) {
     const short = s => String(s || '').replace(/^https?:\/\//, '').slice(0, 70);
     return ({ 'agent.open': () => `Open ${short(v)}`, 'agent.read': () => `Read the page (${short(String(v).split('||')[0])})`, 'agent.wait': () => `Wait for ${short(v)}`,
@@ -321,7 +344,10 @@ const AgentWatch = {
   },
   async step(id, v, ev) {
     if (!this.on() || !$('#agentWeb')?.classList.contains('watch')) return null;
-    const li = document.createElement('li'); li.className = 'work'; li.textContent = this.label(id, v, ev); $('#agentWeb .ag-watch-log ol').appendChild(li); li.scrollIntoView({ block: 'nearest' });
+    const ctx = ev?.runner?.ctx, l = this.lane(ctx) || this.lanes[this.lanes.length - 1]; if (!l) return null;
+    // the panel shows the browser of the task that just did something
+    if (ctx) { let top = ctx; while (top.parent) top = top.parent; this.shown = top; if (ctx.view) AgentWeb.display(ctx); }
+    const li = document.createElement('li'); li.className = 'work'; li.textContent = this.label(id, v, ev); $('ol', l.el).appendChild(li); li.scrollIntoView({ block: 'nearest' });
     if (this.stepMode) { li.classList.add('paused'); const ctl = $('#agentWeb .ag-watch-ctl'); ctl.hidden = false;
       const what = await new Promise(r => { this.gate = r; }); ctl.hidden = true; li.classList.remove('paused');
       if (what === 'run') this.stepMode = false; if (what === 'stop') { li.className = 'bad'; throw new Error('Stopped while watching'); } }
@@ -333,10 +359,11 @@ const AgentWatch = {
     const k = parseFloat(getComputedStyle($('#agentWeb')).getPropertyValue('--s')) || 1; // the page is drawn smaller in the panel
     Object.assign(r.style, { left: `${rect.x * k - 4}px`, top: `${rect.y * k - 4}px`, width: `${rect.w * k + 8}px`, height: `${rect.h * k + 8}px` }); r.hidden = false; clearTimeout(this.rt); this.rt = setTimeout(() => { r.hidden = true; }, 1600);
   },
-  end(ok, why) {
-    if (!$('#agentWeb')?.classList.contains('watch')) return;
-    const li = document.createElement('li'); li.className = ok ? 'ok end' : 'bad end'; li.textContent = ok ? 'Done' : `Stopped: ${why}`; $('#agentWeb .ag-watch-log ol').appendChild(li); li.scrollIntoView({ block: 'nearest' });
-    $('#agentWeb .ag-web-title').textContent = ok ? 'Task done' : 'Task didn’t work: see the steps';
+  end(ctx, ok, why) {
+    const l = this.lane(ctx); if (!l || !$('#agentWeb')?.classList.contains('watch')) return;
+    l.done = true; l.bad = !ok; if (this.shown === ctx) this.shown = null;
+    const li = document.createElement('li'); li.className = ok ? 'ok end' : 'bad end'; li.textContent = ok ? 'Done' : `Stopped: ${why}`; $('ol', l.el).appendChild(li); li.scrollIntoView({ block: 'nearest' });
+    this.title();
   },
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-agstep]'); if (b && AgentWatch.gate) { const g = AgentWatch.gate; AgentWatch.gate = null; g(b.dataset.agstep); } });
@@ -376,7 +403,7 @@ const Working = {
 const SIGNIN_WORDS = /\b(scan the qr( code)?|use whatsapp on your computer|link with phone|log into whatsapp|sign in to (continue|your account)|sign in with|log in to (continue|your account)|enter your (email|password)|continue with (google|email|microsoft|apple)|forgot (your )?password)\b/i;
 const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.com|signin|\/login|slack\.com\/(signin|get-started)/i;
 const Agent = {
-  ctx: null, queue: Promise.resolve(), pend: null,
+  ctx: null, pend: null, // ctx: only a check run's (js/taskllm.js); tasks carry their own (run.ctx, reached by steps through ev.runner)
   cfg: () => ({ outlook: 'https://outlook.office.com', remote: true, ...store.get('agentCfg', {}) }),
   /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams} ({teamschat}: a new chat, with ?users=email&message=text): the real ones, or the practice copies (labs/practice). */
   sites() {
@@ -556,13 +583,40 @@ const Agent = {
     }
     // never run with a needed input blank or unfilled (“{person}”): a send would go to whoever is first in the list
     for (const [k, d] of Object.entries(this.params(t))) { const v = String(params?.[k] ?? d.default ?? '').trim(); if (!d.optional && (!v || /^\{\w+\}$/.test(v))) throw new Error(`I need the ${k} for that`); }
-    const prev = this.ctx, run = this.runner(t, params); if (prev?.check) run.ctx.check = true; // a check run carries into the tasks it runs
-    // one task at a time in the agent browser (a composite's own tasks run inside it)
-    const go = async () => { this.ctx = run.ctx; if (!prev) AgentWatch.begin(t); try { await run.steps(t.steps || [], { tok: 1 }); } finally { this.ctx = prev; if (!prev) AgentWatch.end(!run.ctx.failed, run.ctx.failed); } };
-    if (prev || t.runs !== 'mac') await go(); else { const q = this.queue.then(go); this.queue = q.catch(() => {}); await q; }
+    // a task run by another (agent.task) runs inside it: its browser, its lane, its check run, the containers it reserved
+    const prev = o.parent || null, run = this.runner(t, params); if (prev) { run.ctx.parent = prev; run.ctx.view = prev.view; if (prev.check) run.ctx.check = true; }
+    const go = async () => { if (!prev) AgentWatch.begin(t, run.ctx); try { await run.steps(t.steps || [], { tok: 1 }); } finally { if (!prev) AgentWatch.end(run.ctx, !run.ctx.failed, run.ctx.failed); } };
+    const ids = prev ? [] : [...this.containersOf(t, params)];
+    if (!ids.length) await go(); else { const free = await this.slot(ids, run.ctx); try { await go(); } finally { free(); } }
     if (run.ctx.failed) throw new Error(run.ctx.failed);
     const res = t.result ? run.val(String(t.result).replace(/^\{|\}$/g, '')) : run.vars.card ?? run.vars.result;
     return res;
+  },
+  /* ---------- Tasks side by side (docs/studiogbee.html § 9) ----------
+     At most cfg().parallel tasks use the agent browser at once (3 to start with), and one at a time per site in a container:
+     each drives its own browser, and WhatsApp Web refuses a second tab. A task takes every site it may open together,
+     before it starts, so two tasks never wait on each other. */
+  slots: { n: 0, held: new Set(), waiting: [] },
+  async slot(ids, ctx) {
+    const S = this.slots, cap = () => Math.max(1, +this.cfg().parallel || 3), cid = k => k.split('|')[0];
+    const clash = (a, b) => a === b || (cid(a) === cid(b) && (a.endsWith('|*') || b.endsWith('|*'))); // a site not known in advance takes its whole container
+    const free = () => S.n < cap() && ids.every(id => ![...S.held].some(h => clash(id, h)));
+    if (!free()) Log.i('agent', `Waiting for the agent browser: ${ids.join(', ')}`, { running: S.n });
+    while (!free()) await new Promise(r => S.waiting.push(r));
+    S.n++; ids.forEach(id => S.held.add(id)); ctx.slots = ids;
+    return () => { S.n--; ids.forEach(id => S.held.delete(id)); S.waiting.splice(0).forEach(r => r()); };
+  },
+  /** Where a task (and the tasks it runs) opens pages, from its agent.open steps: 'container|site' (the site's container, or the one it names). */
+  containersOf(t, params = {}, depth = 0, out = new Set()) {
+    if (!t || depth > 4 || typeof Containers === 'undefined') return out;
+    const vars = { ...this.sites(), ...params }, fill = x => String(x ?? '').replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
+    const walk = steps => { for (const st of steps || []) {
+      if (!st || typeof st !== 'object') continue;
+      if (st.do === 'agent.open') { const a = agentArgs((st.args || []).map(fill)); let u = ''; try { u = new URL(fill(st.value)).href; } catch {} out.add(u ? `${Containers.for(u, a.container || t.container).id}|${AgentWeb.siteKey(u)}` : `${Containers.get(a.container || t.container || 'browse').id}|*`); }
+      if (st.do === 'agent.task') this.containersOf(this.get(st.value), {}, depth + 1, out);
+      for (const k of ['then', 'else', 'steps']) if (Array.isArray(st[k])) walk(st[k]);
+    } };
+    walk(t.steps); return out;
   },
   /** A script runner of its own (js/script.js's step engine), so a presentation that's running isn't touched. */
   runner(t, params) {
@@ -615,7 +669,7 @@ const Agent = {
   meshHash() { return typeof Mesh === 'undefined' || !Mesh.m ? '' : JSON.stringify(Object.entries(Mesh.presence).filter(([, x]) => x.app === 'StudioGen' && Date.now() - x.at < 60000).map(([id, x]) => [id, x.caps?.agent || []])); },
   meshStale() { return this.meshHash() !== (this.meshSeen ?? ''); },
   async refresh(force) {
-    if (force) { this.meshAt = 0; this.meshSeen = this.meshHash(); }
+    if (force) this.meshAt = 0; const seen = this.meshHash(); let failed = false;
     if (!LINK_HOST && Link.ready()) try { const r = await Link.tasks(); if (Array.isArray(r?.tasks)) store.set('macTasks', r.tasks); } catch (e) { Log.d('agent', 'Mac tasks: not fetched', { error: e.message }); }
     // the other StudioGens in the mesh (at most once a minute): what each lets this device run; an offline one's are kept, to wait for it
     if (typeof Mesh === 'undefined' || !Mesh.m || Date.now() - (this.meshAt || 0) < 60000) return; this.meshAt = Date.now();
@@ -623,9 +677,10 @@ const Agent = {
     for (const [id, x] of Object.entries(Mesh.presence)) {
       if (id === Mesh._me?.id || id === mac || x.app !== 'StudioGen' || Date.now() - x.at > 60000) continue;
       try { const r = await Mesh.call(id, 'tasks', {}, 15000); asked.add(id); for (const t of r?.tasks || []) got.push({ ...t, id: `mesh:${id.slice(0, 8)}:${t.id}`, origId: t.id, on: id, onName: x.name, runs: 'mac', remoteOnly: true }); }
-      catch (e) { Log.d('agent', `Mesh tasks: not fetched from ${x.name}`, { error: e.message }); }
+      catch (e) { failed = true; Log.d('agent', `Mesh tasks: not fetched from ${x.name}`, { error: e.message }); }
     }
     store.set('meshTasks', [...this.meshMine().filter(t => !asked.has(t.on) && Mesh.member(t.on)), ...got]);
+    if (!failed) this.meshSeen = seen; // a StudioGen that didn't answer is asked again next time
   },
   /** The tasks this Mac offers: for its owner's devices the ones made here; for others the shared ones that need no sign-in. */
   offered(own = true) {
@@ -649,38 +704,40 @@ setInterval(() => { if (typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStal
 
 /* ---------- Actions: the agent's steps (also usable in any script) ---------- */
 const agentArgs = args => { const o = { q: [], flags: [] }; for (const a of args || []) { const s = String(a), i = s.indexOf('='); if (s.startsWith('?') && i > 0) o.q.push([s.slice(1, i), s.slice(i + 1)]); else if (i > 0) o[s.slice(0, i).trim()] = s.slice(i + 1); else o.flags.push(s.trim()); } return o; };
-const agentCtx = () => { const c = Agent.ctx; if (c?.failed) throw new Error(c.failed); return c; };
+/** The task a step belongs to: its runner's (tasks run side by side), else a check run's. */
+const ctxOf = ev => ev?.runner?.ctx || Agent.ctx;
+const agentCtx = ev => { const c = ctxOf(ev); if (c?.failed) throw new Error(c.failed); return c; };
 /** Agent steps: a failure stops the task with its reason (the script engine would carry on with the next step). */
 const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
   let li = null;
   try { li = await AgentWatch.step(id, a[0], a[2]); const r = await def.run(...a);
     AgentWatch.done(li, true, typeof r === 'string' && id === 'agent.read' ? `${r.length} characters read` : id === 'ai.card' && r?.headline ? r.headline : ''); return r; }
-  catch (e) { AgentWatch.done(li, false, e.message.replace(/^SIGNIN:(.+)$/, 'Sign in to $1 here, then ask again')); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } } });
+  catch (e) { AgentWatch.done(li, false, e.message.replace(/^SIGNIN:(.+)$/, 'Sign in to $1 here, then ask again')); const c = ctxOf(a[2]); if (c) c.failed ||= e.message; throw e; } } });
 /** A check run (an imported task, js/taskllm.js) of a task that acts: the step that would send, post or confirm only checks
     that its button or field is there. */
-const checkOnly = (kind, v, a) => { const c = Agent.ctx; if (!c?.check || !c.task?.acts) return false;
+const checkOnly = (kind, v, a, c) => { if (!c?.check || !c.task?.acts) return false;
   return kind === 'key' ? /enter/i.test(v || 'Enter') : kind === 'type' ? a.flags.includes('enter') : /send|post|reply|submit|save|delete|remove|book|pay|confirm|publish/i.test(`${v} ${a.sel || ''}`); };
 const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs StudioGen on a Mac (its agent browser)'); };
 agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000, container=name (else the site’s container)', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
   for (const [k, x] of a.q) if (x !== '') u.searchParams.set(k, x);
-  await AgentWeb.go(u.href, a.container || Agent.ctx?.task?.container); // container=Work, or the task's own
-  const site = a.site || u.hostname, here = () => AgentWeb.url();
-  if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); }
+  await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
+  const site = a.site || u.hostname, here = () => W.url();
+  if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); }
   if (a.wait) {
     // wait in short turns, looking for a sign-in or refusal page in between, so it's caught in seconds, not after the full wait
     const total = +a.ms || 15000, t0 = Date.now(), BLOCKED = /works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser/i;
     let w = { ok: false };
     while (Date.now() - t0 < total) {
-      w = await AgentWeb.call('waitFor', [{ sel: a.wait }, Math.min(3000, total - (Date.now() - t0))], 6000); if (w.ok) break;
-      if (SIGNIN.test(here()) || (Date.now() - t0 > 4000 && (t => SIGNIN_WORDS.test(t) || BLOCKED.test(t))((await AgentWeb.call('read', ['body', 2500])).text || ''))) break;
+      w = await W.call('waitFor', [{ sel: a.wait }, Math.min(3000, total - (Date.now() - t0))], 6000); if (w.ok) break;
+      if (SIGNIN.test(here()) || (Date.now() - t0 > 4000 && (t => SIGNIN_WORDS.test(t) || BLOCKED.test(t))((await W.call('read', ['body', 2500])).text || ''))) break;
     }
-    if (!w.ok && !SIGNIN.test(here())) w = await AgentWeb.call('waitFor', [{ sel: a.wait }, 1500], 4000); // it may have just come
+    if (!w.ok && !SIGNIN.test(here())) w = await W.call('waitFor', [{ sel: a.wait }, 1500], 4000); // it may have just come
     if (!w.ok) {
       // the page never got ready: never carry on (the task would answer “Nothing”); show the agent browser and say why
-      const txt = ((await AgentWeb.call('read', ['body', 2500])).text || '').slice(0, 2500);
+      const txt = ((await W.call('read', ['body', 2500])).text || '').slice(0, 2500);
       Log.w('agent', `The page didn’t show ${a.wait}`, { url: here(), text: txt.slice(0, 200) });
-      AgentWeb.show(true);
+      W.show(true);
       // a sign-in page, on any site: by its address, or by its words (WhatsApp's stays at web.whatsapp.com until linked)
       if (SIGNIN.test(here()) || SIGNIN_WORDS.test(txt)) throw new Error(`SIGNIN:${site}`);
       if (/works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser|switch to a supported browser/i.test(txt)) throw new Error(`${site} says this browser isn’t supported. Update StudioGen, then ask again.`);
@@ -688,59 +745,59 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
       throw new Error(`${site} didn’t open as expected. Have a look in the agent browser on your Mac (sign in if it asks), then ask again.`);
     }
   }
-  if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { AgentWeb.show(true); throw new Error(`SIGNIN:${site}`); } // a sign-in page can pass for the page (an account list is a listbox too)
+  if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); } // a sign-in page can pass for the page (an account list is a listbox too)
   return here();
 } });
 agentAction('agent.read', { group: 'Agent', name: 'Agent browser: read the page', arg: 'CSS selectors to read, tried in order (|| between them); the whole page if none fit; inputs: keep=words (only the lines that have them, || between choices), max=5000', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args), r = await AgentWeb.call('read', [v || 'body', +a.max || 5000]);
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args), r = await W.call('read', [v || 'body', +a.max || 5000]);
   // keep=Unread: the lines are picked here, not by the model (it lets read rows in)
   if (a.keep && r.text) { const ks = a.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); r.text = r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)';
-    const c = Agent.ctx; if (c) (c.kept ||= new Map()).set(r.text, r.text === '(none)' ? 0 : r.text.split('\n').length); } // how many lines were kept: the card's count (js ai.card)
-  if (SIGNIN.test(r.url || '')) { AgentWeb.show(true); throw new Error(`SIGNIN:${new URL(r.url).hostname}`); }
-  if (/unusual traffic|are you a robot|not a robot|verify you are human|captcha/i.test((r.text || '').slice(0, 800))) { AgentWeb.show(true); throw new Error('The site wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.'); }
+    if (c) (c.kept ||= new Map()).set(r.text, r.text === '(none)' ? 0 : r.text.split('\n').length); } // how many lines were kept: the card's count (js ai.card)
+  if (SIGNIN.test(r.url || '')) { W.show(true); throw new Error(`SIGNIN:${new URL(r.url).hostname}`); }
+  if (/unusual traffic|are you a robot|not a robot|verify you are human|captcha/i.test((r.text || '').slice(0, 800))) { W.show(true); throw new Error('The site wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.'); }
   Log.d('agent', `Read ${r.text?.length || 0} characters (${r.sel})`); return r.text || '';
 } });
 agentAction('agent.wait', { group: 'Agent', name: 'Agent browser: wait for something', arg: 'CSS selector; inputs: text=…, ms=…', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args); return (await AgentWeb.call('waitFor', [{ sel: v, text: a.text }, +a.ms || 10000], (+a.ms || 10000) + 3000)).ok;
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args); return (await W.call('waitFor', [{ sel: v, text: a.text }, +a.ms || 10000], (+a.ms || 10000) + 3000)).ok;
 } });
 agentAction('agent.click', { group: 'Agent', name: 'Agent browser: click', arg: 'The text on it; inputs: sel=CSS selector (|| between choices), optional', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args); let r = { ok: false };
-  const op = checkOnly('click', v, a) ? 'exists' : 'clickOn';
-  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call(op, [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args); let r = { ok: false };
+  const op = checkOnly('click', v, a, c) ? 'exists' : 'clickOn';
+  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await W.call(op, [{ sel: sel || undefined, text: v || undefined }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok && !a.flags.includes('optional')) throw new Error(r.error || `Couldn’t click ${v || a.sel}`);
   return r.ok;
 } });
 agentAction('agent.type', { group: 'Agent', name: 'Agent browser: type into a field', arg: 'The field’s label or placeholder; inputs: the text, then enter (to press Enter), sel=CSS selector', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args), text = a.flags.find(f => f !== 'enter') ?? '';
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args), text = a.flags.find(f => f !== 'enter') ?? '';
   let r = { ok: false };
-  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await AgentWeb.call('focus', [{ sel: sel || undefined, label: v }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
+  for (const sel of (a.sel ? a.sel.split('||') : [''])) { r = await W.call('focus', [{ sel: sel || undefined, label: v }]); if (r.ok) { AgentWatch.ring(r.rect); break; } }
   if (!r.ok) throw new Error(r.error || `No field ${v}`);
-  if (checkOnly('type', v, a)) return true; // a check run: the message box is there, nothing typed or sent
-  if (text) await AgentWeb.insert(text);
-  if (a.flags.includes('enter')) { await new Promise(x => setTimeout(x, 200)); AgentWeb.key('Enter'); }
+  if (checkOnly('type', v, a, c)) return true; // a check run: the message box is there, nothing typed or sent
+  if (text) await W.insert(text);
+  if (a.flags.includes('enter')) { await new Promise(x => setTimeout(x, 200)); W.key('Enter'); }
   return true;
 } });
 agentAction('agent.key', { group: 'Agent', name: 'Agent browser: press a key', arg: 'Enter, Escape, Tab…; inputs: sel=field to focus first', async run(v, say, ev = {}) {
-  agentCtx(); needWeb(); const a = agentArgs(ev.args); if (a.sel) await AgentWeb.call('focus', [{ sel: a.sel.split('||')[0], clear: false }]); if (!checkOnly('key', v, a)) AgentWeb.key(v || 'Enter'); return true;
+  const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args); if (a.sel) await W.call('focus', [{ sel: a.sel.split('||')[0], clear: false }]); if (!checkOnly('key', v, a, c)) W.key(v || 'Enter'); return true;
 } });
 Actions.define('agent.show', { group: 'Agent', name: 'Show the agent browser (to sign in)', arg: '', run: () => { needWeb(); AgentWeb.show(true); } });
 /** A yes/no in the middle of a task, after it has read something (“Priya said … Send ‘on my way’?”): no stops the task.
     A check run and a trusted task (“yes, always”) carry on without asking. */
-agentAction('agent.confirm', { group: 'Agent', name: 'Ask yes or no before going on', arg: 'The question (values the task read allowed)', run(v) {
-  const c = agentCtx(); if (!c || c.check || Agent.trusted(c.task?.id)) return true;
+agentAction('agent.confirm', { group: 'Agent', name: 'Ask yes or no before going on', arg: 'The question (values the task read allowed)', run(v, say, ev) {
+  const c = agentCtx(ev); if (!c || c.check || Agent.trusted(c.task?.id)) return true;
   return new Promise(res => {
     const p = { at: Date.now(), yes: always => { clearInterval(keep); if (always) Agent.trust(c.task.id, true); res(true); }, no: () => { clearInterval(keep); c.failed ||= 'Okay, I didn’t.'; res(false); } };
     const keep = setInterval(() => { if (Commands.pending === p) p.at = Date.now(); else { clearInterval(keep); if (!c.failed) { c.failed = 'No answer, so I stopped.'; res(false); } } }, 5000); // kept open while you think
     Commands.pending = p; Voice.respond(`${v} Say yes or no.`, null, { ask: true });
   });
 } });
-Actions.define('agent.fail', { group: 'Agent', name: 'Stop the task with a message', arg: 'What to say', run(v) { const c = Agent.ctx; if (c) c.failed ||= v || 'That didn’t work.'; else throw new Error(v); } });
+Actions.define('agent.fail', { group: 'Agent', name: 'Stop the task with a message', arg: 'What to say', run(v, say, ev) { const c = ctxOf(ev); if (c) c.failed ||= v || 'That didn’t work.'; else throw new Error(v); } });
 Actions.define('agent.task', { group: 'Agent', name: 'Run another task', arg: 'Task id; inputs: name=value', async run(v, say, ev = {}) {
-  agentCtx(); const t = Agent.get(v); if (!t) throw new Error(`No task ${v}`);
+  const parent = agentCtx(ev), t = Agent.get(v); if (!t) throw new Error(`No task ${v}`);
   const a = agentArgs(ev.args); delete a.q; delete a.flags;
   const c = Agent.post({ task: t.id, title: t.name, type: 'status', status: 'running', headline: Agent.asking(t) });
-  try { const r = await Agent.exec(t, a, { confirmed: true }); const k = Agent.post({ ...Agent.asCard(r), id: c.id, status: 'done', at: Date.now() }); Voice.respond(Agent.spoken(k)); return k; }
-  catch (e) { Agent.drop(c.id); if (Agent.ctx) Agent.ctx.failed ||= e.message; throw e; } // the task that ran it reports why
+  try { const r = await Agent.exec(t, a, { confirmed: true, parent }); const k = Agent.post({ ...Agent.asCard(r), id: c.id, status: 'done', at: Date.now() }); Voice.respond(Agent.spoken(k)); return k; }
+  catch (e) { Agent.drop(c.id); if (parent) parent.failed ||= e.message; throw e; } // the task that ran it reports why
 } });
 Actions.define('agent.scripts', { group: 'Agent', name: 'The scripts I can present (a card)', arg: '', run: () => ({ type: 'list', headline: `${Scripts.all().length} scripts`, items: Scripts.all().slice(0, 8).map(s => ({ title: s.name, detail: s.json?.about || '' })) }) });
 /** The model's card: { headline, items: [{ title, detail, when, place, person }] } from the page text. */
@@ -757,14 +814,14 @@ const echoFix = (c, ask) => { const w = plain(c.headline).split(' ').filter(x =>
   return c; };
 const tidyCard = j => ({ ...j, headline: String(j.headline || ''), items: (Array.isArray(j.items) ? j.items : []).slice(0, 5).map(i => Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x && !/^(none|n\/a|empty|unknown)$/i.test(String(x).trim())))) });
 agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model)', arg: 'What to pull out; input: the text ({read})', async run(v, say, ev = {}) {
-  agentCtx(); const text = String((ev.args || [])[0] ?? '').slice(0, 5000);
+  const cx = agentCtx(ev), text = String((ev.args || [])[0] ?? '').slice(0, 5000);
   if (text.trim() === '(none)') return { headline: 'Nothing', items: [] }; // agent.read's keep= found no lines
   if (/^\{read\}$/.test(text.trim()) || (ev.args?.length && text.trim().length < 40 && !/^(Topic|Meeting):/.test(text))) return { headline: 'I couldn’t read anything on that page', items: [] };
   // the small on-device model copies whatever it is given (today's date went into every “when”), so the date only comes with requests about dates
   const dated = /\b(today|tomorrow|yesterday|this week|next week|date|day|calendar|meeting|deadline|due)\b/i.test(v);
   const instructions = `You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Follow the request: it says what the headline and each item's title, detail and when hold. Rules: use only facts that are in the text; never invent names, numbers, dates or times; the request's words describe what to write, they are not values; write each field in your own short words, never copy whole lines; leave when empty unless the text gives a time for that item. If the text doesn't answer the request, the headline says so and items is empty. Plain words, no markdown.${dated ? ` Today is ${new Date().toDateString()}.` : ''}`;
   // lines picked by agent.read keep=: their number is known, so the model is told it and its headline's number is put right
-  const n = Agent.ctx?.kept?.get(text.trim()) ?? Agent.ctx?.kept?.get(text);
+  const n = cx?.kept?.get(text.trim()) ?? cx?.kept?.get(text);
   const prompt = `Request: ${v}${n != null ? `\n\nThere are exactly ${n} of them, one per line.` : ''}\n\nText:\n${text || '(none)'}`;
   const counted = c => { if (n != null && c?.headline) c.headline = c.headline.replace(/^\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i, String(n)); return c; };
   if (typeof MacAI !== 'undefined' && MacAI.can()) {
@@ -780,7 +837,7 @@ agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model
 } });
 /** Cards put together without the model (it gets totals wrong): one item per source with its count and names. */
 agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line per source)', arg: 'The headline (empty: the counts); inputs: Label=card name, one per source', run(v, say, ev = {}) {
-  const vars = agentCtx()?.vars || {}, parts = (ev.args || []).map(a => String(a).match(/^(.+?)=\{?([\w.]+)\}?$/)).filter(Boolean);
+  const vars = agentCtx(ev)?.vars || {}, parts = (ev.args || []).map(a => String(a).match(/^(.+?)=\{?([\w.]+)\}?$/)).filter(Boolean);
   const items = parts.map(([, label, name]) => { const c = name.split('.').reduce((o, k) => o?.[k], vars), list = Array.isArray(c?.items) ? c.items : [];
     // a part that is itself put together (its items carry counts): its lines and their sum
     const joined = c?.type === 'summary' && list.length && list.every(i => /^\d+$/.test(i.when || ''));
@@ -788,8 +845,8 @@ agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line p
   const head = items.map(i => `${i.when} ${i.title}`).join(', ');
   return { type: 'summary', headline: v || (items.every(i => i.when === '0') ? 'Nothing new' : head), items: items.slice(0, 5) };
 } });
-agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v) {
-  agentCtx(); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v, say, ev) {
+  agentCtx(ev); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   if (typeof MacAI !== 'undefined' && MacAI.can()) {
     try { const r = await MacAI.ask({ instructions: `Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is ${iso(now)} (${now.toLocaleDateString([], { weekday: 'long' })}). No length given: one hour.`, prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = JSON.parse(r.json || '{}'); if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
   }
@@ -823,6 +880,7 @@ const AgentHome = {
     const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', waiting: '🕓', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
     const items = (c.items || []).slice(0, max).map(i => `<li><b>${esc(i.title || '')}</b>${i.when ? ` <span class="ag-when">${esc(i.when)}</span>` : ''}${i.detail && !this.moving() ? `<div class="ag-detail">${esc(i.detail)}</div>` : ''}</li>`).join('');
     const btns = c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
+      : c.status === 'signin' && Agent.where(Agent.get(c.task) || {}) === 'mac' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="remote:${c.id}">Sign in from here</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'signin' && AgentWeb.can() ? `<div class="ag-btns"><button class="big-btn accent" data-ag="signin:${c.id}">Open the agent browser</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'failed' ? `<div class="ag-btns"><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.place?.lat || (/^(cal|car)\./.test(c.task || '') && (c.items || []).some(i => i.place && !/online|teams|zoom/i.test(i.place))) ? `<div class="ag-btns"><button class="big-btn accent" data-ag="go:${c.id}">${svg('maps')} Go there</button></div>` : '';
@@ -834,7 +892,7 @@ const AgentHome = {
   },
   /** The assistant beside the cards on a wide screen (the watch panel takes the right): Stage's character, head to toe,
       moved in like the start page does and handed back on leaving. Not on a phone, nor while driving. */
-  avatarSide() { return innerWidth >= 900 && !this.moving() && typeof StartPage !== 'undefined' && typeof Media !== 'undefined'; },
+  avatarSide() { return innerWidth >= 900 && !this.moving() && !window.DriveDeckDesktop?.worker && typeof StartPage !== 'undefined' && typeof Media !== 'undefined'; }, // a Worker draws no 3D assistant (no graphics chip in a container)
   draw() {
     const root = $('#agentRoot'); if (!root || current !== 'agent') return;
     const feed = Agent.feed(), [top, ...rest] = feed, hello = (h => h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')(new Date().getHours());
@@ -879,12 +937,13 @@ const AgentHome = {
     sheet('Agent settings', `<label class="se-field"><span>Outlook on the web</span><select id="agOl">${[['https://outlook.office.com', 'Work or school (outlook.office.com)'], ['https://outlook.live.com', 'Personal (outlook.live.com)']].map(([u, l]) => `<option value="${u}" ${c.outlook === u ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="se-check"><input type="checkbox" id="agPractice" ${c.practice ? 'checked' : ''}> Use the practice sites (made-up mail, Slack, WhatsApp and Teams, to try and test tasks safely)</label>
       ${AgentWeb.can() ? `<label class="se-check"><input type="checkbox" id="agWatch" ${c.watch ? 'checked' : ''}> Show the browser while tasks run (watch each step, to see why one doesn’t work)</label>
-      <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>` : ''}
+      <label class="se-check"><input type="checkbox" id="agStep" ${c.stepMode ? 'checked' : ''}> One step at a time (pauses before each step until you tap Next step)</label>
+      <label class="se-row"><span>Tasks at once in the agent browser (one per container)</span><select id="agPar">${[1, 2, 3, 4].map(n => `<option value="${n}" ${(+c.parallel || 3) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
       ${LINK_HOST ? `<label class="se-check"><input type="checkbox" id="agRemote" ${c.remote ? 'checked' : ''}> Paired phones may run this Mac’s tasks (acting ones are confirmed on the phone)</label>` : ''}
       ${AgentWeb.can() ? `<div class="chip-row"><button class="chip" data-ag="containers">Containers and sign-ins (${Containers.all().length})</button></div>` : ''}
       <p class="se-note">Trusted tasks (run without asking): ${store.get('taskTrust', []).map(id => esc(Agent.get(id)?.name || id)).join(', ') || 'none'}.</p>
       ${this.waitHtml()}`,
-      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode }); this.waitSave(); toast('Saved'); }], ['Close']]);
+      [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode, parallel: $('#agPar') ? +$('#agPar').value : c.parallel }); this.waitSave(); toast('Saved'); }], ['Close']]);
   },
   /** Waiting requests (Agent.waitRules): how long each kind may wait for an offline Mac or StudioGen. */
   waitHtml() {
@@ -958,6 +1017,7 @@ document.addEventListener('click', e => {
   if (k === 'no') { if (p?.card === v) { Agent.pend = null; Commands.pending = null; } return Agent.drop(v); }
   if (k === 'drop') return Agent.drop(v);
   if (k === 'retry' && c) { Agent.drop(v); return Agent.start(c.task); }
+  if (k === 'remote' && c) { const to = Agent.target(Agent.get(c.task) || {}); return RemoteView.open(to.meshId ? { meshId: to.meshId, name: to.name } : null, 'web'); } // signing in on the Mac, from here (js/remoteview.js)
   if (k === 'signin' || k === 'browser') { closeSheet(); return AgentWeb.show(true); }
   if (k === 'go' && c) { const pl = c.place, it = (c.items || []).find(i => i.place); return pl?.lat ? Actions.run('nav.go', `${pl.lat},${pl.lon}`, quietSay) : it && Actions.run('nav.go', it.place, quietSay); }
   if (k === 'run') { closeSheet(); if (current !== 'agent') openView('agent'); return Agent.start(v); }

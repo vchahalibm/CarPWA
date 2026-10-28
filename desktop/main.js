@@ -11,6 +11,15 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 
 const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the internal origin keeps its name: your data lives there
+// StudioGen Worker (worker/README.md, docs/studiogbee.html § 8): StudioGen in a Linux container without a screen of its own
+// (a virtual one, Xvfb). No updates (the image is rebuilt), no menu bar or dialogs, data in SG_DATA; set up from the
+// environment (SG_NAME, SG_MESH_INVITE, the model), then seen and used from your devices (js/remoteview.js).
+const WORKER = process.env.SG_WORKER === '1';
+if (WORKER) {
+  for (const sw of ['no-sandbox', 'disable-gpu', 'disable-dev-shm-usage']) app.commandLine.appendSwitch(sw);
+  app.commandLine.appendSwitch('password-store', 'basic');
+  if (process.env.SG_DATA) app.setPath('userData', process.env.SG_DATA);
+}
 const fs = require('fs');
 // Errors in this process: written with their stack to ~/Library/Logs/StudioGen/main.log (kept short), and shown once a
 // minute at most, instead of Electron's bare “A JavaScript error occurred in the main process” box. StudioGen keeps running.
@@ -20,7 +29,7 @@ function mainError(kind, e) {
   try { const dir = app.getPath('logs'), f = path.join(dir, 'main.log'); fs.mkdirSync(dir, { recursive: true });
     const old = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').slice(-150000) : ''; fs.writeFileSync(f, old + text); } catch {}
   console.error(text);
-  if (kind === 'error' && app.isReady() && Date.now() - lastErrBox > 60000) {
+  if (kind === 'error' && !WORKER && app.isReady() && Date.now() - lastErrBox > 60000) {
     lastErrBox = Date.now();
     dialog.showMessageBox({ type: 'warning', message: 'StudioGen hit an error (it keeps running)', detail: `${e?.message || e}\n\nThe details are in ~/Library/Logs/StudioGen/main.log.`,
       buttons: ['OK', 'Copy details'] }).then(r => { if (r.response === 1) require('electron').clipboard.writeText(text); }).catch(() => {});
@@ -121,7 +130,7 @@ function createWindow({ show = true } = {}) {
   win.on('show', () => throttle(false)); win.on('restore', () => throttle(false));
   // Esc on the wall stops presenting (the presenter view stays open).
   win.webContents.on('before-input-event', (e, i) => { if (presenting && i.type === 'keyDown' && i.key === 'Escape') { presenting = false; win.setFullScreen(false); menu(); } });
-  win.webContents.once('did-finish-load', () => Updates.start()); // it runs: tidy up after an update, then check now and then
+  if (!WORKER) win.webContents.once('did-finish-load', () => Updates.start()); // it runs: tidy up after an update, then check now and then
   win.loadURL(`${ORIGIN}/index.html`);
   return win;
 }
@@ -279,6 +288,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:insert-text', (e, text) => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? e.sender.insertText(String(text || '')).then(() => true) : false);
   ipcMain.handle('dd:bridge-src', () => readBridge());
   ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
+  // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards
+  ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { name: process.env.SG_NAME || 'StudioGen Worker', invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
+    llm: process.env.SG_LLM_PROVIDER ? { provider: process.env.SG_LLM_PROVIDER, url: process.env.SG_LLM_URL || '', model: process.env.SG_LLM_MODEL || '', key: process.env.SG_LLM_KEY || '' } : null } : null; });
   // Updates (desktop/updater.js): state, check now, and apply (web: reload on the new files; shell: install and restart).
   ipcMain.handle('dd:update-status', own(() => Updates.status()));
   ipcMain.handle('dd:update-check', own(() => Updates.check(true)));
@@ -293,9 +305,9 @@ app.whenReady().then(async () => {
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },
     { role: 'windowMenu' },
   ]));
-  makeTray();
+  if (!WORKER) makeTray();
   // Started at login: just the menu bar until you open it.
-  createWindow({ show: !app.getLoginItemSettings().wasOpenedAtLogin });
+  createWindow({ show: WORKER || !app.getLoginItemSettings().wasOpenedAtLogin });
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

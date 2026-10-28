@@ -19,7 +19,7 @@ const Brain = {
   ready() { const c = this.cfg(); return c.provider === 'anthropic' ? !!this.key() : c.provider === 'openai' ? !!c.url : c.provider === 'mac' ? MacAI.can() : false; },
   /** One question → the model's text. */
   async complete(system, user, max = 400) {
-    const c = this.cfg(), ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+    const c = this.cfg(), ctl = new AbortController(), t = setTimeout(() => ctl.abort(), c.provider === 'openai' ? 180000 : 45000); // a model on your own machine may load first and think before it answers
     try {
       if (c.provider === 'anthropic') {
         const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal,
@@ -31,9 +31,9 @@ const Brain = {
       if (c.provider === 'openai') {
         const r = await fetch(`${c.url.replace(/\/$/, '')}/chat/completions`, { method: 'POST', signal: ctl.signal,
           headers: { 'content-type': 'application/json', ...(this.key() ? { authorization: `Bearer ${this.key()}` } : {}) },
-          body: JSON.stringify({ model: c.model || 'llama3.2', max_tokens: max, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
+          body: JSON.stringify({ model: c.model || 'llama3.2', max_tokens: Math.max(max, 3000), messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) }); // room for a thinking model's reasoning
         const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `${r.status}`);
-        return j.choices?.[0]?.message?.content || '';
+        return (j.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim(); // a thinking model's reasoning isn't the answer
       }
       if (c.provider === 'mac') return await MacAI.text(system, user, max); // Apple's on-device model: this Mac, or the paired Mac for a phone
       throw new Error('No model set up (Settings › Assistant › Understanding)');

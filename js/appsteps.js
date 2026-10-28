@@ -254,7 +254,7 @@ const AppSteps = {
       const win = await loadImage(await DriveDeckDesktop.capture()), k = win.naturalWidth / innerWidth;
       const c = Object.assign(document.createElement('canvas'), { width: win.naturalWidth, height: win.naturalHeight }), x = c.getContext('2d');
       x.drawImage(win, 0, 0);
-      for (const wv of $$('#dashRoot webview')) {
+      for (const wv of $$('#dashRoot webview, #agentWeb.show webview:not([hidden])')) { // the agent browser too, when it's shown (seeing StudioGen from afar, js/remoteview.js)
         try { const r = wv.getBoundingClientRect(); if (!r.width || !r.height) continue; const img = await loadImage((await wv.capturePage()).toDataURL()); x.drawImage(img, r.left * k, r.top * k, r.width * k, r.height * k); } catch {}
       }
       return { canvas: c, k };

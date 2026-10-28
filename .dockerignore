@@ -1,0 +1,18 @@
+# The StudioGen Worker image (worker/Dockerfile) is built from the repo root: only the web files and desktop/ go in
+.git
+.github
+**/node_modules
+desktop/dist
+desktop/speech/bin
+desktop/ai/bin
+bee
+tools
+tests
+docs
+samples
+update-out
+vendor/models/_cand
+**/.DS_Store
+# a Worker draws no 3D assistant and follows nobody on a camera
+vendor/models
+vendor/mediapipe

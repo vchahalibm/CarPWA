@@ -112,6 +112,58 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: 'Studio B comes back: the waiting request runs and the card arrives', always: true, auto: () => B.restart(),
         check: async () => { const c = (await st(A)).agent?.[0]; return c?.status === 'done' && /mesh view/i.test(c.headline || '') || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 240 },
     ],
+    remote: [
+      { title: 'Studio A shows the practice Slack signed out; the phone opens Studio A’s agent browser from afar', always: true,
+        auto: async () => { await A.eval(`(async () => { store.set('agentCfg', { ...Agent.cfg(), practice: true }); await AgentWeb.go(Agent.sites().slack + '?reset'); await new Promise(r => setTimeout(r, 1500)); return 1 })()`); await P.eval(`RemoteView.open(null, 'web'), 1`); },
+        check: async () => { const [n, src] = await Promise.all([A.eval('RemoteView.sessions.size'), P.eval(`document.querySelector('#rvView img')?.src?.slice(0, 23) || ''`)]); return n === 1 && src === 'data:image/jpeg;base64,' && await A.eval('!!document.getElementById("rvBanner")') || `sessions ${n}, picture ${src || 'none'}`; }, wait: 30 },
+      { title: 'The phone taps “Sign in” on the picture: Studio A’s practice Slack is signed in', always: true,
+        auto: async () => { const r = await A.eval(`(async () => { const b = await AgentWeb.call('exists', [{ text: 'Sign in with email (simulated)' }]), w = AgentWeb.view().wv.getBoundingClientRect(); return b.rect ? [(b.rect.x + b.rect.w / 2) / w.width, (b.rect.y + b.rect.h / 2) / w.height] : null })()`); if (r) await P.eval(`RemoteView.send({ kind: 'tap', x: ${r[0]}, y: ${r[1]} }), 1`); },
+        check: async () => /Channels/.test(await A.eval(`AgentWeb.call('read', ['body', 600]).then(r => r.text)`)) || 'still on the sign-in page', wait: 20 },
+      { title: 'The phone opens a channel, types a message and sends it with Enter', always: true,
+        auto: async () => { const at = async q => A.eval(`(async () => { const b = await AgentWeb.call('exists', [${q}]), w = AgentWeb.view().wv.getBoundingClientRect(); return b.rect ? [(b.rect.x + b.rect.w / 2) / w.width, (b.rect.y + b.rect.h / 2) / w.height] : null })()`);
+          let r = await at(`{ text: 'general', sel: '.p-channel_sidebar__channel' }`); await P.eval(`RemoteView.send({ kind: 'tap', x: ${r[0]}, y: ${r[1]} }), 1`); await sleep(1500);
+          r = await at(`{ sel: '.ql-editor' }`); await P.eval(`RemoteView.send({ kind: 'tap', x: ${r[0]}, y: ${r[1]} }), 1`); await sleep(600);
+          await P.eval(`RemoteView.send({ kind: 'text', text: 'Typed from afar' }), 1`); await sleep(600); await P.eval(`RemoteView.send({ kind: 'key', key: 'Enter' }), 1`); },
+        check: async () => /Typed from afar/.test(await A.eval(`AgentWeb.call('read', ['.p-message_pane', 3000]).then(r => r.text)`)) || 'the message isn’t in the channel', wait: 20 },
+      { title: 'Done on the phone: Studio A’s view and banner close; then the whole app is opened, and closed', always: true,
+        auto: async () => { await P.eval('RemoteView.close(), 1'); await sleep(1500); S.closed = await A.eval('RemoteView.sessions.size === 0 && !document.getElementById("rvBanner")'); await P.eval(`RemoteView.open(null, 'app'), 1`); await sleep(4000); S.app = await P.eval(`document.querySelector('#rvView img')?.naturalWidth || 0`); await P.eval('RemoteView.close(), 1'); },
+        check: async () => S.closed && S.app > 300 || `closed ${S.closed}, app picture ${S.app}px` },
+      { title: 'Studio B (not Studio A’s owner’s device) is refused', always: true,
+        auto: async () => { S.err = await B.eval(`Mesh.call(${JSON.stringify(await id(A))}, 'view-open', { target: 'app' }, 20000).then(() => 'opened', e => e.message)`, 30000); },
+        check: async () => /owner’s own devices/.test(S.err || '') || `answer: ${S.err}` },
+    ],
+    parallel: [
+      { title: 'Studio A runs WhatsApp, Slack and Teams tasks at once on the practice sites (and a second WhatsApp task, which waits for the first)', always: true,
+        auto: async () => { S.par = await A.eval(`(async () => { store.set('agentCfg', { ...Agent.cfg(), practice: true, parallel: 3 }); const s = Agent.sites();
+          for (const [u, t] of [[s.slack + '?reset', 'Sign in with email (simulated)'], [s.whatsapp + '?reset', 'Simulate scanning with your phone'], [s.teams + '?reset', 'Next (simulated)']]) { await AgentWeb.go(u); await new Promise(r => setTimeout(r, 1500)); await AgentWeb.call('clickOn', [{ text: t }], 6000); await new Promise(r => setTimeout(r, 1500)); }
+          const t0 = Date.now(), log = {}; let peak = 0; const iv = setInterval(() => { peak = Math.max(peak, Agent.slots.n); }, 100);
+          await Promise.all([['whatsapp.read', {}], ['slack.mentions', {}], ['teams.read', {}], ['whatsapp.from', { person: 'Mom' }]].map(([id, p], i) => Agent.exec(Agent.get(id), p, { confirmed: true }).then(c => { log[id] = [Date.now() - t0, c.headline]; }, e => { log[id] = [Date.now() - t0, 'ERR ' + e.message]; })));
+          clearInterval(iv); return { peak, log, ms: Date.now() - t0 } })()`, 300000); },
+        check: async () => { const p = S.par || {}; const ok = Object.values(p.log || {}).every(([, h]) => !/^ERR/.test(h)); return ok && p.peak === 3 && p.log['whatsapp.from'][0] > p.log['whatsapp.read'][0] || `peak ${p.peak}: ${JSON.stringify(p.log)}`; } },
+    ],
+    worker: [
+      { title: 'Studio A makes an invite for one of its owner’s own devices; a StudioGen Worker starts in Docker with it', always: true,
+        auto: async () => { S.inv = await A.eval(`Mesh.invite('member', true)`); try { execFileSync('docker', ['rm', '-f', 'sg-worker-t'], { stdio: 'ignore' }); } catch {}
+          execFileSync('docker', ['run', '-d', '--name', 'sg-worker-t', '--shm-size', '1g', '-e', 'SG_NAME=Test Worker', '-e', `SG_MESH_INVITE=${S.inv}`, '-e', 'SG_PRACTICE=1', '-e', 'SG_SECRET=tandem-secret', '-e', 'SG_LLM_PROVIDER=openai', '-e', 'SG_LLM_URL=http://host.docker.internal:11434/v1', '-e', 'SG_LLM_MODEL=qwen3:14b', 'studiogen-worker', '--remote-debugging-port=9222'], { stdio: 'ignore' });
+          await sleep(15000); execFileSync('docker', ['cp', new URL('./worker-eval.cjs', import.meta.url).pathname, 'sg-worker-t:/tmp/we.cjs']); },
+        check: async () => { const w = await A.eval(`(() => { const x = Mesh.members().find(m => m.name === 'Test Worker'); return x && Date.now() - (Mesh.presence[x.id]?.at || 0) < 60000 ? x.id : '' })()`); S.wid = w; return !!w && await A.eval(`Mesh.own(${JSON.stringify(w)})`) || 'the Worker isn’t in the mesh (or not yours) yet'; }, wait: 120 },
+      { title: 'Studio A tells the Worker which devices are yours: the phone may run a sign-in task there (it stops at the practice Slack’s sign-in)', always: true,
+        auto: async () => { await A.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'own-sync', { devs: Mesh.ownList() }, 20000)`).catch(() => {}); S.err = await P.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'task', { id: 'slack.channel', params: { channel: 'sales' }, confirmed: true }, 90000).then(r => 'ran', e => e.message)`, 120000); },
+        check: async () => /SIGNIN/.test(S.err || '') || `answer: ${S.err}` },
+      { title: 'The phone opens the Worker’s agent browser from afar (a direct link to the container)', always: true,
+        auto: async () => { await P.eval(`RemoteView.open({ meshId: ${JSON.stringify(S.wid)}, name: 'Test Worker' }, 'web'), 1`); },
+        check: async () => (await P.eval(`document.querySelector('#rvView img')?.src?.slice(0, 23) || document.querySelector('#rvView .rv-err')?.textContent || ''`)) === 'data:image/jpeg;base64,' || 'no picture yet', wait: 90 },
+      { title: 'The phone taps “Sign in” on the Worker’s picture, closes the view, and asks the Worker for the sales channel: the card comes back', always: true,
+        auto: async () => { const we = js => JSON.parse(execFileSync('docker', ['exec', 'sg-worker-t', 'node', '/tmp/we.cjs', js]).toString().trim());
+          const r = JSON.parse(we(`(async () => { const b = await AgentWeb.call('exists', [{ text: 'Sign in with email (simulated)' }]), w = AgentWeb.view().wv.getBoundingClientRect(); return JSON.stringify(b.rect ? [(b.rect.x + b.rect.w / 2) / w.width, (b.rect.y + b.rect.h / 2) / w.height] : null) })()`));
+          if (r) await P.eval(`RemoteView.send({ kind: 'tap', x: ${r[0]}, y: ${r[1]} }), 1`); await sleep(3000); await P.eval('RemoteView.close(), 1');
+          S.card = await P.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'task', { id: 'slack.channel', params: { channel: 'sales' }, confirmed: true }, 240000).then(r => JSON.stringify(r.card || r), e => 'ERR ' + e.message)`, 260000); },
+        check: async () => /12 percent|Acme|Q3/i.test(S.card || '') || `answer: ${S.card}` },
+      { title: 'Studio B (not yours) asking the Worker for the same task is refused', always: true,
+        auto: async () => { S.err = await B.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'task', { id: 'slack.channel', params: { channel: 'sales' }, confirmed: true }, 60000).then(() => 'ran', e => e.message)`, 90000); },
+        check: async () => /owner’s devices|isn’t shared/.test(S.err || '') || `answer: ${S.err}` },
+      { title: 'The Worker stops', always: true, auto: async () => { try { execFileSync('docker', ['rm', '-f', 'sg-worker-t'], { stdio: 'ignore' }); } catch {} }, check: async () => true },
+    ],
     bee: [
       { title: 'Two StudioGBees start in Docker (this team’s and another team’s)', always: true,
         auto: async () => { for (const [n, p, nm] of [[1, 8841, 'Team bee'], [2, 8842, 'Other team bee']]) { try { execFileSync('docker', ['rm', '-f', `sg-bee-${n}`], { stdio: 'ignore' }); } catch {} execFileSync('docker', ['run', '-d', '--name', `sg-bee-${n}`, '-p', `${p}:8840`, '-e', `BEE_ADMIN_CODE=TESTBEE${n}`, '-e', `BEE_NAME=${nm}`, 'studiogbee'], { stdio: 'ignore' }); } await sleep(2500); },
@@ -128,7 +180,7 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => { const c = (await st(P)).agent?.find(x => x.title === 'Mesh page title'); return c?.status === 'done' && /mesh view/i.test(c.headline || '') || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 240 },
       { title: 'The dashboard: Studio A gets a code, the owner signs in, sees the three devices and what waited', always: true,
         auto: async () => { const code = await A.eval('Bee.dashCode()'); const r = await fetch('http://localhost:8841/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) }); S.cookie = (r.headers.get('set-cookie') || '').split(';')[0]; },
-        check: async () => { const d = await (await fetch('http://localhost:8841/api/state', { headers: { cookie: S.cookie || '' } })).json(); const k = new Set((d.events || []).map(e => e.kind)); return d.devices?.length === 3 && k.has('queued') && k.has('delivered') || `devices ${d.devices?.length}, events: ${[...k].join(', ') || d.error}`; }, wait: 30 },
+        check: async () => { const d = await (await fetch('http://localhost:8841/api/state', { headers: { cookie: S.cookie || '' } })).json(); const k = new Set((d.events || []).map(e => e.kind)); return d.devices?.length >= 3 && k.has('queued') && k.has('delivered') || `devices ${d.devices?.length}, events: ${[...k].join(', ') || d.error}`; }, wait: 30 },
       { title: 'Studio A backs up its library; Studio B restores from it', always: true,
         auto: async () => { await A.eval('Bee.backup(true)', 60000); S.restored = await B.eval(`Bee.restore(${JSON.stringify(await id(A))})`, 60000).catch(e => e.message); },
         check: async () => typeof S.restored === 'number' && S.restored > 0 || `restored: ${S.restored}` },

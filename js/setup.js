@@ -10,6 +10,9 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Sign in on your Mac from your phone: when a task stops at a sign-in, “Sign in from here” shows the agent browser live (your own devices, the same network)',
+  'Tasks run side by side: mail, WhatsApp and Slack at once, each in its own browser (Agent settings › Tasks at once)',
+  'StudioGen Worker: StudioGen in Docker, with sign-ins of its own, set up and used from your devices (worker/README.md)',
   'StudioGBee (optional, one Docker command, bee/README.md): requests for an offline Mac wait there and the answer comes even if the app was closed, with a notification; backups; a dashboard for mesh owners (Settings › Connections › StudioGBee)',
   'Your sign-ins stay yours: tasks that use your mail, chats or Mac run only for your own devices; shared tasks without a sign-in (a web search) can be run on your StudioGen by anyone in the mesh, just by asking',
   'If your Mac is offline, a request waits for it (10 minutes to start with) and runs when it’s back (Agent › Library › Settings › Waiting requests)',

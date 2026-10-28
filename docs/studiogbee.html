@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Profiles, StudioGBee and working from anywhere</h1>
-<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9. Phases 1–3 are built; the bee: <a href="../bee/README.md">bee/README.md</a>.</p>
+<p class="mut">Design, 27 October 2026, agreed in discussion. Builds on <a href="connections.html">connections</a> (pairing, relays, direct links) and <a href="mesh.html">the mesh</a> (identities, roster, requests, the Mesh screen). Status of each phase in section 9. Phases 1–6 are built; the bee: <a href="../bee/README.md">bee/README.md</a>.</p>
 <ol class="toc">
   <li><a href="#rule">The rule: what is private, what is shared</a></li>
   <li><a href="#who">Who is asking: my devices</a></li>
@@ -178,9 +178,9 @@
 <tr><td>1</td><td>The rule (private / shared), My devices, checks on every request (tasks, scripts, the mesh's <code>perms.tasks</code>), running shared tasks on another member's StudioGen, Teams practice site and tasks, waiting rules (startup checklist, Settings) with waiting on the asking device</td><td>built 27 Oct (tandem act “own”: 18 checks)</td></tr>
 <tr><td>2</td><td>StudioGBee: queue, presence, push, backup, federation; Docker (bee/), Cloudflare later</td><td>built 27 Oct (tandem act “bee”)</td></tr>
 <tr><td>3</td><td>The dashboard (passkey, or a code from StudioGen as the fallback)</td><td>built 27 Oct</td></tr>
-<tr><td>4</td><td>Remote sign-in</td><td></td></tr>
-<tr><td>5</td><td>StudioGen Worker (Docker)</td><td></td></tr>
-<tr><td>6</td><td>Tasks in parallel: one queue per profile, a cap of 3–4, watch lanes</td><td></td></tr>
+<tr><td>4</td><td>Remote sign-in (and seeing the whole app): js/remoteview.js</td><td>built 28 Oct (tandem act “remote”)</td></tr>
+<tr><td>5</td><td>StudioGen Worker (Docker): worker/</td><td>built 28 Oct (tandem act “worker”)</td></tr>
+<tr><td>6</td><td>Tasks in parallel: one at a time per site in a container, 3 at once (a setting), watch lanes</td><td>built 28 Oct (tested on the practice sites: 4 tasks, 3 sites, ~13 s instead of ~30 s)</td></tr>
 <tr><td>7</td><td>TURN on StudioGBee (optional)</td><td></td></tr>
 </table>
 </main>

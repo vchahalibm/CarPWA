@@ -51,6 +51,7 @@ const Setup = {
     if (done !== this.version) return this.show('update');
   },
   show(mode) {
+    if (this.running && document.getElementById('setup')) return; // one checklist at a time (a second run would fill the same list)
     this.mode = mode; this.rows = []; this.touched = false;
     document.getElementById('setup')?.remove();
     const el = document.createElement('div'); el.id = 'setup'; el.className = 'su-root';
@@ -76,7 +77,8 @@ const Setup = {
     this.rows.push(r); return r;
   },
   wait: ms => new Promise(r => setTimeout(r, ms)),
-  async run() {
+  async run() { this.running = true; try { await this.run1(); } finally { this.running = false; } },
+  async run1() {
     const gap = this.mode === 'update' ? 120 : 380;
     // This device
     let r = this.row('device', 'This device');
@@ -151,19 +153,22 @@ const Setup = {
     const btns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
     this.asked = true;
     if (!ol.up) {
-      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}. Install Ollama (free), open it, then Check again.${pool}`, where);
-      btns('<button class="chip accent" data-sumodel="get">Get Ollama</button><button class="chip" data-sumodel="again">Check again</button><button class="chip" data-sumodel="skip">Later</button>');
+      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}. It runs in Ollama (free, from ollama.com)${LLM.canInstall() ? ': I can install it for you, then download the model' : ': install it, open it, then Check again'}.${pool}`, where);
+      btns(`${LLM.canInstall() ? '<button class="chip accent" data-sumodel="install">Install Ollama and the model</button>' : ''}<button class="chip${LLM.canInstall() ? '' : ' accent'}" data-sumodel="get">Get Ollama (website)</button><button class="chip" data-sumodel="again">Check again</button><button class="chip" data-sumodel="skip">Later</button>`);
     } else {
       r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}: a ${f.best.size} download, then everything that needs a model runs here, private and free.${pool}`, where);
       btns(`<button class="chip accent" data-sumodel="pull|${f.best.id}">Download ${esc(f.best.name)}</button><button class="chip" data-sumodel="skip">Later</button>`);
     }
     r.li.onclick = async e => {
-      const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; const [k, id] = b.dataset.sumodel.split('|');
+      const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; let [k, id] = b.dataset.sumodel.split('|');
       if (k === 'get') return openExternal('https://ollama.com/download', 'https://ollama.com/download');
       if (k === 'again') { r.li.onclick = null; return this.model(r); }
+      if (k === 'install') { r.li.querySelector('.su-pick')?.remove(); r.set('work', 'Installing Ollama…', where);
+        try { await LLM.installOllama(t => r.set('work', t, where)); } catch (err) { r.set('warn', err.message, where); return btns('<button class="chip" data-sumodel="again">Check again</button>'); }
+        k = 'pull'; }
       if (k === 'skip') { r.li.querySelector('.su-pick')?.remove(); return r.set('info', `Not yet: ${f.best.name} can be downloaded later.`, where); }
       if (k === 'pull') { r.li.querySelector('.su-pick')?.remove(); r.set('work', `Downloading ${f.best.name}…`, where); r.progress(0);
-        try { await LLM.pull(id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); LLM.useLocal(id); r.set('done', `${f.best.name} runs on this Mac.${pool}`, where); }
+        try { await LLM.pull(id || f.best.id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); LLM.useLocal(id); r.set('done', `${f.best.name} runs on this Mac.${pool}`, where); }
         catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}. Try again in ${where}.`, where); } }
     };
   },

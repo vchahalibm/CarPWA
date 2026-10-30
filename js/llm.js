@@ -130,10 +130,11 @@ const LLM = {
   /** The best model that fits this Mac, and the one a pool of Macs would allow. */
   async fit() { const m = await this.machine(); const fits = LLM_MODELS.filter(x => m.gb >= x.need), best = fits[fits.length - 1] || null, next = LLM_MODELS.find(x => !best || x.need > best.need) || null; return { ...m, best, next }; },
   /** Ollama: is it there, and does it have the model? */
-  async ollama() { try { const r = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2500) }); const j = await r.json(); return { up: true, models: (j.models || []).map(x => x.name) }; } catch { return { up: false, models: [] }; } },
+  OLLAMA: () => store.get('ollamaUrl', 'http://127.0.0.1:11434'), // where Ollama answers (tests point it elsewhere)
+  async ollama() { try { const r = await fetch(`${this.OLLAMA()}/api/tags`, { signal: AbortSignal.timeout(2500) }); const j = await r.json(); return { up: true, models: (j.models || []).map(x => x.name) }; } catch { return { up: false, models: [] }; } },
   /** Download a model into Ollama, telling progress (0..1). */
   async pull(model, onp = () => {}) {
-    const r = await fetch('http://127.0.0.1:11434/api/pull', { method: 'POST', body: JSON.stringify({ model, stream: true }) });
+    const r = await fetch(`${this.OLLAMA()}/api/pull`, { method: 'POST', body: JSON.stringify({ model, stream: true }) });
     if (!r.ok || !r.body) throw new Error(`Ollama didn’t start the download (${r.status})`);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i;
@@ -141,7 +142,18 @@ const LLM = {
     this.health = null;
   },
   /** Use a model that Ollama has (after downloading). */
-  useLocal(model) { const c = this.cfg(); this.save({ ...c, url: 'http://127.0.0.1:11434/v1', model }); },
+  useLocal(model) { const c = this.cfg(); this.save({ ...c, url: `${this.OLLAMA()}/v1`, model }); },
+  /** No Ollama yet: StudioGen downloads Ollama's own app (ollama.com, the zip), puts it in your Applications folder and opens
+      it; one code you approve once (js/ostasks.js). Already there but closed: just opens it. Then waits up to 2 minutes for it. */
+  OLLAMA_INSTALL: 'set -e; if [ -d /Applications/Ollama.app ]; then open -a /Applications/Ollama.app; echo opened; exit 0; fi; D="$HOME/Applications"; if [ -d "$D/Ollama.app" ]; then open "$D/Ollama.app"; echo opened; exit 0; fi; mkdir -p "$D"; T=$(mktemp -d); curl -fsSL https://ollama.com/download/Ollama-darwin.zip -o "$T/ollama.zip"; ditto -x -k "$T/ollama.zip" "$D"; rm -rf "$T"; open "$D/Ollama.app"; echo installed',
+  canInstall: () => typeof OsTasks !== 'undefined' && OsTasks.can(),
+  async installOllama(onstate = () => {}) {
+    onstate('Installing Ollama (about 230 MB)…');
+    const out = String(await OsTasks.run('shell', this.OLLAMA_INSTALL, [], 'Install Ollama (from ollama.com) for the language model', 600)).trim();
+    onstate(/opened/.test(out) ? 'Starting Ollama…' : 'Installed: starting Ollama…');
+    for (let i = 0; i < 60; i++) { if ((await this.ollama()).up) return true; await new Promise(r => setTimeout(r, 2000)); }
+    throw new Error('Ollama didn’t start: open it from Applications, then Check again');
+  },
 
   /* ---------- Settings › Assistant ---------- */
   async settings() {
@@ -150,7 +162,7 @@ const LLM = {
     const roles = await Promise.all(this.ROLES.map(async ([k, n, d]) => `<label class="se-row"><span><b>${n}</b> <span class="se-note">${d} · now: ${esc(await this.describe(k))}</span></span><select data-llmrole="${k}">${opt('auto', c.roles[k], 'Automatic')}${LINK_HOST ? opt('local', c.roles[k], 'This Mac’s model') : ''}${opt('remote', c.roles[k], LINK_HOST ? 'My other StudioGen’s model' : 'My Mac’s model')}${opt('cloud', c.roles[k], 'Claude (cloud)')}${LINK_HOST ? opt('mac', c.roles[k], 'Apple’s on-device model') : ''}</select></label>`));
     sheet('Language model', `<p class="se-note">One model for everything that needs one: understanding what you say, result cards, building tasks and scripts. By default it runs on ${LINK_HOST ? 'this Mac' : 'your Mac'}, so nothing leaves it; Claude is the option in the cloud. <b>Automatic</b> tries ${LINK_HOST ? 'this Mac’s model, then Claude (if you add a key), then Apple’s small model' : 'your Mac’s model, then Claude (if you add a key)'}.</p>
       ${LINK_HOST ? `<div class="lk-direct ${h.ok ? 'on' : ''}"><p><b>On this Mac</b>: ${h.ok ? `✓ ${esc(c.model)} is ready` : h.up ? `the server answers, but hasn’t got ${esc(c.model)}` : 'no model server running'} · ${f.gb} GB memory${f.chip ? ` · ${esc(f.chip)}` : ''}</p>
-        ${!ol.up ? '<p class="se-note">Install <b>Ollama</b> (free, ollama.com/download), open it, then come back: the model downloads from here.</p><div class="chip-row"><button class="chip accent" data-llm="getollama">Get Ollama</button><button class="chip" data-llm="recheck">Check again</button></div>'
+        ${!ol.up ? `<p class="se-note">The model runs in <b>Ollama</b> (free, from ollama.com). ${this.canInstall() ? 'StudioGen can install it for you (you approve it once), then download the model.' : 'Install it, open it, then come back: the model downloads from here.'}</p><div class="chip-row">${this.canInstall() ? '<button class="chip accent" data-llm="install">Install Ollama for me</button>' : ''}<button class="chip${this.canInstall() ? '' : ' accent'}" data-llm="getollama">Get Ollama (website)</button><button class="chip" data-llm="recheck">Check again</button></div>`
           : f.best && !ol.models.includes(f.best.id) ? `<div class="chip-row"><button class="chip accent" data-llm="pull|${f.best.id}">Download ${esc(f.best.name)} (${f.best.size})</button></div><div class="su-bar" id="llmBar" hidden><i></i></div>` : ''}
         ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB. Pool this Mac with another (Thunderbolt or the same network) using a pooling server such as exo or mlx-swarm (their instructions), then put its address and model below.</p>` : ''}
         <label class="se-field"><span>Model server (OpenAI-compatible: Ollama, LM Studio, or a pool of Macs)</span><input id="llmUrl" value="${esc(c.url)}" autocapitalize="off" autocorrect="off"></label>
@@ -188,6 +200,7 @@ document.addEventListener('click', async e => {
   if (k === 'prompt') return LLM.prompts(arg);
   if (k === 'getollama') return openExternal('https://ollama.com/download', 'https://ollama.com/download');
   if (k === 'recheck') { LLM.health = null; return LLM.settings(); }
+  if (k === 'install') { b.disabled = true; try { await LLM.installOllama(t => { b.textContent = t; }); toast('Ollama is running: now the model'); LLM.settings(); } catch (err) { b.disabled = false; b.textContent = 'Install Ollama for me'; toast(err.message); } return; }
   if (k === 'test') { LLM.saveForm(); toast('Asking…'); try { const r = await LLM.ask('fast', { system: 'Answer in five words or fewer.', prompt: 'Say hello.' }); toast(`${r.via}: ${r.text.slice(0, 80)}`); } catch (err) { toast(`Didn’t work: ${err.message}`); } return; }
   if (k === 'pull') { const bar = $('#llmBar'); b.disabled = true; if (bar) bar.hidden = false;
     try { await LLM.pull(arg, f => { if (bar) bar.firstElementChild.style.width = `${Math.round(f * 100)}%`; b.textContent = `Downloading… ${Math.round(f * 100)}%`; }); LLM.useLocal(arg); toast('Downloaded: this Mac’s model is ready'); LLM.settings(); }

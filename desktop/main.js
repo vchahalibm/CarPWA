@@ -46,7 +46,8 @@ const Updates = require('./updater')({ app, net, bundled: BUNDLED });
 const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
 const Data = require('./data')({ app, dialog, getWindow: () => mainWin }); // SQLite (read-only) and data files for the data widget
 const Speech = require('./speech')({ app, getWindow: () => mainWin }); // Apple's speech recognizer (desktop/speech/main.swift) for voice commands
-const AI = require('./ai')({ app }); // Apple's on-device language model (desktop/ai/main.swift): the Brain's “This Mac” and commands by intent
+const AI = require('./ai')({ app });
+const Builtin = require('./llm')({ app, send: p => mainWin?.webContents.send('dd:llm-progress', p) }); // the language model built in (llama.cpp, desktop/llm.js) // Apple's on-device language model (desktop/ai/main.swift): the Brain's “This Mac” and commands by intent
 // The link to DriveGen on a phone or iPad (desktop/link.js): its requests are done by the page (js/link.js), asked here.
 const linkWaits = new Map();
 const linkAsk = (kind, payload) => new Promise((res, rej) => {
@@ -323,6 +324,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
   // This computer's memory and chip (the language model's startup check, js/llm.js)
   ipcMain.on('dd:sys', e => { const os = require('os'); e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { memory: os.totalmem(), chip: os.cpus()[0]?.model || '', cpus: os.cpus().length } : null; });
+  // The built-in language model (desktop/llm.js): status, chat, download, use, remove
+  ipcMain.handle('dd:llm', own((op, a) => ({ status: () => Builtin.status(), chat: () => Builtin.chat(a).catch(e => ({ error: e.message })), download: () => Builtin.download(a).then(() => true, e => ({ error: e.message })), use: () => { try { return Builtin.use(a || {}); } catch (e) { return { error: e.message }; } }, remove: () => Builtin.remove(a), unload: () => Builtin.unload() })[op]?.() ?? null));
   // Light Workers (js/workers.js): create, start, stop, show, remove; only from StudioGen's own page
   ipcMain.handle('dd:light', own((op, a) => ({ list: () => LightWorkers.list(), create: () => LightWorkers.create(a || {}), start: () => LightWorkers.start(a), stop: () => LightWorkers.stop(a), show: () => LightWorkers.show(a), remove: () => LightWorkers.remove(a?.id, a?.data) })[op]?.() ?? null));
   // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards
@@ -357,4 +360,4 @@ app.on('before-quit', e => {
   Promise.race([Browse.save(), new Promise(r => setTimeout(r, 3000))]).catch(err => console.warn('browse save', err.message)).finally(() => { browseSaved = true; app.quit(); });
 });
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
-app.on('will-quit', () => { Speech.quit(); AI.quit(); LightWorkers.stopAll(); Updates.installShell(false); });
+app.on('will-quit', () => { Speech.quit(); AI.quit(); Builtin.unload(); LightWorkers.stopAll(); Updates.installShell(false); });

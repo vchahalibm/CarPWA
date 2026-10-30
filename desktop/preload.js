@@ -7,6 +7,16 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   version: 1,
   /** StudioGen Worker (in a container): { name, invite, practice, llm } from its environment, else null (desktop/main.js). */
   worker: ipcRenderer.sendSync('dd:worker'),
+  /** The language model built into StudioGen (desktop/llm.js): status(); chat({ system, prompt|messages, schema, max, temperature, effort })
+      → { text } or { error }; download(id) (progress: onProgress(f) with { id, done, total, ok }); use({ id, ollama }); remove(id). */
+  llm: {
+    status: () => ipcRenderer.invoke('dd:llm', 'status'),
+    chat: o => ipcRenderer.invoke('dd:llm', 'chat', o),
+    download: id => ipcRenderer.invoke('dd:llm', 'download', id),
+    use: o => ipcRenderer.invoke('dd:llm', 'use', o),
+    remove: id => ipcRenderer.invoke('dd:llm', 'remove', id),
+    onProgress: f => { const h = (e, p) => f(p); ipcRenderer.on('dd:llm-progress', h); return () => ipcRenderer.removeListener('dd:llm-progress', h); },
+  },
   /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
   /** This computer: { memory (bytes), chip, cpus }. */

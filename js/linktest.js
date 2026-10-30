@@ -125,7 +125,7 @@ const Tandem = {
         shows: Object.values(M.shows).map(x => ({ id: x.id, script: x.script, conductor: x.conductor, step: x.step, ended: !!x.ended, lanes: Object.fromEntries(Object.entries(x.lanes || {}).map(([k, l]) => [k, { step: l.step, state: l.state, drift: l.drift }])) })),
         conducting: M.conducting || null, history: hist.length, histKinds: [...new Set(hist.map(e => e.kind))] } : null,
       scripts: typeof Scripts !== 'undefined' ? Scripts.mine().map(x => x.name) : [], directCfg: Relay.directCfg().mode, relays: (Relay.isMac() ? Relay.list().brokers : Relay.mac()?.brokers || []).length, meshRelays: M?.m?.brokers || [],
-      ai: typeof LLM !== 'undefined' ? !!(LLM.health?.ok || LLM.remote() || LLM.key()) : false, // a language model here or through the Mac (js/llm.js)
+      ai: typeof LLM !== 'undefined' ? !!(LLM.biReady() || LLM.health?.ok || LLM.remote() || LLM.key()) : false, // a language model here or through the Mac (js/llm.js)
       meshDirect: typeof MeshDirect !== 'undefined' ? MeshDirect.list().map(l => l.name) : [], pill: (() => { const el = document.getElementById('meshPill'); return el && !el.hidden ? el.querySelector('.mp-full')?.textContent || '' : ''; })(),
       script: typeof Script !== 'undefined' && Script.running ? { name: Script.cur?.name, i: Script.i } : null,
       test: LinkTest.last ? { verdict: LinkTest.last.verdict?.[0] || '', relaysOk: (LinkTest.last.relays || []).filter(x => x.ok).length } : null,

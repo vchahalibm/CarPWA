@@ -845,7 +845,7 @@ agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line p
 } });
 agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v, say, ev) {
   agentCtx(ev); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-  try { const r = await LLM.ask('fast', { system: LLM.prompt('when', { now: iso(now), weekday: now.toLocaleDateString([], { weekday: 'long' }) }), prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = r.json || {}; if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
+  try { const r = await LLM.ask('fast', { system: LLM.prompt('when', { now: iso(now), weekday: now.toLocaleDateString('en', { weekday: 'long' }), days: Array.from({ length: 8 }, (_, i) => { const d = new Date(now.getTime() + i * 86400000); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en', { weekday: 'long' })} ${iso(d).slice(0, 10)}`; }).join(', ') }) /* the dates in code: the model's weekday arithmetic isn't reliable */, prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = r.json || {}; if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
   const d = new Date(now.getTime() + 3600000); d.setMinutes(0, 0, 0); return { start: iso(d), end: iso(new Date(d.getTime() + 3600000)) };
 } });
 /* The car's own steps */

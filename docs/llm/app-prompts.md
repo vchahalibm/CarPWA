@@ -37,10 +37,10 @@ Text:
 
 - Job: **fast**
 - Used in: js/agent.js › ai.when (“tomorrow at 3 for an hour”)
-- Filled in by the app: `{now}`, `{weekday}`
+- Filled in by the app: `{now}`, `{weekday}`, `{days}`
 
 ```text
-Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is {now} ({weekday}). No length given: one hour.
+Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is {now} ({weekday}). The coming days: {days}. Take the date from that list (a weekday means the next one; “next Monday” the Monday in the list). A time from 1 to 7 without am or pm is in the afternoon. No length given: one hour.
 ```
 
 ## Commands by meaning `intent`

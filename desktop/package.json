@@ -1,7 +1,7 @@
 {
   "name": "studiogen",
   "productName": "StudioGen",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "StudioGen: the DriveGen web app on the desktop, for presenting on Stage",
   "repository": "github:vchahalibm/CarPWA",
   "main": "main.js",
@@ -35,6 +35,7 @@
       "ai.js",
       "link.js",
       "browse.js",
+      "llm.js",
       "trayTemplate.png",
       "trayTemplate@2x.png",
       "package.json"
@@ -104,6 +105,13 @@
     "electronLanguages": [
       "en"
     ],
+    "asarUnpack": [
+      "node_modules/node-llama-cpp/**",
+      "node_modules/@node-llama-cpp/**"
+    ],
     "afterPack": "build/sign.js"
+  },
+  "dependencies": {
+    "node-llama-cpp": "^3.22.2"
   }
 }

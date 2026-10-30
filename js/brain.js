@@ -16,7 +16,7 @@ const BRAIN_MODELS = { anthropic: ['claude-opus-5-5', 'claude-sonnet-5-5', 'clau
 const Brain = {
   cfg: () => ({ provider: 'off', model: '', url: 'http://localhost:11434/v1', ...store.get('llm', {}) }),
   key: () => store.get('llmKey', ''),
-  ready() { return LLM.health?.ok || !!LLM.remote() || !!LLM.key() || (typeof MacAI !== 'undefined' && MacAI.local()); }, // the language model (js/llm.js)
+  ready() { return LLM.biReady() || LLM.health?.ok || !!LLM.remote() || !!LLM.key() || (typeof MacAI !== 'undefined' && MacAI.local()); }, // the language model (js/llm.js)
   /** One question → the model's text (the cards job: a few sentences). */
   async complete(system, user, max = 400) { return (await LLM.ask('cards', { system, prompt: user, max })).text; },
   /** What was heard → { intent, slots } (one of the script's intents) or { say } (a short answer), or null. */
@@ -65,7 +65,7 @@ const Intent = {
   RISKY: /^(phone\.(call|text|whatsapp)|mesh\.(remove|leave|deny|private)|link\.rekey)/,
   // always in the shortlist: everyday things asked in words that share nothing with their phrases (“is it going to pour?”)
   CORE: ['info.weather', 'info.time', 'info.date', 'info.help', 'nav.to', 'nav.eta', 'nav.nearby', 'music.play', 'music.pause', 'phone.call', 'phone.read', 'mesh.who', 'mac.run'],
-  can: () => !!(LLM.health?.ok || LLM.remote() || LLM.key() || (typeof MacAI !== 'undefined' && MacAI.local())), // a language model (js/llm.js); checked again when asked
+  can: () => !!(LLM.biReady() || LLM.health?.ok || LLM.remote() || LLM.key() || (typeof MacAI !== 'undefined' && MacAI.local())), // a language model (js/llm.js); checked again when asked
   /** The commands: id, what it does, one way to say it, the words it needs (its {slots}). */
   catalog() {
     const eg = l => String(l).replace(/\[[^\]]*\]\s*/g, '').replace(/\(([^)|]*)[^)]*\)/g, '$1').replace(/\{(\w+)\}/g, '<$1>').replace(/\s+/g, ' ').trim();

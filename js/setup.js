@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'The language model is built into StudioGen now: nothing else to install (it reads the copy Ollama has, or downloads gpt-oss once)',
   'Workers from the app: Mesh › Workers › + New Worker, in OrbStack (installed for you if needed), light on this Mac, or on another machine; each with its own sign-ins, using this Mac’s model',
   'One language model for everything, on your Mac by default: gpt-oss (picked by this Mac’s memory, downloaded here), Claude as the option; phones and Workers use the Mac’s (Settings › Assistant › Language model)',
   'Read and change every prompt the app sends to the model: Settings › Assistant › Prompts',
@@ -150,6 +151,26 @@ const Setup = {
     const f = await LLM.fit(), ol = await LLM.ollama(), where = 'Settings › Assistant › Language model';
     const pool = f.next ? ` With another Mac in a pool, ${f.next.name} (about ${f.next.need} GB together) would answer better.` : '';
     if (!f.best) return r.set('info', `${f.gb} GB of memory is too little for a local model: add your Claude key, or pool this Mac with another.${pool}`, where);
+    // built into StudioGen (desktop/llm.js): Ollama's copy is used as it is; else one download, nothing to install
+    const bi = await LLM.builtin(true);
+    if (bi.available && !(ol.up && LLM.cfg().roles.cards === 'local')) {
+      const m = bi.models?.find(x => x.id === f.best.id) || {};
+      if (!bi.model && m.ollama) { await DriveDeckDesktop.llm.use({ id: f.best.id, ollama: true }); await LLM.builtin(true); }
+      else if (!bi.model && m.downloaded) { await DriveDeckDesktop.llm.use({ id: f.best.id }); await LLM.builtin(true); }
+      if (LLM.biReady()) return r.set('done', `${LLM.bi.model.id} is built into StudioGen${LLM.bi.model.source === 'ollama' ? ' (it reads the copy Ollama already has: nothing downloaded)' : ''}: understanding, cards and building run on this Mac (${f.gb} GB), private and free.${pool}`, where);
+      const bbtns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
+      this.asked = true;
+      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}, built into StudioGen: one ${f.best.size} download, nothing to install. Then everything that needs a model runs here, private and free.${pool}`, where);
+      bbtns(`<button class="chip accent" data-sumodel="bidl|${f.best.id}">Download ${esc(f.best.name)}</button><button class="chip" data-sumodel="skip">Later</button>`);
+      r.li.onclick = async e => {
+        const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; const [k, id] = b.dataset.sumodel.split('|');
+        if (k === 'skip') { r.li.querySelector('.su-pick')?.remove(); return r.set('info', `Not yet: ${f.best.name} can be downloaded later.`, where); }
+        r.li.querySelector('.su-pick')?.remove(); r.set('work', `Downloading ${f.best.name}…`, where); r.progress(0);
+        try { await LLM.biDownload(id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); r.set('done', `${f.best.name} is built into StudioGen.${pool}`, where); }
+        catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}. It carries on where it stopped: ${where}.`, where); }
+      };
+      return;
+    }
     if (ol.models.includes(f.best.id)) { if (!LLM.health?.ok && LLM.cfg().model !== f.best.id && !ol.models.includes(LLM.cfg().model)) LLM.useLocal(f.best.id); return r.set('done', `${f.best.name} runs on this Mac (${f.gb} GB): understanding, cards and building, private and free.${pool}`, where); }
     const btns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
     this.asked = true;

@@ -73,7 +73,7 @@ const Workers = {
   /** Light: a hidden StudioGen on this Mac (no install), using this Mac's model directly. */
   async createLight(name, say) {
     const id = this.slug(name), inv = await this.mesh(), c = LLM.cfg(); say(`Starting ${name}…`);
-    await DriveDeckDesktop.light('create', { id, name, invite: inv, llm: LLM.health?.ok ? { url: c.url, model: c.model } : null });
+    await DriveDeckDesktop.light('create', { id, name, invite: inv, llm: !LLM.biReady() && LLM.health?.ok ? { url: c.url, model: c.model } : null }); // with the built-in model, it asks this StudioGen (a second copy would need another 13 GB)
     Log.i('workers', `Light worker ${name} started`); return id;
   },
   /** For another machine (NAS, server): the command to paste there. */

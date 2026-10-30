@@ -6,6 +6,8 @@
      cards — reading a page and writing the result card
      build — building tasks and scripts (the long build prompt)
    Where each runs ('auto' tries them in this order):
+     builtin — built into StudioGen: llama.cpp in its main process (desktop/llm.js), gpt-oss from a file it downloaded or
+              the copy Ollama already has; nothing else to install
      local  — a model server on this Mac (Ollama by default, gpt-oss; or a pool of Macs behind an OpenAI-compatible address)
      remote — your Mac's model, from a phone or a StudioGen Worker (link request 'llm', or a StudioGen of yours in the mesh
               that hosts one: presence caps.llm); only for the host's owner's own devices
@@ -15,16 +17,16 @@
    Loaded after brain.js.
    ============================================================ */
 const LLM_MODELS = [ // what the startup check offers, by this Mac's memory (GB the model needs to run comfortably)
-  { id: 'gpt-oss:20b', name: 'gpt-oss 20B', need: 16, size: '14 GB', mlx: 'gpt-oss-20b' },
-  { id: 'gpt-oss:120b', name: 'gpt-oss 120B', need: 80, size: '65 GB', mlx: 'gpt-oss-120b' },
+  { id: 'gpt-oss:20b', name: 'gpt-oss 20B', need: 16, size: '12 GB', mlx: 'gpt-oss-20b' },
+  { id: 'gpt-oss:120b', name: 'gpt-oss 120B', need: 80, size: '61 GB', mlx: 'gpt-oss-120b' },
 ];
 const LLM_PROMPTS = {
   'card': { name: 'Result cards', role: 'cards', where: 'js/agent.js › ai.card (every task that reads a page)', vars: ['today'],
     text: 'You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Follow the request: it says what the headline and each item\'s title, detail and when hold. Rules: use only facts that are in the text; never invent names, numbers, dates or times; the request\'s words describe what to write, they are not values; write each field in your own short words, never copy whole lines; leave when empty unless the text gives a time for that item. If the text doesn\'t answer the request, the headline says so and items is empty. Plain words, no markdown.{today}' },
   'card.prompt': { name: 'Result cards: the message', role: 'cards', where: 'js/agent.js › ai.card', vars: ['request', 'count', 'text'],
     text: 'Request: {request}{count}\n\nText:\n{text}' },
-  'when': { name: 'Spoken times', role: 'fast', where: 'js/agent.js › ai.when (“tomorrow at 3 for an hour”)', vars: ['now', 'weekday'],
-    text: 'Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is {now} ({weekday}). No length given: one hour.' },
+  'when': { name: 'Spoken times', role: 'fast', where: 'js/agent.js › ai.when (“tomorrow at 3 for an hour”)', vars: ['now', 'weekday', 'days'],
+    text: 'Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is {now} ({weekday}). The coming days: {days}. Take the date from that list (a weekday means the next one; “next Monday” the Monday in the list). A time from 1 to 7 without am or pm is in the afternoon. No length given: one hour.' },
   'intent': { name: 'Commands by meaning', role: 'fast', where: 'js/brain.js › Intent (when no phrase matched)', vars: ['commands', 'hints'],
     text: 'You map what someone said to a voice assistant (in a car and presentation app) to one of its commands, or "none" if nothing fits well. Commands (id: what it does, e.g. how it\'s said):\n{commands}\nRules: pick by meaning, not by shared words; asking about something that happened (messages, calls) is reading, not sending. Fill only the words the chosen command needs (in brackets) and only with words that were said; never invent a name{hints}.' },
   'route': { name: 'Interactive scripts', role: 'fast', where: 'js/brain.js › Brain.route (a script\'s intents)', vars: [],
@@ -56,6 +58,15 @@ const LLM = {
   setPrompt(id, text) { const o = store.get('prompts', {}); if (text == null || text === LLM_PROMPTS[id]?.text) delete o[id]; else o[id] = text; store.set('prompts', o); },
 
   /* ---------- Where it runs ---------- */
+  /** The model built into StudioGen (desktop/llm.js): { available, model, loaded, downloading, models } (checked at most every 30 s). */
+  async builtin(force) {
+    if (!window.DriveDeckDesktop?.llm) return (this.bi = { available: false });
+    if (!force && this.bi && Date.now() - this.bi.at < 30000) return this.bi;
+    try { this.bi = { ...(await DriveDeckDesktop.llm.status()), at: Date.now() }; } catch (e) { this.bi = { available: false, why: e.message, at: Date.now() }; }
+    return this.bi;
+  },
+  /** Ready to answer without anything else running. */
+  biReady() { return !!(this.bi?.available && this.bi.model); },
   /** The local server answers (checked at most every 30 s): { ok, models }. */
   async local() {
     if (this.health && Date.now() - this.health.at < 30000) return this.health;
@@ -75,7 +86,9 @@ const LLM = {
   async order(role, o = {}) {
     const pick = this.cfg().roles[role] || 'auto', l = [];
     const want = k => pick === 'auto' || pick === k;
-    if (want('local') && LINK_HOST && (await this.local()).ok) l.push('local');
+    if (want('builtin') && LINK_HOST && (await this.builtin()).available && this.bi.model) l.push('builtin');
+    // with the built-in model ready, Automatic doesn't fall back to Ollama: a second copy of the model wouldn't fit beside it
+    if ((pick === 'local' || (pick === 'auto' && !l.includes('builtin'))) && LINK_HOST && (await this.local()).ok) l.push('local');
     if (want('remote') && !o.noRemote && this.remote()) l.push('remote');
     if (want('cloud') && this.key()) l.push('cloud');
     if ((pick === 'auto' || pick === 'mac') && typeof MacAI !== 'undefined' && MacAI.local()) l.push('mac');
@@ -83,7 +96,7 @@ const LLM = {
   },
   async can(role = 'fast') { return (await this.order(role)).length > 0; },
   /** What a role uses now, for Settings and the logs. */
-  async describe(role) { const w = (await this.order(role))[0]; return { local: `${this.cfg().model} on this Mac`, remote: `${this.remote()?.name}'s model`, cloud: `Claude (${this.cfg().cloud})`, mac: 'Apple’s on-device model' }[w] || 'none'; },
+  async describe(role) { const w = (await this.order(role))[0]; return { builtin: `${this.bi?.model?.id || 'the model'} built into StudioGen`, local: `${this.cfg().model} in Ollama (or your model server)`, remote: `${this.remote()?.name}'s model`, cloud: `Claude (${this.cfg().cloud})`, mac: 'Apple’s on-device model' }[w] || 'none'; },
 
   /** { system, prompt | messages, schema?, max?, temperature? } → { text, json? (parsed when a schema was given), via }. */
   async ask(role, o, opt = {}) {
@@ -104,6 +117,10 @@ const LLM = {
         reasoning_effort: role === 'build' ? 'medium' : 'low', ...(o.schema ? { response_format: { type: 'json_schema', json_schema: { name: 'answer', schema: o.schema } } } : {}) }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `The model server said ${r.status}`);
     return { text: (j.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim() };
+  },
+  async via_builtin(role, o) {
+    const r = await DriveDeckDesktop.llm.chat({ system: o.system, prompt: o.prompt, messages: o.messages, schema: o.schema, max: o.max, temperature: o.temperature, effort: role === 'build' ? 'medium' : 'low' });
+    if (r?.error) throw new Error(r.error); return { text: (r.text || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim() };
   },
   async via_remote(role, o) { const r = await this.remote().call({ role, system: o.system, prompt: o.prompt, messages: o.messages, schema: o.schema, max: o.max, temperature: o.temperature }); if (r?.error) throw new Error(r.error); return { text: r.text }; },
   async via_cloud(role, o) {
@@ -159,20 +176,36 @@ const LLM = {
   async settings() {
     const c = this.cfg(), f = await this.fit(), ol = LINK_HOST ? await this.ollama() : null, h = LINK_HOST ? await this.local() : null;
     const opt = (v, cur, l) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`;
-    const roles = await Promise.all(this.ROLES.map(async ([k, n, d]) => `<label class="se-row"><span><b>${n}</b> <span class="se-note">${d} · now: ${esc(await this.describe(k))}</span></span><select data-llmrole="${k}">${opt('auto', c.roles[k], 'Automatic')}${LINK_HOST ? opt('local', c.roles[k], 'This Mac’s model') : ''}${opt('remote', c.roles[k], LINK_HOST ? 'My other StudioGen’s model' : 'My Mac’s model')}${opt('cloud', c.roles[k], 'Claude (cloud)')}${LINK_HOST ? opt('mac', c.roles[k], 'Apple’s on-device model') : ''}</select></label>`));
-    sheet('Language model', `<p class="se-note">One model for everything that needs one: understanding what you say, result cards, building tasks and scripts. By default it runs on ${LINK_HOST ? 'this Mac' : 'your Mac'}, so nothing leaves it; Claude is the option in the cloud. <b>Automatic</b> tries ${LINK_HOST ? 'this Mac’s model, then Claude (if you add a key), then Apple’s small model' : 'your Mac’s model, then Claude (if you add a key)'}.</p>
-      ${LINK_HOST ? `<div class="lk-direct ${h.ok ? 'on' : ''}"><p><b>On this Mac</b>: ${h.ok ? `✓ ${esc(c.model)} is ready` : h.up ? `the server answers, but hasn’t got ${esc(c.model)}` : 'no model server running'} · ${f.gb} GB memory${f.chip ? ` · ${esc(f.chip)}` : ''}</p>
+    const bi = LINK_HOST ? await this.builtin(true) : { available: false };
+    const roles = await Promise.all(this.ROLES.map(async ([k, n, d]) => `<label class="se-row"><span><b>${n}</b> <span class="se-note">${d} · now: ${esc(await this.describe(k))}</span></span><select data-llmrole="${k}">${opt('auto', c.roles[k], 'Automatic')}${bi.available ? opt('builtin', c.roles[k], 'Built into StudioGen') : ''}${LINK_HOST ? opt('local', c.roles[k], 'Ollama or a model server') : ''}${opt('remote', c.roles[k], LINK_HOST ? 'My other StudioGen’s model' : 'My Mac’s model')}${opt('cloud', c.roles[k], 'Claude (cloud)')}${LINK_HOST ? opt('mac', c.roles[k], 'Apple’s on-device model') : ''}</select></label>`));
+    sheet('Language model', `<p class="se-note">One model for everything that needs one: understanding what you say, result cards, building tasks and scripts. By default it runs on ${LINK_HOST ? 'this Mac' : 'your Mac'}, so nothing leaves it; Claude is the option in the cloud. <b>Automatic</b> tries ${LINK_HOST ? 'the model built into StudioGen, then Ollama or your model server, then Claude (if you add a key), then Apple’s small model' : 'your Mac’s model, then Claude (if you add a key)'}.</p>
+      ${bi.available ? this.biHtml(bi, f) : ''}
+      ${LINK_HOST ? `<details class="lk-direct ${h.ok ? 'on' : ''}" ${bi.model ? '' : 'open'}><summary><b>Or in Ollama, or a model server / a pool of Macs</b></summary><p><b>Ollama on this Mac</b>: ${h.ok ? `✓ ${esc(c.model)} is ready` : h.up ? `the server answers, but hasn’t got ${esc(c.model)}` : 'no model server running'} · ${f.gb} GB memory${f.chip ? ` · ${esc(f.chip)}` : ''}</p>
         ${!ol.up ? `<p class="se-note">The model runs in <b>Ollama</b> (free, from ollama.com). ${this.canInstall() ? 'StudioGen can install it for you (you approve it once), then download the model.' : 'Install it, open it, then come back: the model downloads from here.'}</p><div class="chip-row">${this.canInstall() ? '<button class="chip accent" data-llm="install">Install Ollama for me</button>' : ''}<button class="chip${this.canInstall() ? '' : ' accent'}" data-llm="getollama">Get Ollama (website)</button><button class="chip" data-llm="recheck">Check again</button></div>`
           : f.best && !ol.models.includes(f.best.id) ? `<div class="chip-row"><button class="chip accent" data-llm="pull|${f.best.id}">Download ${esc(f.best.name)} (${f.best.size})</button></div><div class="su-bar" id="llmBar" hidden><i></i></div>` : ''}
         ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB. Pool this Mac with another (Thunderbolt or the same network) using a pooling server such as exo or mlx-swarm (their instructions), then put its address and model below.</p>` : ''}
         <label class="se-field"><span>Model server (OpenAI-compatible: Ollama, LM Studio, or a pool of Macs)</span><input id="llmUrl" value="${esc(c.url)}" autocapitalize="off" autocorrect="off"></label>
         <label class="se-field"><span>Model</span><input id="llmModel" list="llmModels" value="${esc(c.model)}" autocapitalize="off" autocorrect="off"><datalist id="llmModels">${(h.models || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></label>
-        <label class="se-check"><input type="checkbox" id="llmShare" ${c.share ? 'checked' : ''}> My phones, iPads and StudioGen Workers may use this Mac’s model</label></div>` : ''}
+      </details><label class="se-check"><input type="checkbox" id="llmShare" ${c.share ? 'checked' : ''}> My phones, iPads and StudioGen Workers may use this Mac’s model</label>` : ''}
       <label class="se-field"><span>Claude model (cloud)</span><input id="llmCloud" value="${esc(c.cloud)}" list="llmCl"><datalist id="llmCl">${BRAIN_MODELS.anthropic.map(m => `<option value="${m}">`).join('')}</datalist></label>
       <label class="se-field"><span>Anthropic API key (kept on this device)</span><input id="llmKey" type="password" value="${esc(this.key())}" autocomplete="off"></label>
       <p class="se-note"><b>Each job</b></p>${roles.join('')}
       <div class="chip-row"><button class="chip" data-llm="prompts">Prompts…</button><button class="chip" data-llm="test">Test it</button></div>`,
       [['Save', () => { this.saveForm(); toast('Saved'); }], ['Close']]);
+  },
+  /** Settings: the built-in engine, its model (Ollama's copy, or downloaded), the download with progress. */
+  biHtml(bi, f) {
+    const best = f.best || LLM_MODELS[0], m = bi.models?.find(x => x.id === best.id) || {}, dl = bi.downloading;
+    return `<div class="lk-direct ${bi.model ? 'on' : ''}"><p><b>Built into StudioGen</b> (llama.cpp on the graphics chip; nothing else to install): ${bi.model ? `✓ ${esc(bi.model.id)} ${bi.model.source === 'ollama' ? '(read from Ollama’s copy)' : '(downloaded)'}${bi.loaded ? ' · loaded' : ' · loads when first needed'}` : 'no model yet'} · ${f.gb} GB memory</p>
+      <div class="chip-row">${!bi.model && m.ollama ? `<button class="chip accent" data-llm="biuse|${best.id}|ollama">Use the ${esc(best.name)} Ollama has (no download)</button>` : ''}
+        ${!m.downloaded ? `<button class="chip${!bi.model && !m.ollama ? ' accent' : ''}" data-llm="bidl|${best.id}">${dl ? `Downloading… ${Math.round(dl.done / dl.total * 100)}%` : `Download ${esc(best.name)} into StudioGen (${best.size})`}</button>` : bi.model?.source !== 'download' ? `<button class="chip" data-llm="biuse|${best.id}">Use the downloaded ${esc(best.name)}</button>` : ''}
+        ${m.downloaded ? `<button class="chip" data-llm="birm|${best.id}">Delete the download</button>` : ''}</div><div class="su-bar" id="biBar" ${dl ? '' : 'hidden'}><i style="width:${dl ? Math.round(dl.done / dl.total * 100) : 0}%"></i></div>
+      ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB; pool this Mac with another (see below).</p>` : ''}</div>`;
+  },
+  /** Download into StudioGen, with progress to a bar and a line (Settings, the startup checklist). */
+  async biDownload(id, onp = () => {}) {
+    const off = DriveDeckDesktop.llm.onProgress(p => { if (p.id === id) onp(p.done / p.total); });
+    try { const r = await DriveDeckDesktop.llm.download(id); if (r?.error) throw new Error(r.error); await this.builtin(true); } finally { off(); }
   },
   saveForm() {
     const c = this.cfg(), roles = { ...c.roles }; for (const el of $$('[data-llmrole]')) roles[el.dataset.llmrole] = el.value;
@@ -200,6 +233,11 @@ document.addEventListener('click', async e => {
   if (k === 'prompt') return LLM.prompts(arg);
   if (k === 'getollama') return openExternal('https://ollama.com/download', 'https://ollama.com/download');
   if (k === 'recheck') { LLM.health = null; return LLM.settings(); }
+  if (k === 'biuse') { const [, id, from] = b.dataset.llm.split('|'); const r = await DriveDeckDesktop.llm.use({ id, ollama: from === 'ollama' }); if (r?.error) return toast(r.error); await LLM.builtin(true); toast('Built-in model ready'); return LLM.settings(); }
+  if (k === 'birm') { if (!confirm('Delete the downloaded model file?')) return; await DriveDeckDesktop.llm.remove(arg); await LLM.builtin(true); return LLM.settings(); }
+  if (k === 'bidl') { b.disabled = true; const bar = $('#biBar'); if (bar) bar.hidden = false;
+    try { await LLM.biDownload(arg, f => { b.textContent = `Downloading… ${Math.round(f * 100)}%`; if (bar) bar.firstElementChild.style.width = `${Math.round(f * 100)}%`; }); toast('Downloaded: the built-in model is ready'); LLM.settings(); }
+    catch (err) { b.disabled = false; toast(err.message); } return; }
   if (k === 'install') { b.disabled = true; try { await LLM.installOllama(t => { b.textContent = t; }); toast('Ollama is running: now the model'); LLM.settings(); } catch (err) { b.disabled = false; b.textContent = 'Install Ollama for me'; toast(err.message); } return; }
   if (k === 'test') { LLM.saveForm(); toast('Asking…'); try { const r = await LLM.ask('fast', { system: 'Answer in five words or fewer.', prompt: 'Say hello.' }); toast(`${r.via}: ${r.text.slice(0, 80)}`); } catch (err) { toast(`Didn’t work: ${err.message}`); } return; }
   if (k === 'pull') { const bar = $('#llmBar'); b.disabled = true; if (bar) bar.hidden = false;
@@ -207,4 +245,4 @@ document.addEventListener('click', async e => {
     catch (err) { b.disabled = false; toast(err.message); } }
 }, true);
 // StudioGen: is the model server there (for Automatic, the mesh's presence and Settings)
-setTimeout(() => { if (LINK_HOST) { LLM.local(); setInterval(() => LLM.local(), 60000); } }, 1500);
+setTimeout(() => { if (LINK_HOST) { LLM.local(); LLM.builtin(); setInterval(() => { LLM.local(); LLM.builtin(); }, 60000); } }, 1500);

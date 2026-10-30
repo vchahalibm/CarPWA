@@ -133,7 +133,7 @@ module.exports = ({ app, send }) => {
   async function status() {
     let ok = true; try { await L(); } catch { ok = false; }
     const c = cfg();
-    return { available: ok && process.platform === 'darwin', why, model: c.path && fs.existsSync(c.path) ? { id: c.id, source: c.source, file: path.basename(c.path) } : null, loaded: !!model, busy, gpu: llama?.gpu || null,
+    return { available: ok && process.platform === 'darwin' && process.arch === 'arm64', why: process.arch !== 'arm64' ? 'The built-in engine needs a Mac with Apple silicon: use Ollama' : why, // the build ships llama.cpp for Apple silicon only model: c.path && fs.existsSync(c.path) ? { id: c.id, source: c.source, file: path.basename(c.path) } : null, loaded: !!model, busy, gpu: llama?.gpu || null,
       downloading, models: Object.entries(MODELS).map(([id, m]) => ({ id, name: m.name, downloaded: !!present(id), ollama: !!ollamaCopy(id) })) };
   }
   async function remove(id) { const c = cfg(); if (c.id === id && c.source === 'download') { await unload(); keep({}); } for (const f of fs.readdirSync(dir()).filter(f => f.startsWith(path.basename(fileOf(id)).replace(/-00001-of-.*|\.gguf$/, '')))) fs.rmSync(path.join(dir(), f)); return true; }

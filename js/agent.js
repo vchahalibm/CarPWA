@@ -816,7 +816,7 @@ const CARD_SCHEMA = { type: 'object', required: ['headline', 'items'], propertie
 const echoFix = (c, ask) => { const w = plain(c.headline).split(' ').filter(x => x.length > 3), q = ` ${plain(ask)} `;
   if (c.items.length && w.length && w.filter(x => q.includes(` ${x} `)).length / w.length >= 0.6) { const t = c.items.map(i => i.title).filter(Boolean).slice(0, 4); c.headline = t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0] || c.headline; }
   return c; };
-const tidyCard = j => ({ ...j, headline: String(j.headline || ''), items: (Array.isArray(j.items) ? j.items : []).slice(0, 5).map(i => Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x && !/^(none|n\/a|empty|unknown)$/i.test(String(x).trim())))) });
+const tidyCard = j => ({ ...j, headline: String(j.headline || ''), items: (Array.isArray(j.items) ? j.items : []).slice(0, 5).map(i => Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x && !/^(none|n\/a|empty|unknown|[—–-]+)$/i.test(String(x).trim())))) });
 agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model)', arg: 'What to pull out; input: the text ({read})', async run(v, say, ev = {}) {
   const cx = agentCtx(ev), text = String((ev.args || [])[0] ?? '').slice(0, 5000);
   if (text.trim() === '(none)') return { headline: 'Nothing', items: [] }; // agent.read's keep= found no lines

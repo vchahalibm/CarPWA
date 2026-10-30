@@ -1241,6 +1241,7 @@ function renderSettings() {
     <div class="group-title">Connections</div>
     <div class="group">
       ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
+      ${typeof Workers !== 'undefined' && Workers.can() ? btn('workers', 'Workers', 'More StudioGens of yours: in OrbStack, light on this Mac, or elsewhere') : ''}
       ${typeof LinkTest !== 'undefined' ? btn('linkTest', 'Test the connection', 'This network, the relays, the other app') : ''}
       ${typeof Relay !== 'undefined' && window.DriveDeckDesktop ? btn('relays', 'Relays (public MQTT brokers)', `${Relay.list().brokers.length} · revision ${Relay.list().rev}`) + btn('directLink', 'Direct link', ({ auto: 'Whenever possible', local: 'Same network only', off: 'Never' })[Relay.directCfg().mode]) : ''}
     </div>
@@ -1665,6 +1666,7 @@ var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may d
       toast(this.s.error ? `Couldn’t check for updates: ${this.s.error}` : this.s.shellReady || this.s.webReady ? 'An update is ready' : `${APP_NAME} is up to date`);
   },
   bar(kind) {
+    if (window.DriveDeckDesktop?.worker) return; // a Worker is updated by StudioGen (light) or its image (Docker), not by itself
     const s = this.s, bar = $('#updateBar'), shell = kind === 'shell';
     $('b', bar).textContent = shell ? `${APP_NAME} ${s.shellReady} is ready` : 'Update ready';
     $('.lp-t span', bar).textContent = shell ? (s.canSwap ? 'Restart to install it, or it installs when you quit' : 'Download it from the releases page (this copy can’t replace itself here)') : 'Restart to use the new version';

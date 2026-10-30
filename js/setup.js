@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Workers from the app: Mesh › Workers › + New Worker, in OrbStack (installed for you if needed), light on this Mac, or on another machine; each with its own sign-ins, using this Mac’s model',
   'One language model for everything, on your Mac by default: gpt-oss (picked by this Mac’s memory, downloaded here), Claude as the option; phones and Workers use the Mac’s (Settings › Assistant › Language model)',
   'Read and change every prompt the app sends to the model: Settings › Assistant › Prompts',
   'The Agent screen keeps a timeline of the tasks and scripts that ran, below the newest cards',

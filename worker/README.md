@@ -1,6 +1,8 @@
 # StudioGen Worker
 
-StudioGen without a screen, in a Linux container. It is one of your own StudioGens: it keeps its own sign-ins (for example a WhatsApp or a work account you don't want on your Mac), runs tasks for your devices, and shares what you share with the mesh. You set it up and use it from your other devices. Design: [docs/studiogbee.html](../docs/studiogbee.html) § 8.
+StudioGen without a screen, in a Linux container.
+
+**The easy way: StudioGen › Mesh › Workers › + New Worker** (or Settings › Connections › Workers). Pick **In OrbStack** (StudioGen installs OrbStack if needed and runs the published image `ghcr.io/vchahalibm/studiogen-worker`), **Light, on this Mac** (a hidden StudioGen with its own profile, nothing to install), or **On another machine** (a command to paste there). It joins your mesh as yours, uses your Mac's language model, and you sign in to it with **Sign in from here**. The rest of this page is the manual way. It is one of your own StudioGens: it keeps its own sign-ins (for example a WhatsApp or a work account you don't want on your Mac), runs tasks for your devices, and shares what you share with the mesh. You set it up and use it from your other devices. Design: [docs/studiogbee.html](../docs/studiogbee.html) § 8.
 
 **Not there, compared with StudioGen on a Mac:**
 - Apple's on-device model. Nothing is needed instead: the Worker uses **your Mac's language model** (gpt-oss, StudioGen › Settings › Assistant › Language model) through the mesh.

@@ -14,10 +14,11 @@ const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the
 // StudioGen Worker (worker/README.md, docs/studiogbee.html § 8): StudioGen in a Linux container without a screen of its own
 // (a virtual one, Xvfb). No updates (the image is rebuilt), no menu bar or dialogs, data in SG_DATA; set up from the
 // environment (SG_NAME, SG_MESH_INVITE, the model), then seen and used from your devices (js/remoteview.js).
-const WORKER = process.env.SG_WORKER === '1';
+// A light Worker (SG_LIGHT=1) is the same on a Mac: a second, hidden StudioGen with its own profile, started by StudioGen
+// itself (Workers in js/workers.js, LightWorkers below); SIGUSR2 shows or hides its window.
+const WORKER = process.env.SG_WORKER === '1', LIGHT = WORKER && process.env.SG_LIGHT === '1';
 if (WORKER) {
-  for (const sw of ['no-sandbox', 'disable-gpu', 'disable-dev-shm-usage']) app.commandLine.appendSwitch(sw);
-  app.commandLine.appendSwitch('password-store', 'basic');
+  if (process.platform === 'linux') { for (const sw of ['no-sandbox', 'disable-gpu', 'disable-dev-shm-usage']) app.commandLine.appendSwitch(sw); app.commandLine.appendSwitch('password-store', 'basic'); }
   if (process.env.SG_DATA) app.setPath('userData', process.env.SG_DATA);
 }
 const fs = require('fs');
@@ -118,7 +119,7 @@ function guard(win) {
 function createWindow({ show = true } = {}) {
   const win = mainWin = new BrowserWindow({
     width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: 'StudioGen', show,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: webPrefs,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: LIGHT ? { ...webPrefs, paintWhenInitiallyHidden: true } : webPrefs, // a light Worker paints while hidden (seen from afar)
   });
   guard(win); guestRules(win.webContents);
   win.on('closed', () => { if (mainWin === win) mainWin = null; presenting = false; presWin?.close(); menu(); });
@@ -201,6 +202,38 @@ function makeTray() {
 // The direct link to DriveGen (js/direct.js): the Mac's real local address in its WebRTC code instead of an mDNS name, which
 // some networks (hotspots, office Wi-Fi) don't resolve. The code is only ever shown as a QR on this screen.
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
+/* ---------- Light Workers: hidden StudioGens on this Mac, each with its own profile (sign-ins, tasks) in
+   <userData>/workers/<id>; started with StudioGen and stopped with it. ---------- */
+const LightWorkers = (() => {
+  const { spawn } = require('child_process'), kids = new Map();
+  const file = () => path.join(app.getPath('userData'), 'light-workers.json');
+  const list = () => { try { return JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { return []; } };
+  const keep = l => fs.writeFileSync(file(), JSON.stringify(l, null, 2));
+  const OK = /^[a-z0-9-]{1,30}$/;
+  function start(w) {
+    if (kids.get(w.id)?.exitCode === null) return true;
+    const env = { ...process.env, SG_WORKER: '1', SG_LIGHT: '1', SG_NAME: w.name, SG_DATA: path.join(app.getPath('userData'), 'workers', w.id), SG_MESH_INVITE: w.invite || '', ...(w.llm ? { SG_LLM_PROVIDER: 'openai', SG_LLM_URL: w.llm.url, SG_LLM_MODEL: w.llm.model } : {}) };
+    delete env.ELECTRON_RUN_AS_NODE;
+    const p = spawn(process.execPath, app.isPackaged ? [] : [__dirname], { env, stdio: 'ignore' });
+    p.on('exit', () => { if (kids.get(w.id) === p) kids.delete(w.id); });
+    kids.set(w.id, p); return true;
+  }
+  return {
+    list: () => list().map(w => ({ id: w.id, name: w.name, running: kids.get(w.id)?.exitCode === null, created: w.created })),
+    create(o) {
+      const id = String(o.id || '').toLowerCase(); if (!OK.test(id)) throw new Error('Name: letters, digits and dashes');
+      const l = list(); if (l.some(w => w.id === id)) throw new Error('There is a Worker by that name already');
+      const w = { id, name: String(o.name || id).slice(0, 40), invite: String(o.invite || ''), llm: o.llm && /^https?:\/\//.test(o.llm.url) ? { url: String(o.llm.url), model: String(o.llm.model || '') } : null, created: new Date().toISOString() };
+      keep([...l, w]); return start(w);
+    },
+    start: id => { const w = list().find(x => x.id === id); return !!w && start({ ...w, invite: '' }); }, // the invite is used once
+    stop: id => { const p = kids.get(id); if (p) p.kill(); return true; },
+    show: id => { const p = kids.get(id); if (p) p.kill('SIGUSR2'); return !!p; },
+    remove(id, data) { this.stop(id); keep(list().filter(w => w.id !== id)); if (data && OK.test(id)) setTimeout(() => fs.rmSync(path.join(app.getPath('userData'), 'workers', id), { recursive: true, force: true }), 1500); return true; },
+    resume() { for (const w of list()) if (w.auto !== false) start({ ...w, invite: '' }); }, // at StudioGen's start
+    stopAll() { for (const p of kids.values()) try { p.kill(); } catch {} },
+  };
+})();
 app.whenReady().then(async () => {
   // last session's sign-ins back before any page loads (desktop/browse.js)
   await Browse.restore().then(n => n && console.log(`browse: ${n} session cookies restored`)).catch(e => console.warn('browse restore', e.message));
@@ -290,8 +323,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
   // This computer's memory and chip (the language model's startup check, js/llm.js)
   ipcMain.on('dd:sys', e => { const os = require('os'); e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { memory: os.totalmem(), chip: os.cpus()[0]?.model || '', cpus: os.cpus().length } : null; });
+  // Light Workers (js/workers.js): create, start, stop, show, remove; only from StudioGen's own page
+  ipcMain.handle('dd:light', own((op, a) => ({ list: () => LightWorkers.list(), create: () => LightWorkers.create(a || {}), start: () => LightWorkers.start(a), stop: () => LightWorkers.stop(a), show: () => LightWorkers.show(a), remove: () => LightWorkers.remove(a?.id, a?.data) })[op]?.() ?? null));
   // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards
-  ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { name: process.env.SG_NAME || 'StudioGen Worker', invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
+  ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { light: LIGHT, name: process.env.SG_NAME || 'StudioGen Worker', invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
     llm: process.env.SG_LLM_PROVIDER ? { provider: process.env.SG_LLM_PROVIDER, url: process.env.SG_LLM_URL || '', model: process.env.SG_LLM_MODEL || '', key: process.env.SG_LLM_KEY || '' } : null } : null; });
   // Updates (desktop/updater.js): state, check now, and apply (web: reload on the new files; shell: install and restart).
   ipcMain.handle('dd:update-status', own(() => Updates.status()));
@@ -307,9 +342,11 @@ app.whenReady().then(async () => {
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },
     { role: 'windowMenu' },
   ]));
-  if (!WORKER) makeTray();
+  if (!WORKER) makeTray(); else if (LIGHT) app.dock?.hide();
+  if (LIGHT) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // StudioGen › Workers › Show its window
+  if (!WORKER) LightWorkers.resume();
   // Started at login: just the menu bar until you open it.
-  createWindow({ show: WORKER || !app.getLoginItemSettings().wasOpenedAtLogin });
+  createWindow({ show: WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin });
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -320,4 +357,4 @@ app.on('before-quit', e => {
   Promise.race([Browse.save(), new Promise(r => setTimeout(r, 3000))]).catch(err => console.warn('browse save', err.message)).finally(() => { browseSaved = true; app.quit(); });
 });
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
-app.on('will-quit', () => { Speech.quit(); AI.quit(); Updates.installShell(false); });
+app.on('will-quit', () => { Speech.quit(); AI.quit(); LightWorkers.stopAll(); Updates.installShell(false); });

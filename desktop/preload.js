@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   version: 1,
   /** StudioGen Worker (in a container): { name, invite, practice, llm } from its environment, else null (desktop/main.js). */
   worker: ipcRenderer.sendSync('dd:worker'),
+  /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */
+  light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
   /** This computer: { memory (bytes), chip, cpus }. */
   sys: ipcRenderer.sendSync('dd:sys'),
   /** Web widgets are real browsers here (<webview>, see webview-preload.js). */

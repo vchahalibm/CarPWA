@@ -1230,12 +1230,12 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
+      ${typeof LLM !== 'undefined' ? btn('llm', 'Language model', esc(LLM.health?.ok ? LLM.cfg().model : LINK_HOST ? 'Set up' : 'Your Mac’s')) + btn('prompts', 'Prompts (advanced)', `${Object.keys(store.get('prompts', {})).length || 'none'} changed`) : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
     </div>
     <div class="group-title">Scripts &amp; tasks</div>
     <div class="group">
       ${typeof ScriptUI !== 'undefined' ? btn('scripts', 'Scripts', `${Scripts.all().length} · presentations, demos and interactive sessions`) : ''}
-      ${typeof Brain !== 'undefined' ? btn('brain', 'Understanding (optional model)', Brain.ready() ? esc(Brain.cfg().provider === 'anthropic' ? 'Claude' : 'Your server') : 'Off') : ''}
       ${typeof OsTasks !== 'undefined' && OsTasks.can() ? btn('osApprovals', 'Tasks you always allow', 'AppleScript, Shortcuts and shell code from scripts') : ''}
     </div>
     <div class="group-title">Connections</div>

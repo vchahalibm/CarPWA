@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   version: 1,
   /** StudioGen Worker (in a container): { name, invite, practice, llm } from its environment, else null (desktop/main.js). */
   worker: ipcRenderer.sendSync('dd:worker'),
+  /** This computer: { memory (bytes), chip, cpus }. */
+  sys: ipcRenderer.sendSync('dd:sys'),
   /** Web widgets are real browsers here (<webview>, see webview-preload.js). */
   browser: {
     /** Sign out of everything in one container of the browsers ('persist:browse' or 'persist:c-<id>'). */

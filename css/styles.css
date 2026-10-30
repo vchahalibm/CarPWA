@@ -1811,3 +1811,13 @@ table.bench small{color:var(--text-2)}
 .rv-note{padding:0 16px 10px;margin:0}
 .rv-banner{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:9500;display:flex;gap:12px;align-items:center;background:#b42318;color:#fff;padding:8px 14px;border-radius:999px;box-shadow:0 4px 18px rgba(0,0,0,.35);font-size:14px;max-width:calc(100vw - 32px)}
 .rv-banner .chip{background:#fff;color:#b42318}
+/* The Agent screen's timeline (js/agent.js AgentHome.timeline): what ran beyond the cards, like a commit history */
+.ag-tl{margin:18px 0 8px}.ag-tl h3{font-size:15px;margin:0 0 6px}
+.ag-tl ol{list-style:none;margin:0;padding:0 0 0 14px;border-left:1px solid var(--line)}
+.ag-tl li{position:relative;display:flex;align-items:center;gap:6px}
+.ag-tl li::before{content:'';position:absolute;left:-19px;top:50%;width:9px;height:9px;margin-top:-5px;border-radius:50%;border:1.5px solid var(--text-2);background:var(--bg)}
+.ag-tl li.bad::before{border-color:var(--red)}
+.ag-tl-row{flex:1;min-width:0;display:flex;gap:10px;align-items:baseline;background:none;border:0;color:var(--text);font:inherit;text-align:left;padding:8px 4px;min-height:44px;cursor:pointer}
+.ag-tl-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-tl-w{color:var(--text-2);font-size:13px;white-space:nowrap}
+.ag-tl .icon-btn{opacity:.7}
+.ag-tl-sp{width:44px;flex:none}

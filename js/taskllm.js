@@ -20,6 +20,7 @@ const TaskLLM = {
 `;
   },
   async prompt() {
+    if (typeof LLM !== 'undefined' && LLM.edited('build')) return LLM.promptText('build'); // changed in Settings › Assistant › Prompts
     for (const u of ['docs/llm/build-prompt.md', 'https://vchahalibm.github.io/CarPWA/docs/llm/build-prompt.md']) { try { const r = await fetch(u, { cache: 'no-store' }); if (r.ok) return await r.text(); } catch {} }
     throw new Error('The prompt isn’t available offline here');
   },

@@ -2,7 +2,7 @@
 /* ============================================================
    Build a task by talking (Settings › Scripts & tasks › Build with an LLM, and on Stage: “help me build a task”).
    `TaskBuild` holds the conversation with an engine that runs the build prompt (docs/llm/build-prompt.md plus
-   BUILD_ADD for the app): Claude with your key, a command-line AI (Claude Code, Ollama, IBM Bob Shell…), Ollama over
+   LLM_PROMPTS['build.inapp'] for the app): Claude with your key, a command-line AI (Claude Code, Ollama, IBM Bob Shell…), Ollama over
    HTTP, IBM Bob (a hand-off: its chat opens with the prompt, you paste back), or the Mac's own model (js/tasklocal.js).
    `BuildCard` is the panel beside the assistant: the LLM's numbered questions are asked one at a time, spoken on Stage,
    answered by voice (“person is Priya”) or typing; every answer taken shows in the card; the summary is read out, “build
@@ -10,12 +10,8 @@
    “run it” / “save it”. While it's open, what you say goes to it first (`BuildCard.hear`, from Commands.run).
    Loaded after tasklocal.js.
    ============================================================ */
-const BUILD_ADD = `
-
----
-## Inside the app (this conversation)
-You are talking inside the StudioGen app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.`;
-const BUILD_CFG = () => ({ engine: 'claude', cli: 'claude', cliCmd: '', ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'gpt-oss:20b', ...store.get('buildCfg', {}) });
+// what's added after the build prompt inside the app: LLM_PROMPTS['build.inapp'] (js/llm.js), editable in Settings › Assistant › Prompts
+const BUILD_CFG = () => ({ engine: 'model', cli: 'claude', cliCmd: '', ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'gpt-oss:20b', ...store.get('buildCfg', {}) });
 /** Command-line AIs: the prompt arrives as "$1" (never pasted into the code), the answer is what it prints. */
 const BUILD_CLIS = {
   claude: { name: 'Claude Code', cmd: 'cd "${TMPDIR:-/tmp}"; PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" claude -p "$1" --output-format text' },
@@ -27,16 +23,14 @@ const BOB_IDE = '/Applications/IBM Bob.app/Contents/Resources/app/bin/bobide';
 const stars = n => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
 /* The engines, rated on what this job needs (from the tests on the practice sites: docs/scripts-and-tasks-guide.html#t-llm). */
 const BUILD_ENGINES = [
+  { id: 'model', name: 'The app’s language model', how: 'Settings › Assistant › Language model: gpt-oss on this Mac by default (or your Mac’s, from a phone), Claude if you choose it', r: { build: 4, ask: 4, speed: 3, offline: 5 },
+    note: 'Private and free when it runs on your Mac. gpt-oss 20b asks properly and builds tasks that pass the check, in 1–3 minutes; gpt-oss 120b (a pool of Macs) or Claude write sturdier steps.',
+    can: () => true, why: '',
+    async ask(system, msgs) { return (await LLM.ask('build', { system, messages: msgs, temperature: 0.3, max: 6000 })).text; } },
   { id: 'claude', name: 'Claude', how: 'Anthropic, with your key (Settings › Assistant)', r: { build: 5, ask: 5, speed: 4, offline: 1 },
     note: 'Writes new steps, selectors and checks; the best questions. Every task it wrote in the tests ran first time.',
-    can: () => !!Brain.key(), why: 'Add your Anthropic key in Settings › Assistant',
-    async ask(system, msgs) {
-      const c = Brain.cfg(), model = c.provider === 'anthropic' && c.model ? c.model : BRAIN_MODELS.anthropic[0];
-      const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': Brain.key(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model, max_tokens: 4000, system, messages: msgs }) });
-      const j = await r.json(); if (!r.ok) throw new Error(j?.error?.message || `Claude said ${r.status}`);
-      return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-    } },
+    can: () => !!LLM.key(), why: 'Add your Anthropic key in Settings › Assistant › Language model',
+    async ask(system, msgs) { return (await LLM.via_cloud('build', { system, messages: msgs })).text; } },
   { id: 'cli', name: 'A command-line AI', how: 'Claude Code, Ollama, IBM Bob Shell or your own command, on this Mac', r: { build: 5, ask: 5, speed: 3, offline: 2 },
     note: 'As good as the tool behind it (Claude Code: like Claude, using your subscription, ~15 s a turn). You allow the command once.',
     can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: 'Command-line tools run in StudioGen on a Mac',
@@ -46,30 +40,20 @@ const BUILD_ENGINES = [
       const text = `${system}\n\n---\nConversation so far:\n${msgs.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')}\n\nReply as the assistant, following the prompt above (only your next message).`;
       return String(await OsTasks.run('shell', cmd, [text, c.ollamaModel], `Build a task with ${BUILD_CLIS[c.cli]?.name || 'your command'}`, 300));
     } },
-  { id: 'ollama', name: 'Ollama (open-weight, on this Mac)', how: 'A model running on this Mac: nothing leaves it', r: { build: 3, ask: 2, speed: 2, offline: 5 },
-    note: 'Private and free. Recommended: gpt-oss 20b (16 GB Macs and up): asks properly, 1–3 min a task, sometimes makes up test values. qwen3 14b is faster (~1 min) but tends to skip the questions. Their tasks pass the check less sturdily than Claude’s.',
-    can: () => true, why: '',
-    async ask(system, msgs) {
-      const c = BUILD_CFG(), r = await fetch(`${c.ollamaUrl.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model: c.ollamaModel, stream: false, messages: [{ role: 'system', content: system }, ...msgs], options: { num_ctx: 16384, temperature: 0.3 } }) }).catch(() => null);
-      if (!r) throw new Error(`Ollama isn’t answering at ${c.ollamaUrl}: is it running?`);
-      const j = await r.json(); if (!r.ok) throw new Error(j?.error || `Ollama said ${r.status}`);
-      return String(j.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-    } },
   { id: 'bob', name: 'IBM Bob (hand-off)', how: 'Bob’s chat opens with the prompt; you talk to Bob there and paste its JSON back', r: { build: 4, ask: 4, speed: 2, offline: 2 },
     note: 'For people who work in Bob. Not spoken: the conversation happens in Bob’s window.',
     can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: 'IBM Bob is opened by StudioGen on a Mac', handoff: true },
-  { id: 'mac', name: 'The Mac’s own model', how: 'Apple’s on-device model: private, offline, small', r: { build: 1, ask: 1, speed: 4, offline: 5 },
-    note: 'Only puts together tasks that already exist (no new steps), and asks nothing back: you correct its plan in a form.',
-    can: () => typeof TaskLocal !== 'undefined' && TaskLocal.can(), why: 'Needs StudioGen on a Mac, or a phone paired with one', local: true },
+  { id: 'mac', name: 'Quick builder', how: 'Combines tasks that already exist, with the app’s language model; you correct its plan in a form', r: { build: 2, ask: 1, speed: 4, offline: 5 },
+    note: 'Only puts together tasks that already exist (no new steps), and asks nothing back. Fast.',
+    can: () => typeof TaskLocal !== 'undefined' && TaskLocal.can(), why: 'Needs a language model (Settings › Assistant › Language model)', local: true },
 ];
 const TaskBuild = {
-  engine() { const id = BUILD_CFG().engine; return BUILD_ENGINES.find(e => e.id === id) || BUILD_ENGINES[0]; },
+  engine() { const id = BUILD_CFG().engine; return BUILD_ENGINES.find(e => e.id === (id === 'ollama' ? 'model' : id)) || BUILD_ENGINES[0]; }, // 'ollama' was an engine of its own before the language model setting
   /** The prompt, the app's notes, and the tasks already here: their ways to ask aren't to be reused, and they can be run
       as steps (agent.task) rather than written again. */
   async system() {
     const have = Agent.all().filter(t => !t.remoteOnly).map(t => `- ${t.id}: ${t.name}${Object.keys(Agent.params(t)).length ? ` (inputs: ${Object.keys(Agent.params(t)).join(', ')})` : ''}; asked as ${(t.examples || []).slice(0, 4).map(e => `“${e}”`).join(', ')}`).join('\n');
-    return `${await TaskLLM.prompt()}${BUILD_ADD}\n\n### Tasks already in this app\nDon't reuse their ways to ask (give the new task its own). When one already does a part of what the user wants, run it with \`agent.task\` instead of writing its steps again.\n${have}`;
+    return `${await TaskLLM.prompt()}${LLM.prompt('build.inapp')}\n\n### Tasks already in this app\nDon't reuse their ways to ask (give the new task its own). When one already does a part of what the user wants, run it with \`agent.task\` instead of writing its steps again.\n${have}`;
   },
   /** One turn: what the user said → the engine's reply, parsed: { kind: 'ask', questions } or { kind: 'done', summary, json }. */
   async turn(msgs) {

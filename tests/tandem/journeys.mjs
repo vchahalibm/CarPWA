@@ -65,7 +65,7 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: 'Studio A’s Activity shows the request', check: async () => (await st(A)).mesh?.events?.some(e => e.kind === 'request') || 'no request in the activity yet', wait: 60 },
     ],
     meaning: [
-      { title: 'The phone is understood by meaning, through its Mac (Apple’s on-device model)', ...say(P, 'is it going to pour later'),
+      { title: 'The phone is understood by meaning, through its Mac (the Mac’s language model, gpt-oss)', ...say(P, 'is it going to pour later'),
         check: async () => { const [a, p] = await Promise.all([st(A), st(P)]); return !a.ai || since(p, S.t0, /degrees|rain|drizzle|sunny|cloud/i) || `last reply: ${lastReply(p) || 'none'}`; }, wait: 60 },
       { title: 'And on the Mac itself', ...say(A, 'switch the gauges to a different look'), check: async () => { const a = await st(A); return !a.ai || since(a, S.t0, /style/i) || `last reply: ${lastReply(a) || 'none'}`; }, wait: 60 },
     ],
@@ -144,7 +144,7 @@ export function journeys({ A, B, P, devs, sleep }) {
     worker: [
       { title: 'Studio A makes an invite for one of its owner’s own devices; a StudioGen Worker starts in Docker with it', always: true,
         auto: async () => { S.inv = await A.eval(`Mesh.invite('member', true)`); try { execFileSync('docker', ['rm', '-f', 'sg-worker-t'], { stdio: 'ignore' }); } catch {}
-          execFileSync('docker', ['run', '-d', '--name', 'sg-worker-t', '--shm-size', '1g', '-e', 'SG_NAME=Test Worker', '-e', `SG_MESH_INVITE=${S.inv}`, '-e', 'SG_PRACTICE=1', '-e', 'SG_SECRET=tandem-secret', '-e', 'SG_LLM_PROVIDER=openai', '-e', 'SG_LLM_URL=http://host.docker.internal:11434/v1', '-e', 'SG_LLM_MODEL=qwen3:14b', 'studiogen-worker', '--remote-debugging-port=9222'], { stdio: 'ignore' });
+          execFileSync('docker', ['run', '-d', '--name', 'sg-worker-t', '--shm-size', '1g', '-e', 'SG_NAME=Test Worker', '-e', `SG_MESH_INVITE=${S.inv}`, '-e', 'SG_PRACTICE=1', '-e', 'SG_SECRET=tandem-secret', 'studiogen-worker', '--remote-debugging-port=9222'], { stdio: 'ignore' });
           await sleep(15000); execFileSync('docker', ['cp', new URL('./worker-eval.cjs', import.meta.url).pathname, 'sg-worker-t:/tmp/we.cjs']); },
         check: async () => { const w = await A.eval(`(() => { const x = Mesh.members().find(m => m.name === 'Test Worker'); return x && Date.now() - (Mesh.presence[x.id]?.at || 0) < 60000 ? x.id : '' })()`); S.wid = w; return !!w && await A.eval(`Mesh.own(${JSON.stringify(w)})`) || 'the Worker isn’t in the mesh (or not yours) yet'; }, wait: 120 },
       { title: 'Studio A tells the Worker which devices are yours: the phone may run a sign-in task there (it stops at the practice Slack’s sign-in)', always: true,
@@ -159,6 +159,13 @@ export function journeys({ A, B, P, devs, sleep }) {
           if (r) await P.eval(`RemoteView.send({ kind: 'tap', x: ${r[0]}, y: ${r[1]} }), 1`); await sleep(3000); await P.eval('RemoteView.close(), 1');
           S.card = await P.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'task', { id: 'slack.channel', params: { channel: 'sales' }, confirmed: true }, 240000).then(r => JSON.stringify(r.card || r), e => 'ERR ' + e.message)`, 260000); },
         check: async () => /12 percent|Acme|Q3/i.test(S.card || '') || `answer: ${S.card}` },
+      { title: 'The Worker runs two tasks side by side, its cards written by Studio A’s model (gpt-oss through the mesh: no model in the container)', always: true,
+        auto: async () => { const we = js => execFileSync('docker', ['exec', 'sg-worker-t', 'node', '/tmp/we.cjs', js], { timeout: 400000 }).toString().trim();
+          S.wpar = JSON.parse(JSON.parse(we(`(async () => { const s = Agent.sites(); await AgentWeb.go(s.whatsapp); await new Promise(r => setTimeout(r, 1500)); await AgentWeb.call('clickOn', [{ text: 'Simulate scanning with your phone' }], 6000); await new Promise(r => setTimeout(r, 1500));
+            const order = await LLM.order('cards'), t0 = Date.now(), log = {}; let peak = 0; const iv = setInterval(() => { peak = Math.max(peak, Agent.slots.n); }, 100);
+            await Promise.all([['slack.channel', { channel: 'sales' }], ['whatsapp.read', {}]].map(([id, p]) => Agent.exec(Agent.get(id), p, { confirmed: true }).then(c => { log[id] = c.headline; }, e => { log[id] = 'ERR ' + e.message; })));
+            clearInterval(iv); return JSON.stringify({ order, peak, log, ms: Date.now() - t0 }) })()`))); },
+        check: async () => { const w = S.wpar || {}; return w.order?.[0] === 'remote' && w.peak === 2 && Object.values(w.log || {}).every(h => h && !/^ERR|No model/.test(h)) || JSON.stringify(w); } },
       { title: 'Studio B (not yours) asking the Worker for the same task is refused', always: true,
         auto: async () => { S.err = await B.eval(`Mesh.call(${JSON.stringify(S.wid)}, 'task', { id: 'slack.channel', params: { channel: 'sales' }, confirmed: true }, 60000).then(() => 'ran', e => e.message)`, 90000); },
         check: async () => /owner’s devices|isn’t shared/.test(S.err || '') || `answer: ${S.err}` },

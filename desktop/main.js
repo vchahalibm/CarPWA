@@ -288,6 +288,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:insert-text', (e, text) => String(e.senderFrame?.url || '').startsWith(ORIGIN) ? e.sender.insertText(String(text || '')).then(() => true) : false);
   ipcMain.handle('dd:bridge-src', () => readBridge());
   ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
+  // This computer's memory and chip (the language model's startup check, js/llm.js)
+  ipcMain.on('dd:sys', e => { const os = require('os'); e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { memory: os.totalmem(), chip: os.cpus()[0]?.model || '', cpus: os.cpus().length } : null; });
   // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards
   ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { name: process.env.SG_NAME || 'StudioGen Worker', invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
     llm: process.env.SG_LLM_PROVIDER ? { provider: process.env.SG_LLM_PROVIDER, url: process.env.SG_LLM_URL || '', model: process.env.SG_LLM_MODEL || '', key: process.env.SG_LLM_KEY || '' } : null } : null; });

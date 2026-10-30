@@ -98,7 +98,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
   <li>macOS asks once each for the microphone, the camera and speech recognition when you first use them.</li>
   <li>StudioGen updates itself: when new files are ready a bar offers <b>Restart now</b>. You can also use <span class="path">StudioGen menu › Check for updates…</span>.</li>
 </ol>
-<p>Apple’s on-device model (for understanding commands by meaning and summarising) needs macOS 26 or later with Apple Intelligence turned on. Without it everything else still works.</p>
+<p><b>The language model</b> (understanding what you say, result cards, building tasks): at the first start StudioGen checks the Mac’s memory and offers the model that fits (gpt-oss 20B from 16 GB, gpt-oss 120B from 80 GB), run by Ollama (free; it offers to install it and downloads the model). It runs on the Mac, so nothing leaves it. With less memory, or for a bigger model, it suggests pooling with another Mac, or Claude with your key. DriveGen and StudioGen Workers use the Mac’s model. Change it in <span class="path">Settings › Assistant › Language model</span>; read and change what it’s told in <span class="path">Settings › Assistant › Prompts</span>.</p>
 
 <h3>The setup screen</h3>
 <p>The first time you open either app, the agent sets it up in front of you: it checks the device, downloads the natural voice (about 40 MB on most phones, once) and times it, picks your voice, and shows how listening, the camera, the 3D assistant and the start screen are set, each with where to change it in Settings. Tap <b>Start</b> when you like; downloads carry on. After an update, the same screen shows what's new.</p>
@@ -127,7 +127,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
 <p>Tap the mic and speak, or type in the Agent screen’s box (not while driving). It answers aloud and shows the reply in the listening strip.</p>
 <ul>
   <li><b>Commands</b>: about a hundred, from <q class="say">take me home</q> to <q class="say">next slide</q>. All are listed, switchable and editable in <span class="path">Settings › Voice › Voice commands</span>, where you can also add your own: what you say (with <code>{words}</code> to catch), and what happens (an action, an app, a shortcut, a reply).</li>
-  <li><b>By meaning</b>: if nothing matches, Apple’s on-device model on the Mac works out what you meant (<q class="say">is it going to pour later?</q> gives the weather). Phones ask their Mac. <span class="path">Settings › Voice › Understand commands by meaning</span>.</li>
+  <li><b>By meaning</b>: if nothing matches, the language model on the Mac works out what you meant (<q class="say">is it going to pour later?</q> gives the weather). Phones ask their Mac. <span class="path">Settings › Voice › Understand commands by meaning</span>.</li>
   <li><b>“Did you mean…?”</b>: when it’s unsure it asks; say <q class="say">yes</q> or <q class="say">no</q>.</li>
   <li><b>Conversation mode</b> (<span class="path">Settings › Voice</span>): tap once and keep talking; you can interrupt it. Say <q class="say">that’s all</q> to finish.</li>
   <li><b>The reply voice</b>: <b>Automatic</b> uses the natural voice, <b>Phonon</b>, on the device (fast on phones, tablets and Macs), or the device’s own voice where Phonon can’t keep up or for languages other than English. Choose female or male, or any of Phonon’s 25 English voices by name in <span class="path">Settings › Voice › Natural voice</span>; <span class="path">Check the voices</span> times them. Kokoro, the earlier voice, is an optional download there.</li>
@@ -136,7 +136,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
 
 <h2 id="agent">The agent: tasks for you</h2>
 <p>On a Mac (or any wide screen) the assistant stands on the left of the Agent screen, beside your cards; while a task is watched, the watch panel takes the right and the cards stay between them.</p>
-<p>Ask for a task in your own words and the agent does it, most often on your Mac, and shows the result as a card. Tasks that send, book or post <b>always ask first</b>. If your Mac is offline, the request waits (🕓 on the card) and runs when it's back: 10 minutes by default, per kind in <span class="path">Agent › Library › Settings › Waiting requests</span>.</p>
+<p>Ask for a task in your own words and the agent does it, most often on your Mac, and shows the result as a card. Tasks that send, book or post <b>always ask first</b>. The newest results are cards; everything older (tasks and scripts that ran) goes on the <b>timeline</b> below them: tap one to hear it again, ▶ to run it again. If your Mac is offline, the request waits (🕓 on the card) and runs when it's back: 10 minutes by default, per kind in <span class="path">Agent › Library › Settings › Waiting requests</span>.</p>
 <figure><img src="req/agent-screen.jpg" alt="The Agent screen with result cards"><figcaption>The Agent screen: ask box, suggestions for the time of day, the latest result big, earlier ones below.</figcaption></figure>
 <h3>What you can ask (first set)</h3>
 <table>
@@ -268,7 +268,7 @@ kbd{background:var(--code);border:1px solid var(--line);border-radius:5px;paddin
 <p>Settings has six tabs (swipe them sideways on a phone). The guide names the group inside a tab, e.g. <span class="path">Settings › Voice</span> is the Voice group on the Assistant tab.</p>
 <table>
 <tr><th>Tab</th><th>Groups and what’s there</th></tr>
-<tr><td>Assistant</td><td><b>Assistant</b>: avatars, the start-page greeting, Understanding (a language model for interactive scripts) · <b>Voice</b>: speech recognition, keep speech on this device, reply voice (Automatic, device, natural), check the voices, voice commands, conversation mode, understand commands by meaning, act after you stop talking</td></tr>
+<tr><td>Assistant</td><td><b>Assistant</b>: language model (this Mac’s, your Mac’s, or Claude; each job on its own), prompts (read and change them), avatars, the start-page greeting · <b>Voice</b>: speech recognition, keep speech on this device, reply voice (Automatic, device, natural), check the voices, voice commands, conversation mode, understand commands by meaning, act after you stop talking</td></tr>
 <tr><td>Stage</td><td><b>Mode</b> (Drive or Stage) · <b>Presenting</b>: captions, presenter view, follow the presenter, claim gesture, point to click · <b>Cameras</b>: which camera per mode</td></tr>
 <tr><td>Drive</td><td><b>Dashboard</b> (widget links, radio stations) · <b>Driving</b> (hide while driving) · <b>Navigation</b> (routing, TomTom key, Home and Work) · <b>Phone & apps</b> (contacts, music app, shortcuts) · <b>Camera & objects</b> (recognition model, alerts) · <b>Location</b>. On StudioGen this tab shows when you turn on the drive settings.</td></tr>
 <tr><td>Scripts & tasks</td><td>Scripts, assistant motions, recordings, site helpers, screen understanding, the library address</td></tr>

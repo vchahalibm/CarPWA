@@ -608,7 +608,8 @@ const Commands = {
     // a task asked for in one of its own ways, word for word, beats a command found by keywords or loosely (“summarise my unread mail” isn't “read my messages”)
     if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id) || ((r.cmd.match === 'keywords' || /^(loose|fuzzy)$/.test(r.how || '')) && Agent.match(raw)?.exact))) { const m = Agent.match(raw); if (m) { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
     // nothing matched, and a StudioGen in the mesh shares something new since the last look: fetch it, then try its tasks
-    if (!r.cmd && typeof Agent !== 'undefined' && Agent.meshStale()) return Agent.refresh(true).then(() => this.run(raw, true, alts)); // not stale the second time (true: already shown)
+    if (!r.cmd && typeof Agent !== 'undefined' && this.meshTried !== raw && typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStale() || Date.now() - (Agent.meshAt || 0) > 15000)) { this.meshTried = raw; return Agent.refresh(true).then(() => this.run(raw, true, alts)); } // once per thing said (true: already shown)
+    this.meshTried = null;
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
     if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();

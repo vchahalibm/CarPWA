@@ -694,8 +694,12 @@ const Agent = {
     const l = this.feed(), i = c.id ? l.findIndex(x => x.id === c.id) : -1;
     const n = i >= 0 ? { ...l[i], ...c } : { id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), at: Date.now(), where: this.where(this.get(c.task) || {}) === 'mac' ? 'mac' : 'here', ...c };
     if (i >= 0) l.splice(i, 1); l.unshift(n); store.set('agentFeed', l.slice(0, 40));
+    if (n.task && /^(done|failed|signin)$/.test(n.status || '')) this.log({ id: n.id, kind: 'task', task: n.task, title: n.title, status: n.status, headline: n.headline, type: n.type, items: n.items });
     AgentHome.draw(); return n;
   },
+  /* ---------- The timeline: what ran (tasks and scripts), kept longer than the cards (AgentHome.timeline) ---------- */
+  history: () => store.get('agentHistory', []),
+  log(e) { const l = this.history().filter(x => x.id !== e.id); l.unshift({ at: Date.now(), ...e }); store.set('agentHistory', l.slice(0, 200)); },
   drop(id) { store.set('agentFeed', this.feed().filter(x => x.id !== id)); AgentHome.draw(); },
 };
 
@@ -819,21 +823,15 @@ agentAction('ai.card', { group: 'Agent', name: 'Make a card from text (the model
   if (/^\{read\}$/.test(text.trim()) || (ev.args?.length && text.trim().length < 40 && !/^(Topic|Meeting):/.test(text))) return { headline: 'I couldn’t read anything on that page', items: [] };
   // the small on-device model copies whatever it is given (today's date went into every “when”), so the date only comes with requests about dates
   const dated = /\b(today|tomorrow|yesterday|this week|next week|date|day|calendar|meeting|deadline|due)\b/i.test(v);
-  const instructions = `You turn text taken from a web page or app (mail, calendar, chats, search results) into a short result card for someone who may be driving. Follow the request: it says what the headline and each item's title, detail and when hold. Rules: use only facts that are in the text; never invent names, numbers, dates or times; the request's words describe what to write, they are not values; write each field in your own short words, never copy whole lines; leave when empty unless the text gives a time for that item. If the text doesn't answer the request, the headline says so and items is empty. Plain words, no markdown.${dated ? ` Today is ${new Date().toDateString()}.` : ''}`;
+  const instructions = LLM.prompt('card', { today: dated ? ` Today is ${new Date().toDateString()}.` : '' }); // Settings › Assistant › Prompts (js/llm.js)
   // lines picked by agent.read keep=: their number is known, so the model is told it and its headline's number is put right
   const n = cx?.kept?.get(text.trim()) ?? cx?.kept?.get(text);
-  const prompt = `Request: ${v}${n != null ? `\n\nThere are exactly ${n} of them, one per line.` : ''}\n\nText:\n${text || '(none)'}`;
+  const prompt = LLM.prompt('card.prompt', { request: v, count: n != null ? `\n\nThere are exactly ${n} of them, one per line.` : '', text: text || '(none)' });
   const counted = c => { if (n != null && c?.headline) c.headline = c.headline.replace(/^\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i, String(n)); return c; };
-  if (typeof MacAI !== 'undefined' && MacAI.can()) {
-    try { const r = await MacAI.ask({ instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 500 }); return counted(echoFix(tidyCard(JSON.parse(r.json || '{}')), v)); }
-    catch (e) { Log.w('agent', 'The on-device model didn’t make the card', { error: e.message }); }
-  }
-  if (typeof Brain !== 'undefined' && Brain.ready() && Brain.cfg().provider !== 'mac') {
-    const t = await Brain.complete(`${instructions} Answer only with JSON: {"headline": "...", "items": [{"title": "...", "detail": "..."}]}`, prompt, 500);
-    try { return counted(tidyCard(JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)))); } catch { return { headline: t.slice(0, 300), items: [] }; }
-  }
+  try { const r = await LLM.ask('cards', { system: instructions, prompt, schema: CARD_SCHEMA, temperature: 0.2, max: 600 }); return counted(echoFix(tidyCard(r.json || {}), v)); }
+  catch (e) { Log.w('agent', 'No model made the card', { error: e.message }); }
   const lines = text.split('\n').map(x => x.trim()).filter(Boolean);
-  return { headline: lines.length ? `No model here to sum this up (Apple’s on-device model on your Mac, or Settings › Assistant). What I found:` : 'Nothing found', items: lines.slice(0, 5).map(l => ({ title: l.slice(0, 90) })) };
+  return { headline: lines.length ? `No model here to sum this up (Settings › Assistant › Language model). What I found:` : 'Nothing found', items: lines.slice(0, 5).map(l => ({ title: l.slice(0, 90) })) };
 } });
 /** Cards put together without the model (it gets totals wrong): one item per source with its count and names. */
 agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line per source)', arg: 'The headline (empty: the counts); inputs: Label=card name, one per source', run(v, say, ev = {}) {
@@ -847,9 +845,7 @@ agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line p
 } });
 agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v, say, ev) {
   agentCtx(ev); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-  if (typeof MacAI !== 'undefined' && MacAI.can()) {
-    try { const r = await MacAI.ask({ instructions: `Turn a spoken time into a start and end in local time, format YYYY-MM-DDTHH:MM:00. Now is ${iso(now)} (${now.toLocaleDateString([], { weekday: 'long' })}). No length given: one hour.`, prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = JSON.parse(r.json || '{}'); if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
-  }
+  try { const r = await LLM.ask('fast', { system: LLM.prompt('when', { now: iso(now), weekday: now.toLocaleDateString([], { weekday: 'long' }) }), prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = r.json || {}; if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
   const d = new Date(now.getTime() + 3600000); d.setMinutes(0, 0, 0); return { start: iso(d), end: iso(new Date(d.getTime() + 3600000)) };
 } });
 /* The car's own steps */
@@ -895,7 +891,7 @@ const AgentHome = {
   avatarSide() { return innerWidth >= 900 && !this.moving() && !window.DriveDeckDesktop?.worker && typeof StartPage !== 'undefined' && typeof Media !== 'undefined'; }, // a Worker draws no 3D assistant (no graphics chip in a container)
   draw() {
     const root = $('#agentRoot'); if (!root || current !== 'agent') return;
-    const feed = Agent.feed(), [top, ...rest] = feed, hello = (h => h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')(new Date().getHours());
+    const feed = Agent.feed(), [top, ...rest] = feed, shown = rest.slice(0, this.moving() ? 2 : innerWidth >= 900 ? 6 : 4) /* the rest goes on the timeline */, hello = (h => h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')(new Date().getHours());
     const side = this.avatarSide(), id = side ? StartPage.avatarId() : '';
     if (side && !$('.ag-avatar', root)) { root.innerHTML = `<aside class="ag-avatar mw" data-media="${esc(id)}"><div class="mw-body"></div></aside><div class="ag-main"></div>`; root.classList.add('ag-has-av');
       Media.mount(id, $('.ag-avatar', root)).then(() => { this.av = id; this.frame(true); }).catch(() => {}); }
@@ -905,7 +901,17 @@ const AgentHome = {
       <form class="ag-ask" data-agform><input id="agAsk" placeholder="Ask, e.g. “what’s my day?”" autocomplete="off" enterkeyhint="go"><button class="big-btn accent" aria-label="Ask">${svg('mic')}</button></form>
       <div class="ag-sugg">${this.suggestions().map(t => `<button class="chip" data-ag="run:${esc(t.id)}">${esc(t.name)}</button>`).join('')}</div>
       ${top ? this.cardHtml(top, true) : `<div class="ag-empty"><h3>Nothing yet</h3><p class="se-note">Results of what you ask show here: mail summaries, your day, messages, arrival times, tasks on your Mac.</p></div>`}
-      <div class="ag-list">${(this.moving() ? rest.slice(0, 2) : rest.slice(0, 12)).map(c => this.cardHtml(c)).join('')}</div>`;
+      <div class="ag-list">${shown.map(c => this.cardHtml(c)).join('')}</div>
+      ${this.moving() ? '' : this.timeline(new Set([top?.id, ...shown.map(c => c.id)]))}`;
+  },
+  /** Everything that ran and isn't a card on screen: a line with a dot per task or script, newest first, the time on the
+      first of each day or hour like a commit history; tap one to hear it again, ▶ to run it again. */
+  timeline(onScreen) {
+    const l = Agent.history().filter(e => !onScreen.has(e.id)); if (!l.length) return '';
+    const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} day${m >= 2880 ? 's' : ''}`; };
+    let last = '';
+    return `<section class="ag-tl" aria-label="Timeline"><h3>Timeline <span class="se-note">tasks and scripts that ran</span></h3><ol>${l.slice(0, 60).map(e => { const when = ago(e.at), show = when !== last; last = when;
+      return `<li class="${e.status === 'failed' || e.status === 'signin' ? 'bad' : ''}"><button class="ag-tl-row" data-ag="tl:${esc(e.id)}"><span class="ag-tl-t">${e.kind === 'script' ? '▶ ' : ''}${esc(e.title || e.task || '')}${e.headline ? ` <span class="se-note">· ${esc(String(e.headline).slice(0, 90))}</span>` : ''}</span>${show ? `<span class="ag-tl-w">${when}</span>` : ''}</button>${e.task || e.script ? `<button class="icon-btn" data-ag="tlrun:${esc(e.id)}" aria-label="Run again" title="Run again">${svg('play')}</button>` : '<span class="ag-tl-sp"></span>'}</li>`; }).join('')}</ol></section>`;
   },
   /** Head to toe in a tall, narrow column (the start page's framing leaves room for the arms, which makes her small here). */
   frame(on) { const i = typeof VrmAvatar !== 'undefined' && VrmAvatar.all.get(this.av); if (i) { i.fullBody = on; i.wide = false; i.frame(); } },
@@ -1016,6 +1022,9 @@ document.addEventListener('click', e => {
   if ((k === 'yes' || k === 'always') && p?.card === v) { Agent.pend = null; Commands.pending = null; return p.yes(k === 'always'); }
   if (k === 'no') { if (p?.card === v) { Agent.pend = null; Commands.pending = null; } return Agent.drop(v); }
   if (k === 'drop') return Agent.drop(v);
+  if (k === 'tl' || k === 'tlrun') { const h = Agent.history().find(x => x.id === v); if (!h) return;
+    if (k === 'tlrun') return h.script ? (Scripts.get(h.script) ? Script.start(Scripts.get(h.script).json) : toast('That script isn’t here any more')) : Agent.start(h.task);
+    return Voice.respond(h.kind === 'script' ? `${h.title}: ${h.headline || 'it ran'}` : Agent.spoken({ ...h, items: h.items || [] })); }
   if (k === 'retry' && c) { Agent.drop(v); return Agent.start(c.task); }
   if (k === 'remote' && c) { const to = Agent.target(Agent.get(c.task) || {}); return RemoteView.open(to.meshId ? { meshId: to.meshId, name: to.name } : null, 'web'); } // signing in on the Mac, from here (js/remoteview.js)
   if (k === 'signin' || k === 'browser') { closeSheet(); return AgentWeb.show(true); }
@@ -1045,3 +1054,6 @@ document.addEventListener('submit', e => {
   $('#agAsk').value = ''; Commands.run(q, false);
 });
 Bus.on('view.open', d => { if (d.value === 'agent') AgentHome.show(); else { AgentHome.giveBack(d.value); const r = $('#agentRoot'); if (r?.classList.contains('ag-has-av')) { r.innerHTML = ''; r.classList.remove('ag-has-av'); } } });
+
+// scripts on the timeline too (when one ends: its name, how far it got)
+Bus.on?.('script.end', d => { const n = d?.value; if (!n) return; const sc = Scripts.all().find(x => x.name === n); Agent.log({ id: `s${Date.now().toString(36)}`, kind: 'script', script: sc?.id, title: n, status: 'done', headline: Script.cur?.beats?.length ? `${Math.min((Script.i || 0) + 1, Script.cur.beats.length)} of ${Script.cur.beats.length} steps` : '' }); if (typeof current !== 'undefined' && current === 'agent') AgentHome.draw(); });

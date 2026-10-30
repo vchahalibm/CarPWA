@@ -12,7 +12,7 @@
    ============================================================ */
 const TASK_LABELS = { mail: 'Mail', cal: 'Calendar', slack: 'Slack', whatsapp: 'WhatsApp', teams: 'Teams', web: 'Web', car: 'Car', present: 'Presenting' };
 const TaskLocal = {
-  can() { return typeof MacAI !== 'undefined' && MacAI.can(); },
+  can() { return typeof Intent !== 'undefined' && Intent.can(); }, // a language model (js/llm.js)
   /** The building blocks the model may pick: tasks (not ones only the Mac has) and reading a page. */
   blocks() {
     const P = t => Object.keys(Agent.params(t));
@@ -40,10 +40,9 @@ const TaskLocal = {
       parts: { type: 'array', description: 'the building blocks that do it, in order, at most 3', items: { type: 'object', required: ['block'], properties: {
         block: { type: 'string', enum: B.map(b => b.id), description: 'a block id from the list' },
         ...Object.fromEntries(names.map(n => [n, { type: 'string', description: `the block's ${n} input if it has one: {${n}} when the user says it each time, else the fixed value, else empty` }])) } } } } };
-    const instructions = 'You plan an agent task for the StudioGen app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.';
+    const instructions = LLM.prompt('plan');
     const prompt = `Blocks (id: what it does; inputs):\n${B.map(b => `${b.id}: ${b.name}${b.inputs.length ? `; ${b.inputs.join(', ')}` : ''}`).join('\n')}\n\nThe user wants: ${said}`;
-    const r = await MacAI.ask({ instructions, prompt, schema, temperature: 0.2, max: 600 });
-    const j = JSON.parse(r.json || '{}');
+    const j = (await LLM.ask('build', { system: instructions, prompt, schema, temperature: 0.2, max: 600 })).json || {};
     // keep only the inputs each block has (the model fills others too); one it left out is asked each time ({name});
     // a part that fits far worse than the best one is dropped (the model adds extras), and each block only once
     // and when the words name sites, a part from a site they don't name goes (the model adds acting blocks from other sites)

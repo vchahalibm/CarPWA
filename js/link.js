@@ -49,6 +49,8 @@ const Link = {
   /** Apple's on-device model on the Mac (js/brain.js › MacAI), for this phone. */
   async ai(o) { if (this.direct()) return Direct.call('ai', o, 30000); if (this.relay()) return Relay.call('ai', o, 30000); return this.call('/api/ai', o, 30000); },
   /** A task of the Mac's agent library (js/agent.js), and the list of the ones made there. Direct link or relay. */
+  /** The Mac's language model (js/llm.js), for the jobs this phone has. */
+  async llm(o) { if (this.direct()) return Direct.call('llm', o, 600000); if (this.relay()) return Relay.call('llm', o, 600000); throw new Error('The model on your Mac needs a direct or relay link (pair once in Settings › Connections)'); },
   async task(o) { if (this.direct()) return Direct.call('task', o, 300000); if (this.relay()) return Relay.call('task', o, 300000); throw new Error('Tasks need a direct or relay link to your Mac (pair once in Settings › Connections)'); },
   async tasks() { if (this.direct()) return Direct.call('tasks', {}, 15000); if (this.relay()) return Relay.call('tasks', {}, 20000); return { tasks: [] }; },
   async say(text) { if (this.direct()) return this.viaDirect(Direct.call('say', { text })); if (this.relay()) return this.viaDirect(Relay.call('say', { text })); const { job } = await this.call('/api/say', { text }); return this.job(job); },

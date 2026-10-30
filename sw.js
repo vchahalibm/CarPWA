@@ -1,7 +1,7 @@
 'use strict';
 /* DriveDeck service worker — hand-written, no build step.
    Bump VERSION whenever any file in SHELL changes so clients pick up the new copy. */
-const VERSION = 'v119';
+const VERSION = 'v120';
 const SHELL_CACHE = 'dd-shell-' + VERSION;
 const TILE_CACHE = 'dd-tiles';
 const TERRAIN_CACHE = 'dd-terrain';
@@ -30,7 +30,7 @@ const SHELL = [
   'js/radio.js',
   'js/media.js',
   'js/motions.js', 'js/avatar.js', 'js/avatars.js',
-  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/ostasks.js', 'js/dataviz.js', 'js/link.js', 'js/direct.js', 'js/relay.js', 'js/linktest.js', 'js/mesh.js', 'js/meshdirect.js', 'js/meshview.js', 'js/bee.js', 'js/startpage.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'js/agent.js', 'js/taskedit.js', 'js/taskllm.js', 'js/tasklocal.js', 'js/taskbuild.js', 'js/remoteview.js', 'js/worker.js', 'js/peek.js', 'js/setup.js', 'bridge/drivedeck-bridge.js',
+  'js/vision.js', 'js/stage.js', 'js/script.js', 'js/brain.js', 'js/llm.js', 'js/ostasks.js', 'js/dataviz.js', 'js/link.js', 'js/direct.js', 'js/relay.js', 'js/linktest.js', 'js/mesh.js', 'js/meshdirect.js', 'js/meshview.js', 'js/bee.js', 'js/startpage.js', 'js/people.js', 'js/mocap.js', 'js/webdrive.js', 'js/appsteps.js', 'js/screenmodel.js', 'js/scriptedit.js', 'js/bundles.js', 'js/agent.js', 'js/taskedit.js', 'js/taskllm.js', 'js/tasklocal.js', 'js/taskbuild.js', 'js/remoteview.js', 'js/worker.js', 'js/peek.js', 'js/setup.js', 'bridge/drivedeck-bridge.js',
   'js/debug.js',
   'vendor/fonts/inter-latin-wght.woff2',
   'manifest.webmanifest',

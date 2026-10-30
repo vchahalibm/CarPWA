@@ -10,6 +10,9 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'One language model for everything, on your Mac by default: gpt-oss (picked by this Mac’s memory, downloaded here), Claude as the option; phones and Workers use the Mac’s (Settings › Assistant › Language model)',
+  'Read and change every prompt the app sends to the model: Settings › Assistant › Prompts',
+  'The Agent screen keeps a timeline of the tasks and scripts that ran, below the newest cards',
   'Sign in on your Mac from your phone: when a task stops at a sign-in, “Sign in from here” shows the agent browser live (your own devices, the same network)',
   'Tasks run side by side: mail, WhatsApp and Slack at once, each in its own browser (Agent settings › Tasks at once)',
   'StudioGen Worker: StudioGen in Docker, with sign-ins of its own, set up and used from your devices (worker/README.md)',
@@ -121,8 +124,8 @@ const Setup = {
     r = this.row('home', 'Start screen'); await this.wait(gap);
     r.set('done', ({ start: 'The start page', agent: 'The Agent screen (your results)', dashboard: 'The dashboard' })[settings.startScreen] || 'The dashboard', 'Settings › System › Start screen');
     // Your Mac / Apple's model
-    r = this.row('mac', IS_DESKTOP_APP ? 'Apple’s on-device model' : 'Your Mac'); await this.wait(gap);
-    if (IS_DESKTOP_APP) { const st = await MacAI.status().catch(() => null); r.set(st?.available ? 'done' : 'info', st?.available ? 'Available: commands by meaning and summaries run on this Mac' : 'Not available on this Mac (macOS 26 and Apple Intelligence needed): everything else works', 'Settings › Voice › Understand commands by meaning'); }
+    r = this.row('mac', IS_DESKTOP_APP ? 'Language model' : 'Your Mac'); await this.wait(gap);
+    if (IS_DESKTOP_APP) await this.model(r);
     else r.set(Link.ready() ? 'done' : 'info', Link.ready() ? `Paired with ${Link.macName()}: mail, calendar and chats run there` : 'Pair with StudioGen on your Mac for mail, calendar and chats', 'Settings › Connections');
     // Waiting requests: asked once (install, or the first update that has it), then in Agent settings
     if (typeof Agent !== 'undefined' && !store.get('waitRules', null)) {
@@ -136,6 +139,33 @@ const Setup = {
     document.querySelector('#setup .su-orb')?.classList.add('done');
     // After an update with nothing to decide, it closes by itself unless you've touched it.
     if (this.mode === 'update' && !this.asked && !this.rows.some(x => /warn/.test(x.li.className))) setTimeout(() => { if (!this.touched && document.getElementById('setup')) this.close(false); }, 7000);
+  },
+  /** The language model on this Mac (js/llm.js): this Mac's memory picks the model (gpt-oss 20B on 16 GB and up, 120B on
+      80 GB and up); Ollama runs it; the download starts from here; a bigger model is suggested with another Mac in a pool. */
+  async model(r) {
+    if (typeof LLM === 'undefined' || window.DriveDeckDesktop?.worker) return r.set('info', window.DriveDeckDesktop?.worker ? 'Uses your Mac’s model (through the mesh)' : '—', '');
+    const f = await LLM.fit(), ol = await LLM.ollama(), where = 'Settings › Assistant › Language model';
+    const pool = f.next ? ` With another Mac in a pool, ${f.next.name} (about ${f.next.need} GB together) would answer better.` : '';
+    if (!f.best) return r.set('info', `${f.gb} GB of memory is too little for a local model: add your Claude key, or pool this Mac with another.${pool}`, where);
+    if (ol.models.includes(f.best.id)) { if (!LLM.health?.ok && LLM.cfg().model !== f.best.id && !ol.models.includes(LLM.cfg().model)) LLM.useLocal(f.best.id); return r.set('done', `${f.best.name} runs on this Mac (${f.gb} GB): understanding, cards and building, private and free.${pool}`, where); }
+    const btns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
+    this.asked = true;
+    if (!ol.up) {
+      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}. Install Ollama (free), open it, then Check again.${pool}`, where);
+      btns('<button class="chip accent" data-sumodel="get">Get Ollama</button><button class="chip" data-sumodel="again">Check again</button><button class="chip" data-sumodel="skip">Later</button>');
+    } else {
+      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}: a ${f.best.size} download, then everything that needs a model runs here, private and free.${pool}`, where);
+      btns(`<button class="chip accent" data-sumodel="pull|${f.best.id}">Download ${esc(f.best.name)}</button><button class="chip" data-sumodel="skip">Later</button>`);
+    }
+    r.li.onclick = async e => {
+      const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; const [k, id] = b.dataset.sumodel.split('|');
+      if (k === 'get') return openExternal('https://ollama.com/download', 'https://ollama.com/download');
+      if (k === 'again') { r.li.onclick = null; return this.model(r); }
+      if (k === 'skip') { r.li.querySelector('.su-pick')?.remove(); return r.set('info', `Not yet: ${f.best.name} can be downloaded later.`, where); }
+      if (k === 'pull') { r.li.querySelector('.su-pick')?.remove(); r.set('work', `Downloading ${f.best.name}…`, where); r.progress(0);
+        try { await LLM.pull(id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); LLM.useLocal(id); r.set('done', `${f.best.name} runs on this Mac.${pool}`, where); }
+        catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}. Try again in ${where}.`, where); } }
+    };
   },
   close(greet) {
     store.set('setupDone', this.version || 'v0');

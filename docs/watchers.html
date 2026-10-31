@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat, Cards and Watchers</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb; --ok:#0f8a4b; --mid:#b7791f; --no:#c2262e; --vio:#7c3aed; --panel:#0f1218; --pink:#fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; --vio:#a78bfa; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f2646b; --vio:#a78bfa; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:27px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 10px; padding-top:8px; border-top:1px solid var(--line); } h3 { font-size:16px; margin:18px 0 6px; }
+  .mut { color:var(--mut); } a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:14px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); } th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  .wrap { overflow-x:auto; } .toc { columns:2 260px; padding-left:18px; }
+  /* the mockup */
+  .mock { background:#0d1016; color:#e8eaee; border-radius:16px; border:1px solid #262b36; overflow:hidden; margin:14px 0; }
+  .mock-top { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #262b36; font-size:14px; flex-wrap:wrap; }
+  .mock-top b { font-size:16px; } .tab { padding:4px 10px; border-radius:999px; background:#1b2030; color:#b8c0d0; font-size:13px; } .tab.on { background:#2b6cff; color:#fff; }
+  .mock-body { display:grid; grid-template-columns: 1fr 300px; min-height:460px; }
+  .mock-graph { position:relative; border-right:1px solid #262b36; overflow:hidden; } .mock-graph svg { width:100%; height:100%; min-width:520px; display:block; }
+  .mock-side { padding:12px; font-size:13px; display:flex; flex-direction:column; gap:10px; overflow:auto; }
+  .mock-side h4 { margin:0 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#8f99ab; }
+  .ev { padding:6px 8px; border-radius:8px; background:#151a24; } .ev i { font-style:normal; color:#8f99ab; font-size:12px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .g { background:#34c47c; } .y { background:#e0a84a; } .r { background:#f2646b; } .s { background:#6b7280; }
+  .lanes { padding:12px 14px; border-top:1px solid #262b36; font-size:12px; }
+  .lane { display:grid; grid-template-columns:150px 1fr 70px; gap:8px; align-items:center; margin:5px 0; }
+  .bar { height:16px; border-radius:6px; background:#1b2030; position:relative; overflow:hidden; } .bar span { position:absolute; top:0; bottom:0; border-radius:6px; }
+  @media (max-width:820px) { .mock-body { grid-template-columns:1fr; } .mock-graph { border-right:0; border-bottom:1px solid #262b36; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Talking freely, cards everywhere, and watchers</h1>
+<p class="mut">Design for discussion, 31 October 2026. Nothing here is built yet. It builds on the language model built into StudioGen (gpt-oss), agent tasks, the agent browser, Workers, the mesh and StudioGBee. Section 9 lists the questions to settle before building.</p>
+<ol class="toc">
+  <li><a href="#chat">Talking freely with the assistant</a></li>
+  <li><a href="#cards">Answers as cards, wherever you ask</a></li>
+  <li><a href="#camera">The camera widget's own on/off</a></li>
+  <li><a href="#others">Watchers: what similar apps do</a></li>
+  <li><a href="#watch">Watchers: the design</a></li>
+  <li><a href="#make">Making a watcher, the friendly way</a></li>
+  <li><a href="#where">Where watchers run: this Mac, Workers, the feed</a></li>
+  <li><a href="#limits">Limits, manners and safety</a></li>
+  <li><a href="#phases">Phases and questions</a></li>
+</ol>
+
+<h2 id="chat">1. Talking freely with the assistant</h2>
+<p>Today, what you say is matched to a command or a task; if nothing matches, the model only <i>picks</i> a command, and otherwise you get “Sorry, I didn't catch that”. With gpt-oss on the Mac, anything else can simply be a conversation, in the Assistant widget, on Stage (the 3D assistant speaks and gestures) and on the Agent and home screens.</p>
+<h3>One conversation, with tools</h3>
+<pre>
+what you say ──► 1. exact phrases and task wordings (instant, as now: “next slide”, “what's my day”)
+              └► 2. otherwise the model, with the conversation so far and a list of what it can do
+                     answers with ONE of:
+                       { "do": "task",    "id": "cal.today", "inputs": { "day": "Monday" } }   → run it, its card in the chat
+                       { "do": "command", "id": "info.weather" }                              → run it, its card in the chat
+                       { "do": "script",  "name": "Keynote" }                                 → start it (asks first on Stage)
+                       { "do": "watch",   "draft": { … } }                                    → offer a watcher (section 6)
+                       { "do": "reply",   "text": "…" }                                       → just talk
+</pre>
+<ul>
+<li><b>The same rules as now</b>: anything that sends, books, posts or removes still asks first; private screens stay private; while driving, answers stay short and nothing distracting shows.</li>
+<li><b>It knows what you're looking at</b>: the last few cards and their items (“tell me more about the second mail”, “reply to her saying I'll call”), the slide on Stage, the screen that's open. A follow-up refers back without repeating names.</li>
+<li><b>Memory</b>: the conversation since you last went quiet for 15 minutes (then a one-line summary is kept); “forget that” clears it. It stays on the device; with Claude chosen, it's sent to Claude only for that turn.</li>
+<li><b>Speaking while it thinks</b>: the built-in engine will stream words as they come; the reply voice speaks sentence by sentence (Phonon already plays in pieces), the avatar's lips and gestures follow, Stage shows captions. A first word in about a second, not after the whole answer.</li>
+<li><b>Phones</b>: DriveGen talks to the Mac's model (as now for cards); on mobile data a short answer is still quick, since only text travels.</li>
+<li><b>Where it shows</b>: the Assistant widget becomes a chat (your words, its words, cards inline); the Agent screen gets the same thread above the cards; on Stage the reply is spoken with captions and cards float beside the avatar (Peek).</li>
+</ul>
+<p class="mut">How others do it: ChatGPT, Claude and Gemini apps decide between answering and calling a tool in one model call (function calling); voice assistants (Alexa, Siri) keep fixed intents first and fall back to an LLM only recently. The proposal does both: fixed phrases stay instant and predictable, the model handles the rest.</p>
+
+<h2 id="cards">2. Answers as cards, wherever you ask</h2>
+<p>Today a command such as weather opens its own screen, except on the Agent home and on Stage (Peek turns a few screens into cards). Proposed:</p>
+<ul>
+<li>Every command that answers something (weather, time, ETA, battery, messages, who's around, what's playing, a route summary) gives a <b>card</b>: the same card format as tasks (headline, items, a picture where it helps: the weather's hourly strip, the route's map thumbnail), spoken as now.</li>
+<li>The card appears where you are: the Agent and home screens (big), the Assistant chat, Stage (beside the avatar). A <b>Open</b> button goes to the full screen when you want it; opening a screen only happens by tapping or saying “open the weather”.</li>
+<li>Cards go on the timeline like task results, so “what was the weather this morning” finds it.</li>
+</ul>
+
+<h2 id="camera">3. The camera widget's own on/off</h2>
+<p>A small switch on the widget itself (and “camera off”, “camera on” by voice): off stops the camera (the light goes out) and shows a still “Camera off · tap to turn on”; on asks for the camera if needed (the permission sheet if it was turned down). The widget stays where it is; no editing the layout. Each camera user (vision, people tracking, mocap) already takes and releases the one shared stream, so off is simply this widget releasing it.</p>
+
+<h2 id="others">4. Watchers: what similar apps do</h2>
+<div class="wrap"><table>
+<tr><th>App</th><th>How you say what to watch</th><th>How it checks</th><th>How it tells you</th><th>Good ideas to take</th></tr>
+<tr><td><b>Distill.io</b></td><td>Browser extension: point and click an element, or the whole page</td><td>In your own browser (signed-in pages work) or their cloud; every few seconds to daily</td><td>Pop-up, sound, email, SMS, push</td><td>Point-and-click; runs where you're signed in; conditions (“contains”, “number above”)</td></tr>
+<tr><td><b>Visualping</b></td><td>Draw a box on a screenshot</td><td>Their cloud, screenshots compared; text or visual</td><td>Email, Slack, Teams; an AI summary of what changed and whether it matters</td><td>“Only tell me if it's important”, judged by AI; visual mode for pages with no clean text</td></tr>
+<tr><td><b>changedetection.io</b></td><td>URL plus CSS/XPath/JSON filters; “browser steps” to log in or click first</td><td>Self-hosted (Docker), plain fetch or a real browser</td><td>Any service through Apprise</td><td>Self-hosted in Docker (our Workers); steps before reading; restock and price detection; ignore-text filters</td></tr>
+<tr><td><b>Browse AI</b></td><td>Record a “robot” by clicking through the site</td><td>Their cloud, on a schedule; lists extracted as rows</td><td>Email, webhooks, Sheets</td><td>Lists as rows, “new rows only”; record once, monitor forever</td></tr>
+<tr><td><b>IFTTT / Zapier</b></td><td>Pick a service trigger (new tweet, new mail)</td><td>The services' APIs</td><td>Any action</td><td>Ready-made triggers per service; no page scraping when an official feed exists</td></tr>
+<tr><td><b>RSS readers</b> (Feedly)</td><td>A site's feed</td><td>Polling feeds</td><td>A feed of cards; AI priorities (Feedly Leo)</td><td>The feed and digest as the main way to read; AI ranking of what matters</td></tr>
+<tr><td><b>Slack / Outlook / Teams</b> themselves</td><td>Keywords, VIP senders</td><td>Built in</td><td>Notifications</td><td>Rules people already know (“from Priya”, “mentions me”, “contains invoice”)</td></tr>
+</table></div>
+<p>What none of them combine, and we can: <b>signed-in pages in your own browser profiles</b> (Distill does this only while your browser is open), <b>always-on Workers you own</b> (changedetection.io's strength, but with sign-ins), <b>a local model judging and summarising</b> (Visualping's AI, but private and free), and the results arriving as <b>cards, spoken by the assistant</b> on every device.</p>
+
+<h2 id="watch">5. Watchers: the design</h2>
+<p>A <b>watcher</b> is a task that runs on its own, again and again, and tells you only when something it's watching for happens.</p>
+<h3>What it can watch for</h3>
+<div class="wrap"><table>
+<tr><th>Kind</th><th>Example</th><th>How it decides</th></tr>
+<tr><td><b>New items in a list</b></td><td>New Slack mentions, new Teams chats, new mail from Priya, new posts by an X account, new job postings</td><td>Each row gets an identity (a hash of its stable words: sender, title, time); rows not seen before are new. Never re-reports the same item.</td></tr>
+<tr><td><b>Changes in a part of a page</b></td><td>A policy page, a status page, a product description</td><td>The text of the chosen part, compared with last time (ignoring whitespace, dates, counters and parts you mark “ignore”); the difference highlighted</td></tr>
+<tr><td><b>A value crossing a line</b></td><td>Price below 500, stock above 0, a delivery status changing to “Out for delivery”</td><td>The number or word read each time and compared with your condition; tells once when it crosses, again only after it crosses back</td></tr>
+<tr><td><b>Words appearing</b></td><td>“sold out” gone, “applications open”, your name mentioned</td><td>Contains / doesn't contain, in the chosen part</td></tr>
+<tr><td><b>Something that matters, judged by the model</b></td><td>“Tell me if anything in my mail needs me today”, “only important changes”</td><td>The new items or the change go to the model with your rule; it answers yes/no with a one-line reason. Used after the cheap checks above, so the model runs only when something actually changed.</td></tr>
+<tr><td><b>A visual change</b> (fallback)</td><td>Pages with no usable text (a chart, a map)</td><td>A screenshot of the area compared with the last one; tells above a threshold</td></tr>
+</table></div>
+<h3>How it checks</h3>
+<ul>
+<li><b>Polling</b> (any website): on a schedule (every 5 minutes to daily, with a little randomness so it isn't robotic), it opens the page in the agent browser (its container, so sign-ins work), runs the steps (search, click a tab), reads the part, decides, closes. Uses the same steps, sites notes and selectors as tasks; uses a browser only while checking; respects the 3-at-once limit (tasks first, watchers wait).</li>
+<li><b>Live</b> (pages that update themselves: Slack, Teams, WhatsApp, Outlook, X): the page stays open in a hidden browser and the bridge watches it (a DOM observer); new rows are noticed within seconds, with no reloading and far less load on the site. Costs ~150–300 MB per open page, so live watchers belong on Workers (or a Mac with memory to spare).</li>
+<li><b>Official feeds first</b>: where a site has RSS, an email notification you could forward, or a public JSON, a watcher can read that instead of the page (the app suggests it when it finds a feed link).</li>
+<li><b>When something's wrong</b>: signed out → it pauses, tells you once (“Slack watcher needs you to sign in: Sign in from here”); a robot check → pauses and asks you to answer it; the page changed so much the part is gone → it tells you and offers to pick the part again. Failures back off (5 min, 15, 1 h), never hammer.</li>
+</ul>
+<h3>A watcher, as stored</h3>
+<pre>{ "format": "studiogen-watcher", "version": 1,
+  "watcher": { "name": "Acme price", "site": "https://shop.example/acme-widget",
+    "steps": [],                                  // optional: the same steps as a task (sign-in container, clicks, searches)
+    "read": "[data-test=price]",                  // the part (picked, never typed by hand unless you want to)
+    "kind": "value", "condition": "below 500",    // new | changes | value | contains | ask | visual
+    "ignore": [".ad", "time"], "every": "30m", "quiet": "22:00-07:00",
+    "tell": { "card": true, "speak": "important", "phone": true, "digest": "18:00" },
+    "runOn": "worker:watch-1",                    // this Mac, a Worker, or any of mine
+    "ask": "" } }                                 // the model's rule, for kind "ask" or as a final filter</pre>
+<h3>What you get</h3>
+<ul>
+<li>A <b>watch card</b> on the Agent screen (and the timeline): what changed, the new items, the old → new value, a thumbnail of the area; buttons Open page, Mute this watcher for a day, Not important (teaches the filter).</li>
+<li>A small <b>notification</b> on the home screen and Stage (a toast with the headline, not a screen change), a push to DriveGen (through StudioGBee when the phone is away), spoken only for what you marked important, never while presenting unless you allow it.</li>
+<li>A <b>digest</b> instead of single notes, if you prefer: “Since this morning: 6 new Slack mentions (2 for you), Acme price down to 489, the policy page changed its refund section”, written by the model and read by the assistant.</li>
+<li>A <b>Watchers</b> list: each one's last check, last change, next check, where it runs, on/off, edit, “check now”.</li>
+</ul>
+
+<h2 id="make">6. Making a watcher, the friendly way</h2>
+<ol>
+<li><b>Watch this</b>: in the agent browser (or Sign in from here on a Worker), open the page and tap <b>Watch something here</b>. Tap the part (the bridge's picker, as in Teach me). The app looks at what you tapped and suggests the kind: a list → “new items”; a number → “price or value”; a block of text → “changes”; then shows what it reads <i>now</i> (“Price: 529”) so you can see it picked the right thing. Choose how often, how to be told, where to run. Done in three taps.</li>
+<li><b>Say it</b>: “watch the Acme widget page and tell me when it's under 500”, “keep an eye on Slack for anything from Priya”, “tell me when my parcel is out for delivery”. The model drafts the watcher (the build prompt gets a watcher section); the app opens the page, finds the part, shows the current value and asks “Watch this every 30 minutes?”</li>
+<li><b>Templates</b> for the common ones, no picking needed: New Slack mentions · New Teams chats · New mail from someone · New mail matching words · New WhatsApp messages from someone · New posts by an X account · Page changes · Price drop · Back in stock · New job postings on a careers page · A delivery status.</li>
+<li><b>Check it before it runs</b>: a check run shows what it reads now, what it would report if the page changed (it simulates one), and how noisy the part has been (it reads twice a minute apart: if it differs already, it suggests ignoring the changing bits, such as a clock or an ad).</li>
+<li><b>Fix it later</b>: on a failed check, <b>Show me</b> opens the page where it stopped and you tap the part again (as for tasks today).</li>
+</ol>
+
+<h2 id="where">7. Where watchers run: this Mac, Workers, the feed</h2>
+<pre>
+ Watch Worker (OrbStack, its own sign-ins)        StudioGen on your Mac                    DriveGen (phone)
+   live: Slack, Teams, WhatsApp, X pages            the feed: watch cards, digest            notification + card
+   polling: websites on schedules                   Watchers list, editing                    (through StudioGBee
+   the model: your Mac's (through the mesh)    ──►  the model (gpt-oss, built in)       ──►    when away)
+   events: sealed, through the mesh / bee           notifications on home, Stage
+</pre>
+<ul>
+<li><b>Any StudioGen can run watchers</b>; a <b>Watch Worker</b> is simply a Worker you assign them to. Making one: Mesh › Workers › + New Worker › “for watching” (OrbStack recommended: always on, its own sign-ins, can keep pages open).</li>
+<li>A worker sends <b>events</b> (small: watcher, kind, items, a thumbnail) to your StudioGens and devices over the mesh, sealed; if they're offline, StudioGBee keeps them and DriveGen gets a push. The feed on each device shows them as cards.</li>
+<li>The <b>model</b> (for “ask” rules and digests) is the Mac's, through the mesh as now; a watcher that only compares text needs no model at all.</li>
+<li>Watchers move between machines with a tap (the definition travels; sign-ins don't: signing in on the new one is part of moving).</li>
+</ul>
+
+<h2 id="limits">8. Limits, manners and safety</h2>
+<ul>
+<li><b>Sites' rules</b>: watchers check gently (minimum intervals per site, randomness, one page at a time per site), reuse your own sign-in, and never solve robot checks themselves. Some sites (X, LinkedIn) forbid automated reading in their terms; the app says so on those templates and suggests low frequency or official notifications.</li>
+<li><b>Only my devices</b>: watchers of signed-in pages are private (like tasks); what they report goes only to your devices. A watcher of a public page can be shared in the mesh like a task.</li>
+<li><b>No passwords</b>: as for tasks, never recorded or typed by a watcher; signing in stays yours.</li>
+<li><b>Resources</b>: on a 24 GB Mac with gpt-oss loaded, a few polling watchers are fine; live pages and many watchers go to a Worker. The Watchers list shows memory and the load.</li>
+</ul>
+
+<h2 id="phases">9. Phases and questions</h2>
+<table>
+<tr><th>Phase</th><th>What</th></tr>
+<tr><td>1</td><td>Answers as cards everywhere; the camera widget's on/off</td></tr>
+<tr><td>2</td><td>Talking freely: the tool-or-reply model call, conversation memory, streaming speech, the chat in the Assistant widget and the Agent screen</td></tr>
+<tr><td>3</td><td>Watchers on this Mac: polling, the kinds (new / changes / value / contains / ask), watch cards, notifications, the Watchers list, Watch this, templates for Slack/Teams/Outlook/WhatsApp</td></tr>
+<tr><td>4</td><td>Watchers on Workers: live pages, events through the mesh and StudioGBee, phone pushes, digests</td></tr>
+<tr><td>5</td><td>Watchers by voice (the model drafts them), visual mode, X and other templates</td></tr>
+</table>
+<h3>Questions for you</h3>
+<ol>
+<li>Talking freely: should it be on everywhere, or only when you start with the wake word / open the chat (so a meeting's chatter isn't answered on Stage)?</li>
+<li>Memory: keep only the current conversation (forgotten after 15 quiet minutes), or remember facts you tell it across days (“my manager is Priya”) on this device?</li>
+<li>Cards: should answering commands never open their screen (only Open on the card), or open the screen when you're already on the dashboard?</li>
+<li>Watch notifications: a card and a quiet toast by default, spoken only for “important”, a daily digest at a time you choose: is that right?</li>
+<li>Which first templates matter most to you: Slack mentions, Teams chats, Outlook from someone, WhatsApp from someone, X account posts, page changes, price/stock?</li>
+<li>Watch Workers: one dedicated Worker for all watchers, or a choice per watcher?</li>
+<li>X (Twitter): read your logged-in timeline/lists despite its terms (low frequency, your account), or only public profiles, or skip?</li>
+</ol>
+</main>
+</body>
+</html>

@@ -170,6 +170,9 @@ const BUILTINS = {
   videoPlay: { group: 'Media', name: 'Play the video', run: (v, say) => act('video.play', '', say, 'Playing the video.') },
   videoPause: { group: 'Media', name: 'Pause the video', run: (v, say) => act('video.pause', '', say, 'Video paused.') },
   // Camera & objects (js/vision.js)
+  memRemember: { group: 'Memory', name: 'Remember', run: async (v, say) => { const r = await Memory.remember(v.fact || v.text); say(r?.ok ? 'Okay, I’ll remember that.' : `I didn’t keep that: ${r?.why || 'memory is off'}.`); } },
+  memForget: { group: 'Memory', name: 'Forget', run: async (v, say) => { const g = (await Memory.forget(v.who || '')) || []; const l = g.gone || g; say(l.length ? `Forgotten${l.length > 1 ? `: ${l.length} things` : `: ${l[0]}`}.` : 'There was nothing to forget.'); } },
+  memRecall: { group: 'Memory', name: 'What I remember', run: async (v, say) => { const l = await Memory.about(v.who || ''); say(l.length ? `${v.who && !/^me$/i.test(v.who) ? `About ${v.who}: ` : 'I remember: '}${l.slice(0, 5).join('. ')}.` : 'I don’t remember anything about that yet.'); } },
   cameraOff: { group: 'Camera', name: 'Camera off', run: (v, say) => { CamSwitch.set(false); say('Camera off.'); } },
   cameraOn: { group: 'Camera', name: 'Camera on', run: (v, say) => { CamSwitch.set(true); say('Camera on.'); } },
   whatSee: { group: 'Camera', name: 'What does the camera see?', run(v, say) { if (settings.detAnswer && settings.detOn) Voice.show('Looking…', 'Camera · on this device'); Vision.describe().then(t => say(t)); } },
@@ -311,6 +314,9 @@ const DEFAULT_COMMANDS = [
   { id: 'radio.stop', name: 'Stop the radio', say: ['(pause|stop|turn off|switch off|mute) [the] radio', 'radio off'], do: { type: 'builtin', fn: 'radioStop' } },
   { id: 'radio.list', name: 'Show the radio stations', say: ['(show|open|list) [the|my] [radio] stations', 'which stations'], do: { type: 'builtin', fn: 'radioStations' } },
   { id: 'vision.what', name: 'What do you see?', say: ['what (do|can) you see', '(what’s|what is) (around|ahead|in front of) [me|us]', 'describe [the] (road|scene|view|surroundings)', '(what’s|what is) on [the] camera', 'what (is|are) in front of [me|us]'], do: { type: 'builtin', fn: 'whatSee' } },
+  { id: 'memory.remember', name: 'Remember something', say: ['remember that {fact}', 'please remember that {fact}', 'keep in mind that {fact}'], /* not “remember {fact}”: “remember where I parked” is a task */ do: { type: 'builtin', fn: 'memRemember' } },
+  { id: 'memory.forget', name: 'Forget something', say: ['forget that', 'forget what i (just|) said', '(forget|delete) (what you know|everything you know) about {who}', 'forget about {who}'], do: { type: 'builtin', fn: 'memForget' } },
+  { id: 'memory.recall', name: 'What do you remember?', say: ['what do you (remember|know) about {who}', 'what do you remember', 'what do you know about me'], do: { type: 'builtin', fn: 'memRecall' } },
   { id: 'camera.off', name: 'Turn the camera off', say: ['(turn|switch) [the] camera off', '(turn|switch) off [the] camera', 'camera off', 'stop the camera'], do: { type: 'builtin', fn: 'cameraOff' } },
   { id: 'camera.on', name: 'Turn the camera on', say: ['(turn|switch) [the] camera on', '(turn|switch) on [the] camera', 'camera on', 'start the camera'], do: { type: 'builtin', fn: 'cameraOn' } },
   { id: 'vision.alertsOn', name: 'Turn object alerts on', say: ['(turn on|enable|start) [the] (object|camera) (alerts|warnings)', '(warn|alert) me about (objects|people|pedestrians)'], do: { type: 'builtin', fn: 'alertsOn' } },
@@ -593,6 +599,12 @@ const Commands = {
   },
 
   /** Hear/typed text → action, with a spoken reply. */
+  /** Words said that a keyword command doesn't use, filler aside: “acme”, “review” in “what day is the Acme review”. */
+  unused(raw, cmd) {
+    const vocab = new Set(plain([].concat(cmd.say || []).join(' ').replace(/[()|[\]{},]/g, ' ')).split(' '));
+    const filler = /^(what|whats|what's|is|it|its|the|a|an|me|my|i|im|you|please|now|today|tonight|like|tell|show|going|to|be|will|do|does|can|could|there|here|out|outside|right|current|currently|again|and|so|then|ok|okay|hey|any|some|of|for|on|in|at|how|much|many|this|that|are|was)$/;
+    return plain(raw).split(' ').filter(w => w.length > 2 && !vocab.has(w) && !filler.test(w));
+  },
   run(raw, spoken, alts = []) {
     // “Hey StudioGen, …”: the wake word is taken off (it also lets what follows be answered freely, js/chat.js)
     const w = typeof Chat !== 'undefined' ? Chat.wake(raw) : null;
@@ -620,8 +632,9 @@ const Commands = {
     this.meshTried = null;
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
-    // talking freely: nothing matched, or only loosely (“tell me a fact” isn't “tell Priya that …”): the model acts or answers
-    if ((!r.cmd || /^(loose|fuzzy)$/.test(r.how || '')) && typeof Chat !== 'undefined' && Chat.allowed(spoken) && Intent.can()) return Chat.turn(raw, say);
+    // talking freely: nothing matched, only loosely (“tell me a fact” isn't “tell Priya that …”), or by keywords with words the
+    // command doesn't use (“what day is the Acme review” isn't today's date): the model acts or answers (it knows the commands)
+    if ((!r.cmd || /^(loose|fuzzy)$/.test(r.how || '') || ((r.cmd.match === 'keywords' || r.how === 'keywords') && this.unused(raw, r.cmd).length)) && typeof Chat !== 'undefined' && Chat.allowed(spoken) && Intent.can()) return Chat.turn(raw, say);
     if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();
     if (r.how === 'loose' && r.conf < LOOSE_RUN) {
       const ask = () => { this.pending = { r, raw, at: Date.now() }; return say(`Did you mean “${r.echo}”?`, null, { ask: true }); };

@@ -1830,3 +1830,5 @@ table.bench small{color:var(--text-2)}
 .ag-chat p.you{align-self:flex-end;background:var(--accent,#3b82f6);color:#fff;border-bottom-right-radius:6px}
 .ag-chat p.it{align-self:flex-start;background:var(--surface-2);color:var(--text);border-bottom-left-radius:6px}
 .ag-chat .link-btn{align-self:center;font-size:13px}
+/* Settings › Assistant › Memory (js/memory.js) */
+.mem-list{max-height:46vh;overflow:auto;margin:8px 0}.mem-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}

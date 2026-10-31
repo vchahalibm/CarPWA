@@ -2,6 +2,29 @@
 
 Things started or decided but not finished, and things to perform together later. Newest first within each section. Tick them off (or delete them) as they're done.
 
+## To try after all the phases (chat, cards, memory, watchers: started 31 Oct)
+
+Kept as each phase lands; try them together when the phases are done. Tested parts are in each phase's commit; these weren't (they need your devices, accounts or time).
+
+**Phase 1: cards everywhere, the camera switch**
+- [ ] On Stage with a real script running: “what's the weather” shows a card beside the assistant, the presentation carries on.
+- [ ] The camera widget on your Stage layout: **Camera off** button, then “camera on” by voice; people tracking stops and comes back.
+- [ ] On DriveGen (iPhone): a command's screen pops up as a card instead of switching.
+
+**Phase 2: talking freely**
+- [ ] On Stage with the microphone and the natural voice: talk freely after tapping the mic; the reply starts speaking before it's finished, the avatar's lips follow.
+- [ ] Conversation mode (always listening): room chatter isn't answered; “Hey StudioGen, …” is, and follow-ups for 30 s. (Here the reply comes whole, not streamed.)
+- [ ] DriveGen talking freely through the Mac's model (on Wi-Fi and on mobile data).
+- [ ] Streaming with Ollama and with Claude as the model (only the built-in engine was tried).
+
+**Phase 3: memory**
+- [ ] The first memory use downloads EmbeddingGemma (318 MB) in the real app (tested with the file already in place).
+- [ ] A day of use: does it learn the right things? Settings › Assistant › Memory: edit, pin, forget, forget everything.
+- [ ] Your phone using the Mac's memory (“what do you remember about …” on the iPhone).
+- [ ] The daily tidy (it runs after a day; not seen yet).
+
+**From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
+
 ## To perform (with you)
 
 - [ ] **Phonon in the apps, on your iPhone and iPad** (built 24 Oct): after the update the setup screen appears (what's new, the voice downloading, the speed check). Then a few replies, a long one (“summarise my unread mail”), interrupting one, a conversation, and the assistant's lips. Measured here: Chrome on this Mac 8–9× faster than speech, StudioGen ~6.7× (7.1 s of speech in 1.3 s), first sound ~0.4 s for the first reply and ~30 ms after.

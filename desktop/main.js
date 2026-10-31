@@ -337,7 +337,17 @@ app.whenReady().then(async () => {
   }));
   // The built-in language model (desktop/llm.js): status, chat, download, use, remove
   ipcMain.handle('dd:llm', own((op, a) => ({ status: () => Builtin.status(), chat: () => Builtin.chat(a).catch(e => ({ error: e.message })),
+    embed: () => Builtin.embed(a).catch(e => ({ error: e.message })),
     stream: () => Builtin.chat({ ...a, onChunk: t => mainWin?.webContents.send('dd:llm-chunk', { rid: a.rid, t }) }).catch(e => ({ error: e.message })), /* talking: the words sent as they come */ download: () => Builtin.download(a).then(() => true, e => ({ error: e.message })), use: () => { try { return Builtin.use(a || {}); } catch (e) { return { error: e.message }; } }, remove: () => Builtin.remove(a), unload: () => Builtin.unload(), cancel: () => Builtin.cancel() })[op]?.() ?? null));
+  // Memory (js/memory.js): one file in StudioGen's folder, locked with the Keychain (safeStorage); never sent anywhere
+  const memFile = () => path.join(app.getPath('userData'), 'memory.bin');
+  ipcMain.handle('dd:memory', own((op, data) => {
+    const { safeStorage } = require('electron');
+    if (op === 'read') { try { const b = fs.readFileSync(memFile()); return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(b) : b.toString('utf8'); } catch { return null; } }
+    if (op === 'write') { const b = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(String(data)) : Buffer.from(String(data)); fs.writeFileSync(memFile() + '.tmp', b); fs.renameSync(memFile() + '.tmp', memFile()); return true; }
+    if (op === 'wipe') { try { fs.rmSync(memFile()); } catch {} return true; }
+    return null;
+  }));
   // Light Workers (js/workers.js): create, start, stop, show, remove; only from StudioGen's own page
   ipcMain.handle('dd:light', own((op, a) => ({ list: () => LightWorkers.list(), create: () => LightWorkers.create(a || {}), start: () => LightWorkers.start(a), stop: () => LightWorkers.stop(a), show: () => LightWorkers.show(a), remove: () => LightWorkers.remove(a?.id, a?.data) })[op]?.() ?? null));
   // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards

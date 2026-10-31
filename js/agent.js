@@ -59,7 +59,7 @@ const AGENT_TASKS = [
       card('These are search results for “{topic}”. Headline: how many and the newest. Items: sender and subject; detail: date and one line on what it says.')] },
   { id: 'mail.find', group: 'Mail', name: 'Find a detail in my mail', runs: 'mac', about: 'Searches, opens the best match and pulls out what you asked for (a booking reference, an address…)',
     params: { what: { ask: 'What should I look for?' } },
-    examples: ['find {what} in my mail', 'find {what} in my email', 'look up {what} in my mail', 'what is my {what}'],
+    examples: ['find {what} in my mail', 'find {what} in my email', 'look up {what} in my mail', 'what is my {what} in my mail', 'search my mail for {what}'], /* “what is my {what}” alone took any question (“what is my dog called”) */
     steps: [outlookOpen('/mail/inbox'), { do: 'agent.type', value: 'Search', args: ['{what}', 'enter'] }, { do: 'wait', value: '3' },
       { do: 'agent.click', value: '', args: ['sel=[role="listbox"] [role="option"]'] }, { do: 'agent.wait', value: MAIL_BODY.split('||')[0], args: ['ms=8000'] }, { do: 'agent.read', value: MAIL_BODY, as: 'read' },
       card('Find {what} in this email. Headline: the answer itself (the number, code, date or place), or that it is not there. Items: other useful details next to it.')] },

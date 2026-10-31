@@ -12,6 +12,8 @@ const path = require('path'), fs = require('fs'), https = require('https'), os =
 const MODELS = { // what the page offers (js/llm.js LLM_MODELS ids)
   'gpt-oss:20b': { name: 'gpt-oss 20B', files: ['https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-MXFP4.gguf'], harmony: true },
   'gpt-oss:120b': { name: 'gpt-oss 120B', files: ['https://huggingface.co/ggml-org/gpt-oss-120b-GGUF/resolve/main/gpt-oss-120b-MXFP4.gguf'], harmony: true },
+  // memory (js/memory.js): Google's EmbeddingGemma 300M, text → 768 numbers, so facts are found by meaning
+  'embeddinggemma': { name: 'EmbeddingGemma 300M', files: ['https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf'], embed: true },
 };
 const SEQS = 3, CTX = 16384, IDLE = 15 * 60000;
 
@@ -19,6 +21,7 @@ module.exports = ({ app, send }) => {
   const dir = () => path.join(app.getPath('userData'), 'models'), cfgFile = () => path.join(app.getPath('userData'), 'builtin-model.json');
   const cfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')); } catch { return {}; } };
   const keep = c => fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 2));
+  let embModel = null, embCtx = null, embLoading = null;
   let lib = null, llama = null, model = null, ctx = null, loading = null, loadedPath = '', idle = null, busy = 0, downloading = null, why = '', current = null, cancelled = false;
   const waiters = [];
 
@@ -107,7 +110,7 @@ module.exports = ({ app, send }) => {
         if (fs.statSync(`${f}.part`).size !== sizes[i]) throw new Error('The download is incomplete: try again (it carries on where it stopped)');
         fs.renameSync(`${f}.part`, f); doneBytes += sizes[i];
       }
-      send({ id, done: total, total, ok: true }); use({ id }); return fileOf(id);
+      send({ id, done: total, total, ok: true }); if (!m.embed) use({ id }); return fileOf(id); // the embedding model isn't a chat model
     } finally { downloading = null; }
   }
   function req(url, headers = {}, hops = 0) {
@@ -138,7 +141,17 @@ module.exports = ({ app, send }) => {
       downloading, models: Object.entries(MODELS).map(([id, m]) => ({ id, name: m.name, downloaded: !!present(id), ollama: !!ollamaCopy(id) })) };
   }
   async function remove(id) { const c = cfg(); if (c.id === id && c.source === 'download') { await unload(); keep({}); } for (const f of fs.readdirSync(dir()).filter(f => f.startsWith(path.basename(fileOf(id)).replace(/-00001-of-.*|\.gguf$/, '')))) fs.rmSync(path.join(dir(), f)); return true; }
+  /** Embeddings for memory: texts → vectors (EmbeddingGemma's own prefixes for what's searched and what's kept). Downloads the
+      model the first time (318 MB). Stays loaded (small); freed with the chat model's idle unload. */
+  async function embed({ texts = [], kind = 'doc' } = {}) {
+    const f = present('embeddinggemma') || await download('embeddinggemma');
+    if (!embCtx) embLoading ||= (async () => { const { getLlama } = await L(); llama ||= await getLlama({ gpu: 'auto', build: 'never' }); embModel = await llama.loadModel({ modelPath: f }); embCtx = await embModel.createEmbeddingContext(); })().finally(() => { embLoading = null; });
+    if (embLoading) await embLoading;
+    const pre = kind === 'query' ? 'task: search result | query: ' : 'title: none | text: ', out = [];
+    for (const t of texts.slice(0, 64)) out.push(Array.from((await embCtx.getEmbeddingFor(pre + String(t).slice(0, 2000))).vector).map(x => +x.toFixed(5)));
+    return out;
+  }
   /** Stop the download (what's there is kept: the next one carries on from it). */
   function cancel() { if (!downloading) return false; cancelled = true; try { current?.destroy(); } catch {} return true; }
-  return { status, chat, download, use, remove, unload, cancel };
+  return { status, chat, download, use, remove, unload, cancel, embed };
 };

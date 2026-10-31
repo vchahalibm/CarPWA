@@ -8,7 +8,7 @@
    - One model call: “ACTION {json}” → it's done (acting ones ask first, as always); anything else is the reply, streamed:
      shown as it comes and spoken sentence by sentence (the avatar's lips follow the voice).
    - It knows: the conversation since 15 quiet minutes, the latest cards, the screen, the time and your place; memory
-     across days comes with js/memory.js (phase 3).
+     across days from js/memory.js (picked for each turn; learned when it pauses).
    Loaded after agent.js.
    ============================================================ */
 const Chat = {
@@ -26,24 +26,27 @@ const Chat = {
   allowed(spoken) { if (!this.on()) return false; if (!spoken || !(typeof Convo !== 'undefined' && Convo.active)) return true; return Date.now() - this.woke < 30000; },
   /** The conversation now: forgotten after 15 quiet minutes, at most the last 16 messages (memory keeps more, phase 3). */
   convo() { if (Date.now() - this.at > 15 * 60000) this.hist = []; return this.hist.slice(-16); },
-  push(role, content) { this.convo(); this.hist.push({ role, content: String(content).slice(0, 2000), at: Date.now() }); this.at = Date.now(); if (typeof current !== 'undefined' && current === 'agent' && typeof AgentHome !== 'undefined') AgentHome.draw(); },
-  forget() { this.hist = []; this.at = 0; },
+  push(role, content) { this.convo(); this.hist.push({ role, content: String(content).slice(0, 2000), at: Date.now() }); this.at = Date.now();
+    /* when the conversation pauses for 3 minutes, memory learns from what's new in it (js/memory.js) */
+    clearTimeout(this.lt); this.lt = setTimeout(() => { const n = this.hist.filter(m => m.at > (this.learnedAt || 0)); this.learnedAt = Date.now(); if (n.length >= 2 && typeof Memory !== 'undefined') Memory.learn(n); }, 180000); if (typeof current !== 'undefined' && current === 'agent' && typeof AgentHome !== 'undefined') AgentHome.draw(); },
+  forget() { this.hist = []; this.at = 0; clearTimeout(this.lt); this.learnedAt = Date.now(); }, // nothing from it is learned either
 
   /** What the model is told about now. */
-  context(raw) {
+  async context(raw) {
     const cat = typeof Intent !== 'undefined' ? Intent.shortlist(raw, Intent.catalog()) : [];
     const scripts = typeof Scripts !== 'undefined' ? Scripts.all().slice(0, 15).map(s => `- script:${s.name}: present or run the script “${s.name}”`) : [];
     const cards = (typeof Agent !== 'undefined' ? Agent.feed().filter(c => c.status === 'done').slice(0, 3) : []).map(c => `- ${c.title}: ${c.headline}${(c.items || []).slice(0, 5).map(i => `\n  · ${[i.title, i.detail, i.when].filter(Boolean).join(' · ')}`).join('')}`).join('\n') || 'none';
     const screen = `${typeof current !== 'undefined' ? current : ''}${typeof Script !== 'undefined' && Script.running ? `, presenting “${Script.cur?.name}” step ${Script.i + 1}` : ''}${typeof Stage !== 'undefined' && Stage.on ? ' (Stage)' : ''}`;
-    return LLM.prompt('chat', { app: APP_NAME, now: new Date().toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+    const days = Array.from({ length: 8 }, (_, i) => { const x = new Date(Date.now() + i * 864e5); return `${x.toLocaleDateString('en-GB', { weekday: 'long' })} ${x.getDate()} ${x.toLocaleDateString('en-GB', { month: 'short' })}`; }).join(', '); /* the model's own day arithmetic isn't reliable */
+    return LLM.prompt('chat', { app: APP_NAME, days, now: new Date().toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
       place: typeof placeName === 'function' ? placeName().replace(/ \(default.*$/, '') : '', screen, cards,
-      memory: typeof Memory !== 'undefined' ? Memory.for(raw) : 'nothing yet',
+      memory: typeof Memory !== 'undefined' ? await Memory.for(raw).catch(() => 'nothing yet') : 'nothing yet',
       actions: [...cat.map(c => `- ${c.id}: ${c.name}${c.slots.length ? ` [${c.slots.join(', ')}]` : ''}`), ...scripts].join('\n') });
   },
 
   /** One turn: act, or talk (streamed, spoken as it comes). */
   async turn(raw, say) {
-    const system = this.context(raw), messages = [...this.convo().map(({ role, content }) => ({ role, content })), { role: 'user', content: raw }];
+    const system = await this.context(raw), messages = [...this.convo().map(({ role, content }) => ({ role, content })), { role: 'user', content: raw }];
     this.push('user', raw); Voice.show?.(`“${raw}”`, 'Thinking…');
     if (typeof Avatar !== 'undefined') Avatar.gesture('Think', 6);
     const live = !(typeof Convo !== 'undefined' && Convo.active); // a conversation plays replies through its own audio path: the whole reply at once there

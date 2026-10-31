@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     chat: o => ipcRenderer.invoke('dd:llm', 'chat', o),
     /** The same, with the words as they come: onChunk(rid, f) receives them for that request id. */
     stream: o => ipcRenderer.invoke('dd:llm', 'stream', o),
+    /** Memory's embeddings (EmbeddingGemma): { texts, kind: 'doc' | 'query' } → vectors, or { error }. */
+    embed: o => ipcRenderer.invoke('dd:llm', 'embed', o),
     onChunk: f => { const h = (e, m) => f(m); ipcRenderer.on('dd:llm-chunk', h); return () => ipcRenderer.removeListener('dd:llm-chunk', h); },
     download: id => ipcRenderer.invoke('dd:llm', 'download', id),
     use: o => ipcRenderer.invoke('dd:llm', 'use', o),
@@ -23,6 +25,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   },
   /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
+  /** Memory (js/memory.js): memory('read') → the JSON, memory('write', json), memory('wipe'); a file locked with the Keychain. */
+  memory: (op, data) => ipcRenderer.invoke('dd:memory', op, data),
   /** Permissions (js/perms.js): perm(op, kind), op 'status' | 'reset' | 'ask' | 'open', kind 'mic' | 'camera' | 'speech'. */
   perm: (op, kind) => ipcRenderer.invoke('dd:perm', op, kind),
   /** This computer: { memory (bytes), chip, cpus }. */

@@ -1234,7 +1234,7 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
-      ${typeof LLM !== 'undefined' ? btn('llm', 'Language model', esc(LLM.dl ? `Downloading ${Math.round(LLM.dl.done / LLM.dl.total * 100)}%` : LLM.biReady() ? `${LLM.bi.model.id} · built in` : LLM.health?.ok ? LLM.cfg().model : LINK_HOST ? 'Set up' : 'Your Mac’s')) + btn('chat', 'Talking freely', settings.chatOn === false ? 'Off' : esc(settings.wakeWord || `Hey ${APP_NAME}`)) + btn('prompts', 'Prompts (advanced)', `${Object.keys(store.get('prompts', {})).length || 'none'} changed`) : ''}
+      ${typeof LLM !== 'undefined' ? btn('llm', 'Language model', esc(LLM.dl ? `Downloading ${Math.round(LLM.dl.done / LLM.dl.total * 100)}%` : LLM.biReady() ? `${LLM.bi.model.id} · built in` : LLM.health?.ok ? LLM.cfg().model : LINK_HOST ? 'Set up' : 'Your Mac’s')) + btn('memory', 'Memory', 'What the assistant remembers about you') + btn('chat', 'Talking freely', settings.chatOn === false ? 'Off' : esc(settings.wakeWord || `Hey ${APP_NAME}`)) + btn('prompts', 'Prompts (advanced)', `${Object.keys(store.get('prompts', {})).length || 'none'} changed`) : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
     </div>
     <div class="group-title">Scripts &amp; tasks</div>

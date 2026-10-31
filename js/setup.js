@@ -10,6 +10,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Turned down the microphone, speech recognition or the camera by mistake? The app now offers to ask again (and Settings › System › Permissions)',
+  'The Agent screen’s timeline starts with your earlier results',
   'The language model is built into StudioGen now: nothing else to install (it reads the copy Ollama has, or downloads gpt-oss once)',
   'Workers from the app: Mesh › Workers › + New Worker, in OrbStack (installed for you if needed), light on this Mac, or on another machine; each with its own sign-ins, using this Mac’s model',
   'One language model for everything, on your Mac by default: gpt-oss (picked by this Mac’s memory, downloaded here), Claude as the option; phones and Workers use the Mac’s (Settings › Assistant › Language model)',

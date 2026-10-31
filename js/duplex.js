@@ -124,7 +124,8 @@ const Convo = {
     } catch (e) {
       this.starting = false; AudioEngine.stop(); Voice.session('auto');
       Log.e('duplex', 'Conversation mode couldn’t start: tap-to-talk instead', e);
-      Voice.show('Conversation mode isn’t available here', e.name === 'NotAllowedError' ? 'Allow the microphone for this site' : 'Using tap-to-talk');
+      Voice.show('Conversation mode isn’t available here', e.name === 'NotAllowedError' ? 'The microphone isn’t allowed: see the sheet' : 'Using tap-to-talk');
+      if (e.name === 'NotAllowedError' && typeof Perm !== 'undefined') return Perm.denied('mic', () => Convo.start?.());
       settings.convo = false; setTimeout(() => { Voice.start(); settings.convo = store.get('settings', {}).convo; }, 1200);
       return;
     }
@@ -339,6 +340,7 @@ const NativeSR = {
     r.onerror = e => {
       this.stats.errors[e.error] = (this.stats.errors[e.error] || 0) + 1;
       Log.d('duplex', `Phone recognizer: ${e.error}`);
+      if (['not-allowed', 'service-not-allowed'].includes(e.error) && typeof Perm !== 'undefined') (IS_DESKTOP_APP ? Perm.status('mic').then(s => s === 'denied' || s === 'restricted' ? 'mic' : 'speech') : Promise.resolve('mic')).then(k => Perm.denied(k));
       if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'language-not-supported'].includes(e.error)) Convo.nativeFallback(`error “${e.error}”`);
     };
     r.onend = () => { if (this.sr === r && this.on) { this.stats.restarts++; setTimeout(() => this.sr === r && this.open(), 150); } }; // it stops after pauses: start again

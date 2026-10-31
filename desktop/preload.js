@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   },
   /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
+  /** Permissions (js/perms.js): perm(op, kind), op 'status' | 'reset' | 'ask' | 'open', kind 'mic' | 'camera' | 'speech'. */
+  perm: (op, kind) => ipcRenderer.invoke('dd:perm', op, kind),
   /** This computer: { memory (bytes), chip, cpus }. */
   sys: ipcRenderer.sendSync('dd:sys'),
   /** Web widgets are real browsers here (<webview>, see webview-preload.js). */

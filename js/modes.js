@@ -111,7 +111,7 @@ const Camera = {
       .catch(e => { if (want === 'back' || want === 'front') throw e; Log.w('camera', 'Chosen camera unavailable: the default one instead', e); return navigator.mediaDevices.getUserMedia({ video: true }); })
       .finally(() => { this.opening = null; });
     try { this.stream = await this.opening; this.cur = want; Log.i('camera', 'Camera on', { which: want, for: [...this.users], settings: this.stream.getVideoTracks()[0]?.getSettings?.() }); return this.stream; }
-    catch (e) { this.users.delete(user); throw e; }
+    catch (e) { this.users.delete(user); if (e?.name === 'NotAllowedError' && typeof Perm !== 'undefined') Perm.denied('camera', () => this.get(user).catch(() => {})); throw e; } // off by mistake? ask again (js/perms.js)
   },
   stop() { this.stream?.getTracks().forEach(t => t.stop()); this.stream = null; this.cur = null; },
   release(user) {

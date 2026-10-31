@@ -1326,6 +1326,7 @@ function renderSettings() {
     </div>
     <div class="group-title">System</div>
     <div class="group">
+      ${typeof Perm !== 'undefined' ? btn('permissions', 'Permissions', 'Microphone, speech recognition, camera: ask again if one was turned down') : ''}
       <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['agent', 'Agent'], ['dashboard', 'Dashboard']])}</div>
       ${tog('startGreet', 'The assistant says hello on the start page', 'A wave and a short spoken hello')}
       ${typeof StartPage !== 'undefined' ? btn('startAvatar', 'The assistant on the start page', `${StartPage.look().model ? (BUILTIN_MODELS[StartPage.look().model]?.name || StartPage.look().model) : 'As on Stage'} · ${StartPage.look().size}%`) : ''}

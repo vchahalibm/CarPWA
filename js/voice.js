@@ -922,8 +922,10 @@ const Voice = {
   micError(e) {
     Log.e('mic', 'Microphone unavailable', { name: e?.name, message: e?.message });
     $('#vOrb').classList.remove('live');
-    if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError')
-      return this.show('Microphone permission is off', `Allow the microphone for this site in the phone’s settings, then reopen ${APP_NAME}`);
+    if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') {
+      this.show('Microphone permission is off', 'You can allow it again: see the sheet');
+      return typeof Perm !== 'undefined' && Perm.denied('mic', () => this.start()); // ask again (js/perms.js)
+    }
     this.show('The microphone is busy', `Another app may be using it${e?.name ? ` (${e.name})` : ''}. Tap the mic to try again`);
   },
   /** Transcribe what's been said so far, during a pause. */
@@ -1022,7 +1024,11 @@ const Voice = {
       };
       r.onerror = e => {
         Log.e('stt', 'Phone recognizer error', { error: e.error, message: e.message, audio }); finish(); if (done) return; done = true;
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') return this.show('Microphone or speech permission is off', 'Allow them for this site in the phone’s settings');
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { // which one: on a Mac the microphone if that's off, else speech recognition (js/perms.js)
+          this.show('Microphone or speech permission is off', 'You can allow it again: see the sheet');
+          if (typeof Perm !== 'undefined') (IS_DESKTOP_APP ? Perm.status('mic').then(s => s === 'denied' || s === 'restricted' ? 'mic' : 'speech') : Promise.resolve('mic')).then(k => Perm.denied(k, () => this.start()));
+          return;
+        }
         if (e.error === 'aborted' && $('#assistant').hidden) return; // you closed it
         if (!audio && cfg.sr !== 'plain') return this.recover(r, retry);
         this.show('Couldn’t hear you', 'Tap the mic and try again');

@@ -6,7 +6,7 @@
    its user agent (bigger memory budget, Whisper for listening).
    It also lives in the menu bar (Tray): open it, present on another screen (the wall) with the presenter view on this
    one, start at login. The page reaches these through preload.js (window.DriveDeckDesktop). */
-const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage, screen, ipcMain, desktopCapturer, dialog } = require('electron');
+const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage, screen, ipcMain, desktopCapturer, dialog, systemPreferences } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -324,6 +324,17 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:browser-forget', own(p => Browse.forget(p)));
   // This computer's memory and chip (the language model's startup check, js/llm.js)
   ipcMain.on('dd:sys', e => { const os = require('os'); e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { memory: os.totalmem(), chip: os.cpus()[0]?.model || '', cpus: os.cpus().length } : null; });
+  // Permissions (js/perms.js): macOS asks only once; a “no” (often by mistake) is reset for this app and asked again
+  const PERM = { mic: ['microphone', 'Microphone', 'Privacy_Microphone'], camera: ['camera', 'Camera', 'Privacy_Camera'], speech: [null, 'SpeechRecognition', 'Privacy_SpeechRecognition'] };
+  const bundleId = () => app.isPackaged ? 'io.github.vchahalibm.studiogen' : 'com.github.Electron';
+  ipcMain.handle('dd:perm', own(async (op, kind) => {
+    const p = PERM[kind]; if (!p || process.platform !== 'darwin') return null;
+    if (op === 'status') return p[0] ? systemPreferences.getMediaAccessStatus(p[0]) : 'unknown'; // not-determined | granted | denied | restricted
+    if (op === 'reset') return new Promise(res => require('child_process').execFile('/usr/bin/tccutil', ['reset', p[1], bundleId()], e => res(!e)));
+    if (op === 'ask') return p[0] ? systemPreferences.askForMediaAccess(p[0]) : true; // speech: asked by the helper when it next starts
+    if (op === 'open') { shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${p[2]}`); return true; }
+    return null;
+  }));
   // The built-in language model (desktop/llm.js): status, chat, download, use, remove
   ipcMain.handle('dd:llm', own((op, a) => ({ status: () => Builtin.status(), chat: () => Builtin.chat(a).catch(e => ({ error: e.message })), download: () => Builtin.download(a).then(() => true, e => ({ error: e.message })), use: () => { try { return Builtin.use(a || {}); } catch (e) { return { error: e.message }; } }, remove: () => Builtin.remove(a), unload: () => Builtin.unload() })[op]?.() ?? null));
   // Light Workers (js/workers.js): create, start, stop, show, remove; only from StudioGen's own page

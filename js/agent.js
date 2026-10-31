@@ -698,7 +698,11 @@ const Agent = {
     AgentHome.draw(); return n;
   },
   /* ---------- The timeline: what ran (tasks and scripts), kept longer than the cards (AgentHome.timeline) ---------- */
-  history: () => store.get('agentHistory', []),
+  history() { // the first time: the results already on the Agent screen (from before the timeline), so they show at once
+    let h = store.get('agentHistory', null);
+    if (!h) { h = this.feed().filter(c => c.task && /^(done|failed|signin)$/.test(c.status || '')).map(c => ({ id: c.id, at: c.at, kind: 'task', task: c.task, title: c.title, status: c.status, headline: c.headline, type: c.type, items: c.items })); store.set('agentHistory', h); }
+    return h;
+  },
   log(e) { const l = this.history().filter(x => x.id !== e.id); l.unshift({ at: Date.now(), ...e }); store.set('agentHistory', l.slice(0, 200)); },
   drop(id) { store.set('agentFeed', this.feed().filter(x => x.id !== id)); AgentHome.draw(); },
 };

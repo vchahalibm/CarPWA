@@ -2,7 +2,7 @@
 // js/llm.js (the defaults; Settings › Assistant › Prompts shows what you changed). Run it after changing a prompt.
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const root = path.join(__dirname, '../..'), src = fs.readFileSync(path.join(root, 'js/llm.js'), 'utf8');
-const ctx = { store: { get: (k, d) => d, set() {} }, document: { addEventListener() {} }, ACTIONS: {}, setTimeout() {}, setInterval() {}, console };
+const ctx = { store: { get: (k, d) => d, set() {} }, document: { addEventListener() {} }, window: {}, ACTIONS: {}, setTimeout() {}, setInterval() {}, console };
 vm.createContext(ctx); vm.runInContext(src + '\n;globalThis.__P = LLM_PROMPTS; globalThis.__R = LLM.ROLES;', ctx);
 const P = ctx.__P, R = Object.fromEntries(ctx.__R.map(([k, n, d]) => [k, `${n} (${d})`]));
 let md = `# The prompts in the apps\n\nEvery prompt DriveGen and StudioGen send to a language model, as shipped. Generated from \`LLM_PROMPTS\` in [js/llm.js](../../js/llm.js) by \`node tools/prompts/gen.cjs\`; don't edit this file by hand.\n\nYou can read and change each one in **Settings › Assistant › Prompts** (changes are kept on that device; Reset brings the default back). Words in {braces} listed under a prompt are filled in by the app.\n\nWhich model answers: **Settings › Assistant › Language model**. There are three jobs, and each can run on this Mac's model (gpt-oss by default, through Ollama), on your Mac's model from a phone or Worker, on Claude, or on Apple's on-device model as the last resort:\n\n${Object.entries(R).map(([k, v]) => `- **${k}**: ${v}`).join('\n')}\n`;

@@ -76,6 +76,24 @@ Known values: {known}
 The user said: “{said}”
 ```
 
+## Talking freely `chat`
+
+- Job: **fast**
+- Used in: js/chat.js › Chat.turn (anything said or typed that isn’t a command, after the wake word)
+- Filled in by the app: `{app}`, `{now}`, `{place}`, `{screen}`, `{cards}`, `{memory}`, `{actions}`
+
+```text
+You are the assistant inside {app}, a voice app for presenting, driving and getting things done, speaking out loud through a 3D character. It is {now}; the user is in {place}; on screen: {screen}.
+Recent results on screen:
+{cards}
+What you know about the user:
+{memory}
+Things you can do (id: what it does [inputs]):
+{actions}
+
+If one of those things is what the user wants, answer with only one line: ACTION {"do": "task" | "command" | "script", "id": "<id from the list>", "inputs": {"<input>": "<value from what they said>"}}. Use only ids from the list and only words they said for inputs. Otherwise just talk: answer naturally and briefly, the way you would say it aloud (one to three short sentences, no lists, no markdown, no emoji). Use the recent results to answer follow-up questions about them. If you don’t know something current (news, prices), say so and offer the matching action if there is one.
+```
+
 ## Ask the model (script step) `ask`
 
 - Job: **cards**
@@ -112,7 +130,7 @@ You are talking inside the StudioGen app, often by voice on Stage. Ask your ques
 - Job: **build**
 - Used in: docs/llm/build-prompt.md (also copied for any LLM)
 
-<details><summary>The full text of docs/llm/build-prompt.md (2378 words)</summary>
+<details><summary>The full text of docs/llm/build-prompt.md (2396 words)</summary>
 
 ````markdown
 # Build a StudioGen / DriveGen script or agent task
@@ -205,7 +223,7 @@ Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites,
 11. Don't add steps for buttons, filters or screens that neither the site notes nor the user described (a guessed “Unread” filter): ask, or leave it out.
 
 ## 5. Site notes (checked; use these selectors as given)
-**Outlook on the web** (`{outlook}`): inbox `{outlook}/mail/inbox`, ready `[role="listbox"]`; rows `[role="listbox"] [role="option"]` (unread rows start with “Unread”: read them with `keep=Unread`); open message `[aria-label="Message body"]||[role="document"]`; search field label `Search`, then Enter; compose `{outlook}/mail/deeplink/compose` with `?to=`, `?subject=`, `?body=`; send `button[aria-label="Send"]||button[title="Send"]`; reply `button[aria-label="Reply"]`; calendar day `{outlook}/calendar/view/day`, read `[role="main"]`.
+**Outlook on the web** (`{outlook}`): inbox `{outlook}/mail/inbox`, ready `[role="listbox"]`; rows `[role="listbox"] [role="option"]` (unread rows start with “Unread”: read them with `keep=Unread`); open message `[aria-label="Message body"]||[role="document"]`; search field label `Search`, then Enter; compose `{outlook}/mail/deeplink/compose` with `?to=`, `?subject=`, `?body=`; send `button[aria-label="Send"]||button[title="Send"]`; reply `button[aria-label="Reply"]`; calendar day `{outlook}/calendar/view/day` (another day: `{outlook}/calendar/view/day/{slot.day}` after `{ "do": "ai.when", "value": "{day}", "as": "slot" }`, which also gives `{slot.date}` in words), read `[role="main"]`.
 
 **Slack** (`{slack}`): ready `.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]`; channels and people `.p-channel_sidebar__channel||[role="treeitem"]` (click with the name as text); unread ones `.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]`; Activity (mentions) `[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]`, list `[data-qa="activity_list"]||[data-qa="activity-item"]`; messages in a channel `[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]`; message box `[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]` (type with `enter` to send); search `[data-qa="top_nav_search"]` then the field labelled `Search`.
 

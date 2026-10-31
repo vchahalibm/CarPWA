@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================
-   Cards instead of leaving the screen. While presenting (Stage mode) and on the Agent home screen, a screen that a command
-   or a script opens (weather, messages, music, a map, “what can I say”…) shows as a card over the current screen instead,
+   Cards instead of leaving the screen. On any screen (a pop-up card; on Stage beside the assistant; on the Agent screen a
+   result card in the feed where one is defined, COMMAND_CARDS), a screen that a command or a script opens (weather, messages, music, a map, “what can I say”…) shows as a card over the current screen instead,
    so the presentation, the 3D assistant, the camera and a running script carry on underneath. A screen you open with
    your own tap still opens normally.
    - The card is the real screen (its section), drawn in a floating panel; on Stage it covers the content side and leaves
@@ -15,20 +15,32 @@
    ============================================================ */
 const PEEK_VIEWS = ['weather', 'messages', 'phone', 'calendar', 'music', 'maps', 'drive', 'mesh', 'settings'];
 const PEEK_PRIVATE = ['messages', 'phone', 'calendar'];
+/** Answers with a result card of their own (for the Agent screen's feed and the timeline): { title, type, headline, items }. */
+const COMMAND_CARDS = {
+  weather() {
+    if (typeof wx === 'undefined' || !wx) return null;
+    const r = Math.round, place = typeof placeName === 'function' ? placeName().replace(/ \(default.*$/, '') : '', day = d => d.t.toLocaleDateString([], { weekday: 'long' });
+    return { title: 'Weather', type: 'list', headline: `${r(wx.cur.temp)}° and ${wxInfo(wx.cur.code)[0].toLowerCase()}${place ? ` in ${place}` : ''}${wx.live ? '' : ' (sample)'}`,
+      items: wx.daily.slice(0, 4).map((d, i) => ({ title: i ? day(d) : 'Today', detail: `${wxInfo(d.code)[0]} · ${r(d.hi)}° / ${r(d.lo)}°${d.pop ? ` · rain ${d.pop}%` : ''}` })) };
+  },
+};
 const Peek = {
   open: null, tapAt: 0,
-  /** Where cards are used now: 'stage' (presenting), 'home' (the Agent home screen), or ''. */
+  /** Where the card goes: 'stage' (presenting), 'home' (the Agent screen), or 'pop' (a pop-up over any other screen). */
   mode() {
     if (typeof Stage !== 'undefined' && Stage.on && current === 'dashboard') return 'stage';
-    if (current === 'agent' && !(typeof Stage !== 'undefined' && Stage.on)) return 'home';
-    return '';
+    if (current === 'agent') return 'home'; // the Agent screen: results in its feed, Stage or not
+    return 'pop';
   },
   /** openView asks first: true when it showed (or deliberately didn't show) a card instead of switching screens. */
   take(id) {
     if (Date.now() - this.tapAt < 900) return false; // your own tap: open the screen
-    const m = this.mode(); if (!m || !PEEK_VIEWS.includes(id)) return false;
-    if (m === 'home' && id === 'maps') return false; // driving: a route needs the whole map
-    if (id === 'settings') { this.say(); return true; } // a command opening Settings (“what can I say”): what works now, on a card
+    const m = this.mode(); if (!m || !PEEK_VIEWS.includes(id) || id === current) return false;
+    if (id === 'maps' && (m === 'home' || settings.appMode !== 'stage')) return false; // in the car a route needs the whole map
+    if (id === 'settings') { if (m === 'pop') return false; this.say(); return true; } // on Stage or the Agent screen “what can I say” is a card; elsewhere Settings opens
+    // an answer with a card of its own (weather): in the feed on the Agent screen, on the timeline everywhere
+    const card = !PEEK_PRIVATE.includes(id) || settings.peekPrivate ? COMMAND_CARDS[id]?.() : null;
+    if (card && typeof Agent !== 'undefined') { store.set('agentFeed', Agent.feed().filter(x => x.task !== `cmd.${id}`)); /* the newer answer replaces the older card (the timeline keeps both) */ const c = Agent.post({ task: `cmd.${id}`, title: card.title, ...card, status: 'done' }); Agent.log({ id: c.id, kind: 'command', title: card.title, status: 'done', headline: card.headline, items: card.items }); if (m === 'home') return true; }
     if (PEEK_PRIVATE.includes(id) && !settings.peekPrivate) { Log.i('peek', `Private screen kept off the screen: ${id} (the reply is spoken)`); return true; }
     this.show(id, m); return true;
   },
@@ -67,7 +79,7 @@ const Peek = {
   },
   close() {
     const o = this.open; if (!o) return; this.open = null;
-    if (o.id === 'card') o.sec.remove(); else o.sec.classList.remove('peek', 'peek-stage', 'peek-home');
+    if (o.id === 'card') o.sec.remove(); else o.sec.classList.remove('peek', 'peek-stage', 'peek-home', 'peek-pop');
   },
 };
 addEventListener('pointerdown', () => { Peek.tapAt = Date.now(); }, { capture: true, passive: true });

@@ -91,7 +91,7 @@ const People = {
   /** Stage + "Follow the presenter" + the dashboard on screen: run; otherwise stop (camera off, worker ended). */
   sync() {
     // `hold`: capturing a motion (js/mocap.js) keeps it running wherever you are.
-    const want = this.hold || typeof Stage !== 'undefined' && Stage.on && settings.peopleOn && current === 'dashboard' && document.visibilityState === 'visible';
+    const want = this.hold || typeof Stage !== 'undefined' && Stage.on && settings.peopleOn && !store.get('camPaused') && current === 'dashboard' && document.visibilityState === 'visible'; // camPaused: the camera switched off (js/vision.js CamSwitch)
     if (want && !this.running && Date.now() > (this.noRoomUntil || 0)) this.start(); else if (!want && this.running) this.stop();
   },
   load() {

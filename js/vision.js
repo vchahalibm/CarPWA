@@ -214,17 +214,28 @@ const Vision = {
   },
   paintWidget() {
     const on = this.users.has('widget') || (typeof People !== 'undefined' && People.running); // people tracking on Stage shows the camera too
-    $$('#dashRoot .camw').forEach(el => { el.classList.toggle('on', on); $('.cam-go', el).hidden = on; $('[data-cam="stop"]', el).hidden = !on; });
+    $$('#dashRoot .camw').forEach(el => { el.classList.toggle('on', on); $('.cam-go', el).hidden = on; $('[data-cam="stop"]', el).hidden = !on;
+      const off = store.get('camPaused'); $('.cam-go b', el).innerHTML = off ? 'Camera off' : 'Camera &amp; objects'; $('.cam-go small', el).textContent = off ? 'Tap to turn it on' : `${this.model().name} · works offline`; });
     this.status(this.users.has('widget') ? (settings.detOn ? (this.worker ? `Watching · ${this.model().name}` : `Loading ${this.model().name}…`) : 'Camera on · object detection is off') : on ? 'Following the presenter' : '');
   },
 };
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const plural = l => ({ person: 'people', bus: 'buses', 'traffic light': 'traffic lights', 'stop sign': 'stop signs' }[l] || l + 's');
 
+/* ---------- The camera's own switch (the widget, or “camera on/off”): off stops it for everything that uses it here,
+   people tracking on Stage too, until it's turned on again; the widget stays where it is. ---------- */
+const CamSwitch = {
+  set(on) {
+    store.set('camPaused', !on); store.set('camOn', on);
+    if (on) { Vision.start('widget'); if (typeof People !== 'undefined') People.sync(); }
+    else { Vision.stop('widget'); if (typeof People !== 'undefined' && People.running) People.stop(); }
+    Vision.paintWidget(); Log.i('camera', on ? 'Camera on (switch)' : 'Camera off (switch)');
+  },
+};
 /* ---------- The Camera widget ---------- */
 W.camera = { name: 'Camera', html: () => `<div class="camw"><video muted playsinline autoplay></video><canvas></canvas><div class="ppl-blur"></div><canvas class="ppl"></canvas>
-    <div class="cam-go"><span>${svg('camera')}</span><b>Camera &amp; objects</b><small>${esc(Vision.model().name)} · works offline</small><button class="w-cta" data-cam="start">Start camera</button></div>
-    <div class="cam-bar"><span class="cam-status"></span><button class="cam-stop" data-cam="stop" aria-label="Stop the camera" hidden>${svg('close')}</button></div></div>`,
+    <div class="cam-go"><span>${svg('camera')}</span><b>${store.get('camPaused') ? 'Camera off' : 'Camera &amp; objects'}</b><small>${store.get('camPaused') ? 'Tap to turn it on' : `${esc(Vision.model().name)} · works offline`}</small><button class="w-cta" data-cam="start">Turn the camera on</button></div>
+    <div class="cam-bar"><span class="cam-status"></span><button class="cam-off" data-cam="stop" aria-label="Turn the camera off" hidden>${svg('close')}<span>Camera off</span></button></div></div>`,
   config: id => clearSheet(id, [['Camera settings…', () => openView('settings')]]), float: true, clear: true };
 Bus.on('dash.rendered', () => {
   const has = !!$('#dashRoot .camw');
@@ -236,8 +247,8 @@ Bus.on('ar.stop', () => Vision.stop('ar'));
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-cam]'); if (!b) return;
   e.stopPropagation();
-  if (b.dataset.cam === 'start') { store.set('camOn', true); Vision.start('widget'); }
-  else if (b.dataset.cam === 'stop') { store.set('camOn', false); Vision.stop('widget'); }
+  if (b.dataset.cam === 'start') CamSwitch.set(true);
+  else if (b.dataset.cam === 'stop') CamSwitch.set(false);
 }, true);
 Bus.on('dash.resized', () => Vision.paint());
 

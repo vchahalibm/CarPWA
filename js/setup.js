@@ -10,6 +10,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Answers come as cards: the weather and other screens a command opens pop up over where you are (on the Agent screen, a result card)',
+  'The camera widget has its own Camera off / on (and “camera off”, “camera on”)',
   'Fixed: the built-in model didn’t see its model, so it offered a download and Ollama answered instead',
   '“What’s my day on 2nd Nov”, “my meetings tomorrow”: the calendar task takes a day now',
   'Weather for your place: Settings › Location › Your place; the weather says which place it shows',

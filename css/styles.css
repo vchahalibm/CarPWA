@@ -1704,10 +1704,10 @@ table.bench small{color:var(--text-2)}
 /* Stage: over the content side, the presenter column (the assistant) left visible; above the captions */
 .peek-stage{left:calc(var(--dock-w,0px) + 2.5%);right:36%;top:6%;bottom:16%}
 /* The Agent home: a card in the middle */
-.peek-home{left:calc(var(--dock-w,0px) + 4%);right:4%;top:8%;bottom:8%;max-width:900px;margin:0 auto}
+.peek-home,.peek-pop{left:calc(var(--dock-w,0px) + 4%);right:4%;top:8%;bottom:8%;max-width:900px;margin:0 auto}
 /* Phones, and tablets held upright: a sheet from the bottom */
 @media (orientation:portrait),(max-width:700px){
-  .peek-stage,.peek-home{left:10px;right:10px;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));height:min(64vh,720px);max-width:none;border-radius:22px 22px 18px 18px}
+  .peek-stage,.peek-home,.peek-pop{left:10px;right:10px;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));height:min(64vh,720px);max-width:none;border-radius:22px 22px 18px 18px}
 }
 .peek-x{position:sticky;top:10px;margin-left:auto;z-index:5;flex:0 0 auto;width:48px;height:48px;border-radius:50%;border:0;background:var(--surface-2);color:var(--text);display:grid;place-items:center;align-self:flex-start;margin-right:10px;margin-top:10px}
 .peek-x svg{width:22px;height:22px}
@@ -1821,3 +1821,6 @@ table.bench small{color:var(--text-2)}
 .ag-tl-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-tl-w{color:var(--text-2);font-size:13px;white-space:nowrap}
 .ag-tl .icon-btn{opacity:.7}
 .ag-tl-sp{width:44px;flex:none}
+/* The camera widget's off switch (js/vision.js CamSwitch): a labelled button, always there while it's on */
+.cam-off{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px 0 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-weight:600;margin-left:auto}
+.cam-off[hidden]{display:none}.cam-off svg{width:18px;height:18px}

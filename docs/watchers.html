@@ -197,7 +197,7 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
                                 room to think and answer         ~5k
 </pre>
 <ul>
-<li><b>Picking</b>: a small embedding model on the device (in the built-in engine, ~100 MB) turns every fact and episode into a vector once; each turn takes the closest ones, mixed with keyword matches, the people and places named, and recency, within the budget. A few <i>pinned</i> facts always come (your name, where you are, your main calendar).</li>
+<li><b>Picking</b>: <b>EmbeddingGemma</b> (Google's 308M on-device embedding model, chosen 31 Oct; a GGUF run by the built-in engine, ~200 MB) turns every fact and episode into a vector once; each turn takes the closest ones, mixed with keyword matches, the people and places named, and recency, within the budget. A few <i>pinned</i> facts always come (your name, where you are, your main calendar).</li>
 <li><b>Tidying</b> (once a day, idle): merge near-duplicates, let unused facts fade, turn repeated episode details into facts, drop expired ones, keep it under a size (a few hundred facts).</li>
 </ul>
 <h3>Seeing and controlling it</h3>
@@ -272,7 +272,7 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 </table>
 <table>
 <tr><th>Phase</th><th>What</th></tr>
-<tr><td>1</td><td>Answers as cards everywhere (commands never open their screens); the camera widget's on/off</td></tr>
+<tr><td>1</td><td>Answers as cards everywhere (commands never open their screens); the camera widget's on/off · <b>built 31 Oct</b></td></tr>
 <tr><td>2</td><td>Talking freely after the wake word: the tool-or-reply call, streaming speech, the chat in the Assistant widget and the Agent screen</td></tr>
 <tr><td>3</td><td>Memory: working memory and episodes, facts with the on-device embedding model, Settings › Memory, voice controls</td></tr>
 <tr><td>4</td><td>Watchers on this Mac: the pipeline (page polled / live / feed / JSON; parts, lists, values; new / changed / value / contains / appears / ask), watch cards, toasts, digest, the Watchers list, Watch something here, the first templates</td></tr>

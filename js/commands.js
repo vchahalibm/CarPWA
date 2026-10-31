@@ -170,6 +170,8 @@ const BUILTINS = {
   videoPlay: { group: 'Media', name: 'Play the video', run: (v, say) => act('video.play', '', say, 'Playing the video.') },
   videoPause: { group: 'Media', name: 'Pause the video', run: (v, say) => act('video.pause', '', say, 'Video paused.') },
   // Camera & objects (js/vision.js)
+  cameraOff: { group: 'Camera', name: 'Camera off', run: (v, say) => { CamSwitch.set(false); say('Camera off.'); } },
+  cameraOn: { group: 'Camera', name: 'Camera on', run: (v, say) => { CamSwitch.set(true); say('Camera on.'); } },
   whatSee: { group: 'Camera', name: 'What does the camera see?', run(v, say) { if (settings.detAnswer && settings.detOn) Voice.show('Looking…', 'Camera · on this device'); Vision.describe().then(t => say(t)); } },
   alertsOn: { group: 'Camera', name: 'Turn object alerts on', run: (v, say) => { settings.detAlerts = true; applySettings(); say(`Object alerts on, for ${(settings.detAlertList || DEFAULT_ALERTS).join(', ')}.`); } },
   alertsOff: { group: 'Camera', name: 'Turn object alerts off', run: (v, say) => { settings.detAlerts = false; applySettings(); say('Object alerts off.'); } },
@@ -309,6 +311,8 @@ const DEFAULT_COMMANDS = [
   { id: 'radio.stop', name: 'Stop the radio', say: ['(pause|stop|turn off|switch off|mute) [the] radio', 'radio off'], do: { type: 'builtin', fn: 'radioStop' } },
   { id: 'radio.list', name: 'Show the radio stations', say: ['(show|open|list) [the|my] [radio] stations', 'which stations'], do: { type: 'builtin', fn: 'radioStations' } },
   { id: 'vision.what', name: 'What do you see?', say: ['what (do|can) you see', '(what’s|what is) (around|ahead|in front of) [me|us]', 'describe [the] (road|scene|view|surroundings)', '(what’s|what is) on [the] camera', 'what (is|are) in front of [me|us]'], do: { type: 'builtin', fn: 'whatSee' } },
+  { id: 'camera.off', name: 'Turn the camera off', say: ['(turn|switch) [the] camera off', '(turn|switch) off [the] camera', 'camera off', 'stop the camera'], do: { type: 'builtin', fn: 'cameraOff' } },
+  { id: 'camera.on', name: 'Turn the camera on', say: ['(turn|switch) [the] camera on', '(turn|switch) on [the] camera', 'camera on', 'start the camera'], do: { type: 'builtin', fn: 'cameraOn' } },
   { id: 'vision.alertsOn', name: 'Turn object alerts on', say: ['(turn on|enable|start) [the] (object|camera) (alerts|warnings)', '(warn|alert) me about (objects|people|pedestrians)'], do: { type: 'builtin', fn: 'alertsOn' } },
   { id: 'vision.alertsOff', name: 'Turn object alerts off', say: ['(turn off|disable|stop) [the] (object|camera) (alerts|warnings)'], do: { type: 'builtin', fn: 'alertsOff' } },
   { id: 'media.next', name: 'Next page or slide', say: ['next (slide|page)', '(go|move|turn) [to] [the] next (slide|page)', 'turn [the] page'], do: { type: 'builtin', fn: 'docNext' } },

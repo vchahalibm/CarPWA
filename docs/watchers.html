@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Talking freely, cards everywhere, and watchers</h1>
-<p class="mut">Design for discussion, 31 October 2026. Nothing here is built yet. It builds on the language model built into StudioGen (gpt-oss), agent tasks, the agent browser, Workers, the mesh and StudioGBee. Section 9 lists the questions to settle before building.</p>
+<p class="mut">Design, 31 October 2026; decisions in section 13 (updated the same day with memory, the lessons from RPA tools and the open watcher model). Nothing here is built yet. It builds on the language model built into StudioGen (gpt-oss), agent tasks, the agent browser, Workers, the mesh and StudioGBee. Section 9 lists the questions to settle before building.</p>
 <ol class="toc">
   <li><a href="#chat">Talking freely with the assistant</a></li>
   <li><a href="#cards">Answers as cards, wherever you ask</a></li>
@@ -48,7 +48,11 @@
   <li><a href="#make">Making a watcher, the friendly way</a></li>
   <li><a href="#where">Where watchers run: this Mac, Workers, the feed</a></li>
   <li><a href="#limits">Limits, manners and safety</a></li>
-  <li><a href="#phases">Phases and questions</a></li>
+  <li><a href="#memory">Memory: curated, on the device</a></li>
+  <li><a href="#rpa">What RPA and automation tools teach about watching</a></li>
+  <li><a href="#open">Watchers as an open pipeline: sources, readers, detectors, actions</a></li>
+  <li><a href="#templates">Templates: the first ones, and what comes next</a></li>
+  <li><a href="#phases">Decisions and phases</a></li>
 </ol>
 
 <h2 id="chat">1. Talking freely with the assistant</h2>
@@ -167,25 +171,114 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 <li><b>Resources</b>: on a 24 GB Mac with gpt-oss loaded, a few polling watchers are fine; live pages and many watchers go to a Worker. The Watchers list shows memory and the load.</li>
 </ul>
 
-<h2 id="phases">9. Phases and questions</h2>
+<h2 id="memory">9. Memory: curated, on the device</h2>
+<p>Not a growing log of everything said: a small, tidy set of things worth knowing about you, kept on your device, chosen for each turn so it fits the model's window. gpt-oss 20B runs here with a 16k-token window per conversation (it can do more; 16k keeps three at once in 24 GB).</p>
+<h3>Four kinds of memory</h3>
+<div class="wrap"><table>
+<tr><th>Kind</th><th>What</th><th>Example</th><th>How long</th></tr>
+<tr><td><b>Working</b></td><td>The conversation now: recent turns word for word, older turns of the same conversation folded into a running summary</td><td>“…and the second one?”</td><td>Until 15 quiet minutes</td></tr>
+<tr><td><b>Episodes</b></td><td>One short summary per finished conversation, with its date and the people, places and tasks in it</td><td>“30 Oct: planned the Acme review with Priya; she prefers Thursdays”</td><td>Months; old ones fade into facts</td></tr>
+<tr><td><b>Facts</b></td><td>Single statements, each with a subject, the fact, where it came from, how sure, when last used, and an end date if it's temporary</td><td>“Priya Nair is my manager” · “I'm in Pune until Friday” · “call me Vish”</td><td>Until changed, forgotten or expired</td></tr>
+<tr><td><b>Preferences and habits</b></td><td>How you like things done, learned from what you correct or repeat</td><td>“short answers while driving” · “weather in Celsius” · “my day = Outlook work calendar”</td><td>Until changed</td></tr>
+</table></div>
+<p>Facts about people and places attach to the app's own People and Your place, so “Priya” in memory, in People and in a task are the same person.</p>
+<h3>Writing: what gets remembered</h3>
+<ul>
+<li>After a conversation (in a quiet moment, never while you wait), the model reads it with the memory it already has and proposes changes as a list: <i>add</i>, <i>update</i> (it changed), <i>confirm</i> (seen again: surer), <i>expire</i> (no longer true), <i>nothing</i>. Code applies them: duplicates merged, contradictions keep the newer one (the older stays in its history), temporary facts get an end date.</li>
+<li>“Remember that …” is kept at once, fully sure; “forget that” / “forget what you know about Priya” removes at once.</li>
+<li>Never kept: passwords, codes, card numbers, anything said while a private screen or a sign-in page is open; health, money and similar only when you say “remember”.</li>
+</ul>
+<h3>Reading: what each turn sees</h3>
+<pre>
+16k tokens per turn, planned:   instructions + what it can do  ~2.5k
+                                memory picked for this turn     ~1.5k   (a few pinned facts + the best matches)
+                                what's on screen / last cards    ~1k
+                                the conversation                 ~6k    (older turns as their summary)
+                                room to think and answer         ~5k
+</pre>
+<ul>
+<li><b>Picking</b>: a small embedding model on the device (in the built-in engine, ~100 MB) turns every fact and episode into a vector once; each turn takes the closest ones, mixed with keyword matches, the people and places named, and recency, within the budget. A few <i>pinned</i> facts always come (your name, where you are, your main calendar).</li>
+<li><b>Tidying</b> (once a day, idle): merge near-duplicates, let unused facts fade, turn repeated episode details into facts, drop expired ones, keep it under a size (a few hundred facts).</li>
+</ul>
+<h3>Seeing and controlling it</h3>
+<ul>
+<li>Settings › Assistant › <b>Memory</b>: every fact with where it came from and when, editable; pin, forget, forget all; memory off.</li>
+<li>By voice: “what do you remember about Priya?”, “forget that”, “remember that the Acme review is on Thursdays”.</li>
+<li>Kept on the device, locked with its key (the Keychain on a Mac); shared with your own devices only if you turn that on (sealed, through the mesh), so the phone knows what the Mac knows.</li>
+</ul>
+
+<h2 id="rpa">10. What RPA and automation tools teach about watching</h2>
+<div class="wrap"><table>
+<tr><th>Tool</th><th>How it watches</th><th>Lesson for us</th></tr>
+<tr><td><b>UiPath</b></td><td>Triggers: time, queue, and event triggers (an element appears or disappears, a mail arrives, a file changes, a hotkey); selectors with fuzzy matching and <i>anchors</i> (“the field next to the label Total”); Computer Vision when selectors fail; a self-healing agent that re-finds moved elements</td><td>Appear/vanish triggers; anchors and several selectors per element; a vision fallback (we have ScreenAI and UiDetect); healing instead of failing</td></tr>
+<tr><td><b>Power Automate</b> (Desktop + cloud)</td><td>Connectors' triggers (new mail, new Teams message, new file) start flows; “wait for element / window / image” inside flows; conditions and approvals</td><td>Prefer an official trigger when one exists; approvals before acting</td></tr>
+<tr><td><b>Automation Anywhere</b></td><td>Triggers on email, file, window, UI element, hotkey; event-driven bots</td><td>Watch windows and apps on the Mac too, not only web pages</td></tr>
+<tr><td><b>Blue Prism</b></td><td>Wait stages with timeouts; surface automation (image/region based)</td><td>Every wait has a limit and a clear failure</td></tr>
+<tr><td><b>Zapier / Make / n8n</b></td><td>Polling triggers that de-duplicate by an id field; instant webhooks where a service offers them; filters, routers, digests</td><td>Identity per item is the heart of “new items”; filters and digests as steps</td></tr>
+<tr><td><b>Huginn</b></td><td>A pipeline of agents: a WebsiteAgent (CSS/XPath, mode “on change” or “merge”, uniqueness by chosen fields) → TriggerAgent (rules) → DigestAgent → notifiers</td><td>A watcher as a small pipeline of parts you can swap; a digest as its own step</td></tr>
+<tr><td><b>Browse AI / Bardeen</b></td><td>Record once; robots extract lists as rows; monitors on schedules; AI fills fields</td><td>Teach-by-doing (our Teach me) for watchers; lists as rows with columns</td></tr>
+</table></div>
+<p>The sturdiest of them combine three things we already have pieces of: <b>several ways to find the same element</b> (selector, text, anchor, picture), <b>a fallback that looks at the screen</b>, and <b>asking a person</b> instead of silently failing.</p>
+
+<h2 id="open">11. Watchers as an open pipeline</h2>
+<p>A watcher is a short pipeline: <b>a source → a reader → one or more detectors → filters → actions</b>. Each part is a plug-in with a name and settings, so new ways to watch are added without changing the rest, and the editor shows them as cards like task steps.</p>
+<div class="wrap"><table>
+<tr><th>Part</th><th>Kinds (now · later)</th></tr>
+<tr><td><b>Source</b>: where it looks</td><td><b>Now</b>: a web page polled (with steps first: sign-in container, search, tabs) · a web page kept open and observed live · an RSS/Atom feed · a JSON address (public APIs) · <b>Later</b>: a mail folder rule (mail that arrives), a file or folder on the Mac, an app window on the Mac (read with ScreenAI's text reading), a calendar (changes), the clipboard, a webhook into StudioGBee, another watcher's output (chains)</td></tr>
+<tr><td><b>Reader</b>: what it takes from the source</td><td>A part of the page (several finders: selector, words, anchor, picture) · a list as rows with columns (title, who, when, link…), picked by tapping one row · a number or word · the whole page's text · a screenshot of an area · fields the model pulls out (“the price and whether it's in stock”)</td></tr>
+<tr><td><b>Detector</b>: what counts</td><td>New items (identity by chosen columns) · gone items · changed text (with a readable difference) · value crosses a line / changes by a percent · contains / doesn't contain / matches a pattern · appears / disappears (an element, a button “Book now”) · count above / below · the model's judgement (“important for me?”, with your memory) · visual difference above a threshold · nothing changed for too long (a stale page)</td></tr>
+<tr><td><b>Filter</b>: when not to tell</td><td>Ignore parts (ads, clocks) · only from / not from (people) · quiet hours · at most once per … · only after it holds for N checks (no flapping) · only if the model agrees it matters · while presenting: hold for later</td></tr>
+<tr><td><b>Action</b>: what happens</td><td>A watch card · a quiet notification · speak · a phone push · add to the digest · run a task or script (an acting one asks first: “Priya wrote: ‘Call me?’ Reply ‘in 5 minutes’?”) · start another watcher · write a row to a data file (a history of the price) · later: a webhook</td></tr>
+</table></div>
+<h3>Finding the same thing again (self-healing)</h3>
+<ol>
+<li>When you pick the part, several finders are kept: its selectors, its words and role, the label next to it (anchor), its position among its neighbours, and a small picture of it.</li>
+<li>Each check tries them in order; if the best one fails but another finds it, the watcher quietly updates itself (and notes it).</li>
+<li>If none find it, the screen model looks for it from its description and picture; if found, it asks you once to confirm (“is this the price?”), then keeps it.</li>
+<li>Only then does it stop and ask you to pick it again (Show me).</li>
+</ol>
+<h3>Making one, more ways</h3>
+<ul>
+<li><b>Tap it</b> (Watch something here), <b>say it</b>, or a <b>template</b>, as in section 6.</li>
+<li><b>Teach it</b>: do the steps once in the agent browser (Teach me records them), then tap what to watch at the end; for pages behind searches or tabs.</li>
+<li><b>From a task</b>: any task's result can become a watcher (“tell me when this changes”): the task is the source, its card's items are the rows.</li>
+<li><b>From a card</b>: on any answer card, “Watch this” keeps asking the same question on a schedule.</li>
+<li><b>Import</b>: a watcher written by an LLM from the build prompt (a watcher section is added), or shared in the mesh.</li>
+</ul>
+
+<h2 id="templates">12. Templates: the first ones, and what comes next</h2>
+<p><b>First</b> (as decided): Slack (mentions, a channel, a person) · Teams (new chats, a chat, mentions) · Outlook (new mail, from someone, matching words) · WhatsApp (new messages, from someone, a group) · X (your timeline, an account's posts, a search, mentions; your logged-in account, gently) · a page changes · a part of a page changes.</p>
+<p><b>Next</b>, from what people watch most with Distill, Visualping, changedetection.io and Browse AI:</p>
+<div class="grid">
+<div class="card"><h3>Shopping</h3>Price drop · back in stock · a coupon or sale banner appears · a pre-order opens</div>
+<div class="card"><h3>Travel</h3>Flight price · flight status and gate · visa or passport appointment slots · hotel price · train seat availability</div>
+<div class="card"><h3>Work</h3>Jira/GitHub items assigned to me · a build failed · a status page shows an incident · a competitor's pricing page changes · new reviews (app store, Google) · a shared document changed · a meeting moved</div>
+<div class="card"><h3>Life</h3>Parcel status · tickets on sale or resale · apartment listings · new job postings on a careers page · school or society notices · results published</div>
+<div class="card"><h3>News and money</h3>A topic or company in the news · a stock or crypto crosses a price · a government tender or circular · a release (software, a product)</div>
+<div class="card"><h3>Media</h3>A YouTube channel's new video · a podcast episode · a subreddit or Hacker News mention · a blog's new post (its feed)</div>
+</div>
+
+<h2 id="phases">13. Decisions and phases</h2>
+<table>
+<tr><th>Question</th><th>Decided (31 Oct)</th></tr>
+<tr><td>Talking freely</td><td>Only after the wake word (or in the chat box), so the room isn't answered on Stage</td></tr>
+<tr><td>Memory</td><td>Curated memory on the device, facts kept across days (section 9)</td></tr>
+<tr><td>Commands' screens</td><td>Never opened by a command: a card or a pop-up; the full screen only from its icon</td></tr>
+<tr><td>Watch notifications</td><td>A card and a quiet toast, spoken only when important, a daily digest; adjusted from use</td></tr>
+<tr><td>First templates</td><td>Slack, Teams, Outlook, WhatsApp, X, page changes (more in section 12)</td></tr>
+<tr><td>Where watchers run</td><td>A choice per watcher (this Mac, a Worker, any of mine)</td></tr>
+<tr><td>X</td><td>Your logged-in timeline, plus searching it, low frequency, your own account (its terms forbid automated reading: your choice)</td></tr>
+<tr><td>Watching</td><td>Open and ever-growing: the pipeline of section 11, with self-healing finders</td></tr>
+</table>
 <table>
 <tr><th>Phase</th><th>What</th></tr>
-<tr><td>1</td><td>Answers as cards everywhere; the camera widget's on/off</td></tr>
-<tr><td>2</td><td>Talking freely: the tool-or-reply model call, conversation memory, streaming speech, the chat in the Assistant widget and the Agent screen</td></tr>
-<tr><td>3</td><td>Watchers on this Mac: polling, the kinds (new / changes / value / contains / ask), watch cards, notifications, the Watchers list, Watch this, templates for Slack/Teams/Outlook/WhatsApp</td></tr>
-<tr><td>4</td><td>Watchers on Workers: live pages, events through the mesh and StudioGBee, phone pushes, digests</td></tr>
-<tr><td>5</td><td>Watchers by voice (the model drafts them), visual mode, X and other templates</td></tr>
+<tr><td>1</td><td>Answers as cards everywhere (commands never open their screens); the camera widget's on/off</td></tr>
+<tr><td>2</td><td>Talking freely after the wake word: the tool-or-reply call, streaming speech, the chat in the Assistant widget and the Agent screen</td></tr>
+<tr><td>3</td><td>Memory: working memory and episodes, facts with the on-device embedding model, Settings › Memory, voice controls</td></tr>
+<tr><td>4</td><td>Watchers on this Mac: the pipeline (page polled / live / feed / JSON; parts, lists, values; new / changed / value / contains / appears / ask), watch cards, toasts, digest, the Watchers list, Watch something here, the first templates</td></tr>
+<tr><td>5</td><td>Watchers on Workers (choice per watcher): live pages, events through the mesh and StudioGBee, phone pushes; self-healing finders</td></tr>
+<tr><td>6</td><td>More sources (mail, files, app windows, calendar), watchers by voice and from cards/tasks, the next templates</td></tr>
 </table>
-<h3>Questions for you</h3>
-<ol>
-<li>Talking freely: should it be on everywhere, or only when you start with the wake word / open the chat (so a meeting's chatter isn't answered on Stage)?</li>
-<li>Memory: keep only the current conversation (forgotten after 15 quiet minutes), or remember facts you tell it across days (“my manager is Priya”) on this device?</li>
-<li>Cards: should answering commands never open their screen (only Open on the card), or open the screen when you're already on the dashboard?</li>
-<li>Watch notifications: a card and a quiet toast by default, spoken only for “important”, a daily digest at a time you choose: is that right?</li>
-<li>Which first templates matter most to you: Slack mentions, Teams chats, Outlook from someone, WhatsApp from someone, X account posts, page changes, price/stock?</li>
-<li>Watch Workers: one dedicated Worker for all watchers, or a choice per watcher?</li>
-<li>X (Twitter): read your logged-in timeline/lists despite its terms (low frequency, your account), or only public profiles, or skip?</li>
-</ol>
 </main>
 </body>
 </html>

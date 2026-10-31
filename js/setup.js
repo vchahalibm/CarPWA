@@ -10,6 +10,9 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Fixed: the built-in model didn’t see its model, so it offered a download and Ollama answered instead',
+  '“What’s my day on 2nd Nov”, “my meetings tomorrow”: the calendar task takes a day now',
+  'Weather for your place: Settings › Location › Your place; the weather says which place it shows',
   'Turned down the microphone, speech recognition or the camera by mistake? The app now offers to ask again (and Settings › System › Permissions)',
   'The Agent screen’s timeline starts with your earlier results',
   'The language model is built into StudioGen now: nothing else to install (it reads the copy Ollama has, or downloads gpt-oss once)',
@@ -159,7 +162,11 @@ const Setup = {
       const m = bi.models?.find(x => x.id === f.best.id) || {};
       if (!bi.model && m.ollama) { await DriveDeckDesktop.llm.use({ id: f.best.id, ollama: true }); await LLM.builtin(true); }
       else if (!bi.model && m.downloaded) { await DriveDeckDesktop.llm.use({ id: f.best.id }); await LLM.builtin(true); }
-      if (LLM.biReady()) return r.set('done', `${LLM.bi.model.id} is built into StudioGen${LLM.bi.model.source === 'ollama' ? ' (it reads the copy Ollama already has: nothing downloaded)' : ''}: understanding, cards and building run on this Mac (${f.gb} GB), private and free.${pool}`, where);
+      if (LLM.biReady()) { r.set('done', `${LLM.bi.model.id} is built into StudioGen${LLM.bi.model.source === 'ollama' ? ' and reads the model file Ollama already has (Ollama itself isn’t used): nothing to download' : ''}. Understanding, cards and building run on this Mac (${f.gb} GB), private and free.${pool}`, where);
+        if (LLM.bi.model.source === 'ollama' && !m.downloaded && !LLM.bi.downloading) { r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick"><button class="chip" data-sumodel="own|${f.best.id}">Download StudioGen’s own copy instead (${f.best.size})</button></div>`);
+          r.li.onclick = async e => { const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; r.li.querySelector('.su-pick')?.remove(); r.set('work', 'Downloading StudioGen’s own copy (it answers with Ollama’s file meanwhile; this goes on after Start)…', where); r.progress(0);
+            try { await LLM.biDownload(b.dataset.sumodel.split('|')[1], p => r.progress(p)); r.progress(null); r.set('done', `${f.best.name}: StudioGen’s own copy is in use.${pool}`, where); } catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}`, where); } }; }
+        return; }
       const bbtns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
       this.asked = true;
       r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}, built into StudioGen: one ${f.best.size} download, nothing to install. Then everything that needs a model runs here, private and free.${pool}`, where);

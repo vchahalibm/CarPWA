@@ -81,10 +81,12 @@ const AGENT_TASKS = [
       { set: 'card', value: '{"type":"status","headline":"Replied to {person}","items":[{"title":"{message}"}]}' }] },
 
   /* ---------- Calendar (Outlook on the web) ---------- */
-  { id: 'cal.today', group: 'Calendar', name: 'What’s my day?', runs: 'mac', about: 'Today’s meetings from your Outlook calendar, in order, with the gaps',
-    examples: ['whats my day', 'what is on my calendar today', 'my meetings today', 'todays meetings', 'what does my day look like', 'my agenda'],
-    steps: [outlookOpen('/calendar/view/day', CAL_VIEW), { do: 'wait', value: '2' }, { do: 'agent.read', value: CAL_VIEW, as: 'read' },
-      card('This is today’s calendar (it is {time} now). Headline: how many meetings and the next one with its time. Items in time order: title = meeting name; when = its time; place = room or address (or “online”); person = organiser; detail = a free gap after it if there is one.')] },
+  { id: 'cal.today', group: 'Calendar', name: 'What’s my day?', runs: 'mac', about: 'The meetings of a day (today unless you say another) from your Outlook calendar, in order, with the gaps',
+    params: { day: { ask: 'Which day?', optional: true, default: 'today' } },
+    examples: ['whats my day', 'what is on my calendar today', 'my meetings today', 'todays meetings', 'what does my day look like', 'my agenda',
+      'whats my day {day}', 'what is my day {day}', 'what is my day', 'whats on my calendar {day}', 'what is on my calendar {day}', 'my meetings {day}', 'what does my day look like {day}', 'my agenda for {day}', 'what meetings do i have {day}'],
+    steps: [{ do: 'ai.when', value: '{day}', as: 'slot' }, outlookOpen('/calendar/view/day/{slot.day}', CAL_VIEW), { do: 'wait', value: '2' }, { do: 'agent.read', value: CAL_VIEW, as: 'read' },
+      card('This is the calendar for {slot.date} (it is {time} on {date} now). Headline: how many meetings and the next one with its time. Items in time order: title = meeting name; when = its time; place = room or address (or “online”); person = organiser; detail = a free gap after it if there is one.')] },
   { id: 'cal.next', group: 'Calendar', name: 'My next meeting', runs: 'mac', about: 'The next meeting: when, where and with whom',
     examples: ['when is my next meeting', 'whats my next meeting', 'next meeting', 'what is next on my calendar'],
     steps: [outlookOpen('/calendar/view/day', CAL_VIEW), { do: 'wait', value: '2' }, { do: 'agent.read', value: CAL_VIEW, as: 'read' },
@@ -520,8 +522,13 @@ const Agent = {
       if (slots.length) {
         const re = new RegExp('^' + plain(e.replace(/\{(\w+)\}/g, ' SLOT$1 ')).split(' ').map(w => /^slot\w+$/.test(w) ? '(.+?)' : w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+') + '$', 'i');
         const m = said.match(re); if (m) { params = Object.fromEntries(slots.map((k, i) => [k, m[i + 1].trim()])); score = n + 3; }
-      } else if (Script.matchPhrase(e, t)) { params = {}; score = n + (plain(e) === t ? 3 : 0); }
-      if (params && (!best || score > best.score)) best = { task, params, score, exact: !!slots.length || plain(e) === t }; // exact: one of its ways to ask, word for word
+      } else if (Script.matchPhrase(e, t)) { params = {}; score = n + (plain(e) === t ? 3 : 0);
+        // said more than this way to ask holds (“what's my day on 2nd Nov”, “unread mail from Priya”): a date, a number or a
+        // couple of other words mean another task (or this one with an input) fits better; the model decides then
+        const have = new Set(plain(e).split(' ')), extra = t.split(' ').filter(w => w.length > 2 && !have.has(w) && !/^(the|and|for|please|now|can|you|any|all|about|with|tell|show|what|whats|me)$/.test(w));
+        if (extra.some(w => /^\d|^(on|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december|next|last|week|month)/.test(w)) || extra.length >= 2) { score -= 3; params.__extra = extra.join(' '); }
+      }
+      if (params && (!best || score > best.score)) { const extra = params.__extra; delete params.__extra; best = { task, params, score, exact: !extra && (!!slots.length || plain(e) === t), extra }; } // exact: one of its ways to ask, word for word
     }
     return best && best.score >= 2 ? best : null;
   },
@@ -849,8 +856,13 @@ agentAction('card.join', { group: 'Agent', name: 'Put cards together (one line p
 } });
 agentAction('ai.when', { group: 'Agent', name: 'A spoken time → start and end (the model)', arg: 'The time as said (“tomorrow at 3 for an hour”)', async run(v, say, ev) {
   agentCtx(ev); const now = new Date(), pad = n => String(n).padStart(2, '0'), iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-  try { const r = await LLM.ask('fast', { system: LLM.prompt('when', { now: iso(now), weekday: now.toLocaleDateString('en', { weekday: 'long' }), days: Array.from({ length: 8 }, (_, i) => { const d = new Date(now.getTime() + i * 86400000); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en', { weekday: 'long' })} ${iso(d).slice(0, 10)}`; }).join(', ') }) /* the dates in code: the model's weekday arithmetic isn't reliable */, prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = r.json || {}; if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return j; } catch {}
-  const d = new Date(now.getTime() + 3600000); d.setMinutes(0, 0, 0); return { start: iso(d), end: iso(new Date(d.getTime() + 3600000)) };
+  // with the day as Outlook's calendar wants it (2026/11/2) and in words (“Monday 2 November”), for “what's my day on …”
+  const out = j => { const d = new Date(j.start); return isNaN(d) ? j : { ...j, day: `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`, date: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) }; };
+  const said = String(v || '').trim().toLowerCase().replace(/^(on|for)\s+/, '');
+  if (!said || said === 'today') { const d = new Date(now); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return out({ start: iso(d), end: iso(new Date(d.getTime() + 3600000)) }); } // no model needed
+  if (said === 'tomorrow') { const d = new Date(now.getTime() + 86400000); d.setHours(9, 0, 0, 0); return out({ start: iso(d), end: iso(new Date(d.getTime() + 3600000)) }); }
+  try { const r = await LLM.ask('fast', { system: LLM.prompt('when', { now: iso(now), weekday: now.toLocaleDateString('en', { weekday: 'long' }), days: Array.from({ length: 8 }, (_, i) => { const d = new Date(now.getTime() + i * 86400000); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en', { weekday: 'long' })} ${iso(d).slice(0, 10)}`; }).join(', ') }) /* the dates in code: the model's weekday arithmetic isn't reliable */, prompt: v, schema: { type: 'object', required: ['start', 'end'], properties: { start: { type: 'string' }, end: { type: 'string' } } }, temperature: 0, max: 80 }); const j = r.json || {}; if (/^\d{4}-\d\d-\d\dT/.test(j.start)) return out(j); } catch {}
+  const d = new Date(now.getTime() + 3600000); d.setMinutes(0, 0, 0); return out({ start: iso(d), end: iso(new Date(d.getTime() + 3600000)) });
 } });
 /* The car's own steps */
 Actions.define('car.park', { group: 'Agent', name: 'Remember the parking spot', arg: 'A note (level, pillar)', run(v) {

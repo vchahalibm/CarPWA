@@ -19,7 +19,7 @@ module.exports = ({ app, send }) => {
   const dir = () => path.join(app.getPath('userData'), 'models'), cfgFile = () => path.join(app.getPath('userData'), 'builtin-model.json');
   const cfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')); } catch { return {}; } };
   const keep = c => fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 2));
-  let lib = null, llama = null, model = null, ctx = null, loading = null, loadedPath = '', idle = null, busy = 0, downloading = null, why = '';
+  let lib = null, llama = null, model = null, ctx = null, loading = null, loadedPath = '', idle = null, busy = 0, downloading = null, why = '', current = null, cancelled = false;
   const waiters = [];
 
   async function L() { // node-llama-cpp is an ES module, loaded when first needed
@@ -98,7 +98,7 @@ module.exports = ({ app, send }) => {
     const m = MODELS[id]; if (!m) throw new Error('Unknown model'); if (downloading) throw new Error('A download is already running');
     fs.mkdirSync(dir(), { recursive: true });
     const urls = m.files, sizes = await Promise.all(urls.map(head)), total = sizes.reduce((a, b) => a + b, 0); let doneBytes = 0;
-    downloading = { id, done: 0, total };
+    downloading = { id, done: 0, total }; cancelled = false;
     try {
       for (let i = 0; i < urls.length; i++) {
         const f = path.join(dir(), path.basename(new URL(urls[i]).pathname));
@@ -121,9 +121,9 @@ module.exports = ({ app, send }) => {
     let have = fs.existsSync(part) ? fs.statSync(part).size : 0; if (have > size) { fs.rmSync(part); have = 0; }
     const r = await req(url, have ? { range: `bytes=${have}-` } : {}); if (![200, 206].includes(r.statusCode)) { r.resume(); throw new Error(`The download failed (${r.statusCode})`); }
     if (r.statusCode === 200) have = 0; // the server sent it all
-    const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' }); let n = have, last = 0;
-    await new Promise((res, rej) => { r.on('data', d => { n += d.length; if (Date.now() - last > 500) { last = Date.now(); onp(n); } }); r.on('error', rej); out.on('error', rej); out.on('finish', res); r.pipe(out); });
-    onp(n);
+    const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' }); let n = have, last = 0; current = r;
+    await new Promise((res, rej) => { r.on('data', d => { n += d.length; if (Date.now() - last > 500) { last = Date.now(); onp(n); } }); r.on('error', rej); r.on('aborted', () => rej(new Error('Stopped'))); r.on('close', () => { if (cancelled) { out.end(); rej(new Error('Stopped: it carries on from here next time')); } }); out.on('error', rej); out.on('finish', res); r.pipe(out); });
+    current = null; onp(n);
   }
   /** Which model the engine uses: a downloaded one, or Ollama's copy ({ id, ollama: true }). */
   function use({ id, ollama }) {
@@ -133,9 +133,12 @@ module.exports = ({ app, send }) => {
   async function status() {
     let ok = true; try { await L(); } catch { ok = false; }
     const c = cfg();
-    return { available: ok && process.platform === 'darwin' && process.arch === 'arm64', why: process.arch !== 'arm64' ? 'The built-in engine needs a Mac with Apple silicon: use Ollama' : why, // the build ships llama.cpp for Apple silicon only model: c.path && fs.existsSync(c.path) ? { id: c.id, source: c.source, file: path.basename(c.path) } : null, loaded: !!model, busy, gpu: llama?.gpu || null,
+    return { available: ok && process.platform === 'darwin' && process.arch === 'arm64', why: process.arch !== 'arm64' ? 'The built-in engine needs a Mac with Apple silicon: use Ollama' : why, /* the build ships llama.cpp for Apple silicon only */
+      model: c.path && fs.existsSync(c.path) ? { id: c.id, source: c.source, file: path.basename(c.path) } : null, loaded: !!model, busy, gpu: llama?.gpu || null,
       downloading, models: Object.entries(MODELS).map(([id, m]) => ({ id, name: m.name, downloaded: !!present(id), ollama: !!ollamaCopy(id) })) };
   }
   async function remove(id) { const c = cfg(); if (c.id === id && c.source === 'download') { await unload(); keep({}); } for (const f of fs.readdirSync(dir()).filter(f => f.startsWith(path.basename(fileOf(id)).replace(/-00001-of-.*|\.gguf$/, '')))) fs.rmSync(path.join(dir(), f)); return true; }
-  return { status, chat, download, use, remove, unload };
+  /** Stop the download (what's there is kept: the next one carries on from it). */
+  function cancel() { if (!downloading) return false; cancelled = true; try { current?.destroy(); } catch {} return true; }
+  return { status, chat, download, use, remove, unload, cancel };
 };

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
     download: id => ipcRenderer.invoke('dd:llm', 'download', id),
     use: o => ipcRenderer.invoke('dd:llm', 'use', o),
     remove: id => ipcRenderer.invoke('dd:llm', 'remove', id),
+    cancel: () => ipcRenderer.invoke('dd:llm', 'cancel'),
     onProgress: f => { const h = (e, p) => f(p); ipcRenderer.on('dd:llm-progress', h); return () => ipcRenderer.removeListener('dd:llm-progress', h); },
   },
   /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */

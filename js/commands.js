@@ -193,7 +193,8 @@ const BUILTINS = {
   // Information
   weather: { group: 'Info', name: 'Weather now', run(v, say) {
     const w = wx || mockWeather();
-    say(`It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}.`, () => openView('weather'));
+    const where = typeof loc !== 'undefined' && loc.source === 'gps' ? '' : ` in ${(typeof homePlace === 'function' && homePlace()?.name.split(',')[0]) || 'Bengaluru (set your place in Settings › Location)'}`;
+    say(`${w.live ? '' : 'Sample weather: '}It’s ${Math.round(w.cur.temp)} degrees and ${wxInfo(w.cur.code)[0].toLowerCase()}${where}.`, () => openView('weather'));
   } },
   time: { group: 'Info', name: 'The time', run: (v, say) => say(`It’s ${fmtClock(new Date())}.`) },
   buildTask: { group: 'Agent', name: 'Build a task with me', run: (v, say) => { if (typeof BuildCard === 'undefined') return say('Building tasks needs a newer version.'); BuildCard.open({ voice: true }); } },
@@ -606,7 +607,7 @@ const Commands = {
     const r = this.match(raw, alts);
     // a task of the agent's library said in one of its ways (js/agent.js), when no command matched for sure
     // a task asked for in one of its own ways, word for word, beats a command found by keywords or loosely (“summarise my unread mail” isn't “read my messages”)
-    if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id) || ((r.cmd.match === 'keywords' || /^(loose|fuzzy)$/.test(r.how || '')) && Agent.match(raw)?.exact))) { const m = Agent.match(raw); if (m) { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
+    if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id) || ((r.cmd.match === 'keywords' || /^(loose|fuzzy)$/.test(r.how || '')) && Agent.match(raw)?.exact))) { const m = Agent.match(raw); if (m && !(m.extra && !r.cmd && typeof Intent !== 'undefined' && Intent.can())) /* words it would ignore: the model picks */ { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
     // nothing matched, and a StudioGen in the mesh shares something new since the last look: fetch it, then try its tasks
     if (!r.cmd && typeof Agent !== 'undefined' && this.meshTried !== raw && typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStale() || Date.now() - (Agent.meshAt || 0) > 15000)) { this.meshTried = raw; return Agent.refresh(true).then(() => this.run(raw, true, alts)); } // once per thing said (true: already shown)
     this.meshTried = null;

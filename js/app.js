@@ -255,6 +255,10 @@ function homeButton() {
    Location: device GPS or simulated demo drive
    ============================================================ */
 const loc = { lat: 12.9716, lon: 77.5946, speed: 0, heading: 0, alt: null, acc: null, source: 'none', ts: 0 };
+// Your place (Settings › Location › Your place): where the weather and “near me” are without GPS; until set, Bengaluru (the default)
+const homePlace = () => store.get('homePlace', null);
+{ const h = homePlace(); if (h) Object.assign(loc, { lat: h.lat, lon: h.lon }); }
+const placeName = () => loc.source === 'gps' ? 'your location' : loc.source === 'demo' ? 'the demo drive' : homePlace()?.name || 'Bengaluru (default: set your place in Settings › Location)';
 const trip = { dist: 0, moving: 0, max: 0, start: Date.now() };
 let gpsWatch = null, demo = null, gotFirstFix = false;
 
@@ -1113,7 +1117,7 @@ function renderWeather() {
   if (!wx) return;
   const [label, icon] = wxInfo(wx.cur.code), r = Math.round, today = wx.daily[0];
   const min = Math.min(...wx.daily.map(d => d.lo)), max = Math.max(...wx.daily.map(d => d.hi)), span = Math.max(1, max - min);
-  $('#wxUpdated').textContent = wx.live ? 'Live · Open-Meteo' : 'Sample data (offline)';
+  $('#wxUpdated').textContent = `${wx.live ? 'Live · Open-Meteo' : 'Sample data (offline)'} · ${placeName()}`;
   $('#wxBody').innerHTML = `
     <div class="wx-now">
       <div class="wx-place">${svg('locate')}${loc.source === 'demo' ? DEMO_CITY.name : 'My Location'}</div>
@@ -1230,7 +1234,7 @@ function renderSettings() {
     ${typeof Stage !== 'undefined' ? Stage.settingsHtml(seg, tog, btn) : ''}
     <div class="group-title">Assistant</div>
     <div class="group">
-      ${typeof LLM !== 'undefined' ? btn('llm', 'Language model', esc(LLM.health?.ok ? LLM.cfg().model : LINK_HOST ? 'Set up' : 'Your Mac’s')) + btn('prompts', 'Prompts (advanced)', `${Object.keys(store.get('prompts', {})).length || 'none'} changed`) : ''}
+      ${typeof LLM !== 'undefined' ? btn('llm', 'Language model', esc(LLM.dl ? `Downloading ${Math.round(LLM.dl.done / LLM.dl.total * 100)}%` : LLM.biReady() ? `${LLM.bi.model.id} · built in` : LLM.health?.ok ? LLM.cfg().model : LINK_HOST ? 'Set up' : 'Your Mac’s')) + btn('prompts', 'Prompts (advanced)', `${Object.keys(store.get('prompts', {})).length || 'none'} changed`) : ''}
       ${typeof Avatars !== 'undefined' ? btn('avatars', 'Avatars', esc(BUILTIN_MODELS[Wcfg.get('model~stage').builtin || AVATAR_CORE]?.name || 'Choose')) : ''}
     </div>
     <div class="group-title">Scripts &amp; tasks</div>
@@ -1321,7 +1325,8 @@ function renderSettings() {
     <div class="group-title">Location</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Source</div></div><span class="val">${srcLabel}</span></div>
-      ${btn('gps', 'Use device GPS')}
+      ${btn('place', 'Your place', esc(homePlace()?.name || 'Not set (weather shows Bengaluru)'))}
+      ${btn('gps', APP_NAME === 'StudioGen' ? 'Use this Mac’s location' : 'Use device GPS')}
       ${loc.source === 'demo' ? btn('stopdemo', 'Stop demo drive') : btn('demo', 'Start demo drive', 'Simulated route')}
     </div>
     <div class="group-title">System</div>
@@ -1410,6 +1415,12 @@ function simulateIncomingMessage() {
    Input: one delegated click handler for the whole UI
    ============================================================ */
 const ACTIONS = {
+  /** Your place: a city by name (Open-Meteo's free place search), for the weather without GPS. */
+  place: () => sheet('Your place', `<p class="se-note">The weather and “near me” use it when ${APP_NAME} has no location. Type your city.</p><label class="se-field"><span>City</span><input id="plQ" value="${esc(homePlace()?.name?.split(',')[0] || '')}" placeholder="Pune" autocapitalize="words"></label><div id="plRes" class="pick-list"></div>`,
+    [['Search', async () => { const q = $('#plQ').value.trim(); if (!q) return; const box = $('#plRes'); box.textContent = 'Looking…';
+      try { const j = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en`)).json();
+        box.innerHTML = (j.results || []).map(p => `<button class="big-btn" data-place="${p.latitude},${p.longitude}|${esc([p.name, p.admin1, p.country].filter(Boolean).join(', '))}">${esc([p.name, p.admin1, p.country].filter(Boolean).join(', '))}</button>`).join('') || '<p class="se-note">Nothing found: try another spelling.</p>';
+      } catch { box.textContent = 'The place search didn’t answer (offline?)'; } }], ['Cancel']]),
   noop() {}, home: homeButton, assistant: openAssistant, closeAssistant,
   gps: () => { startGPS(); if (current === 'settings') setTimeout(renderSettings, 50); },
   demo: () => { startDemo(); toast('Demo drive started'); if (current === 'settings') renderSettings(); },
@@ -1701,3 +1712,6 @@ function showUpdate(worker) {
   $('#updateNow').onclick = () => { updating = true; bar.hidden = true; worker.postMessage('skipWaiting'); };
   $('#updateLater').onclick = () => { bar.hidden = true; toast(`The update installs next time you close and reopen ${APP_NAME}`); };
 }
+
+document.addEventListener('click', e => { const b = e.target.closest('[data-place]'); if (!b) return; const [ll, name] = b.dataset.place.split('|'), [lat, lon] = ll.split(',').map(Number);
+  store.set('homePlace', { name, lat, lon }); if (loc.source === 'none') Object.assign(loc, { lat, lon }); closeSheet(); toast(`Your place: ${name}`); loadWeather(true); if (current === 'settings') renderSettings(); });

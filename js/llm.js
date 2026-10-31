@@ -197,8 +197,9 @@ const LLM = {
   biHtml(bi, f) {
     const best = f.best || LLM_MODELS[0], m = bi.models?.find(x => x.id === best.id) || {}, dl = bi.downloading;
     return `<div class="lk-direct ${bi.model ? 'on' : ''}"><p><b>Built into StudioGen</b> (llama.cpp on the graphics chip; nothing else to install): ${bi.model ? `✓ ${esc(bi.model.id)} ${bi.model.source === 'ollama' ? '(read from Ollama’s copy)' : '(downloaded)'}${bi.loaded ? ' · loaded' : ' · loads when first needed'}` : 'no model yet'} · ${f.gb} GB memory</p>
-      <div class="chip-row">${!bi.model && m.ollama ? `<button class="chip accent" data-llm="biuse|${best.id}|ollama">Use the ${esc(best.name)} Ollama has (no download)</button>` : ''}
-        ${!m.downloaded ? `<button class="chip${!bi.model && !m.ollama ? ' accent' : ''}" data-llm="bidl|${best.id}">${dl ? `Downloading… ${Math.round(dl.done / dl.total * 100)}%` : `Download ${esc(best.name)} into StudioGen (${best.size})`}</button>` : bi.model?.source !== 'download' ? `<button class="chip" data-llm="biuse|${best.id}">Use the downloaded ${esc(best.name)}</button>` : ''}
+      ${bi.model?.source === 'ollama' ? `<p class="se-note">It reads the model file Ollama already has (Ollama itself isn’t used). ${dl ? 'When StudioGen’s own copy has downloaded, it switches to that by itself.' : m.downloaded ? '' : 'To be independent of Ollama’s files, download StudioGen’s own copy: it switches when done.'}</p>` : ''}
+      <div class="chip-row">${!bi.model && m.ollama ? `<button class="chip accent" data-llm="biuse|${best.id}|ollama">Use the ${esc(best.name)} file Ollama has (no download)</button>` : ''}
+        ${!m.downloaded ? (dl ? `<button class="chip" disabled>Downloading StudioGen’s own copy… ${Math.round(dl.done / dl.total * 100)}%</button><button class="chip" data-llm="bistop">Stop</button>` : `<button class="chip${!bi.model && !m.ollama ? ' accent' : ''}" data-llm="bidl|${best.id}">Download StudioGen’s own copy (${best.size})</button>`) : bi.model?.source !== 'download' ? `<button class="chip" data-llm="biuse|${best.id}">Use StudioGen’s own copy</button>` : ''}
         ${m.downloaded ? `<button class="chip" data-llm="birm|${best.id}">Delete the download</button>` : ''}</div><div class="su-bar" id="biBar" ${dl ? '' : 'hidden'}><i style="width:${dl ? Math.round(dl.done / dl.total * 100) : 0}%"></i></div>
       ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB; pool this Mac with another (see below).</p>` : ''}</div>`;
   },
@@ -234,6 +235,7 @@ document.addEventListener('click', async e => {
   if (k === 'getollama') return openExternal('https://ollama.com/download', 'https://ollama.com/download');
   if (k === 'recheck') { LLM.health = null; return LLM.settings(); }
   if (k === 'biuse') { const [, id, from] = b.dataset.llm.split('|'); const r = await DriveDeckDesktop.llm.use({ id, ollama: from === 'ollama' }); if (r?.error) return toast(r.error); await LLM.builtin(true); toast('Built-in model ready'); return LLM.settings(); }
+  if (k === 'bistop') { await DriveDeckDesktop.llm.cancel(); toast('Stopped: it carries on from there next time'); setTimeout(() => LLM.settings(), 600); return; }
   if (k === 'birm') { if (!confirm('Delete the downloaded model file?')) return; await DriveDeckDesktop.llm.remove(arg); await LLM.builtin(true); return LLM.settings(); }
   if (k === 'bidl') { b.disabled = true; const bar = $('#biBar'); if (bar) bar.hidden = false;
     try { await LLM.biDownload(arg, f => { b.textContent = `Downloading… ${Math.round(f * 100)}%`; if (bar) bar.firstElementChild.style.width = `${Math.round(f * 100)}%`; }); toast('Downloaded: the built-in model is ready'); LLM.settings(); }
@@ -246,3 +248,7 @@ document.addEventListener('click', async e => {
 }, true);
 // StudioGen: is the model server there (for Automatic, the mesh's presence and Settings)
 setTimeout(() => { if (LINK_HOST) { LLM.local(); LLM.builtin(); setInterval(() => { LLM.local(); LLM.builtin(); }, 60000); } }, 1500);
+// a model download (started in the startup list or Settings) goes on in the background: Settings › Assistant shows how far, and it says when it's done
+if (window.DriveDeckDesktop?.llm?.onProgress) DriveDeckDesktop.llm.onProgress(p => {
+  LLM.dl = p; if (p.ok) { LLM.dl = null; LLM.builtin(true); toast('gpt-oss has downloaded: StudioGen uses its own copy now'); Log.i('llm', 'Built-in model downloaded'); }
+});

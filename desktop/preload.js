@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   llm: {
     status: () => ipcRenderer.invoke('dd:llm', 'status'),
     chat: o => ipcRenderer.invoke('dd:llm', 'chat', o),
+    /** The same, with the words as they come: onChunk(rid, f) receives them for that request id. */
+    stream: o => ipcRenderer.invoke('dd:llm', 'stream', o),
+    onChunk: f => { const h = (e, m) => f(m); ipcRenderer.on('dd:llm-chunk', h); return () => ipcRenderer.removeListener('dd:llm-chunk', h); },
     download: id => ipcRenderer.invoke('dd:llm', 'download', id),
     use: o => ipcRenderer.invoke('dd:llm', 'use', o),
     remove: id => ipcRenderer.invoke('dd:llm', 'remove', id),

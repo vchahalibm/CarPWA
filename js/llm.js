@@ -33,6 +33,8 @@ const LLM_PROMPTS = {
     text: 'You route what a user said to a voice assistant to one of the actions it can take. Reply with JSON only, no prose: {"intent": "<an id from the list, or null>", "slots": {"<slot>": "<value from what they said>"}, "say": "<if no intent fits: a short, friendly spoken reply, at most two sentences>"}.' },
   'route.prompt': { name: 'Interactive scripts: the message', role: 'fast', where: 'js/brain.js › Brain.route', vars: ['actions', 'known', 'said'],
     text: 'Actions: {actions}\nKnown values: {known}\nThe user said: “{said}”' },
+  'chat': { name: 'Talking freely', role: 'fast', where: 'js/chat.js › Chat.turn (anything said or typed that isn’t a command, after the wake word)', vars: ['app', 'now', 'place', 'screen', 'cards', 'memory', 'actions'],
+    text: 'You are the assistant inside {app}, a voice app for presenting, driving and getting things done, speaking out loud through a 3D character. It is {now}; the user is in {place}; on screen: {screen}.\nRecent results on screen:\n{cards}\nWhat you know about the user:\n{memory}\nThings you can do (id: what it does [inputs]):\n{actions}\n\nIf one of those things is what the user wants, answer with only one line: ACTION {"do": "task" | "command" | "script", "id": "<id from the list>", "inputs": {"<input>": "<value from what they said>"}}. Use only ids from the list and only words they said for inputs. Otherwise just talk: answer naturally and briefly, the way you would say it aloud (one to three short sentences, no lists, no markdown, no emoji). Use the recent results to answer follow-up questions about them. If you don’t know something current (news, prices), say so and offer the matching action if there is one.' },
   'ask': { name: 'Ask the model (script step)', role: 'cards', where: 'js/brain.js › brain.ask', vars: [],
     text: 'You are the assistant inside a presentation and task app, speaking out loud. Answer briefly and plainly (at most three sentences) unless asked for a list or data. If asked for data, answer with JSON only.' },
   'plan': { name: 'Plan a task from building blocks', role: 'build', where: 'js/tasklocal.js › TaskLocal.plan (the quick builder)', vars: [],
@@ -98,35 +100,57 @@ const LLM = {
   /** What a role uses now, for Settings and the logs. */
   async describe(role) { const w = (await this.order(role))[0]; return { builtin: `${this.bi?.model?.id || 'the model'} built into StudioGen`, local: `${this.cfg().model} in Ollama (or your model server)`, remote: `${this.remote()?.name}'s model`, cloud: `Claude (${this.cfg().cloud})`, mac: 'Apple’s on-device model' }[w] || 'none'; },
 
-  /** { system, prompt | messages, schema?, max?, temperature? } → { text, json? (parsed when a schema was given), via }. */
+  /** { system, prompt | messages, schema?, max?, temperature?, onChunk? } → { text, json? (parsed when a schema was given), via }.
+      onChunk(text): the words as they come (the built-in engine, Ollama and Claude stream; the others give it all at once). */
   async ask(role, o, opt = {}) {
     const order = await this.order(role, opt); if (!order.length) throw new Error('No language model is set up (Settings › Assistant › Language model)');
     let last;
     for (const via of order) {
       const t0 = performance.now();
-      try { const r = await this[`via_${via}`](role, o); Log.d('llm', `${role} via ${via} in ${Math.round(performance.now() - t0)} ms`); return { ...r, via, json: o.schema ? this.json(r.text) : undefined }; }
+      try { const r = await this[`via_${via}`](role, o); if (o.onChunk && !r.streamed) o.onChunk(r.text); Log.d('llm', `${role} via ${via} in ${Math.round(performance.now() - t0)} ms`); return { ...r, via, json: o.schema ? this.json(r.text) : undefined }; }
       catch (e) { last = e; Log.w('llm', `${role} via ${via} failed`, { error: e.message }); if (via === 'remote' && /Unknown request/.test(e.message)) this.noRemote = Date.now() + 600000; }
     }
     throw last;
   },
   json(t) { const s = String(t || '').replace(/<think>[\s\S]*?<\/think>/g, ''); try { return JSON.parse(s); } catch {} const i = s.indexOf('{'), j = s.lastIndexOf('}'); if (i >= 0 && j > i) try { return JSON.parse(s.slice(i, j + 1)); } catch {} throw new Error('The model didn’t answer in the expected shape'); },
   msgs: o => [...(o.system ? [{ role: 'system', content: o.system }] : []), ...(o.messages || [{ role: 'user', content: o.prompt || '' }])],
+  /** Server-sent events (OpenAI and Anthropic streams): each data line's piece of text to onChunk; the whole text back. */
+  async sse(r, piece, onChunk) {
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', all = '';
+    for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i;
+      while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!line.startsWith('data:')) continue; const d = line.slice(5).trim(); if (d === '[DONE]') continue;
+        try { const t = piece(JSON.parse(d)); if (t) { all += t; onChunk(t); } } catch {} } }
+    return all;
+  },
   async via_local(role, o) {
-    const c = this.cfg(), r = await fetch(`${c.url.replace(/\/+$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout(role === 'build' ? 600000 : 180000), headers: { 'content-type': 'application/json' },
+    const c = this.cfg();
+    if (o.onChunk && !o.schema) { // talking: the words as they come
+      const r = await fetch(`${c.url.replace(/\/+$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout(180000), headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: c.model, messages: this.msgs(o), temperature: o.temperature ?? 0.4, max_tokens: Math.max(o.max || 400, 3000), reasoning_effort: 'low', stream: true }) });
+      if (!r.ok) throw new Error(`The model server said ${r.status}`);
+      return { text: (await this.sse(r, j => j.choices?.[0]?.delta?.content, o.onChunk)).trim(), streamed: true };
+    }
+    const r = await fetch(`${c.url.replace(/\/+$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout(role === 'build' ? 600000 : 180000), headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: c.model, messages: this.msgs(o), temperature: o.temperature ?? 0.2, max_tokens: Math.max(o.max || 400, role === 'build' ? 8000 : 3000), // room for the reasoning
         reasoning_effort: role === 'build' ? 'medium' : 'low', ...(o.schema ? { response_format: { type: 'json_schema', json_schema: { name: 'answer', schema: o.schema } } } : {}) }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `The model server said ${r.status}`);
     return { text: (j.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim() };
   },
   async via_builtin(role, o) {
+    if (o.onChunk && DriveDeckDesktop.llm.stream) {
+      const rid = Math.random().toString(36).slice(2), off = DriveDeckDesktop.llm.onChunk(m => { if (m.rid === rid) o.onChunk(m.t); });
+      try { const r = await DriveDeckDesktop.llm.stream({ rid, system: o.system, prompt: o.prompt, messages: o.messages, max: o.max, temperature: o.temperature, effort: role === 'build' ? 'medium' : 'low' }); if (r?.error) throw new Error(r.error); return { text: (r.text || '').trim(), streamed: true }; }
+      finally { off(); }
+    }
     const r = await DriveDeckDesktop.llm.chat({ system: o.system, prompt: o.prompt, messages: o.messages, schema: o.schema, max: o.max, temperature: o.temperature, effort: role === 'build' ? 'medium' : 'low' });
     if (r?.error) throw new Error(r.error); return { text: (r.text || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim() };
   },
   async via_remote(role, o) { const r = await this.remote().call({ role, system: o.system, prompt: o.prompt, messages: o.messages, schema: o.schema, max: o.max, temperature: o.temperature }); if (r?.error) throw new Error(r.error); return { text: r.text }; },
   async via_cloud(role, o) {
-    const c = this.cfg(), r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: AbortSignal.timeout(role === 'build' ? 300000 : 60000),
+    const c = this.cfg(), stream = !!o.onChunk && !o.schema, r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: AbortSignal.timeout(role === 'build' ? 300000 : 60000),
       headers: { 'content-type': 'application/json', 'x-api-key': this.key(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: c.cloud, max_tokens: Math.max(o.max || 400, role === 'build' ? 8000 : 1000), system: (o.system || '') + (o.schema ? `\n\nAnswer only with JSON matching this schema: ${JSON.stringify(o.schema)}` : ''), messages: (o.messages || [{ role: 'user', content: o.prompt || '' }]).filter(m => m.role !== 'system') }) });
+      body: JSON.stringify({ model: c.cloud, stream, max_tokens: Math.max(o.max || 400, role === 'build' ? 8000 : 1000), system: (o.system || '') + (o.schema ? `\n\nAnswer only with JSON matching this schema: ${JSON.stringify(o.schema)}` : ''), messages: (o.messages || [{ role: 'user', content: o.prompt || '' }]).filter(m => m.role !== 'system') }) });
+    if (stream && r.ok) return { text: (await this.sse(r, j => j.type === 'content_block_delta' ? j.delta?.text : '', o.onChunk)).trim(), streamed: true };
     const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `Claude said ${r.status}`);
     return { text: (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') };
   },

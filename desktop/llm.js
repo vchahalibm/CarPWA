@@ -88,7 +88,7 @@ module.exports = ({ app, send }) => {
         session.setChatHistory([{ type: 'system', text: String(o.system || '') }]);
       }
       const grammar = o.schema ? await llama.createGrammarForJsonSchema(o.schema) : undefined;
-      const text = await session.prompt(String(last.content ?? ''), { grammar, maxTokens, temperature });
+      const text = await session.prompt(String(last.content ?? ''), { grammar, maxTokens, temperature, ...(o.onChunk && !grammar ? { onTextChunk: t => o.onChunk(t) } : {}) }); // onChunk: the words as they come (talking)
       return { text: String(text || '').trim() };
     } finally { seq.dispose(); busy--; waiters.shift()?.(); touch(); }
   }

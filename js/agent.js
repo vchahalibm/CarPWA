@@ -915,6 +915,7 @@ const AgentHome = {
     (side ? $('.ag-main', root) : root).innerHTML = `<header class="ag-hdr"><div><h1>${hello}</h1><p class="se-note">${this.moving() ? 'Driving: short cards, read aloud.' : `Ask by voice or type. ${AgentWeb.can() ? 'Tasks run on this Mac.' : Link.ready() ? `Mail, calendar and chats run on ${esc(Link.macName())}.` : 'Pair with your Mac for mail, calendar and chats.'}`}</p></div>
       <button class="chip" data-ag="lib">${svg('grid')} Library</button></header>
       <form class="ag-ask" data-agform><input id="agAsk" placeholder="Ask, e.g. “what’s my day?”" autocomplete="off" enterkeyhint="go"><button class="big-btn accent" aria-label="Ask">${svg('mic')}</button></form>
+      ${typeof Chat !== 'undefined' ? Chat.html() : ''}
       <div class="ag-sugg">${this.suggestions().map(t => `<button class="chip" data-ag="run:${esc(t.id)}">${esc(t.name)}</button>`).join('')}</div>
       ${top ? this.cardHtml(top, true) : `<div class="ag-empty"><h3>Nothing yet</h3><p class="se-note">Results of what you ask show here: mail summaries, your day, messages, arrival times, tasks on your Mac.</p></div>`}
       <div class="ag-list">${shown.map(c => this.cardHtml(c)).join('')}</div>

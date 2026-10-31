@@ -1824,3 +1824,9 @@ table.bench small{color:var(--text-2)}
 /* The camera widget's off switch (js/vision.js CamSwitch): a labelled button, always there while it's on */
 .cam-off{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px 0 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-weight:600;margin-left:auto}
 .cam-off[hidden]{display:none}.cam-off svg{width:18px;height:18px}
+/* The conversation on the Agent screen (js/chat.js) */
+.ag-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
+.ag-chat p{margin:0;max-width:78%;padding:9px 14px;border-radius:18px;font-size:15.5px;line-height:1.4}
+.ag-chat p.you{align-self:flex-end;background:var(--accent,#3b82f6);color:#fff;border-bottom-right-radius:6px}
+.ag-chat p.it{align-self:flex-start;background:var(--surface-2);color:var(--text);border-bottom-left-radius:6px}
+.ag-chat .link-btn{align-self:center;font-size:13px}

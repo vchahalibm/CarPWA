@@ -594,6 +594,9 @@ const Commands = {
 
   /** Hear/typed text → action, with a spoken reply. */
   run(raw, spoken, alts = []) {
+    // “Hey StudioGen, …”: the wake word is taken off (it also lets what follows be answered freely, js/chat.js)
+    const w = typeof Chat !== 'undefined' ? Chat.wake(raw) : null;
+    if (w) { if (!w.rest) { Voice.open(); return Voice.respond('Yes?', null, { ask: true }); } raw = w.rest; alts = []; }
     Voice.open();
     if (!spoken) { VoiceLog.you(raw, { engine: 'Typed' }); Voice.show(`“${raw}”`, ''); }
     const say = (msg, then, o = {}) => Voice.respond(msg, then, o);
@@ -617,10 +620,13 @@ const Commands = {
     this.meshTried = null;
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');
     // nothing matched: Apple's on-device model picks the command by meaning, when there is one (this Mac, or a phone's Mac)
+    // talking freely: nothing matched, or only loosely (“tell me a fact” isn't “tell Priya that …”): the model acts or answers
+    if ((!r.cmd || /^(loose|fuzzy)$/.test(r.how || '')) && typeof Chat !== 'undefined' && Chat.allowed(spoken) && Intent.can()) return Chat.turn(raw, say);
     if (!r.cmd) return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, sorry) : sorry();
     if (r.how === 'loose' && r.conf < LOOSE_RUN) {
       const ask = () => { this.pending = { r, raw, at: Date.now() }; return say(`Did you mean “${r.echo}”?`, null, { ask: true }); };
-      // unsure: the on-device model's pick by meaning first, the “Did you mean” question if it has none
+      // unsure: talking freely, the model decides (it has the command in its list); otherwise its pick by meaning, then “Did you mean”
+      if (typeof Chat !== 'undefined' && Chat.allowed(spoken) && Intent.can()) return Chat.turn(raw, say);
       return typeof Intent !== 'undefined' && settings.intentAI !== false && Intent.can() ? Intent.handle(raw, say, ask) : ask();
     }
     this.exec(r, raw, say);

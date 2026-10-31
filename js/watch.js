@@ -10,6 +10,12 @@
      actions  a watch card on the Agent screen and the timeline · a quiet toast · spoken when important · the digest
    Runs in StudioGen's agent browser (the containers' sign-ins), one check at a time per site, leaving a slot for tasks;
    signed out or a robot check: paused, with a card to sign in. Templates for Slack, Teams, Outlook, WhatsApp, X, pages.
+   Where (phase 5, design § 7): each watcher runs here or on another StudioGen of yours (a Worker): the definition goes
+   there with the mesh request 'watch' (own devices only), it runs there, and its news comes back as 'watch-event' (sealed,
+   through the mesh, or StudioGBee while this Mac is away). The news also goes to your DriveGens (a push through the bee
+   when the phone is away). Live pages: the bridge's observer pokes a check within seconds. Finders: a picked part keeps
+   several ways to find it; when the first stops matching, the next one is tried and kept (self-healing), else it asks you
+   to pick it again.
    Stored in dd.watchers (definition + state: seen rows, last text or value). Loaded after memory.js.
    ============================================================ */
 const WATCH_EVERY = [['live', 'Live (every 30 s, page kept open)'], ['2m', 'Every 2 minutes'], ['5m', 'Every 5 minutes'], ['15m', 'Every 15 minutes'], ['30m', 'Every 30 minutes'], ['1h', 'Every hour'], ['6h', 'Every 6 hours'], ['1d', 'Once a day']];
@@ -75,11 +81,34 @@ const Watch = {
     const sel = w.rows || w.read || 'body', url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', container: w.container || '', result: 'read',
       steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready || sel.split('||')[0]}`, 'ms=30000', ...(w.every === 'live' ? ['stay'] : [])] },
-        ...(w.steps || []), w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? { do: 'agent.wait', value: sel, args: ['ms=3000'], as: 'read' } : { do: 'agent.read', value: sel, args: [`max=${w.rows ? 12000 : 20000}`, ...(w.keep ? [`keep=${w.keep}`] : [])], as: 'read' }] };
-    const out = await Agent.exec(t, {}, { confirmed: true, quiet: true });
+        ...(w.steps || []), w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? { do: 'agent.wait', value: sel, args: ['ms=3000'], as: 'read' } : { do: 'agent.read', value: sel, args: [`max=${w.rows ? 12000 : 20000}`, 'strict', ...(w.keep ? [`keep=${w.keep}`] : [])], as: 'read' }] };
+    let out; try { out = await Agent.exec(t, {}, { confirmed: true, quiet: true }); }
+    catch (e) { if (!/^NOTFOUND:/.test(e.message)) throw e; out = await this.heal(w, url); }
     if (w.detect?.kind === 'appears' || w.detect?.kind === 'disappears') return !!out;
     const text = String(out ?? ''); if (text === '(none)') return [];
     return w.rows ? text.split('\n').map(l => l.trim()).filter(Boolean) : text;
+  },
+  /** The browser a page watcher uses ('container|site', as Agent.containersOf): a live one stays open there. */
+  viewKey(w) { const url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); try { return `${Containers.for(url, w.container).id}|${AgentWeb.siteKey(url)}`; } catch { return ''; } },
+  /** Self-healing: the part's selector found nothing on the page just read; its other finders are tried on the same page,
+      and the first that finds it is kept (noted in the log and the list). None: GONE (it asks you to pick it again). */
+  async heal(w, url) {
+    const v = AgentWeb.views.get(this.viewKey(w)), was = w.rows || w.read;
+    for (const f of (w.finders || []).filter(f => f && f !== was)) {
+      const r = await AgentWeb.call('read', [f, w.rows ? 12000 : 20000], 20000, { view: v });
+      if (!r?.ok || r.sel === 'body') continue;
+      if (w.rows) w.rows = f; else w.read = f;
+      w.finders = [f, ...w.finders.filter(x => x !== f), was].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 8);
+      w.state.healed = { at: Date.now(), from: was, to: f }; Log.i('watch', `Found it again another way: ${w.name}`, { from: was, to: f });
+      if (!w.keep) return r.text;
+      const ks = w.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean);
+      return r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)';
+    }
+    throw new Error(`GONE:${url}`);
+  },
+  /** A live watcher's part changed (the bridge's observer, via AgentWeb): check it now, at most every 10 s. */
+  poke(key) {
+    for (const w of this.list()) if (w.on && w.every === 'live' && (!w.runOn || w.runOn === 'here') && !w.state?.paused && !this.running.has(w.id) && Date.now() - (w.state?.at || 0) > 10000 && this.viewKey(w) === key) { Log.d('watch', `Changed: ${w.name}`); this.check(w); }
   },
   /** What counts, from what was read and what was seen before: { tell, headline, items, value } or nothing. */
   detect(w, got) {
@@ -143,13 +172,69 @@ const Watch = {
   quiet(w) { const q = String(w.quiet || store.get('watchQuiet', '22:00-07:00')).match(/(\d\d):(\d\d)-(\d\d):(\d\d)/); if (!q) return false; const n = new Date(), m = n.getHours() * 60 + n.getMinutes(), a = +q[1] * 60 + +q[2], b = +q[3] * 60 + +q[4]; return a < b ? m >= a && m < b : m >= a || m < b; },
   /** Tell: a card (and the timeline), a quiet toast, the voice when important, the digest. */
   tell(w, hit, verdict) {
+    if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another StudioGen of yours: it tells */
     const t = w.tell || {}, quiet = this.quiet(w), presenting = typeof Script !== 'undefined' && Script.running;
     const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
     if (t.toast !== false && !quiet) toast(`👁 ${hit.headline}`);
     if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && verdict?.important))) Voice.speak?.(hit.headline);
     if (t.digest !== false) store.set('watchDigest', [...store.get('watchDigest', []), { at: Date.now(), w: w.name, h: hit.headline, items: (hit.items || []).slice(0, 3) }].slice(-200));
+    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important });
     Log.i('watch', `Told: ${hit.headline}`, { quiet, important: !!verdict?.important });
+  },
+  /* ---------- Watchers on other devices of yours (design § 7) ---------- */
+  /** StudioGens of yours that can run watchers now (a Worker, another Mac): from their presence. */
+  runners() {
+    if (typeof Mesh === 'undefined' || !Mesh.m) return [];
+    return Mesh.members().filter(m => m.id !== Mesh._me?.id && Mesh.own(m.id) && Mesh.presence[m.id]?.caps?.watch && Date.now() - (Mesh.presence[m.id].at || 0) < 180000);
+  },
+  where(w) { return !w.runOn || w.runOn === 'here' ? 'here' : Mesh.member?.(w.runOn)?.name || 'another device'; },
+  /** What the owner's list shows of a watcher running elsewhere. */
+  brief(w) { const s = w.state || {}; return { at: s.at, count: s.count, changedAt: s.changedAt, lastHit: s.lastHit, error: s.fails ? s.error : '', fails: s.fails || 0, paused: s.paused || '', next: s.next, healed: s.healed }; },
+  /** A request to the device running it. */
+  remote(w, op, more = {}, ms = 120000) { return Mesh.call(w.runOn, 'watch', { op, id: w.id, ...more }, ms); },
+  /** News for one of your devices: through the mesh when it's there, else StudioGBee keeps it (push: a phone that's away
+      gets “a watcher found something new”, nothing more). */
+  async send(to, p, push) {
+    try { return await Mesh.call(to, 'watch-event', p, 30000); }
+    catch (e) { if (typeof Bee !== 'undefined' && Bee.up()) { Bee.call(to, 'watch-event', p, 86400000, push ? { push: 'watch' } : {}).catch(() => {}); return { queued: true }; } Log.w('watch', 'Couldn’t pass the news on', { to, error: e.message }); }
+  },
+  /** Your DriveGens in the mesh get the news as a card. */
+  phones(p) {
+    if (typeof Mesh === 'undefined' || !Mesh.m) return;
+    for (const m of Mesh.members()) if (m.app === 'DriveGen' && m.id !== Mesh._me?.id && Mesh.own(m.id)) this.send(m.id, { phone: true, ...p }, true);
+  },
+  /** Requests from your own StudioGen (Direct.handle 'watch', own devices only): run its watchers here. */
+  async answer(p, who) {
+    const from = who.meshId || who.id; if (!from) throw new Error('Only through the mesh');
+    const mine = () => this.list().filter(w => w.origin === from), find = () => mine().find(w => w.originId === p.id);
+    if (p.op === 'list') return { list: mine().map(w => ({ id: w.originId, ...this.brief(w) })) };
+    if (p.op === 'save') {
+      if (!this.can()) throw new Error('This device can’t run watchers');
+      const d = p.w || {}, old = find(), w = { ...d, id: old?.id || 'w' + Date.now().toString(36), originId: d.id, origin: from, originName: who.name || '', runOn: 'here', state: { seen: [], fails: 0 } };
+      const r = await this.check(w, { preview: true }); this.detect(w, r.got);
+      w.state.at = Date.now(); w.state.count = Array.isArray(r.got) ? r.got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
+      return { got: Array.isArray(r.got) ? r.got.slice(0, 3) : typeof r.got === 'boolean' ? r.got : String(r.got).slice(0, 300), count: w.state.count, state: this.brief(w) };
+    }
+    const w = find(); if (!w) throw new Error('That watcher isn’t on this device');
+    if (p.op === 'check') { const r = await this.check(w); return { hit: r?.hit?.headline || '', state: this.brief(this.get(w.id) || w) }; }
+    if (p.op === 'set') { w.on = !!p.on; if (w.on) { w.state.paused = ''; w.state.next = Date.now(); } this.put(w); return { state: this.brief(w) }; }
+    if (p.op === 'del') { this.del(w.id); return { ok: true }; }
+    throw new Error(`Unknown watcher request ${p.op}`);
+  },
+  /** News from a device running one of yours (or, on a DriveGen, from your Mac). */
+  event(p, who) {
+    const from = who.meshId || who.id;
+    if (p.phone) { /* on a phone: a card and a quiet note; the Mac keeps the watcher */
+      Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac' });
+      if (!this.quiet({})) toast(`👁 ${p.headline}`); return { ok: true };
+    }
+    const w = this.list().find(x => x.id === p.id && x.runOn === from); if (!w) return { ok: false, error: 'No such watcher here' };
+    w.state = { ...w.state, ...(p.state || {}) };
+    if (p.paused) { this.put(w); Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: 'signin', headline: `${p.paused} on ${this.where(w)}, then it carries on (paused)`, watch: w.id }); return { ok: true }; }
+    w.state.changedAt = Date.now(); w.state.lastHit = p.headline; this.put(w);
+    this.tell({ ...w, origin: '' }, { headline: p.headline, items: p.items || [] }, { important: !!p.important, why: p.why });
+    return { ok: true };
   },
   /** One check of one watcher (the scheduler, or Check now). preview: only read, tell nothing, keep nothing. */
   async check(w, o = {}) {
@@ -161,12 +246,19 @@ const Watch = {
       const hit = this.detect(w, got);
       w.state.at = Date.now(); w.state.fails = 0; w.state.paused = ''; w.state.lastMs = Date.now() - t0; w.state.count = Array.isArray(got) ? got.length : null;
       if (hit) { const v = await this.judge(w, hit); if (v.ok) { w.state.changedAt = Date.now(); w.state.lastHit = hit.headline; this.tell(w, hit, v); } }
+      if (w.every === 'live' && (w.rows || w.read) && !w.source) { const v = AgentWeb.views.get(this.viewKey(w)); if (v) AgentWeb.call('observe', [w.rows || w.read, true], 5000, { view: v }); } /* told within seconds when it changes */
       return { got, hit };
     } catch (e) {
       const m = e.message; w.state.fails = (w.state.fails || 0) + 1; w.state.error = m;
       if (/^SIGNIN:/.test(m) || /robot|captcha|not a robot/i.test(m)) { /* needs you: paused, said once */
         w.state.paused = /^SIGNIN:/.test(m) ? `Sign in to ${m.slice(7)}` : 'Answer the robot check';
         Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: /^SIGNIN:/.test(m) ? 'signin' : 'failed', headline: `${w.state.paused}, then it carries on (paused)`, watch: w.id });
+        if (w.origin && !o.preview) this.send(w.origin, { id: w.originId, paused: w.state.paused, state: this.brief(w) });
+      }
+      if (/^GONE:/.test(m)) { /* none of its finders found the part: pick it again */
+        w.state.paused = 'What it watches isn’t on the page any more';
+        if (!o.preview) Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: 'failed', headline: `${w.state.paused}: pick it again`, watch: w.id, gone: true });
+        if (w.origin && !o.preview) this.send(w.origin, { id: w.originId, paused: w.state.paused, state: this.brief(w) });
       }
       Log.w('watch', `Check failed: ${w.name}`, { error: m, fails: w.state.fails });
       if (o.preview) throw e;
@@ -211,12 +303,20 @@ const Watch = {
       <label class="se-check"><input type="checkbox" id="wtToast" checked> A quiet notification</label>
       <label class="se-row"><span>Say it aloud</span>${sel('wtSpeak', [['important', 'When it’s important'], ['always', 'Always'], ['never', 'Never']], 'important')}</label>
       <label class="se-check"><input type="checkbox" id="wtDigest" checked> In the daily digest</label>
+      ${typeof Mesh !== 'undefined' && Mesh.m && Mesh.members().some(m => m.app === 'DriveGen' && Mesh.own(m.id)) ? '<label class="se-check"><input type="checkbox" id="wtPhone" checked> On my phone too (a push when it’s away)</label>' : ''}
+      ${this.runners().length ? `<label class="se-row"><span>Runs on</span>${sel('wtRunOn', [['here', 'This Mac'], ...this.runners().map(m => [m.id, esc(m.name)])], o.runOn || 'here')}</label><p class="se-note">A Worker is always on and keeps its own sign-ins (sign in there with Sign in from here).</p>` : ''}
       <label class="se-field"><span>Only tell me if… (optional, judged by the model)</span><input id="wtAsk" placeholder="it’s from a customer, or needs me today"></label>`;
   },
-  formRead(w) { w.every = $('#wtEvery')?.value || w.every; w.tell = { card: true, toast: $('#wtToast')?.checked !== false, speak: $('#wtSpeak')?.value || 'important', digest: $('#wtDigest')?.checked !== false }; const a = $('#wtAsk')?.value.trim(); if (a) w.ask = a; },
+  formRead(w) { w.every = $('#wtEvery')?.value || w.every; w.tell = { card: true, toast: $('#wtToast')?.checked !== false, speak: $('#wtSpeak')?.value || 'important', digest: $('#wtDigest')?.checked !== false, phone: $('#wtPhone') ? $('#wtPhone').checked : true }; w.runOn = $('#wtRunOn')?.value || w.runOn || 'here'; const a = $('#wtAsk')?.value.trim(); if (a) w.ask = a; },
   /** Read once before saving (the baseline: nothing told), show what it reads now. */
   async saveChecked(w) {
-    sheet('Checking…', `<p class="se-note">Reading ${esc(w.name)} once, so it knows what's there now.</p>`, []);
+    sheet('Checking…', `<p class="se-note">Reading ${esc(w.name)} once${w.runOn && w.runOn !== 'here' ? ` on ${esc(this.where(w))}` : ''}, so it knows what's there now.</p>`, []);
+    if (w.runOn && w.runOn !== 'here') try { /* on another StudioGen of yours: it reads there and keeps the state; this Mac keeps the definition and tells you */
+      const { state, ...def } = w, r = await this.remote(w, 'save', { w: def }, 150000);
+      w.state = { ...w.state, ...r.state }; this.put(w);
+      const got = r.got, now = Array.isArray(got) ? `${r.count} item${r.count === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
+      return sheet('Watching', `<p><b>${esc(w.name)}</b> · ${esc((WATCH_EVERY.find(e => e[0] === w.every) || [])[1] || w.every)} · on ${esc(this.where(w))}</p><p class="se-note">${now}. It tells you when that changes.</p>`, [['Watchers', () => this.sheet()], ['Done']]);
+    } catch (e) { return sheet('Couldn’t read it there', `<p>${esc(e.message.replace(/^SIGNIN:(.+)$/, `Sign in to $1 on ${this.where(w)} first (Sign in from here), then try again.`))}</p>`, [['Cancel']]); }
     try {
       const r = await this.check(w, { preview: true }), got = r.got;
       this.detect(w, got); w.state.at = Date.now(); w.state.count = Array.isArray(got) ? got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
@@ -231,20 +331,23 @@ const Watch = {
       ${this.can() ? '<p class="se-note"><b>Anything else</b></p><div class="pick-list"><button class="big-btn" data-wt="here">Watch something on a page (open it, tap it)</button></div>' : ''}`, [['Back', () => this.sheet()]]);
   },
   /** Watch something here: the agent browser's page, a part picked by tapping; the kind suggested from what it is. */
-  async here(url) {
+  async here(url, again) {
     if (url) await AgentWeb.go(url);
     AgentWeb.show(true); toast('Tap what to watch on the page');
     const r = await AgentWeb.call('pick', [120000, true], 125000); AgentWeb.show(false);
     if (!r?.ok) return toast('Nothing picked');
     const listy = /^(listitem|row|option|treeitem|article)$/.test(r.role) || r.tag === 'li' || r.tag === 'article';
     const rows = listy ? r.css.replace(/:nth-(child|of-type)\(\d+\)(?!.*:nth-)/, '') : '', num = /\d/.test(r.text) && r.text.length < 40;
+    const q = x => String(x).replace(/["\\]/g, '\\$&'), finders = [listy ? rows : r.css, r.testid && `[data-testid="${q(r.testid)}"]`, r.testid && `[data-qa="${q(r.testid)}"]`, r.role && `${r.tag}[role="${q(r.role)}"]`, !listy && r.label && `[aria-label="${q(r.label)}"]`, listy ? r.css : ''].filter(Boolean); /* ways to find it again (self-healing) */
+    const old = again && this.get(again);
+    if (old) { const k = old.rows ? 'rows' : 'read'; old[k] = finders[0]; old.finders = finders; old.state.paused = ''; old.state.fails = 0; old.state.at = 0; return this.saveChecked(old); } /* picked again: same watcher, new part, a new baseline */
     const page = AgentWeb.url(), title = listy ? `New on ${AgentWeb.siteKey(page).replace(/^www\./, '')}` : (r.text || '').slice(0, 40) || AgentWeb.siteKey(page);
     sheet('Watch this', `<p class="se-note">You picked: “${esc((r.text || r.label || r.css).slice(0, 120))}”</p>
       <label class="se-row"><span>Tell me when</span><select id="wtKind">${[['new', 'new items appear in this list', listy], ['changes', 'it changes', !listy && !num], ['value', 'the number crosses a line', num && !listy], ['contains', 'some words appear', false], ['disappears', 'it disappears', false], ['appears', 'it appears (it isn’t there now)', false]].map(([v, n, on]) => `<option value="${v}" ${on ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="se-field"><span>The line or the words (for the number or the words)</span><input id="wtCond" placeholder="below 500, or: in stock||available"></label>
       <label class="se-field"><span>Its name</span><input id="wtName" value="${esc(title)}"></label>${this.formHtml({ every: '15m' })}`,
       [['Check and save', async () => { const kind = $('#wtKind').value, cond = $('#wtCond').value.trim();
-        const w = this.make({ name: $('#wtName').value.trim() || title, url: page, ready: r.css, ...(kind === 'new' ? { rows: rows || r.css } : { read: r.css }), detect: { kind, ...(kind === 'value' ? { cond: cond || 'changes' } : kind === 'contains' ? { words: cond } : {}) } });
+        const w = this.make({ name: $('#wtName').value.trim() || title, url: page, ready: r.css, ...(kind === 'new' ? { rows: rows || r.css } : { read: r.css }), finders, detect: { kind, ...(kind === 'value' ? { cond: cond || 'changes' } : kind === 'contains' ? { words: cond } : {}) } });
         this.formRead(w); await this.saveChecked(w); }], ['Cancel']]);
   },
   /** “Watch this” on a task's card: the task runs on a schedule and its new items are told. */
@@ -254,10 +357,13 @@ const Watch = {
   sheet() {
     const ago = t => { if (!t) return '–'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
     const inn = t => { if (!t) return 'soon'; const m = Math.round((t - Date.now()) / 60000); return m <= 0 ? 'now' : m < 60 ? `in ${m} min` : `in ${Math.round(m / 60)} h`; };
-    const l = this.list();
+    const l = this.list(), away = [...new Set(l.filter(w => w.runOn && w.runOn !== 'here').map(w => w.runOn))];
+    if (away.length && !this.refreshing && Date.now() - (this.refreshed || 0) > 20000) { this.refreshing = true; /* how the ones elsewhere are doing */
+      Promise.allSettled(away.map(id => Mesh.call(id, 'watch', { op: 'list' }, 20000).then(r => { for (const x of r.list || []) { const w = this.get(x.id); if (w && w.runOn === id) { const { id: _, ...st } = x; w.state = { ...w.state, ...st }; this.put(w); } } })))
+        .finally(() => { this.refreshing = false; this.refreshed = Date.now(); if ($('#sheet .wt-list') && !$('#sheet').hidden) this.sheet(); }); }
     sheet('Watchers', `<p class="se-note">They check on their own${this.can() ? ' (in this Mac’s agent browser, with your sign-ins)' : ''} and tell you when something new or different shows up: a card, a quiet notification, the voice when it matters, a daily digest at ${esc(store.get('watchDigestAt', '18:00'))}. Quiet hours ${esc(store.get('watchQuiet', '22:00-07:00'))}.</p>
-      <div class="wt-list">${l.map(w => `<div class="mem-row"><span><b>${w.on ? '' : '⏸ '}${esc(w.name)}</b><br><span class="se-note">${w.state?.paused ? `⚠️ ${esc(w.state.paused)}` : w.state?.error && w.state.fails ? `⚠️ ${esc(w.state.error.slice(0, 80))}` : `checked ${ago(w.state?.at)}${w.state?.count != null ? ` · ${w.state.count} items` : ''}`} · ${w.state?.changedAt ? `last news ${ago(w.state.changedAt)}` : 'no news yet'} · next ${w.on ? inn(w.state?.next) : 'off'}</span></span>
-        <span><button class="link-btn" data-wt="now|${w.id}">Check now</button> <button class="link-btn" data-wt="onoff|${w.id}">${w.on ? 'Pause' : 'Resume'}</button> <button class="link-btn" data-wt="del|${w.id}">Delete</button></span></div>`).join('') || '<p class="se-note">None yet.</p>'}</div>
+      <div class="wt-list">${l.map(w => `<div class="mem-row"><span><b>${w.on ? '' : '⏸ '}${esc(w.name)}</b>${w.runOn && w.runOn !== 'here' ? ` <span class="se-note">· on ${esc(this.where(w))}</span>` : ''}<br><span class="se-note">${w.state?.healed && Date.now() - w.state.healed.at < 864e5 ? '🩹 found it again another way · ' : ''}${w.state?.paused ? `⚠️ ${esc(w.state.paused)}` : w.state?.error && w.state.fails ? `⚠️ ${esc(w.state.error.slice(0, 80))}` : `checked ${ago(w.state?.at)}${w.state?.count != null ? ` · ${w.state.count} items` : ''}`} · ${w.state?.changedAt ? `last news ${ago(w.state.changedAt)}` : 'no news yet'} · next ${w.on ? inn(w.state?.next) : 'off'}</span></span>
+        <span><button class="link-btn" data-wt="now|${w.id}">Check now</button> ${/isn’t on the page/.test(w.state?.paused || '') ? `<button class="link-btn" data-wt="repick|${w.id}">Pick it again</button> ` : ''}<button class="link-btn" data-wt="onoff|${w.id}">${w.on ? 'Pause' : 'Resume'}</button> <button class="link-btn" data-wt="del|${w.id}">Delete</button></span></div>`).join('') || '<p class="se-note">None yet.</p>'}</div>
       <div class="chip-row"><button class="chip accent" data-wt="new">+ New watcher</button><button class="chip" data-wt="opts">Digest and quiet hours</button></div>`, [['Close']]);
   },
 };
@@ -272,6 +378,17 @@ document.addEventListener('click', async e => {
   if (k === 'signin' && w) { const u = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); await AgentWeb.go(u, w.container); AgentWeb.show(true); return toast('Sign in, then tap Check now on its card'); }
   if (k === 'tpl') return Watch.fromTemplate(id);
   if (k === 'here') { closeSheet(); return sheet('Watch something on a page', '<label class="se-field"><span>The page (its address; empty: the one open in the agent browser)</span><input id="wtUrl" placeholder="https://…"></label>', [['Open it', () => Watch.here($('#wtUrl').value.trim())], ['Cancel']]); }
+  if (k === 'herenow') { AgentWeb.show(false); return Watch.here(); } /* the agent browser's bar */
+  if (k === 'repick' && w) { closeSheet(); if (w.runOn && w.runOn !== 'here') return toast(`Pick it again on ${Watch.where(w)} (Sign in from here)`); return Watch.here(String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }
+  if (k === 'rsignin' && w) return RemoteView.open({ meshId: w.runOn, name: Watch.where(w) }, 'web');
+  if (w && w.runOn && w.runOn !== 'here' && /^(now|onoff|del)$/.test(k)) { /* one running on another device of yours */
+    try {
+      if (k === 'now') { toast(`Checking ${w.name} on ${Watch.where(w)}…`); const r = await Watch.remote(w, 'check'); w.state = { ...w.state, ...r.state }; Watch.put(w); toast(r.hit || w.state.paused || `${w.name}: nothing new`); }
+      if (k === 'onoff') { const r = await Watch.remote(w, 'set', { on: !w.on }, 20000); w.on = !w.on; w.state = { ...w.state, ...r.state }; Watch.put(w); }
+      if (k === 'del') { if (!confirm(`Delete the watcher “${w.name}”?`)) return; await Watch.remote(w, 'del', {}, 20000).catch(e => toast(`${Watch.where(w)} didn’t answer: it stops there the next time it has news`)); Watch.del(id); }
+    } catch (e) { toast(e.message); }
+    return Watch.sheet();
+  }
   if (k === 'now' && w) { toast(`Checking ${w.name}…`); const r = await Watch.check(w).catch(() => null); toast(r?.hit ? r.hit.headline : w.state?.paused || `${w.name}: nothing new`); if ($('#sheet .wt-list') && !$('#sheet').hidden) Watch.sheet(); return; }
   if (k === 'onoff' && w) { w.on = !w.on; if (w.on) { w.state.paused = ''; w.state.next = Date.now(); } Watch.put(w); return Watch.sheet(); }
   if (k === 'del' && w) { if (!confirm(`Delete the watcher “${w.name}”?`)) return; Watch.del(id); return Watch.sheet(); }

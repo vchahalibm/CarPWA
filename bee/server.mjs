@@ -67,7 +67,7 @@ function deliver(m) {
   if (ws) { send(ws, { t: 'msg', id: m.id, from: m.from, kind: m.kind, data: m.data, at: m.at, until: m.until }); event('delivered', meta(m)); return; }
   for (const [pid, devs] of peerOnline) if (devs.has(m.to) && peerSend(pid, { t: 'fwd', msg: m })) { event('forwarded', { ...meta(m), peer: S.peers[pid]?.name || pid }); return; }
   if (!Q.some(x => x.id === m.id)) { Q.push(m); event('queued', meta(m)); save(); }
-  if (m.kind === 're') pushTo(m.to, m.from);
+  if (m.kind === 're' || m.push) pushTo(m.to, m.from, m.push);
 }
 const meta = m => ({ mesh: m.mesh, id: m.id, from: m.from, to: m.to, k: m.kind, size: m.data?.length || 0, waited: m.at ? now() - m.at : 0 });
 /** What was waiting for a device that has just come (here, or on a linked bee). */
@@ -77,10 +77,10 @@ setInterval(() => { // expired: the sender is told, so its card can say so
   Q = Q.filter(m => m.until >= t); save();
   for (const m of gone) { event('expired', meta(m)); const s = conns.get(m.from); if (s) send(s, { t: 'expired', id: m.id, to: m.to }); }
 }, 5000);
-async function pushTo(dev, from) {
+async function pushTo(dev, from, kind) {
   const sub = S.subs[dev]; if (!sub || !S.settings.push) return;
   const mesh = meshOf(dev), who = member(mesh, from)?.name || 'your Mac';
-  try { await webpush.sendNotification(sub, J({ title: 'DriveGen', body: `Your answer from ${who} is ready`, tag: 'bee-answer' }), { TTL: 3600 }); event('push', { mesh, to: dev }); }
+  try { await webpush.sendNotification(sub, J(kind === 'watch' ? { title: 'DriveGen', body: 'A watcher found something new', tag: 'bee-watch' } : { title: 'DriveGen', body: `Your answer from ${who} is ready`, tag: 'bee-answer' }), { TTL: 3600 }); event('push', { mesh, to: dev }); }
   catch (e) { if (e.statusCode === 404 || e.statusCode === 410) { delete S.subs[dev]; save(); } event('push-failed', { mesh, to: dev, note: String(e.statusCode || e.message).slice(0, 60) }); }
 }
 
@@ -130,7 +130,7 @@ async function onDevice(ws, m, nonce) {
     case 'send': {
       if (!member(ws.mesh, m.to)) throw new Error('Not a member of the mesh');
       if (typeof m.data !== 'string' || m.data.length > MAX_MSG) throw new Error('Too big');
-      const msg = { id: String(m.id).slice(0, 40), mesh: ws.mesh, from: ws.dev, to: m.to, kind: String(m.kind).slice(0, 12), data: m.data, at: now(), until: now() + Math.min(Math.max(+m.ttl || 600000, 5000), MAX_TTL) };
+      const msg = { id: String(m.id).slice(0, 40), mesh: ws.mesh, from: ws.dev, to: m.to, kind: String(m.kind).slice(0, 12), data: m.data, at: now(), until: now() + Math.min(Math.max(+m.ttl || 600000, 5000), MAX_TTL), ...(m.push === 'watch' ? { push: 'watch' } : {}) }; // push: a watcher's news (only the word: the bee never sees what)
       deliver(msg); return ok({ id: msg.id, queued: Q.some(x => x.id === msg.id) });
     }
     case 'ack': { const n = Q.length; Q = Q.filter(x => !(x.id === m.id && x.to === ws.dev)); if (Q.length !== n) save(); return; }

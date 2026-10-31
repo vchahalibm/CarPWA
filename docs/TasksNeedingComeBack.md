@@ -30,6 +30,13 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] Signed out while watching (e.g. WhatsApp unlinked): the Sign in card, then Check now.
 - [ ] Tasks you ask for while watchers run: they shouldn't wait (one slot is kept free).
 
+**Phase 5: watchers on Workers, phones, live, self-healing** (tested with a light Worker in a scratch mesh, and the practice X)
+- [ ] A watcher on your OrbStack Worker (Runs on), signed in there with Sign in from here: its news on your Mac as cards; then with the Mac asleep, news waiting in StudioGBee and arriving when it wakes.
+- [ ] Your iPhone (DriveGen from the Home Screen, StudioGBee push on): a watcher's news as a card, and the notification “a watcher found something new” when the app is closed.
+- [ ] A live watcher on real Slack or WhatsApp Web: told within seconds of a message.
+- [ ] A real site changing its layout: does the watcher find it again (🩹), or ask to pick it again?
+- [ ] Deploy the new StudioGBee (0.2.0: watcher pushes) where your bee runs.
+
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
 
 ## To perform (with you)

@@ -89,7 +89,7 @@ const Bee = {
     const data = await this.seal(me, to, id, { kind, payload });
     if (o.card) store.set('beePending', { ...store.get('beePending', {}), [id]: { ...o, to, until: Date.now() + ttl } });
     const p = new Promise((res, rej) => this.waits.set(id, { res, rej }));
-    await this.req(s, { t: 'send', id, to, kind: 'ask', data, ttl });
+    await this.req(s, { t: 'send', id, to, kind: 'ask', data, ttl, ...(o.push ? { push: o.push } : {}) }); // push 'watch': a phone that's away gets “a watcher found something new”
     Mesh.event('request', { to, kind, via: 'bee' });
     return p;
   },

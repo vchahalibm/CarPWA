@@ -20,7 +20,7 @@ docker logs studiogbee        # shows the admin code
 
 Or `docker compose -f bee/docker-compose.yml up -d`. Without Docker: `cd bee && npm install && node server.mjs`.
 
-Settings (environment): `BEE_NAME` (shown in the apps), `BEE_ADMIN_CODE` (otherwise one is made at the first start and kept), `BEE_CONTACT` (a `mailto:` for the push services), `PORT` (8840), `BEE_DATA` (`/data` in Docker).
+Settings (environment): `BEE_NAME` (shown in the apps), `BEE_ADMIN_CODE` (otherwise one is made at the first start and kept), `BEE_CONTACT` (a `mailto:` for the push services; pushes say only “your answer is ready” or “a watcher found something new”, never what), `PORT` (8840), `BEE_DATA` (`/data` in Docker).
 
 ## Add it to your mesh
 

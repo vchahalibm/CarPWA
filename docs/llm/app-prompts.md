@@ -163,7 +163,7 @@ Sum up for a busy person, in one or two short spoken sentences, what their web w
 - Job: **build**
 - Used in: docs/llm/build-prompt.md (also copied for any LLM)
 
-<details><summary>The full text of docs/llm/build-prompt.md (2466 words)</summary>
+<details><summary>The full text of docs/llm/build-prompt.md (2482 words)</summary>
 
 ````markdown
 # Build a StudioGen / DriveGen script or agent task
@@ -228,7 +228,7 @@ Each step is `{ "do": <id>, "value": "…", "args": ["…"], "as": "name" }` unl
 | `agent.click` | the visible text (optional) | `sel=<selector>` (`||` between choices; with a text, the match with that text), `optional` (carry on if absent) | (true/false) | buttons, links, rows. Without `optional` a miss stops the task with “Nothing called …”; for your own message add `optional` + `as` and test it with `if` |
 | `agent.type` | the field's label/placeholder | `["<text>", "enter"?, "sel=<selector>"?]` (first arg is the text) | | search boxes, message boxes (real typing: works in rich editors) |
 | `agent.key` | `Enter`, `Escape`… | `sel=<field to focus>` | | |
-| `agent.read` | selectors, `||` between, tried in order (whole page if none) | `max=5000`, `keep=<words>` (only lines with them, `||` between: `keep=Unread`; filter here, not in the card) | `"read"` | each matching element = one line |
+| `agent.read` | selectors, `||` between, tried in order (whole page if none) | `max=5000`, `keep=<words>` (only lines with them, `||` between: `keep=Unread`; filter here, not in the card), flag `strict` (stop with “not found” instead of reading the whole page when no selector fits) | `"read"` | each matching element = one line |
 | `ai.card` | what to tell: name the headline and what each item's title/detail/when should be | `["{read}"]` (the text) | `"card"` | the answer |
 | `card.join` | headline (empty: the counts) | `Label=card name` per source, no braces | `"card"` | combine per-source cards (rule 10) |
 | `agent.task` | another task's id | `name=value` per input | any | combine tasks |

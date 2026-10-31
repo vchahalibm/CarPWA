@@ -1,6 +1,6 @@
 {
   "name": "studiogbee",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "StudioGBee: the optional always-on hive for a StudioGen mesh (queue, push, backup, dashboard). Design: docs/studiogbee.html",
   "type": "module",

@@ -80,6 +80,7 @@ const Direct = {
     if (kind === 'memory') return Memory.answer(p, who); /* the Mac's memory, for its owner's own devices (js/memory.js) */ // this Mac's language model, for its owner's own devices (js/llm.js)
     if (kind === 'ai') return MacAI.answer(p); // a paired phone uses this Mac's on-device model (js/brain.js)
     if (/^view-/.test(kind)) return RemoteView.answer(kind, p, { ...who, direct: who.direct || who.via === 'direct' }); // seeing and using it from afar (js/remoteview.js)
+    if (kind === 'watch') { if (!own) throw new Error('Only this Mac’s owner’s devices can manage its watchers'); return Watch.answer(p, who); } // watchers run here for your Mac (js/watch.js)
     if (kind === 'tasks') return { tasks: typeof Agent !== 'undefined' ? Agent.offered(own) : [] }; // the agent's tasks made on this Mac (js/agent.js): all for its owner's devices, the shared ones without sign-ins for others
     if (kind === 'task') { if (typeof Agent === 'undefined') throw new Error('No agent here'); return Agent.answer({ ...p, from }, who); }
     throw new Error(`Unknown request ${kind}`);

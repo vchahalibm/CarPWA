@@ -218,7 +218,7 @@ const Mesh = {
     const now = Script.running ? { script: Script.cur?.name, step: Script.i + 1, of: Script.cur?.beats?.length || 0, mode: Script.cur?.mode, jobs: (Script.jobs || []).filter(j => j.state === 'running').map(j => j.name) } : null;
     const d = { name: this.myName(), app: meshApp(), ver: typeof webVer !== 'undefined' ? webVer : null, shell: window.DriveDeckDesktop?.updates ? DesktopUpdates?.s?.shell || null : null,
       ...(this.amOwner() && this.m.bees ? { bees: this.m.bees, beesAt: this.m.beesAt || 0 } : {}), device: Direct.myName().replace(/^.* on /, ''), stage: typeof Stage !== 'undefined' && Stage.on, now, links, relays: this.groupRoom ? Relay.active(this.groupRoom) : [], show: this.myShow || null,
-      caps: LINK_HOST ? { scripts: LinkHost.scripts().map(s => s.name), agent: typeof Agent !== 'undefined' ? Agent.offered(false).map(t => t.name) : [], llm: typeof LLM !== 'undefined' && LLM.cfg().share ? (LLM.biReady() ? LLM.bi.model.id : LLM.health?.ok ? LLM.cfg().model : null) : null, tasks: typeof OsTasks !== 'undefined' && OsTasks.can(), data: !!window.DriveDeckDesktop?.data } : {} };
+      caps: LINK_HOST ? { scripts: LinkHost.scripts().map(s => s.name), agent: typeof Agent !== 'undefined' ? Agent.offered(false).map(t => t.name) : [], llm: typeof LLM !== 'undefined' && LLM.cfg().share ? (LLM.biReady() ? LLM.bi.model.id : LLM.health?.ok ? LLM.cfg().model : null) : null, tasks: typeof OsTasks !== 'undefined' && OsTasks.can(), data: !!window.DriveDeckDesktop?.data, watch: typeof Watch !== 'undefined' && Watch.can() /* runs watchers for its owner (js/watch.js) */ } : {} };
     const catHash = await meshHash(JSON.stringify(this.catalog())); if (catHash !== this.lastCat || this.catRev !== this.m.roster?.rev || Date.now() - (this.catAt || 0) > 300000) { d.cat = this.catalog(); this.lastCat = catHash; this.catRev = this.m.roster?.rev; this.catAt = Date.now(); } // again when it changes, when members change, and every 5 min
     this.group('pres', d);
   },
@@ -263,7 +263,7 @@ const Mesh = {
       make their device “yours”. Own devices may run what needs this Mac's sign-ins; the mesh's permissions don't limit them. */
   own(id) { return this.ownHere(id) || Object.entries(store.get('myDevicesVia', {})).some(([by, l]) => this.ownHere(by) && l.includes(id)); },
   /** Yours by this StudioGen's own knowledge (not by what another said): this one, paired, or ticked. */
-  ownHere(id) { return !!id && (id === this._me?.id || store.get('myDevices', []).includes(id) || (typeof Relay !== 'undefined' && Relay.isMac() && Relay.peers().some(p => p.meshId === id))); },
+  ownHere(id) { return !!id && (id === this._me?.id || store.get('myDevices', []).includes(id) || (typeof Relay !== 'undefined' && (Relay.isMac() ? Relay.peers().some(p => p.meshId === id) : Relay.mac?.()?.meshId === id))); }, // a phone: the Mac it's paired with
   /** What this StudioGen tells its owner's other StudioGens (own-sync): the devices it knows are yours. */
   ownList() { return this.members().map(x => x.id).filter(id => this.ownHere(id)); },
   setOwn(id, on) { const s = new Set(store.get('myDevices', [])); on ? s.add(id) : s.delete(id); store.set('myDevices', [...s]); },
@@ -281,6 +281,7 @@ const Mesh = {
       if (!this.ownHere(who.id)) throw new Error('Not one of this owner’s devices');
       const l = (p.devs || []).filter(id => this.member(id)).slice(0, 100); store.set('myDevicesVia', { ...store.get('myDevicesVia', {}), [who.id]: l }); return { ok: true, n: l.length };
     }
+    if (kind === 'watch-event') { if (!own) throw new Error('Not one of this owner’s devices'); return Watch.event(p, who); } // a watcher's news, on any of your devices (js/watch.js)
     const t0 = Date.now(), r = await Direct.handle(kind, { ...p, from: who.name }, { via: 'mesh', meshId: who.id, name: who.name, direct: via === 'direct' });
     if (kind === 'run' || kind === 'say') this.event('request', { from: who.id, fromName: who.name, kind, script: p.script || '', text: p.text || '', ms: Date.now() - t0, rows: r?.rows?.length || 0, result: (r?.said || []).join(' ') });
     return r;

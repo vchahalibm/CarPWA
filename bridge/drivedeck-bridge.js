@@ -57,7 +57,7 @@
     // Passwords, payment details and one-time codes: never recorded, never typed by a replay (it waits for you).
     const secret = el => el.type === 'password' || /^(cc-|current-password|new-password|one-time-code)/.test(el.autocomplete || '')
       || /pass|pin|otp|card|cvv|cvc|secret|token|iban|ssn|security.?code/i.test(el.name + ' ' + el.id + ' ' + (el.autocomplete || '') + ' ' + (el.getAttribute('aria-label') || ''));
-    let rec = false, pending = null;
+    let rec = false, pending = null, obs = null, obsT = 0;
     const step = (s, el) => {
       const from = here(); s.at = from;
       // What changed after it (a new address or #tab), so a replay can check it worked.
@@ -87,6 +87,17 @@
       version: 1,
       ping: () => ({ ok: true, url: here(), title: doc.title }),
       record(on) { rec = !!on; return { ok: true, url: here() }; },
+      /** A watcher keeping this page open (js/watch.js): tells when the part it reads changes (at most every 2 s), so it
+          checks within seconds instead of on its schedule. Nothing leaves the page but “changed”. */
+      observe(sel, on = true) {
+        obs?.disconnect(); obs = null; clearTimeout(obsT); obsT = 0; if (!on) return { ok: true };
+        const sels = String(sel || 'body').split('||').map(s => s.trim()).filter(Boolean);
+        const hits = n => sels.some(s => { try { return !!(n.closest(s) || n.querySelector?.(s)); } catch { return false; } });
+        obs = new win.MutationObserver(ms => { if (obsT || !ms.some(m => { const n = m.target.nodeType === 1 ? m.target : m.target.parentElement; return n && hits(n); })) return;
+          obsT = setTimeout(() => { obsT = 0; send({ type: 'changed', sel, url: here() }); }, 2000); });
+        obs.observe(doc.body, { childList: true, subtree: true, characterData: true });
+        return { ok: true };
+      },
       find(L) { const f = find(L); return f ? { ok: true, how: f.how, rect: rect(f.el) } : { ok: false, error: 'not found' }; },
       /** Visible text on the page that reads `t` (whole text first, then part of a longer one, nearest the top): the middle of
           those words, scrolled into view. For script steps that act on "text on screen". */

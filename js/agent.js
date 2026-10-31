@@ -250,7 +250,7 @@ const AgentWeb = {
   el() {
     if (!this.box) {
       const box = this.box = document.createElement('div'); box.id = 'agentWeb'; box.className = 'ag-web';
-      box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-box"></span><span class="ag-web-url"></span><button class="chip" data-agweb="hide">Done</button></div>
+      box.innerHTML = `<div class="ag-web-bar"><b class="ag-web-title">Agent browser</b><span class="ag-web-box"></span><span class="ag-web-url"></span><button class="chip" data-wt="herenow">👁 Watch something here</button><button class="chip" data-agweb="hide">Done</button></div>
       <div class="ag-web-view"><i class="ag-ring" hidden></i></div>
       <div class="ag-watch-log" hidden><div class="ag-lanes"></div><div class="ag-watch-ctl" hidden><button class="chip accent" data-agstep="next">Next step</button><button class="chip" data-agstep="run">Run the rest</button><button class="chip" data-agstep="stop">Stop the task</button></div></div>`;
       document.body.appendChild(box);
@@ -280,6 +280,7 @@ const AgentWeb = {
       $('.ag-web-view', this.box).prepend(wv);
       v = { wv, up: new Promise(r => wv.addEventListener('dom-ready', r, { once: true })) };
       wv.addEventListener('ipc-message', e => { if (e.channel !== 'dd-bridge') return; const m = e.args[0] || {}, h = m.id && this.waits.get(m.id); if (h) { this.waits.delete(m.id); return h(m); }
+        if (m.type === 'changed' && typeof Watch !== 'undefined') return Watch.poke(key); // a live watcher's part changed (js/watch.js)
         if (typeof TaskTeach !== 'undefined') { if (m.type === 'step') TaskTeach.step(m.step); else if (m.type === 'ready') TaskTeach.page(m.url); } }); // Teach me: what you do becomes steps
       wv.addEventListener('did-navigate', e => { if (this.wv === wv) { const u = $('.ag-web-url', this.box); if (u) u.textContent = e.url; } });
       v.wv.hidden = true; v.id = key; v.cid = c.id; this.views.set(key, v);
@@ -287,7 +288,7 @@ const AgentWeb = {
     return v;
   },
   /** The calls a task's steps make, on its own browser. */
-  bound(ctx) { return { call: (op, args, ms) => this.call(op, args, ms, ctx), url: () => this.url(ctx), insert: t => this.insert(t, ctx), key: k => this.key(k, ctx), show: on => this.show(on, ctx), go: (u, c) => this.go(u, c, ctx) }; },
+  bound(ctx) { return { call: (op, args, ms) => this.call(op, args, ms, ctx), url: () => this.url(ctx), insert: t => this.insert(t, ctx), key: k => this.key(k, ctx), show: on => ctx?.quiet ? null : this.show(on, ctx) /* a watcher's check: its card says so instead */, go: (u, c) => this.go(u, c, ctx) }; },
   /** The browser a task drives (its ctx.view), else the one shown. */
   view(ctx) { if (ctx?.view) return ctx.view; this.el(); return this.views.get(this.cur); },
   /** Show a task's browser in the panel (watching, or to sign in). */
@@ -774,6 +775,7 @@ agentAction('agent.read', { group: 'Agent', name: 'Agent browser: read the page'
   if (a.keep && r.text) { const ks = a.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); r.text = r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)';
     if (c) (c.kept ||= new Map()).set(r.text, r.text === '(none)' ? 0 : r.text.split('\n').length); } // how many lines were kept: the card's count (js ai.card)
   if (SIGNIN.test(r.url || '')) { W.show(true); throw new Error(`SIGNIN:${new URL(r.url).hostname}`); }
+  if (a.flags.includes('strict') && r.sel === 'body' && !/(^|\|\|)\s*body\s*($|\|\|)/.test(v || 'body')) throw new Error(`NOTFOUND:${v}`); // none of its selectors: a watcher tries its other finders (js/watch.js)
   if (/unusual traffic|are you a robot|not a robot|verify you are human|captcha/i.test((r.text || '').slice(0, 800))) { W.show(true); throw new Error('The site wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.'); }
   Log.d('agent', `Read ${r.text?.length || 0} characters (${r.sel})`); return r.text || '';
 } });
@@ -896,7 +898,7 @@ const AgentHome = {
   cardHtml(c, big) {
     const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', waiting: '🕓', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
     const items = (c.items || []).slice(0, max).map(i => `<li><b>${esc(i.title || '')}</b>${i.when ? ` <span class="ag-when">${esc(i.when)}</span>` : ''}${i.detail && !this.moving() ? `<div class="ag-detail">${esc(i.detail)}</div>` : ''}</li>`).join('');
-    const btns = c.watch && typeof Watch !== 'undefined' ? `<div class="ag-btns">${c.status === 'signin' ? `<button class="big-btn accent" data-wt="signin|${esc(c.watch)}">Sign in</button>` : ''}<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button><button class="big-btn" data-wt="list">Watchers</button></div>` /* js/watch.js */
+    const btns = c.watch && typeof Watch !== 'undefined' ? `<div class="ag-btns">${c.status === 'signin' ? `<button class="big-btn accent" data-wt="${Watch.where(Watch.get(c.watch) || {}) === 'here' ? 'signin' : 'rsignin'}|${esc(c.watch)}">Sign in${Watch.where(Watch.get(c.watch) || {}) === 'here' ? '' : ' from here'}</button>` : ''}${c.gone ? `<button class="big-btn accent" data-wt="repick|${esc(c.watch)}">Pick it again</button>` : ''}<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button><button class="big-btn" data-wt="list">Watchers</button></div>` /* js/watch.js */
       : c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
       : c.status === 'signin' && Agent.where(Agent.get(c.task) || {}) === 'mac' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="remote:${c.id}">Sign in from here</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'signin' && AgentWeb.can() ? `<div class="ag-btns"><button class="big-btn accent" data-ag="signin:${c.id}">Open the agent browser</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`

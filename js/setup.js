@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Watchers: tell me when there’s new mail, a chat, a Slack mention, an X post, or a page changes (Agent screen › 👁 Watchers; 👁 Watch this on a task’s card)',
   'The assistant remembers: what you ask it to (“remember that …”) and what it learns from conversations, kept on this Mac (Settings › Assistant › Memory)',
   'Answers come as cards: the weather and other screens a command opens pop up over where you are (on the Agent screen, a result card)',
   'The camera widget has its own Camera off / on (and “camera off”, “camera on”)',

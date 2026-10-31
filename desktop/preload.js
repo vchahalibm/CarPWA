@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   },
   /** Light Workers (desktop/main.js LightWorkers): op 'list' | 'create' {id,name,invite,llm} | 'start' id | 'stop' id | 'show' id | 'remove' {id,data}. */
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
+  /** Watchers (js/watch.js): fetch(url) → { status, type, text } or { error }: a feed or JSON address, read-only. */
+  fetch: url => ipcRenderer.invoke('dd:fetch', url),
   /** Memory (js/memory.js): memory('read') → the JSON, memory('write', json), memory('wipe'); a file locked with the Keychain. */
   memory: (op, data) => ipcRenderer.invoke('dd:memory', op, data),
   /** Permissions (js/perms.js): perm(op, kind), op 'status' | 'reset' | 'ask' | 'open', kind 'mic' | 'camera' | 'speech'. */

@@ -59,6 +59,8 @@ const DEF = [
   { id: 'c5', name: 'Asha Rao', phone: '919800000005', unread: 0, msgs: [['in', 'Sun', 'Pilot update before Monday please']] },
 ];
 const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+// ?incoming=Name|text: a new message arrives (for trying watchers); kept, then the address is tidied
+if (q.get('incoming')) { const [who, ...t] = q.get('incoming').split('|'); let c = S.find(x => x.name.toLowerCase() === who.toLowerCase()); if (!c) { c = { id: 'c' + Date.now(), name: who, phone: '', unread: 0, msgs: [] }; } const i = S.indexOf(c); if (i >= 0) S.splice(i, 1); S.unshift(c); c.msgs.push(['in', new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t.join('|')]); c.unread = (c.unread || 0) + 1; save(); history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const root = document.getElementById('root'); let cur = null, filter = '';
 function landing() {

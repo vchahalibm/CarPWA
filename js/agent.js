@@ -295,7 +295,7 @@ const AgentWeb = {
   /** Open a page in the container its site belongs to (or the one asked for); a task's own browser when ctx is given. */
   async go(url, container, ctx) {
     this.el(); const c = Containers.for(url, container), v = this.make(`${c.id}|${ctx ? this.siteKey(url) : ''}`);
-    if (ctx) { ctx.view = v; if (ctx === AgentWatch.shown || !AgentWatch.shown) this.display(ctx); } else if (v.id !== this.cur) this.use(v.id);
+    if (ctx) { ctx.view = v; if (!ctx.quiet && (ctx === AgentWatch.shown || !AgentWatch.shown)) this.display(ctx); } /* a watcher's check never takes the panel */ else if (v.id !== this.cur) this.use(v.id);
     const wv = v.wv; await v.up;
     Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`, { container: c.name });
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
@@ -346,7 +346,8 @@ const AgentWatch = {
   },
   async step(id, v, ev) {
     if (!this.on() || !$('#agentWeb')?.classList.contains('watch')) return null;
-    const ctx = ev?.runner?.ctx, l = this.lane(ctx) || this.lanes[this.lanes.length - 1]; if (!l) return null;
+    const ctx = ev?.runner?.ctx; if (ctx?.quiet) return null;
+    const l = this.lane(ctx) || this.lanes[this.lanes.length - 1]; if (!l) return null;
     // the panel shows the browser of the task that just did something
     if (ctx) { let top = ctx; while (top.parent) top = top.parent; this.shown = top; if (ctx.view) AgentWeb.display(ctx); }
     const li = document.createElement('li'); li.className = 'work'; li.textContent = this.label(id, v, ev); $('ol', l.el).appendChild(li); li.scrollIntoView({ block: 'nearest' });
@@ -410,8 +411,8 @@ const Agent = {
   /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams} ({teamschat}: a new chat, with ?users=email&message=text): the real ones, or the practice copies (labs/practice). */
   sites() {
     const c = this.cfg(), here = f => new URL(`labs/practice/${f}`, location.href).href;
-    return c.practice ? { outlook: here('inbox.html').replace(/\/inbox\.html$/, '/inbox.html#'), slack: here('slack.html'), whatsapp: here('whatsapp.html'), teams: here('teams.html'), teamschat: here('teams.html') }
-      : { outlook: c.outlook.replace(/\/$/, ''), slack: 'https://app.slack.com/client', whatsapp: 'https://web.whatsapp.com/', teams: 'https://teams.microsoft.com/v2/', teamschat: 'https://teams.microsoft.com/l/chat/0/0' };
+    return c.practice ? { outlook: here('inbox.html').replace(/\/inbox\.html$/, '/inbox.html#'), slack: here('slack.html'), whatsapp: here('whatsapp.html'), teams: here('teams.html'), teamschat: here('teams.html'), x: here('x.html') }
+      : { outlook: c.outlook.replace(/\/$/, ''), slack: 'https://app.slack.com/client', whatsapp: 'https://web.whatsapp.com/', teams: 'https://teams.microsoft.com/v2/', teamschat: 'https://teams.microsoft.com/l/chat/0/0', x: 'https://x.com/home' };
   },
   mine: () => store.get('agentTasks', []),
   /** Tasks the paired Mac has made itself (fetched from it; run there by id). */
@@ -592,7 +593,8 @@ const Agent = {
     for (const [k, d] of Object.entries(this.params(t))) { const v = String(params?.[k] ?? d.default ?? '').trim(); if (!d.optional && (!v || /^\{\w+\}$/.test(v))) throw new Error(`I need the ${k} for that`); }
     // a task run by another (agent.task) runs inside it: its browser, its lane, its check run, the containers it reserved
     const prev = o.parent || null, run = this.runner(t, params); if (prev) { run.ctx.parent = prev; run.ctx.view = prev.view; if (prev.check) run.ctx.check = true; }
-    const go = async () => { if (!prev) AgentWatch.begin(t, run.ctx); try { await run.steps(t.steps || [], { tok: 1 }); } finally { if (!prev) AgentWatch.end(run.ctx, !run.ctx.failed, run.ctx.failed); } };
+    const lane = !prev && !o.quiet; if (o.quiet) run.ctx.quiet = true; /* quiet: a watcher's check (js/watch.js), not shown in the watch panel */
+    const go = async () => { if (lane) AgentWatch.begin(t, run.ctx); try { await run.steps(t.steps || [], { tok: 1 }); } finally { if (lane) AgentWatch.end(run.ctx, !run.ctx.failed, run.ctx.failed); } };
     const ids = prev ? [] : [...this.containersOf(t, params)];
     if (!ids.length) await go(); else { const free = await this.slot(ids, run.ctx); try { await go(); } finally { free(); } }
     if (run.ctx.failed) throw new Error(run.ctx.failed);
@@ -736,7 +738,10 @@ const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs St
 agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000, container=name (else the site’s container)', async run(v, say, ev = {}) {
   const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
   for (const [k, x] of a.q) if (x !== '') u.searchParams.set(k, x);
-  await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
+  /* stay: the page is already open there (a live watcher, js/watch.js): read it as it is, without loading it again */
+  const stayV = a.flags.includes('stay') && c ? AgentWeb.make(`${Containers.for(u.href, a.container || c?.task?.container).id}|${AgentWeb.siteKey(u.href)}`) : null;
+  let stayed = false; try { stayed = !!stayV && new URL(stayV.wv.getURL()).pathname === u.pathname && new URL(stayV.wv.getURL()).search === u.search; } catch {}
+  if (stayed) c.view = stayV; else await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
   const site = a.site || u.hostname, here = () => W.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); }
   if (a.wait) {
@@ -891,10 +896,12 @@ const AgentHome = {
   cardHtml(c, big) {
     const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', waiting: '🕓', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
     const items = (c.items || []).slice(0, max).map(i => `<li><b>${esc(i.title || '')}</b>${i.when ? ` <span class="ag-when">${esc(i.when)}</span>` : ''}${i.detail && !this.moving() ? `<div class="ag-detail">${esc(i.detail)}</div>` : ''}</li>`).join('');
-    const btns = c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
+    const btns = c.watch && typeof Watch !== 'undefined' ? `<div class="ag-btns">${c.status === 'signin' ? `<button class="big-btn accent" data-wt="signin|${esc(c.watch)}">Sign in</button>` : ''}<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button><button class="big-btn" data-wt="list">Watchers</button></div>` /* js/watch.js */
+      : c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
       : c.status === 'signin' && Agent.where(Agent.get(c.task) || {}) === 'mac' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="remote:${c.id}">Sign in from here</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'signin' && AgentWeb.can() ? `<div class="ag-btns"><button class="big-btn accent" data-ag="signin:${c.id}">Open the agent browser</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'failed' ? `<div class="ag-btns"><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
+      : c.status === 'done' && !c.watch && Agent.get(c.task) && typeof Watch !== 'undefined' && Watch.can() && !Agent.acts(Agent.get(c.task)) ? `<div class="ag-btns ag-btns-quiet"><button class="chip" data-wt="card|${esc(c.id)}">👁 Watch this</button></div>`
       : c.place?.lat || (/^(cal|car)\./.test(c.task || '') && (c.items || []).some(i => i.place && !/online|teams|zoom/i.test(i.place))) ? `<div class="ag-btns"><button class="big-btn accent" data-ag="go:${c.id}">${svg('maps')} Go there</button></div>` : '';
     return `<article class="ag-card ${big ? 'big' : ''} ${c.status || ''}" data-ag="say:${c.id}">
       <div class="ag-top"><span class="ag-task">${icon} ${esc(c.title || '')}${c.where === 'mac' ? ' · Mac' : ''}</span><span class="ag-at">${esc(new Date(c.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>
@@ -913,7 +920,7 @@ const AgentHome = {
       Media.mount(id, $('.ag-avatar', root)).then(() => { this.av = id; this.frame(true); }).catch(() => {}); }
     else if (!side && $('.ag-avatar', root)) { this.giveBack(); root.innerHTML = ''; root.classList.remove('ag-has-av'); }
     (side ? $('.ag-main', root) : root).innerHTML = `<header class="ag-hdr"><div><h1>${hello}</h1><p class="se-note">${this.moving() ? 'Driving: short cards, read aloud.' : `Ask by voice or type. ${AgentWeb.can() ? 'Tasks run on this Mac.' : Link.ready() ? `Mail, calendar and chats run on ${esc(Link.macName())}.` : 'Pair with your Mac for mail, calendar and chats.'}`}</p></div>
-      <button class="chip" data-ag="lib">${svg('grid')} Library</button></header>
+      <span class="chip-row"><button class="chip" data-ag="lib">${svg('grid')} Library</button>${typeof Watch !== 'undefined' && Watch.can() ? `<button class="chip" data-wt="list">👁 Watchers${Watch.list().length ? ` · ${Watch.list().length}` : ''}</button>` : ''}</span></header>
       <form class="ag-ask" data-agform><input id="agAsk" placeholder="Ask, e.g. “what’s my day?”" autocomplete="off" enterkeyhint="go"><button class="big-btn accent" aria-label="Ask">${svg('mic')}</button></form>
       ${typeof Chat !== 'undefined' ? Chat.html() : ''}
       <div class="ag-sugg">${this.suggestions().map(t => `<button class="chip" data-ag="run:${esc(t.id)}">${esc(t.name)}</button>`).join('')}</div>

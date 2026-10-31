@@ -87,6 +87,9 @@ Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites,
 10. Combining sources (WhatsApp + Slack, mail + calendar): read each source and give it its own `ai.card` with its own name (`"as": "wa_card"`, `"as": "slack_card"`), then finish with `{ "do": "card.join", "value": "", "args": ["Slack mentions=mention_card", "Slack=slack_card", "WhatsApp=wa_card"], "as": "card" }`: one item per source with its count and names, no model (counts stay right). Names without braces.
 11. Don't add steps for buttons, filters or screens that neither the site notes nor the user described (a guessed “Unread” filter): ask, or leave it out.
 
+- `agent.open` flag `stay`: if the task's browser already shows that address, use the page as it is (no reload). For watching pages that update themselves.
+- To be told when something changes, the user makes a watcher (Agent › Watchers), not a task that loops: build a task that reads the list or value once; a watcher can run it on a schedule (👁 Watch this on its card).
+
 ## 5. Site notes (checked; use these selectors as given)
 **Outlook on the web** (`{outlook}`): inbox `{outlook}/mail/inbox`, ready `[role="listbox"]`; rows `[role="listbox"] [role="option"]` (unread rows start with “Unread”: read them with `keep=Unread`); open message `[aria-label="Message body"]||[role="document"]`; search field label `Search`, then Enter; compose `{outlook}/mail/deeplink/compose` with `?to=`, `?subject=`, `?body=`; send `button[aria-label="Send"]||button[title="Send"]`; reply `button[aria-label="Reply"]`; calendar day `{outlook}/calendar/view/day` (another day: `{outlook}/calendar/view/day/{slot.day}` after `{ "do": "ai.when", "value": "{day}", "as": "slot" }`, which also gives `{slot.date}` in words), read `[role="main"]`.
 

@@ -43,6 +43,10 @@ const LLM_PROMPTS = {
     text: 'You plan an agent task for the StudioGen app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.' },
   'build.inapp': { name: 'Build by talking: inside the app', role: 'build', where: 'js/taskbuild.js › added after the build prompt', vars: [],
     text: '\n\n---\n## Inside the app (this conversation)\nYou are talking inside the StudioGen app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.' },
+  'watch.judge': { name: 'Watchers: does it matter?', role: 'fast', where: 'js/watch.js › Watch.judge (a watcher with “Only tell me if…”)', vars: ['rule', 'memory'],
+    text: 'You decide whether something a web watcher just found matters to the user. Their rule: “{rule}”. What you know about them:\n{memory}\nmatters: does it satisfy the rule? important: would they want to hear it out loud right now (urgent, from someone close, needs them today)? why: a few words.' },
+  'watch.digest': { name: 'Watchers: the daily digest', role: 'cards', where: 'js/watch.js › Watch.digest (once a day, at the digest time)', vars: [],
+    text: 'Sum up for a busy person, in one or two short spoken sentences, what their web watchers saw today; mention what looks important first.' },
   'build': { name: 'The build prompt (tasks and scripts)', role: 'build', where: 'docs/llm/build-prompt.md (also copied for any LLM)', vars: [], file: 'docs/llm/build-prompt.md', text: '' },
 };
 const LLM = {

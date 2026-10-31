@@ -40,6 +40,10 @@ const MAIL = [
   { id: 5, from: 'Design Team', subj: 'New brand guidelines', when: 'Mon', unread: false, body: 'The new brand guidelines are live: updated logo spacing, a darker blue and new slide templates. Old templates retire at the end of the month.' },
   { id: 6, from: 'Asha Rao', subj: 'Pilot update before Monday', when: 'Mon', unread: true, body: 'Could you send me a short update on the pilot before Monday’s meeting? Three bullet points are enough: progress, risks and next steps.' },
 ];
+// mail that arrived (?incoming=From|Subject|Body, for trying watchers), kept in this browser, newest first; ?reset forgets it
+{ const k = 'practiceInboxExtra', qs = new URLSearchParams(location.search); if (qs.has('reset')) localStorage.removeItem(k); let extra = JSON.parse(localStorage.getItem(k) || '[]');
+  if (qs.get('incoming')) { const [from, subj, ...b] = qs.get('incoming').split('|'); extra.unshift({ id: 100 + extra.length, from, subj: subj || '(no subject)', when: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), unread: true, body: b.join('|') || subj || '' }); localStorage.setItem(k, JSON.stringify(extra)); history.replaceState(null, '', location.pathname + location.hash); }
+  MAIL.unshift(...extra); }
 const list = document.getElementById('list'), pane = document.getElementById('pane'), main = document.getElementById('main');
 function draw(q = '') {
   const s = q.trim().toLowerCase(), rows = MAIL.filter(m => !s || `${m.from} ${m.subj} ${m.body}`.toLowerCase().includes(s.replace(/^from:/, '')));

@@ -10,6 +10,7 @@ const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeIma
 const path = require('path');
 const { pathToFileURL } = require('url');
 
+const BROWSER_UA_MAIN = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'; // the watchers' feed reader says it's a browser (some feeds refuse others)
 const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the internal origin keeps its name: your data lives there
 // StudioGen Worker (worker/README.md, docs/studiogbee.html § 8): StudioGen in a Linux container without a screen of its own
 // (a virtual one, Xvfb). No updates (the image is rebuilt), no menu bar or dialogs, data in SG_DATA; set up from the
@@ -339,6 +340,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:llm', own((op, a) => ({ status: () => Builtin.status(), chat: () => Builtin.chat(a).catch(e => ({ error: e.message })),
     embed: () => Builtin.embed(a).catch(e => ({ error: e.message })),
     stream: () => Builtin.chat({ ...a, onChunk: t => mainWin?.webContents.send('dd:llm-chunk', { rid: a.rid, t }) }).catch(e => ({ error: e.message })), /* talking: the words sent as they come */ download: () => Builtin.download(a).then(() => true, e => ({ error: e.message })), use: () => { try { return Builtin.use(a || {}); } catch (e) { return { error: e.message }; } }, remove: () => Builtin.remove(a), unload: () => Builtin.unload(), cancel: () => Builtin.cancel() })[op]?.() ?? null));
+  // Watchers (js/watch.js): a feed or JSON address read as text (GET, http(s), at most 2 MB, 20 s); the page can't across sites
+  ipcMain.handle('dd:fetch', own(async url => {
+    if (!/^https?:\/\//i.test(String(url || ''))) return { error: 'Only web addresses' };
+    try { const r = await net.fetch(String(url), { headers: { 'user-agent': BROWSER_UA_MAIN, accept: 'application/rss+xml, application/atom+xml, application/json, text/*;q=0.8, */*;q=0.5' }, signal: AbortSignal.timeout(20000) });
+      const b = Buffer.from(await r.arrayBuffer()); return { status: r.status, type: r.headers.get('content-type') || '', text: b.subarray(0, 2e6).toString('utf8') }; }
+    catch (e) { return { error: e.message }; }
+  }));
   // Memory (js/memory.js): one file in StudioGen's folder, locked with the Keychain (safeStorage); never sent anywhere
   const memFile = () => path.join(app.getPath('userData'), 'memory.bin');
   ipcMain.handle('dd:memory', own((op, data) => {

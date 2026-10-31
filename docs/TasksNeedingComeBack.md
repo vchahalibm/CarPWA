@@ -23,6 +23,13 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] Your phone using the Mac's memory (“what do you remember about …” on the iPhone).
 - [ ] The daily tidy (it runs after a day; not seen yet).
 
+**Phase 4: watchers on this Mac** (tested on the practice sites: all five templates, live mode, the detectors, a feed, JSON, the model's judgement)
+- [ ] The templates on your real accounts: Slack mentions, Teams chats, new mail in Outlook, WhatsApp, your X timeline (sign in once in the agent browser first). Do real rows come out one per line, and does reading a mail or chat not count as new?
+- [ ] A watcher running for a day: the toasts, the voice only when important, quiet hours at night, the digest at 18:00 the next day.
+- [ ] Watch something on a page: a real shop's price (below a line) or a page's words; and 👁 Watch this on a task's card.
+- [ ] Signed out while watching (e.g. WhatsApp unlinked): the Sign in card, then Check now.
+- [ ] Tasks you ask for while watchers run: they shouldn't wait (one slot is kept free).
+
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
 
 ## To perform (with you)

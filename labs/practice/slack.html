@@ -60,6 +60,8 @@ const DEF = { channels: [
   { id: 'D3', name: 'Asha Rao', unread: 2, msgs: [['Asha Rao', '9:55', 'Pilot update before Monday please.', 0], ['Asha Rao', '9:56', 'Three bullet points are enough.', 0]] },
 ] };
 const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+// ?incoming=#channel|Who|text or ?incoming=Name|text (a direct message): a new message arrives (for trying watchers)
+if (q.get('incoming')) { const p = q.get('incoming').split('|'), ch = p[0].startsWith('#') ? S.channels.find(c => c.name === p[0].slice(1)) : S.dms.find(c => c.name.toLowerCase() === p[0].toLowerCase()); if (ch) { const who = p[0].startsWith('#') ? p[1] : ch.name, text = (p[0].startsWith('#') ? p.slice(2) : p.slice(1)).join('|'); ch.msgs.push([who, new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), text, 0]); ch.unread = (ch.unread || 0) + 1; save(); } history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const all = () => [...S.channels, ...S.dms], label = c => S.channels.includes(c) ? `#${c.name}` : c.name;
 let cur = null, view = 'home';

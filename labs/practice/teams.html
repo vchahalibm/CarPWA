@@ -63,6 +63,8 @@ const DEF = { chats: [
   { id: 'T5', name: 'Leadership sync', group: true, unread: 0, msgs: [['Meera Iyer', 'Mon', 'Notes from the offsite are in the wiki.', 1]] },
 ] };
 const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+// ?incoming=Chat|Who|text: a new message arrives (for trying watchers)
+if (q.get('incoming')) { const [chat, who, ...t] = q.get('incoming').split('|'); let c = S.chats.find(x => x.name.toLowerCase() === chat.toLowerCase()); if (!c) { c = { id: 'T' + Date.now(), name: chat, unread: 0, msgs: [] }; } S.chats = [c, ...S.chats.filter(x => x !== c)]; c.msgs.push([who || chat, new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t.join('|'), 0]); c.unread = (c.unread || 0) + 1; save(); history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ini = n => n.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 let cur = null, view = 'chat', draft = '';

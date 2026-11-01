@@ -78,7 +78,7 @@ function landing() {
 function rows() {
   const f = filter.toLowerCase();
   return S.filter(c => !f || c.name.toLowerCase().includes(f) || c.msgs.some(m => m[2].toLowerCase().includes(f))).map(c => { const last = c.msgs.at(-1);
-    return `<div ${NOROLES ? '' : 'role="listitem"'} class="chat-row ${c.unread ? 'unread' : ''}" tabindex="0" data-id="${c.id}" aria-selected="${cur === c}"><div class="av" data-l="${esc(c.name[0])}"></div><div class="cell">
+    return `<div ${NOROLES ? '' : 'role="listitem"'} class="chat-row ${c.unread ? 'unread' : ''}" tabindex="0" data-id="${c.id}" aria-selected="${cur === c}"><div class="av" data-l="${esc(c.name[0])}">${NOROLES ? `<svg width="0" height="0"><title>${c.group ? 'ic-group-filled' : 'default-user'}</title></svg>${c.group ? '<span data-icon="wds-ic-disappearing-messages"><svg width="0" height="0"><title>wds-ic-disappearing-messages</title></svg></span>' : ''}${c.unread ? `<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${c.unread} unread messages</span>` : ''}` : ''}</div><div class="cell">
       <div class="r1"><span title="${esc(c.name)}" dir="auto">${esc(c.name)}</span><span class="time">${esc(last[1])}</span></div>
       <div class="r2"><span class="last" title="${esc(last[2])}">${last[0] === 'out' ? '✓✓ ' : ''}${esc(last[2])}</span>${c.unread ? `<span class="badge" aria-label="${c.unread} unread message${c.unread > 1 ? 's' : ''}">${c.unread}</span>` : ''}</div></div></div>`; }).join('') || '<p class="empty">No chats, contacts or messages found</p>';
 }

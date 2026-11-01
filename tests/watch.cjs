@@ -21,6 +21,13 @@ assert.deepStrictEqual({ ...W.item('Asha Rao 22:17 Moving our call to 4 (2 unrea
 assert.deepStrictEqual({ ...W.item('Acme Corp@acme · now Big launch') }, { title: 'Acme Corp (@acme)', when: 'now', detail: 'Big launch' }); n++;
 
 assert.deepStrictEqual({ ...W.item('[10:05, 01/11/2026] Varun: Sending the venue details in a bit 10:05') }, { title: 'Varun', when: '10:05', detail: 'Sending the venue details in a bit' }); n++;
+// rows read as parts (a hidden window, WhatsApp): name, time, sender and message, unread count; links shortened
+assert.deepStrictEqual({ ...W.item('Alpha Rai 94 ¦ 9:33 pm ¦ ~Rai Singh Gill ¦ : ¦ https://youtu.be/YBKr1AA6jFc?si=A-HnnxMUSZ1EQozX ¦ 6 (6 unread messages)') }, { title: 'Alpha Rai 94', unread: 6, when: '9:33 pm', detail: 'Rai Singh Gill: youtu.be/…' }); n++;
+assert.deepStrictEqual({ ...W.item('Kochi RTO Abdul Rehman ¦ 6:34 pm ¦ God bless u sir') }, { title: 'Kochi RTO Abdul Rehman', when: '6:34 pm', detail: 'God bless u sir' }); n++;
+assert.deepStrictEqual({ ...W.item('Aditya Birla Capital Digital Limited ¦ Yesterday ¦ Important Update on Your Personal Loan ¦ 2 (2 unread messages)') }, { title: 'Aditya Birla Capital Digital Limited', unread: 2, when: 'Yesterday', detail: 'Important Update on Your Personal Loan' }); n++;
+{ const w = W.make({ name: 'New WhatsApp messages', detect: { kind: 'new' } }); W.detect(w, ['Old ¦ 1:00 ¦ x']); w.state.at = 1;
+  const h = W.detect(w, ['Alpha Rai 94 ¦ 9:33 pm ¦ ~Rai Singh Gill ¦ : ¦ https://youtu.be/x ¦ 6 (6 unread messages)', 'Kochi RTO Abdul Rehman ¦ 6:34 pm ¦ God bless u sir', 'Satish ¦ 6:00 pm ¦ hi', 'Old ¦ 1:00 ¦ x']);
+  ok(h.headline === 'New WhatsApp messages: Alpha Rai 94 (6), Kochi RTO Abdul Rehman and 1 more', 'headline names the chats: ' + h.headline); ok(h.items[0].title === 'Alpha Rai 94 · 6 unread', 'unread in the title'); }
 // detectors: the first read is the baseline; then once per event
 const run = (detect, seq) => { const w = W.make({ name: 'T', detect }); return seq.map(g => { const h = W.detect(w, g); w.state.at = 1; return h && h.headline; }); };
 let r = run({ kind: 'new' }, [['a 9:00 x', 'b 9:01 y'], ['a 9:00 x', 'b 9:01 y'], ['c 9:05 z', 'a 9:00 x', 'b 9:01 y'], ['c 9:06 z', 'a 9:00 x']]);

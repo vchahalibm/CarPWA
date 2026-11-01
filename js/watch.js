@@ -114,7 +114,7 @@ const Watch = {
     if (w.detect?.kind === 'visual') return this.shot(w, sel);
     if (w.extract && (!w.extract.fallback || byModel)) return this.extract(w, String(out ?? '')); /* fallback: only when the selectors found nothing */
     const text = String(out ?? ''); if (text === '(none)') return [];
-    return w.rows ? text.split('\n').map(l => l.trim()).filter(Boolean) : text;
+    return w.rows ? text.split('\n').map(l => l.trim()).filter(Boolean) : text.replace(/ ¦ /g, ' ');
   },
   /** Fields the model pulls out of what was read (“the price and whether it's in stock”): { price, in_stock, … }. */
   async extract(w, text) {
@@ -208,8 +208,10 @@ const Watch = {
       const items = [...moved.map(r => ({ ...this.item(r), title: `Moved: ${this.item(r).title}` })), ...added.map(r => this.item(r)), ...cancelled.map(g => ({ ...this.item(g), title: `Gone: ${this.item(g).title}` }))].slice(0, 6);
       const parts = [moved.length && `${moved.length} moved`, added.length && `${added.length} new`, cancelled.length && `${cancelled.length} gone`].filter(Boolean);
       const one = items.length === 1 && !moved.length && !cancelled.length;
-      const said = one && items[0].detail && plain(w.name).includes(plain(items[0].title)) ? items[0].detail : one && [items[0].title, items[0].detail].filter(Boolean).join(' · '); /* “WhatsApp from Mom: …”, not “…: Mom · …” */
-      return { headline: one ? `${w.name}: ${said.slice(0, 120)}` : `${w.name}: ${parts.join(', ')}`, items, count: rows.length };
+      for (const i of items) if (i.unread) i.title = `${i.title} · ${i.unread} unread`;
+      const names = items.map(i => i.title.replace(/^(Moved|Gone): /, '')).filter(Boolean), many = !one && !moved.length && !cancelled.length && names.length > 1;
+      const said = one && items[0].detail && plain(w.name).includes(plain(items[0].title.replace(/ · \d+ unread$/, ''))) ? items[0].detail : one && [items[0].title.replace(/ · \d+ unread$/, ''), items[0].detail].filter(Boolean).join(' — '); /* “WhatsApp from Mom: …”, not “…: Mom · …” */
+      return { headline: one ? `${w.name}: ${said.slice(0, 120)}` : many ? `${w.name}: ${names.slice(0, 2).map(x => x.replace(/ · (\d+) unread$/, ' ($1)')).join(', ')}${fresh.length > 2 ? ` and ${fresh.length - 2} more` : ''}` : `${w.name}: ${parts.join(', ')}`, items, count: rows.length };
     }
     if (d.kind === 'changes' || d.kind === 'stale') {
       const text = Array.isArray(got) ? got.join('\n') : String(got), norm = this.ident(text.replace(/\n/g, ' ')), was = s.last;
@@ -259,6 +261,7 @@ const Watch = {
   },
   /** A row as a card item: “who · what” where it can tell. */
   item(r) {
+    if (String(r).includes(' ¦ ')) return this.rowItem(r);
     const t = String(r).replace(/^((unread|unread chat|chat)[,\s]+)+/i, '').replace(/\s(\d{1,3})\s*\((\d+) unread/i, (m, a, b) => a === b ? ` (${b} unread` : m).replace(/\(\d+ unread[^)]*\)/gi, '').replace(/\s+/g, ' ').trim(); /* a badge showing the same number as its “(n unread)” */
     let m = t.match(/^\[([^\]]{3,40})\]\s*([^:]{1,40}):\s*(.+?)(?:\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$/i); if (m) return { title: m[2].trim(), when: m[1].split(',')[0].trim(), detail: m[3].slice(0, 160) }; /* a WhatsApp message: [10:05, 01/11/2026] Varun: text */
     m = t.match(/^(.+?)\s*(@\w+)\s*·\s*(\S+)\s+(.+)$/); if (m) return { title: `${m[1]} (${m[2]})`, when: m[3], detail: m[4].slice(0, 160) }; /* a post: name @handle · when text */
@@ -266,6 +269,17 @@ const Watch = {
     if (m) { const rest = m[3].replace(/^·\s*/, ''); return m[1] ? { title: m[1], when: m[2], detail: rest.slice(0, 160) } : rest.includes(' · ') ? { title: rest.split(' · ')[0].slice(0, 160), when: m[2], detail: rest.split(' · ').slice(1).join(' · ').slice(0, 160) } : { title: rest.slice(0, 160), when: m[2] }; }
     m = t.match(/^(.+?) · (.+)$/); if (m) return { title: m[1].slice(0, 160), detail: m[2].slice(0, 160) }; /* a file: name · size · when; a webhook: when · what */
     return { title: t.slice(0, 160) };
+  },
+  /** A list row read as its parts (name ¦ time ¦ preview…, js bridge read): title = the name (with its unread count),
+      when = its time, detail = the rest (the sender in a group: their name, then the message), links shortened. */
+  rowItem(r) {
+    let t = String(r).trim(); const n = +(t.match(/\((\d+) unread[^)]*\)/i) || [])[1] || 0; t = t.replace(/\s*\(\d+ unread[^)]*\)/gi, '');
+    let p = t.split(' ¦ ').map(x => x.trim()).filter(Boolean).filter(x => !/^\d{1,3}$/.test(x) && !/^(unread|unread chat|chat)$/i.test(x)); /* badge digits, state words */
+    const isWhen = x => /^(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?|now|today|yesterday|(mon|tues|wednes|thurs|fri|satur|sun)day|mon|tue|wed|thu|fri|sat|sun|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})$/i.test(x);
+    const when = p.find(isWhen); p = p.filter(x => x !== when);
+    const short = x => x.replace(/https?:\/\/(www\.)?([^/\s]+)(\/\S*)?/g, (m, w, host, path) => path && path.length > 1 ? `${host}/…` : host).replace(/^~\s*/, '').replace(/\s+:\s+/, ': ');
+    const title = short(p[0] || ''), detail = short(p.slice(1).join(' · ').replace(/\s*·\s*:\s*(·\s*)?/g, ': ')); /* “~Rai Singh Gill ¦ : ¦ link” → “Rai Singh Gill: link” */
+    return { title: title.slice(0, 80), ...(n ? { unread: n } : {}), ...(when ? { when } : {}), ...(detail ? { detail: detail.slice(0, 140) } : {}) };
   },
   /** The model's judgement, when asked for: does this matter to the user (with what memory knows)? */
   async judge(w, hit) {

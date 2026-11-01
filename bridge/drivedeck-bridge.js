@@ -37,7 +37,9 @@
     /** An element's words: its rendered text, else (rendering skipped: a hidden window, WhatsApp's off-screen rows) its
         text pieces, one per line. innerText alone came back empty in a watcher's hidden window, so lists read as empty. */
     const textOf = e => { if (!e) return ''; const t = e.innerText; if (t && t.trim()) return t; const out = [], w = doc.createTreeWalker(e, 4);
-      for (let n; (n = w.nextNode());) { const v = n.nodeValue.replace(/\s+/g, ' ').trim(); if (v && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.parentElement?.tagName || '')) out.push(v); } return out.join('\n'); };
+      for (let n; (n = w.nextNode());) { const v = n.nodeValue.replace(/\s+/g, ' ').trim(); if (v && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.parentElement?.tagName || '') && !n.parentElement?.closest('svg')) out.push(v); } return out.join('\n'); }; /* not icons' names (an SVG's title) */
+    /** Pieces that are an icon's name, not words (WhatsApp: ic-group-filled, wds-ic-disappearing-messages, default-user). */
+    const ICON_WORD = /^(wds-)?ic-[a-z0-9-]+$|^default-(user|group|contact)s?$|^[a-z]+(-[a-z0-9]+){2,}$/;
     /** The repeated item a node is in, found by shape (sites drop their row roles): the nearest ancestor that has 3+
         look-alike siblings (same tag, mostly the same classes) and is row-sized (at least 24 px high, under half the
         window, 40%+ of its parent's width), and a selector for all of them (the parent's, then the tag). */
@@ -226,10 +228,13 @@
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
           // (WhatsApp keeps a message's time and sender in data-pre-plain-text, outside the text: put it in front)
-          const lines = els.map(e => { const t = (textOf(e) || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; // a bare number badge (an unread count) is said in its label: “5 unread messages”
+          const lines = els.map(e => { /* a row's lines kept apart (¦): name, time, preview stay distinct; icon names out; a hidden “6 unread messages” becomes its count */
+            const parts = (textOf(e) || '').split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(x => x && !ICON_WORD.test(x)), hiddenUnread = parts.find(x => /^\d+ unread messages?$/i.test(x));
+            const t = parts.filter(x => x !== hiddenUnread).join(' ¦ '), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; // a bare number badge (an unread count) is said in its label: “5 unread messages”
             const badges = [...(e.querySelectorAll?.('[aria-label]') || [])].filter(b => /^\d{1,4}$/.test((textOf(b) || '').trim())).map(b => b.getAttribute('aria-label').trim()).filter(x => /[a-z]/i.test(x));
             // a row's state words that only its label has (Outlook: “Unread …”): put them in front of the text
             const state = l.length <= t.length && (l.match(/^((?:unread|flagged|pinned|important|urgent|replied|forwarded|has attachments?)[,\s]+)+/i)?.[0] || '').replace(/[,\s]+$/, '');
+            if (!badges.length && hiddenUnread) badges.push(hiddenUnread);
             return pre + (state && !t.toLowerCase().startsWith(state.toLowerCase()) ? `${state} ` : '') + (l.length > t.length ? l : t) + (badges.length ? ` (${badges.join(', ')})` : ''); }).filter(Boolean);
           tried.push([s0.trim(), lines.length]);
           if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title, tried };

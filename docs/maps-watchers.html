@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map watchers</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mut:#5b6472; --line:#e1e4ea; --acc:#2563eb; --ok:#0f8a4b; --mid:#b7791f; --no:#c2262e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f26464; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --card:#171a21; --ink:#e8eaee; --mut:#9aa3b2; --line:#2a2f3a; --acc:#6ea0ff; --ok:#34c47c; --mid:#e0a84a; --no:#f26464; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:27px; margin:0 0 4px; } h2 { font-size:20px; margin:36px 0 10px; padding-top:8px; border-top:1px solid var(--line); } h3 { font-size:16px; margin:20px 0 6px; }
+  .mut { color:var(--mut); } a { color:var(--acc); } code { font:13px ui-monospace, Menlo, monospace; background:var(--line); padding:1px 4px; border-radius:4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:14px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); } th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; font:12.5px/1.45 ui-monospace, Menlo, monospace; }
+  .tag { display:inline-block; font-size:12px; font-weight:600; padding:1px 8px; border-radius:999px; background:var(--line); color:var(--mut); }
+  .tag.ok { background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); }
+  .toc { columns:2 260px; padding-left:18px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Map watchers</h1>
+<p class="mut">Design, 1 November 2026. Decisions in section 9. Builds on the watchers (<a href="watchers.html">watchers.html</a>, <a href="watchers-guide.html">the guide</a>) and on DriveGen's maps, GPS and routes (<code>js/routing.js</code>). Nothing here is built yet.</p>
+
+<ol class="toc">
+  <li><a href="#what">What map watchers do</a></li>
+  <li><a href="#list">The first watchers</a></li>
+  <li><a href="#how">How it works: the phone, the Mac, Google Maps</a></li>
+  <li><a href="#google">Reading Google Maps</a></li>
+  <li><a href="#when">When they check: by distance and time</a></li>
+  <li><a href="#voice">Telling you while you drive</a></li>
+  <li><a href="#privacy">Privacy, manners and limits</a></li>
+  <li><a href="#later">Later watchers</a></li>
+  <li><a href="#phases">Decisions and phases</a></li>
+</ol>
+
+<h2 id="what">1. What map watchers do</h2>
+<p>Ordinary watchers look at a page or a feed on a schedule. Map watchers know <b>where you are and where you're going</b>: your phone's position while you drive, the route you're on (or a planned “from → to”), and your calendar's next place. They look ahead along the route and tell you, briefly and by voice, what matters before you get there: a jam forming, a faster way, an accident, the last fuel for a while, rain ahead, the next town, the time to leave.</p>
+
+<h2 id="list">2. The first watchers</h2>
+<div class="wrap"><table>
+<tr><th>Watcher</th><th>It tells you</th><th>From</th><th>Kind</th></tr>
+<tr><td><b>Traffic on my route</b></td><td>“Traffic ahead adds 12 minutes; arriving 3:40.”</td><td>Google Maps directions with traffic, from where you are to where you're going</td><td>Important when the delay grows by 5+ minutes</td></tr>
+<tr><td><b>A faster way</b></td><td>“A faster way via Outer Ring Road saves 8 minutes. Take it?” (Yes: DriveGen re-routes, or opens it in Google Maps)</td><td>Google Maps' alternative routes, compared with yours</td><td>Important when it saves 5+ minutes (your rule)</td></tr>
+<tr><td><b>Accidents and closures ahead</b></td><td>“Accident reported 6 km ahead on NH44.” / “Road closed near Hebbal: the route avoids it.”</td><td>Google Maps' route warnings and incidents on the rest of the route</td><td>Important</td></tr>
+<tr><td><b>Fuel or charging on the way</b></td><td>“HP petrol pump in 3 km on your left, 4.2★, open. Next one after that: 38 km.”</td><td>Google Maps' places along the route ahead (ratings, open now, distance); sooner when the car reports low fuel</td><td>Important when the next one is far, else nice to know</td></tr>
+<tr><td><b>Weather ahead</b></td><td>“Heavy rain where you'll be in about 30 minutes.”</td><td>Open-Meteo (Google Maps has no weather) at points along the route, at the time you'll reach each</td><td>Important for heavy rain or storms, else nice to know</td></tr>
+<tr><td><b>Next town</b></td><td>“Coming up: Tumakuru, 20 minutes. Known for its coconut groves and the Siddaganga temple; 28° and clear.”</td><td>Google Maps' place summary, Wikipedia (by location), the weather, local news (Google News feed for the town)</td><td>Nice to know</td></tr>
+<tr><td><b>Leave by (calendar)</b></td><td>“Leave by 2:10 for your 3 pm in Whitefield: traffic is building.” Then “Leave now.”</td><td>Your next calendar event's place, Google Maps directions from where you'll be (home, work or here) with traffic, checked more often as the time nears</td><td>Important</td></tr>
+</table></div>
+
+<h2 id="how">3. How it works: the phone, the Mac, Google Maps</h2>
+<pre>
+ DriveGen (phone, in the car)                       StudioGen (your Mac, or a Worker)
+   GPS position, speed, heading  ──── sealed, own devices only ───►   map watchers
+   the route you're navigating                                         Google Maps in the agent browser:
+   (or none: it's worked out)                                            directions with traffic and alternatives,
+                                                                         route warnings, places along the route
+   cards, short spoken lines   ◄──── news (watch-event) ────────        Open-Meteo, Wikipedia, Google News
+   “Take it?” → re-route
+ With no Mac reachable: open data on the phone (OSRM, Overpass, Open-Meteo) for the basics, no Google
+</pre>
+<ul>
+  <li><b>Both places, as decided.</b> The <b>phone</b> knows where you are; the <b>Mac</b> (StudioGen's agent browser) is what can read Google Maps. While you drive, DriveGen sends your position and route to your own StudioGen every half minute or so (through the mesh: a direct link, the relays, or StudioGBee; sealed; own devices only). The Mac runs the watchers, reads Google Maps, and sends the news back to the phone, which shows and speaks it.</li>
+  <li><b>Before you leave</b> (leave-by, a planned trip), the Mac works alone from your calendar and your places (Settings › Location › Your place today; home and work places are added in phase 1).</li>
+  <li><b>No Mac reachable</b> (away from home without a link): the phone falls back to open data for traffic-free basics (fuel stations and towns from Overpass, weather from Open-Meteo, the route from OSRM). Traffic, accidents and ratings need Google, so those wait until the Mac is back, and the phone says so once.</li>
+  <li><b>A Worker</b> (always on) can run them too, so they work while the Mac sleeps.</li>
+</ul>
+
+<h2 id="google">4. Reading Google Maps</h2>
+<p>The agent browser opens Google Maps' own pages, as a person would, and reads them with the bridge (the same reading, Diagnose and self-healing as other watchers):</p>
+<div class="wrap"><table>
+<tr><th>What</th><th>Page</th><th>What it reads</th></tr>
+<tr><td>Directions with traffic and alternatives</td><td><code>google.com/maps/dir/?api=1&amp;origin=LAT,LON&amp;destination=…&amp;travelmode=driving</code></td><td>Each route option: time in traffic, distance, “via” road, the “typical” time when shown, warnings (accident, closure, tolls)</td></tr>
+<tr><td>Places along the way</td><td><code>google.com/maps/search/petrol+pump/@LAT,LON,14z</code> at points a few km ahead on the route</td><td>Name, rating and reviews, open now, distance; kept only when near the route ahead (and on your side, where it can tell)</td></tr>
+<tr><td>A town or place</td><td><code>google.com/maps/place/…</code> or a search for the town</td><td>The short description, rating, what it's known for</td></tr>
+</table></div>
+<p>Map pages are visual and change often, so this relies on the debugging built for watchers: Diagnose (structure without words), Last check, the selector tester and practice copies. A <b>practice Google Maps page</b> (directions, alternatives, a places list with ratings) is part of phase 1, so the templates are tested before they meet the real site.</p>
+<p class="mut">Google's terms don't allow automated reading of Google Maps; you chose it for its data (better in India), as with X. It reads gently (section 7). Google's paid Routes and Places APIs could replace page reading later without changing the watchers.</p>
+
+<h2 id="when">5. When they check: by distance and time</h2>
+<ul>
+  <li><b>While driving</b>: traffic and alternatives every 3–5 minutes (sooner near a junction where the alternative splits off); accidents with each traffic check; fuel and places every 10 km or so (sooner when fuel is low); weather every 15 minutes; next town when about 20 minutes away.</li>
+  <li><b>Only the road ahead</b> counts: anything behind you or more than a few hundred metres off the route is ignored.</li>
+  <li><b>Not while parked</b>: map watchers start when you start moving (DriveGen's GPS) and stop a few minutes after you stop.</li>
+  <li><b>Leave-by</b>: from two hours before a calendar event with a place, every 15 minutes, then every 5 in the last half hour; quiet once you're moving towards it.</li>
+</ul>
+
+<h2 id="voice">6. Telling you while you drive</h2>
+<ul>
+  <li><b>Important</b> (your choice: said aloud): a 5+ minute delay, a faster way, an accident or closure ahead, the last fuel for a long way, heavy rain ahead, leave-by and leave-now, running late for a meeting.</li>
+  <li><b>Nice to know</b> (also said, your choice, but spaced out): the next town, fuel and food nearby, the weather turning. At most one every 10 minutes, never within a few hundred metres of a turn, never over a phone call or the navigation's own instructions; the rest waits as cards.</li>
+  <li><b>Short</b>: one sentence, the number first (“12 minutes slower”, “6 km ahead”). Cards stay small while moving (DriveGen's driving rules); the full detail is there when you stop.</li>
+  <li><b>Acting asks first</b>: taking the faster way (“Take it?” said and on the card) and telling someone you'll be late (a message, confirmed).</li>
+</ul>
+
+<h2 id="privacy">7. Privacy, manners and limits</h2>
+<ul>
+  <li>Your position only goes between <b>your own devices</b>, sealed (the mesh's pairwise keys); StudioGBee never sees it. It isn't kept: the latest position and the route only, gone when you stop.</li>
+  <li>Google sees the searches the agent browser makes from your Mac (your route's places), as it would if you used Google Maps yourself.</li>
+  <li>Gentle on Google: one directions read every few minutes per drive, places only every 10 km, nothing while parked; a robot check pauses them and asks you, as for other watchers.</li>
+  <li>Limits: the phone needs data and the Mac (or a Worker) must be reachable for Google's data; StudioGBee keeps news while the phone is briefly out of coverage.</li>
+</ul>
+
+<h2 id="later">8. Later watchers</h2>
+<p>Food at meal times (ratings, near where you'll be at lunch) · tolls and toll costs ahead · speed cameras · parking near the destination · “10 minutes away” (tell someone) · the weekday commute (usual 35 minutes, today 55) · tomorrow's long drive, the evening before (weather, closures, events on the route) · a place opening or getting less busy · EV charger availability · air quality ahead · sunset during the drive · border or state crossings (permits, tax).</p>
+
+<h2 id="phases">9. Decisions and phases</h2>
+<div class="wrap"><table>
+<tr><th>Decision</th><th>Choice (1 Nov)</th></tr>
+<tr><td>Data source</td><td>Google Maps (more reliable, especially in India), read in StudioGen's agent browser; Open-Meteo for weather; open data only as the phone's fallback</td></tr>
+<tr><td>Where they run</td><td>Both: the phone sends position and route; the Mac (or a Worker) runs them and reads Google Maps; leave-by on the Mac alone</td></tr>
+<tr><td>First watchers</td><td>Traffic on my route · a faster way (when it saves 5+ minutes) · accidents ahead · fuel/charging on the way · weather ahead · next town · leave-by for calendar events; more later</td></tr>
+<tr><td>Speaking</td><td>Important and nice-to-know both said; nice-to-know spaced out</td></tr>
+<tr><td>Ratings</td><td>From Google Maps</td></tr>
+</table></div>
+<div class="wrap"><table>
+<tr><th>Phase</th><th>What</th></tr>
+<tr><td>1</td><td>Home and work places (Settings › Location); position and route from the phone to your Mac (sealed, own devices); a Google Maps reader in the agent browser (directions with traffic and alternatives, places with ratings) with a practice Google Maps page; <b>traffic on my route</b>, <b>a faster way</b> (5+ minutes), <b>leave-by</b>; cards and voice in DriveGen</td></tr>
+<tr><td>2</td><td><b>Accidents and closures ahead</b>, <b>fuel/charging on the way</b> (ratings, open now, distance ahead), <b>weather ahead</b> (Open-Meteo along the route), <b>next town</b> (Google, Wikipedia, local news)</td></tr>
+<tr><td>3</td><td>Speaking well while driving (spacing, never over turns or calls, “Take it?” → re-route), the phone's open-data fallback with no Mac, Workers, the guide with pictures</td></tr>
+<tr><td>4</td><td>The later watchers (section 8), as chosen</td></tr>
+</table></div>
+</main>
+</body>
+</html>

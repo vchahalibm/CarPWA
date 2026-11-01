@@ -57,6 +57,10 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
 
+## Next up
+
+- [ ] **Map watchers** (designed 1 Nov, docs/maps-watchers.html): phase 1 when you say go (home/work places, the phone's position to the Mac, the Google Maps reader with a practice page, traffic on my route, a faster way, leave-by).
+
 ## To perform (with you)
 
 - [ ] **Phonon in the apps, on your iPhone and iPad** (built 24 Oct): after the update the setup screen appears (what's new, the voice downloading, the speed check). Then a few replies, a long one (“summarise my unread mail”), interrupting one, a conversation, and the assistant's lips. Measured here: Chrome on this Mac 8–9× faster than speech, StudioGen ~6.7× (7.1 s of speech in 1.3 s), first sound ~0.4 s for the first reply and ~30 ms after.

@@ -47,6 +47,7 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] The calendar watcher on your real Outlook (the selectors for meetings are a guess until tried there).
 - [ ] DriveGen: Settings › Assistant › Watchers lists your Mac's watchers; Check now and Pause from the phone.
 - [ ] After the WhatsApp fix (web update): Check now on both WhatsApp watchers; Edit › Last check should end in “read N items”, and a new message from Varun should be told. If not, Diagnose again from Edit and say so.
+- [x] Second diagnosis (1 Nov): rows found (role=row 69) but read as 0 lines: in the watcher's hidden window the rows' innerText was empty (rendering skipped); fixed with a text-pieces fallback.
 - [x] Real WhatsApp diagnosed (1 Nov): chat list = `#pane-side [role=grid] > [role=row]` (69 rows, absolutely placed); the template's role=row was right, the checks read mid-reload.
 - [ ] (done above) After 0.18.3 (one Keychain prompt): open WhatsApp in the agent browser, tap 🩺, and tell me the file's path (in ~/Library/Application Support/StudioGen/diagnostics/): I'll fix the WhatsApp templates against its real structure. Same later for Slack, Teams, Outlook, X.
 - [ ] The natural voice after the next update: replies in it (not the Mac's voice) a minute after start-up, also right after a watcher asked the model whether news matters.

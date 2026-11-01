@@ -34,6 +34,10 @@
         x: +((r.left + r.width / 2) / win.innerWidth).toFixed(3), y: +((r.top + r.height / 2) / win.innerHeight).toFixed(3),
         w: +(r.width / win.innerWidth).toFixed(3), h: +(r.height / win.innerHeight).toFixed(3), type: el.type || '', row: rowOf(el) };
     };
+    /** An element's words: its rendered text, else (rendering skipped: a hidden window, WhatsApp's off-screen rows) its
+        text pieces, one per line. innerText alone came back empty in a watcher's hidden window, so lists read as empty. */
+    const textOf = e => { if (!e) return ''; const t = e.innerText; if (t && t.trim()) return t; const out = [], w = doc.createTreeWalker(e, 4);
+      for (let n; (n = w.nextNode());) { const v = n.nodeValue.replace(/\s+/g, ' ').trim(); if (v && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.parentElement?.tagName || '')) out.push(v); } return out.join('\n'); };
     /** The repeated item a node is in, found by shape (sites drop their row roles): the nearest ancestor that has 3+
         look-alike siblings (same tag, mostly the same classes) and is row-sized (at least 24 px high, under half the
         window, 40%+ of its parent's width), and a selector for all of them (the parent's, then the tag). */
@@ -53,7 +57,7 @@
       for (const p of [root, ...root.querySelectorAll('*')].slice(0, 9000)) {
         const kids = [...p.children].filter(visible); if (kids.length < 3) continue;
         const tag = kids[0].tagName, like = kids.filter(x => x.tagName === tag && sameish(x, kids[0]) && rowSized(x, p));
-        if (like.filter(x => clean(x.innerText || x.textContent || '')).length < like.length / 2) continue; /* rows, not empty boxes (some rows report no text while off-screen) */
+        if (like.filter(x => clean(textOf(x) || x.textContent || '')).length < like.length / 2) continue; /* rows, not empty boxes (some rows report no text while off-screen) */
         if (like.length >= 3 && (!best || like.length > best.n)) best = { n: like.length, css: `${css(p)} > ${tag.toLowerCase()}` };
       }
       return best;
@@ -66,7 +70,7 @@
       const g = /^rows-in:/.test(s0) && rowsIn(s0.slice(8).trim()), sel = g ? g.css : /^rows-in:/.test(s0) ? null : s0;
       let all = []; try { all = sel ? [...doc.querySelectorAll(sel)] : []; } catch { return { sel: s0, error: 'not a valid selector' }; }
       const vis = all.filter(visible);
-      return { sel: s0, ...(g ? { found: g.css, n: g.n } : {}), ...(/^rows-in:/.test(s0) && !g ? { found: null } : {}), matches: all.length, visible: vis.length, first: vis.slice(0, 3).map(e => shape(e.innerText || e.getAttribute('aria-label') || '')) };
+      return { sel: s0, ...(g ? { found: g.css, n: g.n } : {}), ...(/^rows-in:/.test(s0) && !g ? { found: null } : {}), matches: all.length, visible: vis.length, first: vis.slice(0, 3).map(e => shape(textOf(e) || e.getAttribute('aria-label') || '')) };
     });
     /** The page's skeleton for “Diagnose this page”: tags, ids, classes, roles, test ids, sizes, look-alike siblings, and
         words only as shapes (aria-labels too); long runs of look-alike rows keep 3 and say how many more. At most `max`
@@ -97,8 +101,8 @@
     /** The list row a click was in (a chat, a mail, a channel): its name (first line) and a selector for every row, so it
         can be found again by name (teaching a watcher: “Varun's chat”, wherever it is in the list). */
     const rowOf = el => { const g = !el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr') && groupOf(el), rw = g ? g.el : el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr'); if (!rw) return null;
-      if (g) return { name: clean((rw.innerText || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: g.css };
-      return { name: clean((rw.innerText || rw.getAttribute('aria-label') || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: css(rw).replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '') }; };
+      if (g) return { name: clean((textOf(rw) || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: g.css };
+      return { name: clean((textOf(rw) || rw.getAttribute('aria-label') || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: css(rw).replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '') }; };
     // A field is known by its label, not by what's typed in it.
     const label = el => el.getAttribute('aria-label') || el.placeholder || (el.id && doc.querySelector(`label[for="${win.CSS.escape(el.id)}"]`)?.innerText) || el.closest('label')?.innerText || el.title || '';
     const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -106,7 +110,7 @@
       const q = s => { try { return doc.querySelector(s); } catch { return null; } };
       if (L.testid) { const e = q(`[data-testid="${win.CSS.escape(L.testid)}"]`); if (e) return { el: e, how: 'testid' }; }
       if (L.id) { const e = doc.getElementById(L.id); if (e) return { el: e, how: 'id' }; }
-      if (L.css) { const e = q(L.css); if (e && (!L.text || /^(input|textarea|select)$/.test(L.tag) || clean(e.innerText || e.value || '') === L.text)) return { el: e, how: 'css' }; }
+      if (L.css) { const e = q(L.css); if (e && (!L.text || /^(input|textarea|select)$/.test(L.tag) || clean(textOf(e) || e.value || '') === L.text)) return { el: e, how: 'css' }; }
       if (L.text) {
         const e = [...doc.querySelectorAll(L.tag || INTERACTIVE)].find(x => visible(x) && clean(/^(input|textarea|select)$/i.test(x.tagName) ? label(x) : x.innerText || x.getAttribute('aria-label') || x.value || '') === L.text);
         if (e) return { el: e, how: 'text' };
@@ -155,7 +159,7 @@
       /** Diagnose this page: where it is (no query string), signs of a sign-in or “open in another window”, each selector
           list tried, and the skeleton (words as shapes). */
       diagnose(o = {}) {
-        const body = (doc.body?.innerText || '').slice(0, 4000);
+        const body = (textOf(doc.body) || '').slice(0, 4000);
         return { ok: true, url: win.location.origin + win.location.pathname, title: shape(doc.title), size: [win.innerWidth, win.innerHeight], ready: doc.readyState, elements: doc.getElementsByTagName('*').length,
           signs: { anotherWindow: /open in another window/i.test(body), useHere: /use here/i.test(body), signIn: /scan the qr|link with phone|log into|sign in to|sign in with|enter your (email|password)/i.test(body), robot: /captcha|not a robot|unusual traffic/i.test(body), loading: /loading|connecting/i.test(body.slice(0, 300)) },
           trials: [].concat(o.selectors || []).map(x => ({ for: x.for || '', results: trial(x.sel) })), skeleton: skeleton(o.focus, o.max || 2500) };
@@ -168,7 +172,7 @@
         const t = trial(sel), hit = t.find(x => x.visible); if (!hit) return { ok: true, n: 0, trials: t };
         const css = hit.found || hit.sel, els = [...doc.querySelectorAll(css)].filter(visible);
         els.forEach(e => { e.dataset.ddHl = e.style.outline || '-'; e.style.outline = '2px solid #34c759'; }); els[0]?.scrollIntoView({ block: 'nearest' });
-        return { ok: true, n: els.length, used: hit.sel, css, lines: els.slice(0, 4).map(e => clean(e.innerText || e.getAttribute('aria-label') || '')), trials: t };
+        return { ok: true, n: els.length, used: hit.sel, css, lines: els.slice(0, 4).map(e => clean(textOf(e) || e.getAttribute('aria-label') || '')), trials: t };
       },
       /** A watcher's part, for a picture of it (js/watch.js, visual changes): where the first visible match is. */
       rect(sel) { for (const s of String(sel || '').split('||')) { let el = null; try { el = [...doc.querySelectorAll(s.trim())].find(visible); } catch {} if (el) { el.scrollIntoView({ block: 'nearest' }); return { ok: true, rect: rect(el) }; } } return { ok: false, error: 'not found' }; },
@@ -178,7 +182,7 @@
         let el = doc.elementFromPoint(x, y); if (!el) return { ok: false };
         if (row) el = el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],[role=article],li,article,tr') || el;
         let c = css(el); if (row) c = c.replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '');
-        return { ok: true, css: c, text: clean(el.innerText || el.getAttribute('aria-label') || '') };
+        return { ok: true, css: c, text: clean(textOf(el) || el.getAttribute('aria-label') || '') };
       },
       /** A watcher keeping this page open (js/watch.js): tells when the part it reads changes (at most every 2 s), so it
           checks within seconds instead of on its schedule. Nothing leaves the page but “changed”. */
@@ -201,7 +205,7 @@
           const v = n.nodeValue || '', lv = v.replace(/\s+/g, ' ').toLowerCase(), i = lv.indexOf(q); if (i < 0) continue;
           const el = n.parentElement; if (!el || !visible(el) || /^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName)) continue;
           const st = win.getComputedStyle(el); if (st.visibility === 'hidden' || +st.opacity === 0) continue;
-          hits.push({ el, exact: clean(el.innerText || '').toLowerCase() === q, len: lv.trim().length });
+          hits.push({ el, exact: clean(textOf(el) || '').toLowerCase() === q, len: lv.trim().length });
         }
         for (const el of doc.querySelectorAll('[aria-label],[title],[placeholder],input[type=button],input[type=submit]'))
           if (visible(el) && clean(el.getAttribute('aria-label') || el.title || el.placeholder || el.value).toLowerCase().includes(q)) hits.push({ el, exact: true, len: q.length });
@@ -209,7 +213,7 @@
         hits.sort((a, b) => (b.exact - a.exact) || (a.len - b.len));
         const el = hits[0].el.closest(INTERACTIVE) || hits[0].el;
         el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-        return { ok: true, how: 'text', rect: rect(el), text: clean(el.innerText || el.value || '') };
+        return { ok: true, how: 'text', rect: rect(el), text: clean(textOf(el) || el.value || '') };
       },
       /** For agent tasks: the text of the first selector (comma list, tried in order) that has some; each matching element
           is one line (its aria-label when it has one, as list rows often do). The whole page as a last resort. */
@@ -222,21 +226,21 @@
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
           // (WhatsApp keeps a message's time and sender in data-pre-plain-text, outside the text: put it in front)
-          const lines = els.map(e => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; // a bare number badge (an unread count) is said in its label: “5 unread messages”
-            const badges = [...(e.querySelectorAll?.('[aria-label]') || [])].filter(b => /^\d{1,4}$/.test((b.innerText || '').trim())).map(b => b.getAttribute('aria-label').trim()).filter(x => /[a-z]/i.test(x));
+          const lines = els.map(e => { const t = (textOf(e) || '').replace(/\s+/g, ' ').trim(), l = (e.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), pre = e.getAttribute('data-pre-plain-text') || e.querySelector?.('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ''; // a bare number badge (an unread count) is said in its label: “5 unread messages”
+            const badges = [...(e.querySelectorAll?.('[aria-label]') || [])].filter(b => /^\d{1,4}$/.test((textOf(b) || '').trim())).map(b => b.getAttribute('aria-label').trim()).filter(x => /[a-z]/i.test(x));
             // a row's state words that only its label has (Outlook: “Unread …”): put them in front of the text
             const state = l.length <= t.length && (l.match(/^((?:unread|flagged|pinned|important|urgent|replied|forwarded|has attachments?)[,\s]+)+/i)?.[0] || '').replace(/[,\s]+$/, '');
             return pre + (state && !t.toLowerCase().startsWith(state.toLowerCase()) ? `${state} ` : '') + (l.length > t.length ? l : t) + (badges.length ? ` (${badges.join(', ')})` : ''); }).filter(Boolean);
           tried.push([s0.trim(), lines.length]);
           if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title, tried };
         }
-        return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title, tried };
+        return { ok: true, sel: 'body', text: (textOf(doc.body) || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title, tried };
       },
       /** Teaching an agent task: the next element you click is picked, not clicked (outlined while you hover), and returned
           with a selector to read it by. Times out after `ms`. */
       /** Is it there (a selector, comma/|| list, or a text), without clicking: for checking a task that would send. */
       exists(o = {}) {
-        const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase(), q = clean(o.text || '').toLowerCase();
+        const words = x => clean(textOf(x) || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase(), q = clean(o.text || '').toLowerCase();
         for (const sel of String(o.sel || '').split('||').filter(Boolean)) { try { const m = [...doc.querySelectorAll(sel.trim())].filter(visible); const el = q ? m.find(x => words(x).includes(q)) : m[0]; if (el) return { ok: true, rect: rect(el) }; } catch {} }
         if (!o.sel && q) { const f = this.findText(o.text); if (f.ok) return f; }
         return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
@@ -247,9 +251,9 @@
           const mark = e => { const el = e.target; if (hov === el) return; if (hov) hov.style.outline = prev.pop() || ''; hov = el; prev.push(el.style.outline); el.style.outline = '3px solid #ff375f'; };
           const done = r => { pickEnd = null; doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
           const take = e => { e.preventDefault(); e.stopPropagation(); const el = exact ? (e.target.closest(INTERACTIVE + ',[contenteditable=true],[role=textbox],[role=listitem],[role=row],[role=treeitem]') || e.target) : e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
-            const g = groupOf(e.target), first = x => clean((x.innerText || '').split('\n').map(s => s.trim()).find(Boolean) || '');
-            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(el.innerText || ''),
-              row: g && { css: g.css, n: g.n, name: first(g.el), text: clean(g.el.innerText || '') } }); }; // the list it's in, by shape
+            const g = groupOf(e.target), first = x => clean((textOf(x) || '').split('\n').map(s => s.trim()).find(Boolean) || '');
+            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(textOf(el) || ''),
+              row: g && { css: g.css, n: g.n, name: first(g.el), text: clean(textOf(g.el) || '') } }); }; // the list it's in, by shape
           doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true); pickEnd = done;
           const t = setTimeout(() => done({ ok: false, error: 'Nothing picked' }), ms);
         });
@@ -262,7 +266,7 @@
         for (;;) {
           let hit = false;
           for (const s of sels) { if (/^rows-in:/.test(s)) { if (rowsIn(s.slice(8).trim())) { hit = true; break; } continue; } try { if ([...doc.querySelectorAll(s)].some(visible)) { hit = true; break; } } catch {} }
-          if (!hit && q) hit = (doc.body?.innerText || '').toLowerCase().includes(q);
+          if (!hit && q) hit = (textOf(doc.body) || '').toLowerCase().includes(q);
           if (hit) return { ok: true, url: win.location.href };
           if (Date.now() - t0 > ms) return { ok: false, error: 'not there', url: win.location.href };
           await wait(300);
@@ -283,15 +287,15 @@
       async clickOn(o = {}) {
         let el = null;
         // a selector and a text: the match of the selector whose text (or label) has those words, e.g. a channel by name
-        const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase();
+        const words = x => clean(textOf(x) || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase();
         if (o.sel) for (const s of String(o.sel).split('||')) { try { const m = [...doc.querySelectorAll(s.trim())].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).startsWith(q)) || m.find(x => words(x).includes(q)) : m[0]; } catch {} if (el) break; }
-        if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(a.innerText || '').length - clean(b.innerText || '').length).find(e => clean(e.innerText || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
+        if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(textOf(a) || '').length - clean(textOf(b) || '').length).find(e => clean(textOf(e) || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
         if (!el) return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
         el.scrollIntoView({ block: 'center' }); await wait(150);
         const r = el.getBoundingClientRect(), pt = { bubbles: true, cancelable: true, view: win, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
         for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) el.dispatchEvent(new (t.startsWith('pointer') && win.PointerEvent ? win.PointerEvent : win.MouseEvent)(t, pt));
         el.click();
-        return { ok: true, rect: rect(el), text: clean(el.innerText || el.getAttribute('aria-label') || '') };
+        return { ok: true, rect: rect(el), text: clean(textOf(el) || el.getAttribute('aria-label') || '') };
       },
       /** Find a step's element and bring it into view (a field: focused, its text selected, ready to be typed over). */
       async prepare(s, opts = {}) {

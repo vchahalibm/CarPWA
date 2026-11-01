@@ -64,6 +64,8 @@ const DEF = [
 const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
 for (const [k, p] of [['NoRoles', 'roles'], ['AnyWindow', 'onewindow']]) if (q.has(p)) localStorage.setItem(KEY + k, q.get(p) === '0' ? '1' : '0');
 const NOROLES = localStorage.getItem(KEY + 'NoRoles') === '1', ONEWIN = localStorage.getItem(KEY + 'AnyWindow') !== '1';
+// today's WhatsApp also skips drawing rows it doesn't show (so a hidden window's rows have no rendered text)
+if (NOROLES) document.head.insertAdjacentHTML('beforeend', '<style>.chat-row,.msg-row{content-visibility:auto;contain-intrinsic-size:auto 72px}</style>');
 // ?incoming=Name|text: a new message arrives (for trying watchers); kept, then the address is tidied
 if (q.get('incoming')) { const [who, ...t] = q.get('incoming').split('|'); let c = S.find(x => x.name.toLowerCase() === who.toLowerCase()); if (!c) { c = { id: 'c' + Date.now(), name: who, phone: '', unread: 0, msgs: [] }; } const i = S.indexOf(c); if (i >= 0) S.splice(i, 1); S.unshift(c); c.msgs.push(['in', new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t.join('|')]); c.unread = (c.unread || 0) + 1; save(); history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

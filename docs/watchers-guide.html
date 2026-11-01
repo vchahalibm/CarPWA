@@ -57,6 +57,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
   <a href="#first">Your first watcher</a>
   <a href="#ways">More ways to make one</a>
   <a href="#varun">Example: messages from Varun</a>
+  <a href="#road">On the road (Google Maps)</a>
   <b>What it watches</b>
   <a href="#templates">The templates</a>
   <a href="#kinds">What it tells you about</a>
@@ -147,6 +148,15 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <div class="tip"><b>What to tap on WhatsApp</b>Tap his <b>chat in the list on the left</b> (anywhere on the row: his name, the preview, the time). Today's WhatsApp doesn't label its rows, so StudioGen finds the row by its shape (a list of look-alike rows) and watches every row like it, keeping only those with his name. You don't need to tap a name exactly. If WhatsApp says it's <i>open in another window</i>, the agent browser presses <b>Use here</b> by itself (only one WhatsApp window works at a time, and both are the agent browser's own).</div>
 <div class="warn"><b>Way 2 opens his chat at every check</b>Opening a chat marks its messages as read, on your phone too, so Varun sees blue ticks and you lose the unread badge. For WhatsApp, prefer the template or Way 1, which only read the chat list. Way 2 suits sites where opening a page changes nothing (a channel, a feed, a search).</div>
 <p>Which to choose? <b>Way 1</b> is lighter (one page, no clicks each check) and sees his latest message without marking it read. <b>Way 2</b> sees every message in his chat, but marks them read. With either, add <b>Only tell me if…</b> (for example <q class="say">he needs an answer today</q>) or <b>Say it aloud: Always</b> in <b>Edit</b>.</p>
+
+<h2 id="road">On the road: traffic, a faster way, leave by</h2>
+<p>Three watchers in <span class="path">+ New watcher › On the road</span> read <b>Google Maps</b> on your Mac (design: <a href="maps-watchers.html">maps-watchers.html</a>):</p>
+<ul>
+  <li><b>Traffic on my route</b>: while you drive with DriveGen, every 5 minutes: “Traffic adds 8 min to Whitefield: arriving about 22:49”, when it eases, and when Google reports an accident on your way.</li>
+  <li><b>A faster way</b>: when another route saves 5 minutes or more: “A faster way to Whitefield via NH44 saves 6 min”.</li>
+  <li><b>Leave by</b>: your next meeting with a place (from your calendar), the drive from home, work or where you are, with traffic: “Leave by 2:10 for Acme review at 3:00”, then “Leave now”.</li>
+</ul>
+<p>How it knows where you are: while you drive, DriveGen sends your position and where it's navigating to your own Mac every 30 seconds (sealed, own devices only, not kept; turn it off in DriveGen's <span class="path">Settings › Location › Tell my Mac where I am while driving</span>). Set your <b>Home</b> and <b>Work</b> there too, for leave-by. The news comes back to your phone as a card and is said aloud; <b>Open in Google Maps</b> on the card opens the route.</p>
 
 <h2 id="templates">The templates</h2>
 <div class="pair">

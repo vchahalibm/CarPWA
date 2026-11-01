@@ -23,6 +23,8 @@ jobs:
         run: node tests/phrases.cjs
       - name: Watchers detect once per event (js/watch.js)
         run: node tests/watch.cjs
+      - name: Map watchers decide well (js/mapwatch.js)
+        run: node tests/mapwatch.cjs
       - name: Every desktop file is packaged (desktop/package.json build.files)
         run: node tests/desktop/packaged.cjs
       - name: The built-in model reports its model (desktop/llm.js)

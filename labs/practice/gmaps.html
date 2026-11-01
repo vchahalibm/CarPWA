@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Maps</title>
+<style>
+:root{--bg:#fff;--ink:#202124;--ink2:#5f6368;--line:#dadce0;--acc:#1a73e8;--ok:#188038;--warn:#c5221f;--map:#e8eaed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#202124;--ink:#e8eaed;--ink2:#9aa0a6;--line:#3c4043;--map:#2b2c2f}}
+:root[data-theme="dark"]{--bg:#202124;--ink:#e8eaed;--ink2:#9aa0a6;--line:#3c4043;--map:#2b2c2f}
+*{box-sizing:border-box}body{margin:0;font:14px/1.4 Roboto,-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-columns:400px 1fr;height:100vh}
+#pane{border-right:1px solid var(--line);overflow:auto}#pane header{padding:16px;border-bottom:1px solid var(--line)}
+.fld{padding:6px 10px;border:1px solid var(--line);border-radius:8px;margin:4px 0;color:var(--ink2)}
+.trip{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}.trip.selected{border-left:4px solid var(--acc)}
+.dur{font-size:18px;font-weight:500}.dur.slow{color:var(--warn)}.dur.ok{color:var(--ok)}.dist{color:var(--ink2);float:right}
+h1.via{font-size:15px;font-weight:500;margin:4px 0}.note{color:var(--ink2);font-size:13px}.warn{color:var(--warn);font-size:13px;margin-top:4px}
+#map{background:var(--map);display:grid;place-items:center;color:var(--ink2)}
+@media (max-width:760px){body{grid-template-columns:1fr}#map{display:none}}
+</style>
+</head>
+<body>
+<div id="pane" role="main" aria-label="Directions"></div>
+<div id="map" aria-label="Map">Map (practice)</div>
+<script>
+/* A made-up Google Maps directions page for practising map watchers (docs/maps-watchers.html), built like Google's: each
+   route option is a block with id section-directions-trip-N and data-trip-index, its time in traffic, distance, “via” road,
+   notes and warnings. Address as Google's: ?origin=LAT,LON&destination=NAME@LAT,LON (or LAT,LON).
+   ?routes=35:Outer Ring Rd,42:NH44:Accident reported,50:Old Madras Rd sets the routes (minutes:via:warning), kept in this
+   browser per destination; ?reset forgets them. Without it, times come from the distance. */
+const q = new URLSearchParams(location.search), K = 'practiceGmaps';
+const parse = s => { const [n, ll] = String(s || '').includes('@') ? s.split('@') : ['', s]; const [lat, lon] = String(ll || '').split(',').map(Number); return { name: n || ll, lat, lon }; };
+const from = parse(q.get('origin')), to = parse(q.get('destination')), key = `${to.lat?.toFixed?.(3)},${to.lon?.toFixed?.(3)}`;
+const all = JSON.parse(localStorage.getItem(K) || '{}'); if (q.has('reset')) { delete all[key]; if (q.get('reset') === 'all') for (const k in all) delete all[k]; }
+if (q.get('routes')) all[key] = q.get('routes').split(',').map(x => { const [min, via, warn] = x.split(':'); return { min: +min, via: via || '', warn: warn || '' }; });
+localStorage.setItem(K, JSON.stringify(all));
+const R = 6371, rad = d => d * Math.PI / 180, km0 = (from.lat && to.lat) ? 2 * R * Math.asin(Math.sqrt(Math.sin(rad(to.lat - from.lat) / 2) ** 2 + Math.cos(rad(from.lat)) * Math.cos(rad(to.lat)) * Math.sin(rad(to.lon - from.lon) / 2) ** 2)) * 1.3 : 12;
+const routes = all[key] || [{ min: Math.round(km0 * 2.2) + 3, via: 'Outer Ring Rd' }, { min: Math.round(km0 * 2.2) + 8, via: 'NH44' }, { min: Math.round(km0 * 2.4) + 12, via: 'Old Madras Rd' }];
+const fastest = Math.min(...routes.map(r => r.min)), dur = m => m >= 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`;
+document.getElementById('pane').innerHTML = `<header><div class="fld">${from.lat ? `${from.lat.toFixed(4)}, ${from.lon.toFixed(4)}` : 'Your location'}</div><div class="fld">${to.name || 'Choose destination'}</div></header>
+  ${routes.map((r, i) => `<div id="section-directions-trip-${i}" data-trip-index="${i}" class="trip ${i === 0 ? 'selected' : ''}">
+    <div class="dur ${r.min === fastest ? 'ok' : r.min - fastest > 5 ? 'slow' : ''}">${dur(r.min)}</div><div class="dist">${(km0 * (1 + i * 0.12)).toFixed(1)} km</div>
+    <h1 class="via">via ${r.via}</h1><div class="note">${r.min === fastest ? 'Fastest route now due to traffic conditions' : r.min - fastest > 5 ? 'Heavier traffic than usual' : 'Typical traffic'}</div>
+    ${r.warn ? `<div class="warn">${r.warn}</div>` : ''}${i === 1 ? '<div class="note">This route has tolls.</div>' : ''}</div>`).join('')}`;
+</script>
+</body>
+</html>

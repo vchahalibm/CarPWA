@@ -50,6 +50,7 @@ const Link = {
   async ai(o) { if (this.direct()) return Direct.call('ai', o, 30000); if (this.relay()) return Relay.call('ai', o, 30000); return this.call('/api/ai', o, 30000); },
   /** A task of the Mac's agent library (js/agent.js), and the list of the ones made there. Direct link or relay. */
   /** The Mac's memory (js/memory.js): { op: 'for' | 'learn' | 'remember' | 'forget' | 'about', … }. */
+  async loc(o) { if (this.direct()) return Direct.call('loc', o, 20000); if (this.relay()) return Relay.call('loc', o, 20000); throw new Error('No link to your Mac'); }, // where you are, while driving (js/mapwatch.js)
   async watch(o) { if (this.direct()) return Direct.call('watch', o, 120000); if (this.relay()) return Relay.call('watch', o, 120000); throw new Error('No link to your Mac'); }, // the Mac's watchers, from the phone (js/watch.js)
   async memory(o) { if (this.direct()) return Direct.call('memory', o, 60000); if (this.relay()) return Relay.call('memory', o, 60000); throw new Error('No link to your Mac'); },
   /** The Mac's language model (js/llm.js), for the jobs this phone has. */

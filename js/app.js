@@ -125,7 +125,7 @@ const settings = Object.assign({
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
   arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', intentAI: true, startGreet: true, startScreen: APP_NAME === 'StudioGen' ? 'start' : 'dashboard', ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
-  convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
+  shareLoc: true, /* while driving, where you are goes to your own Mac for map watchers (js/mapwatch.js) */ convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 // Replies: Automatic (the device's voice unless Kokoro is fast here) replaces the old default, the natural voice, once.
@@ -1326,6 +1326,8 @@ function renderSettings() {
     <div class="group">
       <div class="row"><div class="main"><div class="t">Source</div></div><span class="val">${srcLabel}</span></div>
       ${btn('place', 'Your place', esc(homePlace()?.name || 'Not set (weather shows Bengaluru)'))}
+      ${typeof MapWatch !== 'undefined' && !LINK_HOST ? tog('shareLoc', 'Tell my Mac where I am while driving', 'For map watchers (traffic, a faster way, leave-by): every 30 s while driving, to your own Mac only, sealed; not kept') : ''}
+      ${typeof MapWatch !== 'undefined' ? btn('placeHome', 'Home', esc(places().home?.name || 'Not set (for leave-by and trips)')) + btn('placeWork', 'Work', esc(places().work?.name || 'Not set')) : ''}
       ${btn('gps', APP_NAME === 'StudioGen' ? 'Use this Mac’s location' : 'Use device GPS')}
       ${loc.source === 'demo' ? btn('stopdemo', 'Stop demo drive') : btn('demo', 'Start demo drive', 'Simulated route')}
     </div>

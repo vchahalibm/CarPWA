@@ -73,7 +73,8 @@ const Watch = {
   /** What the source gives: lines (rows) or one text. */
   async read(w, trace) {
     const k = w.source || (w.task ? 'task' : 'page');
-    if (k === 'hook' || k === 'chain') return (w.state.inbox || []).splice(0); /* what arrived since the last check (hookIn, chainOut) */
+    if (k === 'hook' || k === 'chain') return (w.state.inbox || []).splice(0);
+    if (k === 'gmaps') return MapWatch.read(w, trace); /* map watchers (js/mapwatch.js) */ /* what arrived since the last check (hookIn, chainOut) */
     if (k === 'files') {
       if (!window.DriveDeckDesktop?.files) throw new Error('Folders and files are watched by StudioGen on a Mac');
       if (w.file && w.detect?.kind !== 'new') { const r = await DriveDeckDesktop.files('read', { path: w.path }); if (r?.error) throw new Error(r.error); return r.text; }
@@ -194,6 +195,7 @@ const Watch = {
   cross(w, want) { const s = w.state, n = Math.max(1, +w.filter?.hold || 1); s.streak = want ? (s.streak || 0) + 1 : 0; s.hit = want; return want && s.streak === n; },
   /** What counts, from what was read and what was seen before: { headline, items, value } or nothing. */
   detect(w, got) {
+    if (w.source === 'gmaps' && typeof MapWatch !== 'undefined') return MapWatch.detect(w, got); /* traffic, faster, leaveby */
     const d = w.detect || { kind: 'changes' }, s = w.state || (w.state = { seen: [] }), first = !s.at || !!s.rebase, id = r => this.hash(w.rawIds ? String(r) : this.ident(r));
     got = this.filter(w, got); delete s.rebase;
     if (got && typeof got === 'object' && !Array.isArray(got) && !got.sig) { s.fields = got; got = d.field ? got[d.field] ?? '' : JSON.stringify(got); } /* fields the model pulled out */
@@ -294,12 +296,12 @@ const Watch = {
   tell(w, hit, verdict) {
     if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], value: hit.value, important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another StudioGen of yours: it tells */
     const t = w.tell || {}, quiet = this.quiet(w), presenting = typeof Script !== 'undefined' && Script.running;
-    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}) };
+    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
     if (t.toast !== false && !quiet) toast(`👁 ${hit.headline}`);
-    if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && verdict?.important))) Voice.announce(hit.headline); /* the assistant's voice, with its gestures */
+    if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && (verdict?.important || hit.important)))) Voice.announce(hit.headline); /* the assistant's voice, with its gestures */
     if (t.digest !== false) store.set('watchDigest', [...store.get('watchDigest', []), { at: Date.now(), w: w.name, h: hit.headline, items: (hit.items || []).slice(0, 3) }].slice(-200));
-    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important });
+    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important || !!hit.important, ...(hit.link ? { link: hit.link } : {}) });
     this.record(w, hit); this.chainOut(w, hit); this.act(w, hit);
     Log.i('watch', `Told: ${hit.headline}`, { quiet, important: !!verdict?.important });
   },
@@ -353,8 +355,8 @@ const Watch = {
   event(p, who) {
     const from = who.meshId || who.id;
     if (p.phone) { /* on a phone: a card and a quiet note; the Mac keeps the watcher */
-      Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac' });
-      if (!this.quiet({})) toast(`👁 ${p.headline}`); return { ok: true };
+      Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac', ...(p.link ? { link: p.link } : {}) });
+      if (!this.quiet({})) { toast(`👁 ${p.headline}`); if (p.important && typeof Voice !== 'undefined') Voice.announce?.(p.headline); } /* in the car: important news said (traffic, a faster way, leave now) */ return { ok: true };
     }
     const w = this.list().find(x => x.id === p.id && x.runOn === from); if (!w) return { ok: false, error: 'No such watcher here' };
     w.state = { ...w.state, ...(p.state || {}) };
@@ -369,7 +371,7 @@ const Watch = {
     const t0 = Date.now(), trace = [];
     try {
       const got = await this.read(w, trace);
-      trace.push(`read ${Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'}` : typeof got === 'string' ? `${got.length} characters` : JSON.stringify(got).slice(0, 80)}`);
+      trace.push(`read ${Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'}` : typeof got === 'string' ? `${got.length} characters` : got?.routes ? `${got.routes.length} route${got.routes.length === 1 ? '' : 's'}${got.event ? ` to ${got.event.title}` : ''}` : got?.idle ? 'nothing yet (waiting)' : JSON.stringify(got).slice(0, 80)}`);
       if (o.preview) { w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) }; return { got }; }
       const before = (w.state.seen || []).length, hit = this.detect(w, got);
       trace.push(hit ? `news: ${hit.headline.slice(0, 140)}` : `nothing new${w.detect?.kind === 'new' ? ` (${before} seen before)` : ''}`);
@@ -405,7 +407,8 @@ const Watch = {
     } finally {
       this.running.delete(w.id);
       w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) };
-      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(WATCH_MS[w.every] || 9e5, back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */ if (this.get(w.id)) this.put(w); /* deleted while it was checking: it stays deleted */ if (current === 'settings' && $('#sheet .wt-list')) this.sheet(); }
+      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(WATCH_MS[w.every] || 9e5, back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */
+        if (w.state.nextAt) { if (!w.state.fails && w.state.nextAt < w.state.next) w.state.next = w.state.nextAt; delete w.state.nextAt; } /* leave-by: in time for the next step */ if (this.get(w.id)) this.put(w); /* deleted while it was checking: it stays deleted */ if (current === 'settings' && $('#sheet .wt-list')) this.sheet(); }
     }
   },
 

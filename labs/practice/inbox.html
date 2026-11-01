@@ -73,8 +73,8 @@ if (/\/calendar/.test(location.hash)) {
   if (qs.get('move')) { const [t, d, h] = qs.get('move').split('|'), i = find(t); if (i >= 0) cal[i] = [cal[i][0], d || cal[i][1], h || cal[i][2], cal[i][3]]; }
   if (qs.get('cancel')) { const i = find(qs.get('cancel')); if (i >= 0) cal.splice(i, 1); }
   localStorage.setItem(k, JSON.stringify(cal));
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  main.outerHTML = `<main role="main" aria-label="Calendar" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:16px">${days.map(d => `<section aria-label="${d}"><h3>${d}</h3>${cal.filter(e => e[1] === d).sort((a, b) => a[2].localeCompare(b[2])).map(e => `<div role="button" tabindex="0" aria-label="${e[0]}, ${e[1]} ${e[2]}, ${e[3] || 'no place'}" style="background:var(--panel);border-left:4px solid var(--acc);border-radius:6px;padding:8px;margin:6px 0"><b>${e[0]}</b><br>${e[2]} · ${e[3] || ''}</div>`).join('')}</section>`).join('')}</main>`;
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', ...['Saturday', 'Sunday'].filter(d => cal.some(e => e[1] === d))]; // the weekend when something's on
+  main.outerHTML = `<main role="main" aria-label="Calendar" style="display:grid;grid-template-columns:repeat(${days.length},1fr);gap:8px;padding:16px">${days.map(d => `<section aria-label="${d}"><h3>${d}</h3>${cal.filter(e => e[1] === d).sort((a, b) => a[2].localeCompare(b[2])).map(e => `<div role="button" tabindex="0" aria-label="${e[0]}, ${e[1]} ${e[2]}, ${e[3] || 'no place'}" style="background:var(--panel);border-left:4px solid var(--acc);border-radius:6px;padding:8px;margin:6px 0"><b>${e[0]}</b><br>${e[2]} · ${e[3] || ''}</div>`).join('')}</section>`).join('')}</main>`;
 }
 </script>
 </body>

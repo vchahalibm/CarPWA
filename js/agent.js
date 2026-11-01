@@ -29,7 +29,7 @@ const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="
   unread: '.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]', activity: '[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]',
   activityList: '[data-qa="activity_list"]||[data-qa="activity-item"]', messages: '[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]',
   input: '[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]' };
-const WA = { list: '#pane-side', rows: '#pane-side [role="listitem"]||#pane-side [role="row"]', search: '[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]',
+const WA = { list: '#pane-side', rows: '#pane-side [role="listitem"]||#pane-side [role="row"]||rows-in:#pane-side' /* rows-in: the list there by shape, when WhatsApp drops its row roles */, search: '[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]',
   msgs: '#main [data-pre-plain-text]||#main [role="row"]', input: 'footer [contenteditable="true"]||[aria-label="Type a message"]' };
 const TEAMS = { list: '[data-tid="chat-list"]||[role="tree"]', rows: '[data-tid="chat-list-item"]||[role="treeitem"]', msgs: '[data-tid="chat-pane-message"]||[data-tid="message-pane-list-viewport"]',
   input: '[data-tid="ckeditor"]||div[role="textbox"][contenteditable="true"]', send: '[data-tid="newMessageCommands-send"]||button[name="send"]||button[aria-label^="Send"]' };
@@ -302,6 +302,17 @@ const AgentWeb = {
       const t = setTimeout(() => toast('Unlocking your sign-ins… (macOS may ask for your password)'), 1500); await DriveDeckDesktop.browseReady().catch(() => {}); clearTimeout(t); this.unlocked = true; }
     Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`, { container: c.name });
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
+    await this.useHere(ctx);
+  },
+  /** WhatsApp Web runs in one window at a time: when this browser says “open in another window”, the other window is
+      this agent browser's own, so this one takes over (before you're asked to tap anything, and before a task reads). */
+  async useHere(ctx) {
+    for (let i = 0; i < 6; i++) { /* the page may still be deciding */
+      const t = (await this.call('read', ['body', 1500], 4000, ctx)).text || '';
+      if (/open in another window/i.test(t)) { Log.i('agent', 'Use here: it was open in another window of the agent browser'); await this.call('clickOn', [{ text: 'Use here' }], 4000, ctx); await new Promise(r => setTimeout(r, 800)); return true; }
+      if (!/whatsapp/i.test(this.url(ctx)) || i > 1 && t.length > 200) return false; await new Promise(r => setTimeout(r, 400));
+    }
+    return false;
   },
   url(ctx) { try { return this.view(ctx)?.wv.getURL() || ''; } catch { return ''; } },
   async call(op, args = [], ms = 20000, ctx) {
@@ -750,10 +761,15 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   if (a.wait) {
     // wait in short turns, looking for a sign-in or refusal page in between, so it's caught in seconds, not after the full wait
     const total = +a.ms || 15000, t0 = Date.now(), BLOCKED = /works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser/i;
-    let w = { ok: false };
+    let w = { ok: false }, usedHere = false;
     while (Date.now() - t0 < total) {
       w = await W.call('waitFor', [{ sel: a.wait }, Math.min(3000, total - (Date.now() - t0))], 6000); if (w.ok) break;
-      if (SIGNIN.test(here()) || (Date.now() - t0 > 4000 && (t => SIGNIN_WORDS.test(t) || BLOCKED.test(t))((await W.call('read', ['body', 2500])).text || ''))) break;
+      if (SIGNIN.test(here())) break;
+      const txt = (await W.call('read', ['body', 2500])).text || '';
+      // WhatsApp Web runs in one window at a time: “open in another window… Use here”. The other window is this agent
+      // browser's own (signing in, picking), so this one takes over.
+      if (!usedHere && /open in another window|use here/i.test(txt)) { usedHere = true; Log.i('agent', `${site}: Use here (it was open in another window of the agent browser)`); await W.call('clickOn', [{ text: 'Use here' }]); continue; }
+      if (Date.now() - t0 > 4000 && (SIGNIN_WORDS.test(txt) || BLOCKED.test(txt))) break;
     }
     if (!w.ok && !SIGNIN.test(here())) w = await W.call('waitFor', [{ sel: a.wait }, 1500], 4000); // it may have just come
     if (!w.ok) {

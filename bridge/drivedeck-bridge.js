@@ -34,9 +34,33 @@
         x: +((r.left + r.width / 2) / win.innerWidth).toFixed(3), y: +((r.top + r.height / 2) / win.innerHeight).toFixed(3),
         w: +(r.width / win.innerWidth).toFixed(3), h: +(r.height / win.innerHeight).toFixed(3), type: el.type || '', row: rowOf(el) };
     };
+    /** The repeated item a node is in, found by shape (sites drop their row roles): the nearest ancestor that has 3+
+        look-alike siblings (same tag, mostly the same classes) and is row-sized (at least 24 px high, under half the
+        window, 40%+ of its parent's width), and a selector for all of them (the parent's, then the tag). */
+    const sameish = (a, b) => { const A = new Set(a.classList), B = [...b.classList]; if (!A.size && !B.length) return true; return B.filter(c => A.has(c)).length >= Math.max(1, Math.min(A.size, B.length) * 0.5); };
+    const rowSized = (e, p) => { const r = e.getBoundingClientRect(), q = p.getBoundingClientRect(); return r.height >= 24 && r.height < win.innerHeight * 0.5 && r.width >= q.width * 0.4; };
+    const groupOf = el => {
+      for (let e = el; e && e !== doc.body && e.parentElement; e = e.parentElement) {
+        const p = e.parentElement, like = [...p.children].filter(x => x.tagName === e.tagName && sameish(x, e) && visible(x));
+        if (like.length >= 3 && rowSized(e, p)) { const role = e.getAttribute('role'); return { el: e, n: like.length, css: `${css(p)} > ${e.tagName.toLowerCase()}${role ? `[role="${role}"]` : ''}` }; }
+      }
+      return null;
+    };
+    /** The biggest list of look-alike rows inside an area (a template's fallback when a site renames its rows). */
+    const rowsIn = scope => {
+      const root = (() => { try { return doc.querySelector(scope); } catch { return null; } })(); if (!root) return null;
+      let best = null;
+      for (const p of [root, ...root.querySelectorAll('*')].slice(0, 4000)) {
+        const kids = [...p.children].filter(visible); if (kids.length < 3) continue;
+        const tag = kids[0].tagName, like = kids.filter(x => x.tagName === tag && sameish(x, kids[0]) && rowSized(x, p) && clean(x.innerText || ''));
+        if (like.length >= 3 && (!best || like.length > best.n)) best = { n: like.length, css: `${css(p)} > ${tag.toLowerCase()}` };
+      }
+      return best;
+    };
     /** The list row a click was in (a chat, a mail, a channel): its name (first line) and a selector for every row, so it
         can be found again by name (teaching a watcher: “Varun's chat”, wherever it is in the list). */
-    const rowOf = el => { const rw = el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr'); if (!rw) return null;
+    const rowOf = el => { const g = !el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr') && groupOf(el), rw = g ? g.el : el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr'); if (!rw) return null;
+      if (g) return { name: clean((rw.innerText || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: g.css };
       return { name: clean((rw.innerText || rw.getAttribute('aria-label') || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: css(rw).replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '') }; };
     // A field is known by its label, not by what's typed in it.
     const label = el => el.getAttribute('aria-label') || el.placeholder || (el.id && doc.querySelector(`label[for="${win.CSS.escape(el.id)}"]`)?.innerText) || el.closest('label')?.innerText || el.title || '';
@@ -135,7 +159,9 @@
       /** For agent tasks: the text of the first selector (comma list, tried in order) that has some; each matching element
           is one line (its aria-label when it has one, as list rows often do). The whole page as a last resort. */
       read(sels, max = 6000) {
-        for (const s of [].concat(sels || []).flatMap(x => String(x).split('||'))) {
+        for (const s0 of [].concat(sels || []).flatMap(x => String(x).split('||'))) {
+          const g = /^\s*rows-in:/.test(s0) && rowsIn(s0.replace(/^\s*rows-in:/, '').trim()), s = g ? g.css : s0; // rows-in:#pane-side: the list there, by shape
+          if (/^\s*rows-in:/.test(s0) && !g) continue;
           let els = []; try { els = [...doc.querySelectorAll(s.trim())].filter(visible); } catch {}
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
@@ -164,7 +190,9 @@
           const mark = e => { const el = e.target; if (hov === el) return; if (hov) hov.style.outline = prev.pop() || ''; hov = el; prev.push(el.style.outline); el.style.outline = '3px solid #ff375f'; };
           const done = r => { pickEnd = null; doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
           const take = e => { e.preventDefault(); e.stopPropagation(); const el = exact ? (e.target.closest(INTERACTIVE + ',[contenteditable=true],[role=textbox],[role=listitem],[role=row],[role=treeitem]') || e.target) : e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
-            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(el.innerText || '') }); };
+            const g = groupOf(e.target), first = x => clean((x.innerText || '').split('\n').map(s => s.trim()).find(Boolean) || '');
+            done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(el.innerText || ''),
+              row: g && { css: g.css, n: g.n, name: first(g.el), text: clean(g.el.innerText || '') } }); }; // the list it's in, by shape
           doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true); pickEnd = done;
           const t = setTimeout(() => done({ ok: false, error: 'Nothing picked' }), ms);
         });
@@ -176,7 +204,7 @@
         const t0 = Date.now(), q = clean(o.text || '').toLowerCase(), sels = o.sel ? String(o.sel).split('||').map(s => s.trim()).filter(Boolean) : [];
         for (;;) {
           let hit = false;
-          for (const s of sels) { try { if ([...doc.querySelectorAll(s)].some(visible)) { hit = true; break; } } catch {} }
+          for (const s of sels) { if (/^rows-in:/.test(s)) { if (rowsIn(s.slice(8).trim())) { hit = true; break; } continue; } try { if ([...doc.querySelectorAll(s)].some(visible)) { hit = true; break; } } catch {} }
           if (!hit && q) hit = (doc.body?.innerText || '').toLowerCase().includes(q);
           if (hit) return { ok: true, url: win.location.href };
           if (Date.now() - t0 > ms) return { ok: false, error: 'not there', url: win.location.href };

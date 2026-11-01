@@ -15,8 +15,8 @@
 .search{margin:0 12px 8px;background:var(--hdr);border-radius:8px;padding:7px 12px}
 .search [contenteditable]{outline:none;min-height:20px}.search [contenteditable]:empty::before{content:'Search';color:var(--ink2)}
 #pane-side{flex:1;overflow:auto}
-[role=listitem]{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
-[role=listitem][aria-selected=true]{background:var(--hdr)}
+[role=listitem],.chat-row{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+[role=listitem][aria-selected=true],.chat-row[aria-selected=true]{background:var(--hdr)}
 .av::before{content:attr(data-l)} /* a picture on WhatsApp: not part of the row's text */
 .av{width:46px;height:46px;border-radius:50%;background:#dfe5e7;display:grid;place-items:center;font-weight:700;color:#54656f;flex:0 0 auto}
 .cell{flex:1;min-width:0}.r1,.r2{display:flex;gap:8px;align-items:center}.r1 span[title]{font-size:16px;flex:1}
@@ -26,10 +26,10 @@
 #main{display:flex;flex-direction:column;min-height:0}
 #main header{background:var(--hdr);padding:10px 16px;font-weight:600;display:flex;gap:10px;align-items:center}
 .msgs{flex:1;overflow:auto;padding:14px 8%;display:flex;flex-direction:column;gap:4px}
-[role=row]{display:flex}
+[role=row],.msg-row{display:flex}
 .message-in,.message-out{max-width:65%;padding:6px 9px 8px;border-radius:8px;box-shadow:0 1px .5px rgba(0,0,0,.13)}
 .message-in{background:var(--in)}.message-out{background:var(--out);margin-left:auto}
-[role=row]:has(.message-out){justify-content:flex-end}
+[role=row]:has(.message-out),.msg-row:has(.message-out){justify-content:flex-end}
 .meta{font-size:11px;color:var(--ink2);text-align:right}
 footer{background:var(--hdr);padding:8px 12px;display:flex;gap:10px;align-items:flex-end}
 footer [contenteditable]{flex:1;background:var(--side);border-radius:8px;padding:9px 12px;outline:none;min-height:22px}
@@ -48,7 +48,10 @@ footer button{width:42px;height:42px;border-radius:50%;border:0;background:var(-
 /* A made-up WhatsApp Web for practising agent tasks (docs/scripts-and-tasks-guide.html). Its page structure follows
    WhatsApp Web (#pane-side, chat rows, “N unread messages” badges, data-pre-plain-text on messages, the footer's message
    box) so tasks made for it carry over. Linking a phone is simulated; messages you send stay in this browser.
-   ?reset starts over; ?phone=…&text=… opens a chat with a draft, like WhatsApp's send links. */
+   ?reset starts over; ?phone=…&text=… opens a chat with a draft, like WhatsApp's send links.
+   Like today's WhatsApp: ?roles=0 drops the row roles (chats and messages are plain divs; kept in this browser, ?roles=1
+   puts them back), and it runs in one window at a time: opened in a second window it says “WhatsApp is open in another
+   window” with Use here, which takes over (?onewindow=0 turns that off). */
 const KEY = 'practiceWa', q = new URLSearchParams(location.search);
 if (q.has('reset')) { localStorage.removeItem(KEY); localStorage.removeItem(KEY + 'Auth'); location.replace(location.pathname); }
 const DEF = [
@@ -59,6 +62,8 @@ const DEF = [
   { id: 'c5', name: 'Asha Rao', phone: '919800000005', unread: 0, msgs: [['in', 'Sun', 'Pilot update before Monday please']] },
 ];
 const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF), save = () => localStorage.setItem(KEY, JSON.stringify(S));
+for (const [k, p] of [['NoRoles', 'roles'], ['AnyWindow', 'onewindow']]) if (q.has(p)) localStorage.setItem(KEY + k, q.get(p) === '0' ? '1' : '0');
+const NOROLES = localStorage.getItem(KEY + 'NoRoles') === '1', ONEWIN = localStorage.getItem(KEY + 'AnyWindow') !== '1';
 // ?incoming=Name|text: a new message arrives (for trying watchers); kept, then the address is tidied
 if (q.get('incoming')) { const [who, ...t] = q.get('incoming').split('|'); let c = S.find(x => x.name.toLowerCase() === who.toLowerCase()); if (!c) { c = { id: 'c' + Date.now(), name: who, phone: '', unread: 0, msgs: [] }; } const i = S.indexOf(c); if (i >= 0) S.splice(i, 1); S.unshift(c); c.msgs.push(['in', new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t.join('|')]); c.unread = (c.unread || 0) + 1; save(); history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -71,7 +76,7 @@ function landing() {
 function rows() {
   const f = filter.toLowerCase();
   return S.filter(c => !f || c.name.toLowerCase().includes(f) || c.msgs.some(m => m[2].toLowerCase().includes(f))).map(c => { const last = c.msgs.at(-1);
-    return `<div role="listitem" tabindex="0" data-id="${c.id}" class="${c.unread ? 'unread' : ''}" aria-selected="${cur === c}"><div class="av" data-l="${esc(c.name[0])}"></div><div class="cell">
+    return `<div ${NOROLES ? '' : 'role="listitem"'} class="chat-row ${c.unread ? 'unread' : ''}" tabindex="0" data-id="${c.id}" aria-selected="${cur === c}"><div class="av" data-l="${esc(c.name[0])}"></div><div class="cell">
       <div class="r1"><span title="${esc(c.name)}" dir="auto">${esc(c.name)}</span><span class="time">${esc(last[1])}</span></div>
       <div class="r2"><span class="last" title="${esc(last[2])}">${last[0] === 'out' ? '✓✓ ' : ''}${esc(last[2])}</span>${c.unread ? `<span class="badge" aria-label="${c.unread} unread message${c.unread > 1 ? 's' : ''}">${c.unread}</span>` : ''}</div></div></div>`; }).join('') || '<p class="empty">No chats, contacts or messages found</p>';
 }
@@ -80,7 +85,7 @@ function draw(draft = '') {
     <div class="search"><div contenteditable="true" role="textbox" aria-label="Search input textbox" data-tab="3" title="Search input textbox"></div></div>
     <div id="pane-side"><div aria-label="Chat list" role="grid">${rows()}</div></div></div>
     <div id="main">${cur ? `<header><div class="av" data-l="${esc(cur.name[0])}"></div><span title="${esc(cur.name)}">${esc(cur.name)}</span></header>
-      <div class="msgs" role="application" aria-label="Messages">${cur.msgs.map(m => `<div role="row"><div class="${m[0] === 'out' ? 'message-out' : 'message-in'}"><div class="copyable-text" data-pre-plain-text="[${esc(m[1])}] ${esc(m[0] === 'out' ? 'You' : cur.group ? m[2].split(':')[0] : cur.name)}: "><span class="selectable-text" dir="ltr">${esc(m[2])}</span></div><div class="meta">${esc(m[1])}</div></div></div>`).join('')}</div>
+      <div class="msgs" role="application" aria-label="Messages">${cur.msgs.map(m => `<div ${NOROLES ? '' : 'role="row"'} class="msg-row"><div class="${m[0] === 'out' ? 'message-out' : 'message-in'}"><div class="copyable-text" data-pre-plain-text="[${esc(m[1])}] ${esc(m[0] === 'out' ? 'You' : cur.group ? m[2].split(':')[0] : cur.name)}: "><span class="selectable-text" dir="ltr">${esc(m[2])}</span></div><div class="meta">${esc(m[1])}</div></div></div>`).join('')}</div>
       <footer><div contenteditable="true" role="textbox" aria-label="Type a message" data-tab="10" title="Type a message">${esc(draft)}</div><button aria-label="Send" data-icon="send">➤</button></footer>`
       : '<div class="empty"><h2>WhatsApp Web (practice)</h2><p>Send and receive messages without keeping your phone online.</p></div>'}</div></div>`;
   const m = document.querySelector('.msgs'); if (m) m.scrollTop = m.scrollHeight;
@@ -91,13 +96,23 @@ function send() {
   cur.msgs.push(['out', new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), t]); S.splice(S.indexOf(cur), 1); S.unshift(cur); save(); draw();
 }
 document.addEventListener('click', e => {
-  const r = e.target.closest('[role=listitem]'); if (r) { cur = S.find(c => c.id === r.dataset.id); return draw(); }
+  if (e.target.closest('#usehere')) return takeOver();
+  const r = e.target.closest('.chat-row'); if (r) { cur = S.find(c => c.id === r.dataset.id); return draw(); }
   if (e.target.closest('footer button')) send();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('footer [contenteditable]') && !e.shiftKey) { e.preventDefault(); send(); } });
 document.addEventListener('input', e => { if (e.target.matches('.search [contenteditable]')) { filter = e.target.innerText.trim(); document.querySelector('[role=grid]').innerHTML = rows(); } });
+// one window at a time (as WhatsApp Web): a new window asks whether one is open; if so, it waits for Use here
+const me = Math.random().toString(36).slice(2), bc = ONEWIN && 'BroadcastChannel' in window ? new BroadcastChannel('practiceWaWindow') : null; let active = false;
+const useHere = () => { active = false; root.innerHTML = `<div class="landing"><div><h1>WhatsApp is open in another window</h1><p>Click “Use here” to use WhatsApp in this window.</p><button id="usehere">Use here</button></div></div>`; };
+const start = () => { active = true; const p = q.get('phone'); cur = p ? S.find(c => c.phone === p.replace(/\D/g, '')) || null : null; draw(cur ? q.get('text') || '' : ''); };
+function takeOver() { bc?.postMessage({ t: 'take', id: me }); Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '[]')); start(); }
 if (!localStorage.getItem(KEY + 'Auth')) landing();
-else { const p = q.get('phone'); cur = p ? S.find(c => c.phone === p.replace(/\D/g, '')) || null : null; draw(cur ? q.get('text') || '' : ''); }
+else if (!bc) start();
+else {
+  let seen = false; bc.onmessage = ({ data: m }) => { if (m.t === 'who' && active) bc.postMessage({ t: 'here', to: m.id }); if (m.t === 'here' && m.to === me) seen = true; if (m.t === 'take' && m.id !== me && active) useHere(); };
+  bc.postMessage({ t: 'who', id: me }); setTimeout(() => seen ? useHere() : start(), 350);
+}
 </script>
 </body>
 </html>

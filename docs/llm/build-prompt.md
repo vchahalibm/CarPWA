@@ -104,7 +104,7 @@ Answer with a watcher instead of a task when they want to be told about somethin
   "ask": "", "actions": [] } }
 ```
 
-- `url` + `read` (a part's text) or `rows` (one line per matching element: lists); `keep`: only lines with these words (`||` between); `steps`: task steps before reading (search, open a tab). Or `source`: `feed` (RSS/Atom or a page that names one), `json` (with `path` like `current.price`).
+- `url` + `read` (a part's text) or `rows` (one line per matching element: lists; `rows-in:#container` as the last choice finds the list inside by its shape, for sites that don't label their rows); `keep`: only lines with these words (`||` between); `steps`: task steps before reading (search, open a tab). Or `source`: `feed` (RSS/Atom or a page that names one), `json` (with `path` like `current.price`).
 - `detect.kind`: `new` (new rows; `gone: true` also tells what disappeared), `gone`, `changes`, `value` (`cond`: `below 500`, `above 3000`, `drops`, `drops 5%`, `moves 3%`), `count`, `contains` (`words`), `pattern` (`re`), `appears`, `disappears`, `visual` (`pct`), `stale` (`mins`).
 - `extract`: `{ "fields": ["price", "in_stock"] }` makes the model pull those out of what was read; `detect.field` picks the one to watch.
 - `every`: `live`, `2m`, `5m`, `15m`, `30m`, `1h`, `6h`, `1d` (shops and travel 1h or more; chats 5m).

@@ -301,7 +301,9 @@ const AgentWeb = {
     if (!this.unlocked && window.DriveDeckDesktop?.browseReady) { /* the kept sign-ins are unlocked after the window opens (macOS may ask for your password) */
       const t = setTimeout(() => toast('Unlocking your sign-ins… (macOS may ask for your password)'), 1500); await DriveDeckDesktop.browseReady().catch(() => {}); clearTimeout(t); this.unlocked = true; }
     Log.i('agent', `Agent browser: ${url.replace(/\?.*/, '')}`, { container: c.name });
+    try { await wv.executeJavaScript('window.__ddOld = 1'); } catch {} /* the page before: “loaded” must mean the new one (a reload of a busy page can report stopping at once) */
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
+    for (let i = 0; i < 16; i++) { let old = false; try { old = await wv.executeJavaScript('window.__ddOld === 1'); } catch {} if (!old) break; await new Promise(r => setTimeout(r, 250)); } /* up to 4 s (an address that only moves within the page keeps it) */
     await this.useHere(ctx);
   },
   /** WhatsApp Web runs in one window at a time: when this browser says “open in another window”, the other window is

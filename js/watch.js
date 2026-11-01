@@ -43,8 +43,8 @@ const WATCH_TEMPLATES = [
   { id: 'mail.new', group: 'Outlook', name: 'New mail', inputs: [], make: () => ({ url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, detect: { kind: 'new' } }) },
   { id: 'mail.from', group: 'Outlook', name: 'New mail from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Mail from ${v.person}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, keep: v.person, detect: { kind: 'new' } }) },
   { id: 'mail.words', group: 'Outlook', name: 'New mail about something', inputs: [['words', 'Which words? (|| between choices)', 'invoice||contract']], make: v => ({ name: `Mail about ${v.words.split('||')[0]}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, keep: v.words, detect: { kind: 'new' } }) },
-  { id: 'wa.new', group: 'WhatsApp', name: 'New WhatsApp messages', inputs: [], make: () => ({ url: '{whatsapp}', site: 'WhatsApp', ready: '#pane-side', rows: WSEL.waRows, keep: 'unread message', detect: { kind: 'new' } }) },
-  { id: 'wa.from', group: 'WhatsApp', name: 'New WhatsApp messages from someone', inputs: [['person', 'From whom?', 'Mom']], make: v => ({ name: `WhatsApp from ${v.person}`, url: '{whatsapp}', site: 'WhatsApp', ready: '#pane-side', rows: WSEL.waRows, keep: v.person, detect: { kind: 'new' } }) },
+  { id: 'wa.new', group: 'WhatsApp', name: 'New WhatsApp messages', inputs: [], make: () => ({ url: '{whatsapp}', site: 'WhatsApp', stay: true, ready: '#pane-side', rows: WSEL.waRows, keep: 'unread message', detect: { kind: 'new' } }) },
+  { id: 'wa.from', group: 'WhatsApp', name: 'New WhatsApp messages from someone', inputs: [['person', 'From whom?', 'Mom']], make: v => ({ name: `WhatsApp from ${v.person}`, url: '{whatsapp}', site: 'WhatsApp', stay: true, ready: '#pane-side', rows: WSEL.waRows, keep: v.person, detect: { kind: 'new' } }) },
   { id: 'x.timeline', group: 'X', name: 'New posts on my X timeline', inputs: [], make: () => ({ url: xUrl('home'), site: 'X', ready: '[data-testid="primaryColumn"]', rows: WSEL.xPosts, detect: { kind: 'new' }, every: '30m' }) },
   { id: 'x.user', group: 'X', name: 'New posts by an X account', inputs: [['handle', 'Which account? (@name)', '@acme']], make: v => ({ name: `X: ${v.handle}`, url: xUrl('user', v.handle), site: 'X', ready: '[data-testid="primaryColumn"]', rows: WSEL.xPosts, detect: { kind: 'new' }, every: '30m' }) },
   { id: 'x.search', group: 'X', name: 'New X posts matching a search', inputs: [['words', 'Search for', 'Acme']], make: v => ({ name: `X search: ${v.words}`, url: xUrl('search', v.words), site: 'X', ready: '[data-testid="primaryColumn"]', rows: WSEL.xPosts, detect: { kind: 'new' }, every: '30m' }) },
@@ -101,10 +101,14 @@ const Watch = {
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', container: w.container || '', result: 'read',
       // the page opens waiting for its frame only (a part that's gone mustn't look like a page that didn't open: self-healing
       // needs the page), then up to 15 s for the part itself (pages that fill in late)
-      steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready && !sel.split('||').includes(w.ready) ? w.ready : 'body'}`, 'ms=30000', ...(w.every === 'live' ? ['stay'] : [])] },
+      steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready && !sel.split('||').includes(w.ready) ? w.ready : 'body'}`, 'ms=30000', ...(w.every === 'live' || w.stay || this.tplStay(w) ? ['stay'] : [])] }, /* stay: a page that updates itself (WhatsApp) is read where it is, not reloaded each check */
         ...(w.steps || []), ...(w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? [] : [{ do: 'agent.wait', value: sel, args: ['ms=15000'] }]), w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? { do: 'agent.wait', value: sel, args: ['ms=3000'], as: 'read' } : { do: 'agent.read', value: sel, args: [`max=${w.rows ? 12000 : 20000}`, 'strict', ...(w.keep ? [`keep=${w.keep}`] : [])], as: 'read' }] };
     let out, byModel = false; try { out = await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }); }
     catch (e) { if (!/^NOTFOUND:/.test(e.message)) throw e;
+      { const v = AgentWeb.views.get(this.viewKey(w)); await new Promise(r => setTimeout(r, 3000)); const again = v && await AgentWeb.call('read', [sel, w.rows ? 12000 : 20000], 20000, { view: v }); /* just loaded: once more, 3 s later */
+        trace?.push(`  read again after 3 s: ${(again?.tried || []).map(([x, n]) => `${x.length > 40 ? x.slice(0, 37) + '…' : x} → ${n}`).join(' · ') || 'no answer'}`);
+        if (again?.ok && again.sel !== 'body') { let txt = again.text; if (w.keep) { const ks = w.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean); txt = txt.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)'; } out = txt; } }
+      if (out === undefined)
       try { out = await this.heal(w, url); } catch (h) { if (!w.extract || !/^GONE:|^CONFIRM:/.test(h.message)) throw h; byModel = true; w.state.proposal = null; out = (await AgentWeb.call('read', ['body', 20000], 20000, { view: AgentWeb.views.get(this.viewKey(w)) })).text; } } /* the model reads the price from the whole page */
     if (w.detect?.kind === 'appears' || w.detect?.kind === 'disappears') return !!out;
     if (w.detect?.kind === 'visual') return this.shot(w, sel);
@@ -137,6 +141,8 @@ const Watch = {
     const lines = (await ScreenAI.read(null, { canvas: c, k: 1 })).sort((a, b) => Math.round(a.box[1] / 8) - Math.round(b.box[1] / 8) || a.box[0] - b.box[0]).map(l => l.text).filter((l, i, all) => all.findIndex(x => x.replace(/\s/g, '').toLowerCase() === l.replace(/\s/g, '').toLowerCase()) === i); /* the tiles overlap: once each */
     return w.detect?.kind === 'new' || w.detect?.kind === 'gone' ? lines : lines.join('\n');
   },
+  /** Whether a watcher's template keeps its page open (watchers made before a template said so learn it here). */
+  tplStay(w) { const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template); if (!T) return false; try { return !!T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || 'x']))).stay; } catch { return false; } },
   /** The browser a page watcher uses ('container|site', as Agent.containersOf): a live one stays open there. */
   viewKey(w) { const url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); try { return `${Containers.for(url, w.container).id}|${AgentWeb.siteKey(url)}`; } catch { return ''; } },
   /** Self-healing: the part's selector found nothing on the page just read; its other finders are tried on the same page,

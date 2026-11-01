@@ -106,6 +106,8 @@ document.addEventListener('input', e => { if (e.target.matches('.search [content
 const me = Math.random().toString(36).slice(2), bc = ONEWIN && 'BroadcastChannel' in window ? new BroadcastChannel('practiceWaWindow') : null; let active = false;
 const useHere = () => { active = false; root.innerHTML = `<div class="landing"><div><h1>WhatsApp is open in another window</h1><p>Click “Use here” to use WhatsApp in this window.</p><button id="usehere">Use here</button></div></div>`; };
 const start = () => { active = true; const p = q.get('phone'); cur = p ? S.find(c => c.phone === p.replace(/\D/g, '')) || null : null; draw(cur ? q.get('text') || '' : ''); };
+// messages arriving while it's open (as WhatsApp's own page updates itself): another window wrote them
+addEventListener('storage', e => { if (e.key !== KEY || !active) return; const n = JSON.parse(e.newValue || '[]'); S.splice(0, S.length, ...n); if (cur) cur = S.find(c => c.id === cur.id) || null; draw(); });
 function takeOver() { bc?.postMessage({ t: 'take', id: me }); Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '[]')); start(); }
 if (!localStorage.getItem(KEY + 'Auth')) landing();
 else if (!bc) start();

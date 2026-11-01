@@ -38,7 +38,7 @@
         look-alike siblings (same tag, mostly the same classes) and is row-sized (at least 24 px high, under half the
         window, 40%+ of its parent's width), and a selector for all of them (the parent's, then the tag). */
     const sameish = (a, b) => { const A = new Set(a.classList), B = [...b.classList]; if (!A.size && !B.length) return true; return B.filter(c => A.has(c)).length >= Math.max(1, Math.min(A.size, B.length) * 0.5); };
-    const rowSized = (e, p) => { const r = e.getBoundingClientRect(), q = p.getBoundingClientRect(); return r.height >= 24 && r.height < win.innerHeight * 0.5 && r.width >= q.width * 0.4; };
+    const rowSized = (e, p) => { const r = e.getBoundingClientRect(), q = p.getBoundingClientRect(); return r.height >= 24 && r.height < Math.max(win.innerHeight * 0.5, 160) && r.width >= q.width * 0.4; };
     const groupOf = el => {
       for (let e = el; e && e !== doc.body && e.parentElement; e = e.parentElement) {
         const p = e.parentElement, like = [...p.children].filter(x => x.tagName === e.tagName && sameish(x, e) && visible(x));
@@ -50,9 +50,10 @@
     const rowsIn = scope => {
       const root = (() => { try { return doc.querySelector(scope); } catch { return null; } })(); if (!root) return null;
       let best = null;
-      for (const p of [root, ...root.querySelectorAll('*')].slice(0, 4000)) {
+      for (const p of [root, ...root.querySelectorAll('*')].slice(0, 9000)) {
         const kids = [...p.children].filter(visible); if (kids.length < 3) continue;
-        const tag = kids[0].tagName, like = kids.filter(x => x.tagName === tag && sameish(x, kids[0]) && rowSized(x, p) && clean(x.innerText || ''));
+        const tag = kids[0].tagName, like = kids.filter(x => x.tagName === tag && sameish(x, kids[0]) && rowSized(x, p));
+        if (like.filter(x => clean(x.innerText || x.textContent || '')).length < like.length / 2) continue; /* rows, not empty boxes (some rows report no text while off-screen) */
         if (like.length >= 3 && (!best || like.length > best.n)) best = { n: like.length, css: `${css(p)} > ${tag.toLowerCase()}` };
       }
       return best;

@@ -240,7 +240,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <h3>Signed out</h3>
 <p>A watcher that lands on a sign-in page pauses and leaves a card: <b>Sign in</b> opens that site in the agent browser (or <b>Sign in from here</b> for one running on a Worker). Sign in, then tap <b>Check now</b>; it carries on. A robot check is handled the same way.</p>
 <h3>The site moved things around</h3>
-<p>A part you picked by tapping keeps several ways to find it again. When the first stops working, the next one that works is kept (🩹 in the list). If none work, it looks for the part's words on the page, then asks the on-device screen model to find it. Then it asks you once:</p>
+<p>A part you picked by tapping keeps several ways to find it again. When the first stops working, the next one that works is kept (🩹 in the list). A watcher made from a template also tries that template's current way of reading the site, so fixes to the templates (when a site changes) reach watchers you made earlier, without recreating them. If none work, it looks for the part's words on the page, then asks the on-device screen model to find it. Then it asks you once:</p>
 <figure><img src="img/watchers/card-confirm.jpg" alt="A card: I lost what it watches; is this it? Acme Noise-Cancelling Headphones, Black (found by its words), with Yes, that's it and No, I'll pick it" loading="lazy"><figcaption><b>Yes, that's it</b> keeps the new place; <b>No, I'll pick it</b> opens the page for you to tap it again.</figcaption></figure>
 <p>If even that fails, the card says <b>Pick it again</b>.</p>
 <h3>App windows</h3>

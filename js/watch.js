@@ -141,12 +141,16 @@ const Watch = {
       and the first that finds it is kept (noted in the log and the list). None: GONE (it asks you to pick it again). */
   async heal(w, url) {
     const v = AgentWeb.views.get(this.viewKey(w)), was = w.rows || w.read;
-    for (const f of (w.finders || []).filter(f => f && f !== was)) {
+    // a watcher from a template also tries the template's selectors as they are now (templates get fixed when sites change;
+    // older watchers made from them pick that up here)
+    const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template);
+    let fresh = ''; try { const d = T && T.make({ ...Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || ''])), ...(w.templateInputs || {}) }); fresh = d && (w.rows ? d.rows : d.read) || ''; } catch {}
+    for (const f of [...(w.finders || []), fresh].filter(f => f && f !== was)) {
       const r = await AgentWeb.call('read', [f, w.rows ? 12000 : 20000], 20000, { view: v });
       if (!r?.ok || r.sel === 'body') continue;
       if (w.rows) w.rows = f; else w.read = f;
-      w.finders = [f, ...w.finders.filter(x => x !== f), was].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 8);
-      w.state.healed = { at: Date.now(), from: was, to: f }; Log.i('watch', `Found it again another way: ${w.name}`, { from: was, to: f });
+      w.finders = [f, ...(w.finders || []).filter(x => x !== f), was].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 8);
+      w.state.healed = { at: Date.now(), from: was, to: f }; if (w.state.count == null && !(w.state.seen || []).length && w.state.last == null && w.state.value == null) w.state.rebase = true; /* it never read anything: what's there now is the starting point, not news */ Log.i('watch', `Found it again another way: ${w.name}`, { from: was, to: f });
       if (!w.keep) return r.text;
       const ks = w.keep.toLowerCase().split('||').map(k => k.trim()).filter(Boolean);
       return r.text.split('\n').filter(l => ks.some(k => l.toLowerCase().includes(k))).join('\n') || '(none)';
@@ -182,8 +186,8 @@ const Watch = {
   cross(w, want) { const s = w.state, n = Math.max(1, +w.filter?.hold || 1); s.streak = want ? (s.streak || 0) + 1 : 0; s.hit = want; return want && s.streak === n; },
   /** What counts, from what was read and what was seen before: { headline, items, value } or nothing. */
   detect(w, got) {
-    const d = w.detect || { kind: 'changes' }, s = w.state || (w.state = { seen: [] }), first = !s.at, id = r => this.hash(w.rawIds ? String(r) : this.ident(r));
-    got = this.filter(w, got);
+    const d = w.detect || { kind: 'changes' }, s = w.state || (w.state = { seen: [] }), first = !s.at || !!s.rebase, id = r => this.hash(w.rawIds ? String(r) : this.ident(r));
+    got = this.filter(w, got); delete s.rebase;
     if (got && typeof got === 'object' && !Array.isArray(got) && !got.sig) { s.fields = got; got = d.field ? got[d.field] ?? '' : JSON.stringify(got); } /* fields the model pulled out */
     if (d.kind === 'new' || d.kind === 'gone') {
       const rows = [].concat(got).map(String), now = new Set(rows.map(id)), fresh = d.kind === 'new' ? rows.filter(r => !s.seen.includes(id(r))) : [];
@@ -422,7 +426,7 @@ const Watch = {
         const miss = T.inputs.find(([k, , , type]) => (type === 'folder' || type === 'file' || type === 'window' || type === 'watcher') && !v[k]); if (miss) return toast(`${miss[1]} first`);
         const made = T.make(v);
         if (T.pick) { closeSheet(); await AgentWeb.go(made.url); const r = await this.pick(made.tip || 'Tap the list (or the part) to watch'); if (!r) return; return this.picked(r, AgentWeb.url(), made.steps || []); }
-        const w = this.make({ name: T.name, template: T.id, ...made });
+        const w = this.make({ name: T.name, template: T.id, templateInputs: v, ...made });
         if (w.source === 'hook') { try { Object.assign(w, await Bee.hookNew(w.name)); } catch (e) { return sheet('No webhook', `<p>${esc(e.message)}</p><p class="se-note">Webhooks come in through StudioGBee (Mesh › StudioGBee).</p>`, [['Close']]); } }
         this.formRead(w); await this.saveChecked(w); }], ['Back', () => this.templates()]]);
   },
@@ -598,7 +602,7 @@ const Watch = {
     if (T && T.inputs.some(([k]) => !String(inp[k] || '').trim())) { this.fromTemplate(T.id); return say(`That's “${T.name}”: fill in the rest here.`); }
     if (!T && /below|under|above|over|drop|fall|rise|%/.test(cond) && !['value', 'count'].includes(j.kind)) j.kind = 'value';
     const asked = /\bevery\b|minute|hourly|\blive\b|often|daily/i.test(text), every = asked && WATCH_MS[j.every] ? j.every : T ? '' : j.kind === 'value' ? '1h' : '30m';
-    const made = T && T.make(inp), w = T ? this.make({ name: made.name || j.name || T.name, template: T.id, ...made, every: every || made.every || '30m' })
+    const made = T && T.make(inp), w = T ? this.make({ name: made.name || j.name || T.name, template: T.id, templateInputs: inp, ...made, every: every || made.every || '30m' })
       : /^https?:\/\//.test(url) ? this.make({ name: j.name || url, url, read: 'main||article||[role="main"]||body', ...(j.kind === 'value' ? { extract: { fields: ['price'], about: j.name || 'the page' } } : {}), detect: { ...this.kindDetect(WATCH_KINDS.some(k => k[0] === j.kind) ? j.kind : 'changes', cond), ...(j.kind === 'value' ? { field: 'price' } : {}) }, record: j.kind === 'value', every }) : null;
     if (!w) { this.templates(); return say('Which page should I watch? Pick it here, or open it in the agent browser and tap it.'); }
     const often = (WATCH_EVERY.find(e => e[0] === w.every) || [])[1]?.toLowerCase() || w.every;

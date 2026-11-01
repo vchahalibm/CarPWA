@@ -1,7 +1,7 @@
 // Watchers (js/watch.js): row identity, card items and the detectors, without a browser. Run: node tests/watch.cjs (CI too).
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const mem = {}, ctx = {
-  console, setInterval() {}, document: { addEventListener() {} }, ACTIONS: {}, LLM_PROMPTS: {}, Log: { i() {}, d() {}, w() {} },
+  console, setInterval() {}, setTimeout() {}, document: { addEventListener() {} }, ACTIONS: {}, LLM_PROMPTS: {}, Log: { i() {}, d() {}, w() {} },
   store: { get: (k, d) => k in mem ? mem[k] : d, set: (k, v) => { mem[k] = v; } },
   plain: t => String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim(),
 };

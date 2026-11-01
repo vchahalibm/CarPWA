@@ -477,9 +477,16 @@ const Watch = {
     if (!v || !url || url === 'about:blank') return toast(w ? 'The watcher hasn’t opened its page yet: Check now first' : 'Open a page in the agent browser first');
     const host = (() => { try { return new URL(url).host; } catch { return ''; } })(), mine = w ? [w] : this.list().filter(x => { try { return new URL(String(x.url || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host === host; } catch { return false; } });
     const selectors = mine.flatMap(x => [x.ready && { for: `${x.name}: ready`, sel: x.ready }, (x.rows || x.read) && { for: `${x.name}: ${x.rows ? 'rows' : 'part'}`, sel: x.rows || x.read }, ...(x.finders || []).map(f => ({ for: `${x.name}: another finder`, sel: f }))]).filter(Boolean);
-    const T = mine[0]?.template && WATCH_TEMPLATES.find(t => t.id === mine[0].template); if (T) try { const d = T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || '']))); if (d.rows || d.read) selectors.push({ for: `template ${T.id} now`, sel: d.rows || d.read }); } catch {}
+    // the templates for this site as they are now: the watcher's own, or (no watchers here yet) every one that opens this site
+    const hostOf = u => { try { return new URL(String(u || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host; } catch { return ''; } };
+    for (const T of WATCH_TEMPLATES) {
+      if (mine.length ? !mine.some(x => x.template === T.id) : false) continue;
+      try { const d = T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || '']))); if ((mine.length || hostOf(d.url) === host) && (d.rows || d.read) && !selectors.some(x => x.sel === (d.rows || d.read))) { if (d.ready) selectors.push({ for: `template ${T.id}: ready`, sel: d.ready }); selectors.push({ for: `template ${T.id} now`, sel: d.rows || d.read }); } } catch {}
+    }
     toast('Diagnosing the page…');
-    const page = await AgentWeb.call('diagnose', [{ selectors, focus: selectors.map(x => x.sel.split('||')[0]).filter(x => !/^rows-in:/.test(x)).concat(selectors.flatMap(x => x.sel.split('||').filter(y => /^rows-in:/.test(y)).map(y => y.slice(8)))).join('||') }], 30000, { view: v });
+    // deep where lists usually are (and where the selectors point), shallow elsewhere
+    const focus = [...selectors.map(x => x.sel.split('||')[0]).filter(x => !/^rows-in:/.test(x)), ...selectors.flatMap(x => x.sel.split('||').filter(y => /^rows-in:/.test(y)).map(y => y.slice(8))), '#pane-side', '#side', '#main', '[role="grid"]', '[role="list"]', '[role="listbox"]', '[role="tree"]', 'main', '[role="main"]'];
+    const page = await AgentWeb.call('diagnose', [{ selectors, focus: [...new Set(focus)].join('||'), max: 6000 }], 45000, { view: v });
     if (!page?.ok) return toast(`Couldn’t diagnose: ${page?.error || 'the page didn’t answer'}`);
     const report = { what: 'StudioGen page diagnosis (words replaced by shapes)', at: new Date().toISOString(), app: store.get('setupDone') || '', page,
       watchers: mine.map(x => ({ name: x.name, template: x.template || '', url: x.url, ready: x.ready || '', rows: x.rows || '', read: x.read || '', keep: x.keep ? '(set)' : '', detect: x.detect, every: x.every, error: x.state?.error ? this.why(x.state.error) : '', fails: x.state?.fails || 0, lastCheck: x.state?.trace || null })) };

@@ -112,7 +112,12 @@ const LLM = {
 
   /** { system, prompt | messages, schema?, max?, temperature?, onChunk? } → { text, json? (parsed when a schema was given), via }.
       onChunk(text): the words as they come (the built-in engine, Ollama and Claude stream; the others give it all at once). */
+  busy: 0, busyAt: 0, /* requests being answered (the voice doesn't time itself while the model shares the GPU) */
   async ask(role, o, opt = {}) {
+    this.busy++; this.busyAt = Date.now();
+    try { return await this.ask0(role, o, opt); } finally { this.busy = Math.max(0, this.busy - 1); this.busyAt = Date.now(); }
+  },
+  async ask0(role, o, opt = {}) {
     const order = await this.order(role, opt); if (!order.length) throw new Error('No language model is set up (Settings › Assistant › Language model)');
     let last;
     for (const via of order) {

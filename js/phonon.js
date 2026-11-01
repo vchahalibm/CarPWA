@@ -50,7 +50,11 @@ self.onmessage = ({ data: m }) => {
 const Phonon = {
   engine: null, loading: null, broken: '', list: null,
   /** The build for this device: what was chosen (measured, or after a fallback), else GPU where WebGPU works, else CPU. */
-  buildKey() { const k = store.get('phononBuild'); return PHONON_BUILDS[k] ? k : typeof gpuOK === 'function' && gpuOK() ? 'gpu' : 'cpu'; },
+  // the CPU build, when the GPU one failed or was slow, is chosen for a day, then the GPU is tried again (a busy moment
+  // mustn't decide for good: it left the device's voice speaking from then on)
+  buildKey() { let k = store.get('phononBuild'); if (k === 'cpu' && Date.now() > (store.get('phononCpuUntil') || 0) && typeof gpuOK === 'function' && gpuOK()) { store.del?.('phononBuild') ?? store.set('phononBuild', ''); k = ''; }
+    return PHONON_BUILDS[k] ? k : typeof gpuOK === 'function' && gpuOK() ? 'gpu' : 'cpu'; },
+  toCpu(why) { store.set('phononBuild', 'cpu'); store.set('phononCpuUntil', Date.now() + 864e5); Log.w('tts', `Phonon: the CPU build for a day (${why})`); },
   build() { return PHONON_BUILDS[this.buildKey()]; },
   /** Downloaded once (the files are in the browser's cache from then on). */
   ok: () => !!store.get('phononOK'),
@@ -74,20 +78,24 @@ const Phonon = {
       for (const key of [...new Set([this.buildKey(), 'cpu'])]) {
         const b = PHONON_BUILDS[key], t0 = performance.now();
         if (typeof Budget !== 'undefined' && !Budget.room('phonon', b.mb * 3)) Log.w('tts', 'Phonon: little memory free; loading anyway (it is small)');
-        // time limits: a load or a warm-up that stalls (it happens) would leave the voice “loading” for good, and every reply
-        // in the device's voice; stopped, the next build is tried, and a later reply can try again
-        const limit = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} took over ${ms / 1000} s`)), ms))]);
+        // a load that stalls (it happens) would leave the voice “loading” for good, and every reply in the device's voice: a
+        // load is stopped only when nothing has moved for 2 minutes (the first download takes as long as it takes), a
+        // warm-up after a minute; then the next build is tried, and a later reply can try again
+        let last = Date.now(); const prog = (a, t) => { last = Date.now(); onProgress?.(a, t); };
+        const stall = (p, what) => new Promise((res, rej) => { const iv = setInterval(() => { if (Date.now() - last > 120000) { clearInterval(iv); rej(new Error(`${what} stalled (nothing for 2 minutes)`)); } }, 5000);
+          p.then(v => { clearInterval(iv); res(v); }, e => { clearInterval(iv); rej(e); }); });
+        const limit = (p, ms, what) => new Promise((res, rej) => { const t = setTimeout(() => rej(new Error(`${what} stalled (over ${ms / 1000} s)`)), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
         let eng = null;
         try {
-          eng = await limit(this.worker(b, onProgress), 180000, 'Loading').catch(async e => { Log.w('tts', `Phonon ${b.label}: the worker couldn't load it, trying the main thread`, { error: e.message }); return limit(this.main(b, onProgress), 120000, 'Loading on the main thread'); });
+          eng = await stall(this.worker(b, prog), 'Loading').catch(async e => { Log.w('tts', `Phonon ${b.label}: the worker couldn't load it, trying the main thread`, { error: e.message }); last = Date.now(); return stall(this.main(b, prog), 'Loading on the main thread'); });
           // Warm up: the first generation compiles the GPU's shaders (and sizes its buffers), several times slower than the rest.
-          const w0 = performance.now(); await limit(eng.speak('Ready.', this.voiceId(), () => {}).done.catch(e => { if (/took over/.test(e.message)) throw e; }), 45000, 'Warming up');
+          const w0 = performance.now(); await limit(eng.speak('Ready.', this.voiceId(), () => {}).done.catch(() => {}), 180000, 'Warming up'); /* generous: the GPU may be shared with the language model */
           Log.d('tts', `Phonon warmed up in ${Math.round(performance.now() - w0)} ms`);
-          this.engine = eng; store.set('phononOK', true); if (key !== this.buildKey()) store.set('phononBuild', key);
+          this.engine = eng; store.set('phononOK', true); if (key !== this.buildKey()) { if (key === 'cpu') this.toCpu('the GPU build didn’t load'); else store.set('phononBuild', key); }
           if (typeof Budget !== 'undefined') Budget.add('phonon', `Phonon ${b.label} ${b.dtype}`, () => this.unload(), b.mb * 3);
           Log.i('tts', `Phonon loaded in ${Math.round(performance.now() - t0)} ms (${b.label} ${b.dtype}, ${eng.kind})`);
           return eng;
-        } catch (e) { Log.w('tts', `Phonon ${b.label} ${b.dtype} didn't load`, { error: e.message }); try { eng?.terminate?.(); } catch {} if (key === 'gpu' && !/took over/.test(e.message)) store.set('phononBuild', 'cpu'); }
+        } catch (e) { Log.w('tts', `Phonon ${b.label} ${b.dtype} didn't load`, { error: e.message }); try { eng?.terminate?.(); } catch {} if (key === 'gpu' && !/stalled/.test(e.message)) this.toCpu(e.message); }
       }
       this.broken = 'didn’t load'; setTimeout(() => { if (this.broken === 'didn’t load') this.broken = ''; }, 300000); /* tried again in 5 minutes */ throw new Error('The natural voice didn’t load');
     })().finally(() => { this.loading = null; }));
@@ -139,11 +147,12 @@ const Phonon = {
   /** One reply's speed, learned per build: seconds to make ÷ seconds of speech (below 1 keeps up). */
   learn(ms, sec) {
     if (sec < 0.8) return;
+    if (typeof LLM !== 'undefined' && (LLM.busy > 0 || Date.now() - (LLM.busyAt || 0) < 3000)) return Log.d('tts', 'Phonon speed not counted: the language model was using the GPU');
     const r = ms / 1000 / sec, key = this.buildKey(), s = this.speed(), same = s && s.build === key;
     const next = { r: same ? +(s.r * 0.6 + r * 0.4).toFixed(3) : +r.toFixed(3), n: same ? s.n + 1 : 1, build: key };
     store.set('phononSpeed', next);
     // Can't keep up on the GPU: the CPU build next time (rare: GPU busy with something heavier); on the CPU: the device's voice.
-    if (next.n >= 2 && next.r > 1.05 && key === 'gpu') { Log.w('tts', `Phonon on the GPU is ${next.r.toFixed(2)}× here: the CPU build next`); store.set('phononBuild', 'cpu'); this.unload(); }
+    if (next.n >= 2 && next.r > 1.05 && key === 'gpu') { this.toCpu(`the GPU build was ${next.r.toFixed(2)}× slower than speech`); this.unload(); }
     return next;
   },
 };

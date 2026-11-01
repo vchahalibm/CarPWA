@@ -248,7 +248,8 @@ const Watch = {
   /** A row as a card item: “who · what” where it can tell. */
   item(r) {
     const t = String(r).replace(/^((unread|unread chat|chat)[,\s]+)+/i, '').replace(/\s(\d{1,3})\s*\((\d+) unread/i, (m, a, b) => a === b ? ` (${b} unread` : m).replace(/\(\d+ unread[^)]*\)/gi, '').replace(/\s+/g, ' ').trim(); /* a badge showing the same number as its “(n unread)” */
-    let m = t.match(/^(.+?)\s*(@\w+)\s*·\s*(\S+)\s+(.+)$/); if (m) return { title: `${m[1]} (${m[2]})`, when: m[3], detail: m[4].slice(0, 160) }; /* a post: name @handle · when text */
+    let m = t.match(/^\[([^\]]{3,40})\]\s*([^:]{1,40}):\s*(.+?)(?:\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$/i); if (m) return { title: m[2].trim(), when: m[1].split(',')[0].trim(), detail: m[3].slice(0, 160) }; /* a WhatsApp message: [10:05, 01/11/2026] Varun: text */
+    m = t.match(/^(.+?)\s*(@\w+)\s*·\s*(\S+)\s+(.+)$/); if (m) return { title: `${m[1]} (${m[2]})`, when: m[3], detail: m[4].slice(0, 160) }; /* a post: name @handle · when text */
     m = t.match(/^(.*?)\s*\b(\d{1,2}:\d{2}(?:\s*[ap]m)?)\s+(.+)$/i); /* who time what (chats), or time who what (mail) */
     if (m) { const rest = m[3].replace(/^·\s*/, ''); return m[1] ? { title: m[1], when: m[2], detail: rest.slice(0, 160) } : rest.includes(' · ') ? { title: rest.split(' · ')[0].slice(0, 160), when: m[2], detail: rest.split(' · ').slice(1).join(' · ').slice(0, 160) } : { title: rest.slice(0, 160), when: m[2] }; }
     m = t.match(/^(.+?) · (.+)$/); if (m) return { title: m[1].slice(0, 160), detail: m[2].slice(0, 160) }; /* a file: name · size · when; a webhook: when · what */
@@ -420,7 +421,7 @@ const Watch = {
         const v = Object.fromEntries($$('[data-wti]').map(el => [el.dataset.wti, el.value.trim() || (el.tagName === 'INPUT' && el.type !== 'hidden' ? el.placeholder : '')]));
         const miss = T.inputs.find(([k, , , type]) => (type === 'folder' || type === 'file' || type === 'window' || type === 'watcher') && !v[k]); if (miss) return toast(`${miss[1]} first`);
         const made = T.make(v);
-        if (T.pick) { closeSheet(); await AgentWeb.go(made.url); AgentWeb.show(true); toast(made.tip || 'Tap the list (or the part) to watch'); const r = await AgentWeb.call('pick', [120000, true], 125000); AgentWeb.show(false); if (!r?.ok) return toast('Nothing picked'); return this.picked(r, AgentWeb.url(), made.steps || []); }
+        if (T.pick) { closeSheet(); await AgentWeb.go(made.url); const r = await this.pick(made.tip || 'Tap the list (or the part) to watch'); if (!r) return; return this.picked(r, AgentWeb.url(), made.steps || []); }
         const w = this.make({ name: T.name, template: T.id, ...made });
         if (w.source === 'hook') { try { Object.assign(w, await Bee.hookNew(w.name)); } catch (e) { return sheet('No webhook', `<p>${esc(e.message)}</p><p class="se-note">Webhooks come in through StudioGBee (Mesh › StudioGBee).</p>`, [['Close']]); } }
         this.formRead(w); await this.saveChecked(w); }], ['Back', () => this.templates()]]);
@@ -459,12 +460,20 @@ const Watch = {
       ${Object.entries(groups).map(([g, l]) => `<p class="se-note"><b>${esc(g)}</b></p><div class="pick-list">${l.map(t => `<button class="big-btn" data-wt="tpl|${t.id}">${esc(t.name)}</button>`).join('')}</div>`).join('')}
       ${this.can() ? '<p class="se-note"><b>Anything else</b></p><div class="pick-list"><button class="big-btn" data-wt="here">Watch something on a page (open it, tap it)</button><button class="big-btn" data-wt="teach">Teach it: do the steps (search, tabs), then tap what to watch</button><button class="big-btn" data-wt="paste">Paste a watcher (JSON, from an LLM or a friend)</button></div>' : ''}`, [['Back', () => this.sheet()]]);
   },
+  /** Waiting for a tap in the agent browser: a bar says what to tap, with Cancel; the page outlines what's under the
+      pointer. keep: leave the browser shown afterwards (Teach it carries on). */
+  async pick(tip, keep) {
+    const box = AgentWeb.el() && $('#agentWeb'); AgentWeb.show(true); $('.ag-pick', box)?.remove();
+    box?.querySelector('.ag-web-bar')?.insertAdjacentHTML('afterend', `<div class="ag-teach ag-pick"><span>👁 ${esc(tip || 'Tap what to watch')}</span><span class="te-sp"></span><button class="chip" data-wt="pickcancel">Cancel</button></div>`);
+    const r = await AgentWeb.call('pick', [180000, true], 185000);
+    $('.ag-pick', box)?.remove(); if (!keep) AgentWeb.show(false);
+    if (!r?.ok && r?.error !== 'cancelled') toast('Nothing picked');
+    return r?.ok ? r : null;
+  },
   /** Watch something here: the agent browser's page, a part picked by tapping; the kind suggested from what it is. */
   async here(url, again) {
     if (url) await AgentWeb.go(url);
-    AgentWeb.show(true); toast('Tap what to watch on the page');
-    const r = await AgentWeb.call('pick', [120000, true], 125000); AgentWeb.show(false);
-    if (!r?.ok) return toast('Nothing picked');
+    const r = await this.pick(again ? 'Tap what it should watch now' : 'Tap what to watch: a chat, a list, a price, a paragraph'); if (!r) return;
     return this.picked(r, AgentWeb.url(), [], again);
   },
   /** Teach it: do the steps in the agent browser (searches, tabs), then tap what to watch (js/taskedit.js TaskTeach). */
@@ -477,15 +486,23 @@ const Watch = {
     const what = (listy ? '' : r.text || r.label || '').slice(0, 80); /* its words: found again by them, or by the screen model */
     const old = again && this.get(again);
     if (old) { const k = old.rows ? 'rows' : 'read'; old[k] = finders[0]; old.finders = finders; old.what = what || old.what; old.state.paused = ''; old.state.fails = 0; old.state.at = 0; return this.saveChecked(old); } /* picked again: same watcher, new part, a new baseline */
-    const title = listy ? `New on ${AgentWeb.siteKey(page).replace(/^www\./, '')}` : (r.text || '').slice(0, 40) || AgentWeb.siteKey(page);
+    // a chat or mail row tapped (not after Teach it's steps): it's about that person, so only their rows count
+    const opened = steps.find(x => x.do === 'agent.click' && x.value)?.value, who = listy && !steps.length ? this.item(r.text || '').title.replace(/\s*\(.*$/, '').trim() : '';
+    const person = who && who.length <= 40 && !/\d{3,}/.test(who) ? who : '';
+    const title = person ? `New from ${person}` : opened ? `New in ${String(opened).slice(0, 40)}` : listy ? `New on ${AgentWeb.siteKey(page).replace(/^www\./, '')}` : (r.text || '').slice(0, 40) || AgentWeb.siteKey(page);
     sheet('Watch this', `<p class="se-note">You picked: “${esc((r.text || r.label || r.css).slice(0, 120))}”${steps.length ? ` after ${steps.length} step${steps.length > 1 ? 's' : ''}` : ''}</p>
       <label class="se-row"><span>Tell me when</span><select id="wtKind">${WATCH_KINDS.filter(([v]) => !['stale'].includes(v)).map(([v, n]) => `<option value="${v}" ${(v === 'new' && listy) || (v === 'changes' && !listy && !num) || (v === 'value' && num && !listy) ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="se-field"><span>The line, the words or the pattern (for those kinds)</span><input id="wtCond" placeholder="below 500 · drops 5% · in stock||available"></label>
+      ${listy ? `<label class="se-field"><span>Only items with these words (|| between; empty: every new item)</span><input id="wtKeep" value="${esc(person)}" placeholder="a name, or words"></label>` : ''}
       <label class="se-field"><span>Its name</span><input id="wtName" value="${esc(title)}"></label>${this.formHtml({ every: '15m' })}`,
       [['Check and save', async () => { const kind = $('#wtKind').value, cond = $('#wtCond').value.trim();
-        const w = this.make({ name: $('#wtName').value.trim() || title, url: page, steps, ready: r.css, ...(kind === 'new' || kind === 'gone' ? { rows: rows || r.css } : { read: r.css }), finders, what, detect: this.kindDetect(kind, cond) });
+        const keep = $('#wtKeep')?.value.trim();
+        const w = this.make({ name: $('#wtName').value.trim() || title, url: page, steps, ready: r.css, ...(keep ? { keep } : {}), ...(kind === 'new' || kind === 'gone' ? { rows: rows || r.css } : { read: r.css }), finders, what, detect: this.kindDetect(kind, cond) });
         this.formRead(w); await this.saveChecked(w); }], ['Cancel']]);
+    this.condShow();
   },
+  /** The line/words box only for the kinds that use it (and “gone or moved” only for new items). */
+  condShow() { const k = $('#wtKind')?.value, c = $('#wtCond')?.closest('label'), g = $('#weGone')?.closest('label'); if (c) c.hidden = !/^(value|count|contains|pattern|stale|visual)$/.test(k || ''); if (g) g.hidden = k !== 'new'; },
   /** The detector for a kind and what was typed for it. */
   kindDetect(kind, cond = '') {
     return { kind, ...(kind === 'value' || kind === 'count' ? { cond: cond || 'changes' } : kind === 'contains' ? { words: cond } : kind === 'pattern' ? { re: cond } : kind === 'stale' ? { mins: +cond || 1440 } : kind === 'visual' ? { pct: +cond || 8 } : kind === 'new' && /gone|moved|cancel/i.test(cond) ? { gone: true } : {}) };
@@ -629,6 +646,7 @@ const Watch = {
       <div class="chip-row"><select id="weStart"><option value="">Start a watcher…</option>${opt(this.list().filter(x => x.id !== w.id).map(x => [x.id, x.name]), '')}</select><button class="chip" data-wt="actadd|${w.id}|start">Add</button></div>
       <label class="se-check"><input type="checkbox" id="weShare" ${w.share ? 'checked' : ''}> Share in the mesh</label><p class="se-note">Others get a copy that runs with their own sign-ins.</p>`,
       [['Save', () => this.saveEdit(w)], ...(src === 'page' && this.where(w) === 'here' ? [['Check for noise (1 minute)', () => this.noise(w)]] : []), ['Show history', () => this.showHistory(w)], ['Copy as JSON', () => { navigator.clipboard?.writeText(JSON.stringify(this.exportDef(w), null, 2)); toast('Copied: paste it to share, or to an LLM'); }], ['Back', () => this.sheet()]]);
+    this.condShow();
   },
   formEdit(w) {
     const v = id => $(id)?.value.trim() ?? '', before = JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract]);
@@ -679,6 +697,7 @@ const Watch = {
   },
 };
 ACTIONS.watchers = () => Watch.sheet();
+document.addEventListener('change', e => { if (e.target.id === 'wtKind') Watch.condShow(); });
 setInterval(() => { try { Watch.tick(); } catch (e) { Log.w('watch', 'Scheduler', e); } }, 30000);
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-wt]'); if (!b) return; e.stopPropagation();
@@ -701,6 +720,7 @@ document.addEventListener('click', async e => {
     const a = extra === 'task' ? $('#weTask').value && { do: 'task', id: $('#weTask').value, inputs: Object.fromEntries($('#weTaskIn').value.split(';').map(x => x.split('=').map(y => y.trim())).filter(([x, y]) => x && y != null)) } : extra === 'script' ? $('#weScript').value && { do: 'script', name: $('#weScript').value } : $('#weStart').value && { do: 'start', id: $('#weStart').value };
     if (!a) return toast('Choose one first'); (w.actions ||= []).push(a); Watch.put(w); return Watch.edit(id); }
   if (k === 'pnow' || k === 'ponoff') { try { const r = await Link.watch({ op: k, id }); if (k === 'pnow') toast(r.hit || r.paused || 'Nothing new'); } catch (e) { toast(e.message); } return Watch.phoneSheet(); }
+  if (k === 'pickcancel') return AgentWeb.call('pickCancel', [], 3000);
   if (k === 'herenow') { AgentWeb.show(false); return Watch.here(); } /* the agent browser's bar */
   if (k === 'repick' && w) { closeSheet(); if (w.runOn && w.runOn !== 'here') return toast(`Pick it again on ${Watch.where(w)} (Sign in from here)`); return Watch.here(String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }
   if (k === 'rsignin' && w) return RemoteView.open({ meshId: w.runOn, name: Watch.where(w) }, 'web');

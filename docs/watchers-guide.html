@@ -56,6 +56,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
   <a href="#what">What a watcher is</a>
   <a href="#first">Your first watcher</a>
   <a href="#ways">More ways to make one</a>
+  <a href="#varun">Example: messages from Varun</a>
   <b>What it watches</b>
   <a href="#templates">The templates</a>
   <a href="#kinds">What it tells you about</a>
@@ -114,6 +115,36 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <p>A task's result card (one that only reads, like “Unread WhatsApp chats”) has <span class="path">👁 Watch this</span>. The task then runs on its own (every 30 minutes to start with), and you're told when its answer has something new. You can see this button in the picture under <a href="#actions">And then: actions</a>.</p>
 <h3>Paste one</h3>
 <p><span class="path">+ New watcher › Paste a watcher</span> takes a watcher as JSON: one a friend copied with <b>Copy as JSON</b>, or one an LLM wrote from the build prompt (<span class="path">Settings › Scripts &amp; tasks › Build with an LLM</span> has a watcher section). Watchers shared in your mesh arrive the same way (paused until you turn them on).</p>
+
+<h2 id="varun">Example: new messages from one person (Varun)</h2>
+<p>Two ways, both on WhatsApp Web here (the same works for Slack, Teams or Outlook). Sign in to WhatsApp in the agent browser once first (<span class="path">Agent › Library › Agent browser</span>; link your phone).</p>
+<div class="tip"><b>The quickest way needs no tapping</b><span class="path">+ New watcher › WhatsApp › New WhatsApp messages from someone</span>, type <b>Varun</b>, <b>Check and save</b>. The two ways below show how tapping and teaching work, for sites and cases without a template.</div>
+<h3>Way 1: tap his chat in the list</h3>
+<ol class="steps">
+  <li>Open WhatsApp in the agent browser and tap <span class="path">👁 Watch something here</span>. A bar says what to tap, with <b>Cancel</b>; what's under the pointer is outlined in red.</li>
+  <li>Tap <b>Varun's chat</b> in the list. The form already says <i>new items appear in a list</i>, <b>Only items with these words: Varun</b>, and names it <b>New from Varun</b>.</li>
+  <li><b>Check and save</b>. It watches the whole chat list and tells you when a new row has Varun in it, which is a new message from him. (A group whose latest message mentions “Varun” also matches; Way 2 avoids that.)</li>
+</ol>
+<div class="pair">
+  <figure><img src="img/watchers/varun-1-tap-bar.jpg" alt="The agent browser on WhatsApp with a bar: Tap what to watch: a chat, a list, a price, a paragraph, and Cancel" loading="lazy"><figcaption>The bar while it waits for your tap.</figcaption></figure>
+  <figure><img src="img/watchers/varun-2-tap-form.jpg" alt="Watch this: you picked Varun's chat; new items appear in a list; only items with these words: Varun; name: New from Varun" loading="lazy"><figcaption>After tapping Varun's chat: filled in for you.</figcaption></figure>
+</div>
+<h3>Way 2: Teach it to open his chat, then watch the messages</h3>
+<ol class="steps">
+  <li><span class="path">+ New watcher › Teach it</span>, address <code>https://web.whatsapp.com/</code>, <b>Start</b>. The bar says <b>Teaching</b>.</li>
+  <li>Click <b>Varun's chat</b>, as you would. It's recorded as “open the chat named Varun”, not “the first chat”, so it finds his chat wherever it is in the list.</li>
+  <li>Tap <span class="path">Watch this part</span> in the bar, then tap one of <b>his messages</b>. The form says <i>new items appear in a list</i> and names it <b>New in Varun</b>.</li>
+  <li><b>Check and save</b>. Each check opens Varun's chat and tells you about each new message in it, including ones you'd miss in the list (several in a row).</li>
+</ol>
+<div class="pair">
+  <figure><img src="img/watchers/varun-3-teach-steps.jpg" alt="Teaching: 1 step, after opening Varun's chat; the bar has Watch this part and Cancel" loading="lazy"><figcaption>Teaching: Varun's chat opened (1 step).</figcaption></figure>
+  <figure><img src="img/watchers/varun-4-teach-pick.jpg" alt="The bar: Tap what to watch (the messages, the list, the part), with Cancel" loading="lazy"><figcaption><b>Watch this part</b>: tap one of his messages.</figcaption></figure>
+</div>
+<div class="pair">
+  <figure><img src="img/watchers/varun-5-teach-form.jpg" alt="Watch this: you picked a message after 2 steps; new items appear in a list; name: New in Varun" loading="lazy"><figcaption>The form after teaching.</figcaption></figure>
+  <figure><img src="img/watchers/varun-6-card.jpg" alt="The Agent screen: a notification and a card, New in Varun: Booked the table for 8, see you there" loading="lazy"><figcaption>When Varun writes: a notification and a 👁 card.</figcaption></figure>
+</div>
+<p>Which to choose? <b>Way 1</b> is lighter (one page, no clicks each check) and sees his latest message. <b>Way 2</b> sees every message in his chat. With either, add <b>Only tell me if…</b> (for example <q class="say">he needs an answer today</q>) or <b>Say it aloud: Always</b> in <b>Edit</b>.</p>
 
 <h2 id="templates">The templates</h2>
 <div class="pair">

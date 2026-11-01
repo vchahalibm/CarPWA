@@ -186,12 +186,12 @@ const TaskTeach = {
     AgentWeb.show(true); this.bar(true);
     if (url) await AgentWeb.go(url);
     await AgentWeb.call('record', [true]);
-    toast('Teaching: click and type as you would. Read this part when the answer is on screen, then Done.');
+    toast(this.forWatch ? 'Teaching a watcher: do the steps (open the chat, search…), then tap Watch this part' : 'Teaching: click and type as you would. Read this part when the answer is on screen, then Done.');
   },
   bar(on) {
     const box = $('#agentWeb'); if (!box) return; let b = $('.ag-teach', box);
     if (!on) return b?.remove();
-    if (!b) { box.querySelector('.ag-web-bar').insertAdjacentHTML('afterend', `<div class="ag-teach"><i class="rec-dot"></i><span class="ag-teach-n">Teaching: 0 steps</span><span class="te-sp"></span><button class="chip" data-teach="read">${this.forWatch ? 'Watch this part' : 'Read this part'}</button><button class="chip accent" data-teach="done">Done</button><button class="chip" data-teach="cancel">Cancel</button></div>`); b = $('.ag-teach', box); }
+    if (!b) { box.querySelector('.ag-web-bar').insertAdjacentHTML('afterend', `<div class="ag-teach"><i class="rec-dot"></i><span class="ag-teach-n">Teaching: 0 steps</span><span class="te-sp"></span><button class="chip ${this.forWatch ? 'accent' : ''}" data-teach="read">${this.forWatch ? 'Watch this part' : 'Read this part'}</button>${this.forWatch ? '' : '<button class="chip accent" data-teach="done">Done</button>'}<button class="chip" data-teach="cancel">Cancel</button></div>`); b = $('.ag-teach', box); }
   },
   count() { const n = $('#agentWeb .ag-teach-n'); if (n) n.textContent = `Teaching: ${this.steps.length} step${this.steps.length === 1 ? '' : 's'}`; },
   /** A recorded step from the page (the bridge's recorder). */
@@ -200,7 +200,8 @@ const TaskTeach = {
     const sel = L.testid ? `[data-testid="${L.testid}"]` : L.id && !/\d{4,}/.test(L.id) ? `#${L.id}` : L.css || '';
     // a row of a list (a mail, a chat): its text changes every time, so it's found by its place, not its words
     const row = /^(option|listitem|row|gridcell|treeitem|article)$/.test(L.role || '') || /role=(option|listitem|row|treeitem)|\[role="?(option|row)/.test(sel);
-    if (s.t === 'click') this.steps.push({ do: 'agent.click', value: !row && (L.text || '').length <= 40 ? L.text || '' : '', args: sel ? [`sel=${sel}`] : [] });
+    if (s.t === 'click' && this.forWatch && L.row?.name && L.row.name.length <= 60) this.steps.push({ do: 'agent.click', value: L.row.name, args: [`sel=${L.row.css}`] }); // teaching a watcher: that row by its name (Varun's chat), not its place
+    else if (s.t === 'click') this.steps.push({ do: 'agent.click', value: !row && (L.text || '').length <= 40 ? L.text || '' : '', args: sel ? [`sel=${sel}`] : [] });
     else if (s.t === 'type') {
       if (s.secret) { toast('Password and code fields aren’t recorded: sign in once in the agent browser instead'); return; }
       const last = this.steps.at(-1); if (last?.do === 'agent.click' && last.args?.[0] === `sel=${sel}`) this.steps.pop(); // the click that focused it
@@ -213,15 +214,16 @@ const TaskTeach = {
   async read() {
     if (this.forWatch) return this.watchPart(); // teaching a watcher (js/watch.js): what you tap is what it watches
     toast('Click the part to read (the list, the message…)');
-    const r = await AgentWeb.call('pick', [120000], 125000);
+    await AgentWeb.call('record', [false], 3000); /* the click that picks isn't a step */
+    const r = await AgentWeb.call('pick', [120000], 125000); AgentWeb.call('record', [true], 3000);
     if (!r.ok) return toast('Nothing picked');
     const role = r.role ? `[role="${r.role}"]` : ''; this.steps.push({ do: 'agent.wait', value: role || r.css, args: ['ms=10000'] }, { do: 'agent.read', value: [role, r.css].filter(Boolean).join('||'), as: 'read' }); this.count();
     toast(`Will read: ${r.text.slice(0, 60)}…`);
   },
   /** Teaching a watcher: the steps so far, then the part tapped; the watcher form takes it from there. */
   async watchPart() {
-    toast('Tap what to watch'); const r = await AgentWeb.call('pick', [120000, true], 125000);
-    if (!r?.ok) return toast('Nothing picked');
+    await AgentWeb.call('record', [false], 3000); /* the tap that picks isn't a step */
+    const r = await Watch.pick('Tap what to watch (the messages, the list, the part)', true); if (!r) { AgentWeb.call('record', [true], 3000); return; }
     const steps = this.steps.flatMap(s => s.do === 'agent.click' ? [s, { do: 'wait', value: '1.5' }] : [s]), url = this.start0;
     this.on = false; this.forWatch = false; AgentWeb.call('record', [false], 3000); this.bar(false); AgentWeb.show(false);
     Watch.picked(r, url, steps);

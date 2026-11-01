@@ -32,8 +32,12 @@
       return { testid: el.getAttribute('data-testid') || '', id: el.id || '', css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '',
         text: clean(/^(input|textarea|select)$/i.test(el.tagName) ? label(el) : el.innerText || el.getAttribute('aria-label') || el.title || el.value || ''), name: el.getAttribute('name') || '',
         x: +((r.left + r.width / 2) / win.innerWidth).toFixed(3), y: +((r.top + r.height / 2) / win.innerHeight).toFixed(3),
-        w: +(r.width / win.innerWidth).toFixed(3), h: +(r.height / win.innerHeight).toFixed(3), type: el.type || '' };
+        w: +(r.width / win.innerWidth).toFixed(3), h: +(r.height / win.innerHeight).toFixed(3), type: el.type || '', row: rowOf(el) };
     };
+    /** The list row a click was in (a chat, a mail, a channel): its name (first line) and a selector for every row, so it
+        can be found again by name (teaching a watcher: “Varun's chat”, wherever it is in the list). */
+    const rowOf = el => { const rw = el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr'); if (!rw) return null;
+      return { name: clean((rw.innerText || rw.getAttribute('aria-label') || '').split('\n').map(s => s.trim()).find(Boolean) || ''), css: css(rw).replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '') }; };
     // A field is known by its label, not by what's typed in it.
     const label = el => el.getAttribute('aria-label') || el.placeholder || (el.id && doc.querySelector(`label[for="${win.CSS.escape(el.id)}"]`)?.innerText) || el.closest('label')?.innerText || el.title || '';
     const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -57,7 +61,7 @@
     // Passwords, payment details and one-time codes: never recorded, never typed by a replay (it waits for you).
     const secret = el => el.type === 'password' || /^(cc-|current-password|new-password|one-time-code)/.test(el.autocomplete || '')
       || /pass|pin|otp|card|cvv|cvc|secret|token|iban|ssn|security.?code/i.test(el.name + ' ' + el.id + ' ' + (el.autocomplete || '') + ' ' + (el.getAttribute('aria-label') || ''));
-    let rec = false, pending = null, obs = null, obsT = 0;
+    let rec = false, pending = null, obs = null, obsT = 0, pickEnd = null;
     const step = (s, el) => {
       const from = here(); s.at = from;
       // What changed after it (a new address or #tab), so a replay can check it worked.
@@ -158,13 +162,15 @@
         return new Promise(res => {
           let hov = null; const prev = [];
           const mark = e => { const el = e.target; if (hov === el) return; if (hov) hov.style.outline = prev.pop() || ''; hov = el; prev.push(el.style.outline); el.style.outline = '3px solid #ff375f'; };
-          const done = r => { doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
+          const done = r => { pickEnd = null; doc.removeEventListener('mouseover', mark, true); doc.removeEventListener('click', take, true); if (hov) hov.style.outline = prev.pop() || ''; clearTimeout(t); res(r); };
           const take = e => { e.preventDefault(); e.stopPropagation(); const el = exact ? (e.target.closest(INTERACTIVE + ',[contenteditable=true],[role=textbox],[role=listitem],[role=row],[role=treeitem]') || e.target) : e.target.closest('[role=main],[role=listbox],[role=list],[role=document],article,section,main,table,ul,ol') || e.target;
             done({ ok: true, css: css(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || '', label: el.getAttribute('aria-label') || '', testid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || '', text: clean(el.innerText || '') }); };
-          doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true);
+          doc.addEventListener('mouseover', mark, true); doc.addEventListener('click', take, true); pickEnd = done;
           const t = setTimeout(() => done({ ok: false, error: 'Nothing picked' }), ms);
         });
       },
+      /** Stop waiting for a tap (Cancel in the agent browser's bar). */
+      pickCancel() { pickEnd?.({ ok: false, error: 'cancelled' }); return { ok: true }; },
       /** Wait until a selector (choices between ||, or a comma list) or a text shows, up to `ms`. */
       async waitFor(o = {}, ms = 15000) {
         const t0 = Date.now(), q = clean(o.text || '').toLowerCase(), sels = o.sel ? String(o.sel).split('||').map(s => s.trim()).filter(Boolean) : [];
@@ -193,7 +199,7 @@
         let el = null;
         // a selector and a text: the match of the selector whose text (or label) has those words, e.g. a channel by name
         const words = x => clean(x.innerText || x.getAttribute('aria-label') || x.title || x.value || '').toLowerCase();
-        if (o.sel) for (const s of String(o.sel).split('||')) { try { const m = [...doc.querySelectorAll(s.trim())].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).includes(q)) : m[0]; } catch {} if (el) break; }
+        if (o.sel) for (const s of String(o.sel).split('||')) { try { const m = [...doc.querySelectorAll(s.trim())].filter(visible), q = clean(o.text || '').toLowerCase(); el = q ? m.find(x => words(x) === q) || m.find(x => words(x).startsWith(q)) || m.find(x => words(x).includes(q)) : m[0]; } catch {} if (el) break; }
         if (!el && o.text) { const f = this.findText(o.text); if (f.ok) { const q = clean(o.text).toLowerCase(); el = [...doc.querySelectorAll(INTERACTIVE)].filter(visible).sort((a, b) => clean(a.innerText || '').length - clean(b.innerText || '').length).find(e => clean(e.innerText || e.getAttribute('aria-label') || e.title || e.value || '').toLowerCase().includes(q)); } }
         if (!el) return { ok: false, error: `Nothing called “${o.text || o.sel}” on the page` };
         el.scrollIntoView({ block: 'center' }); await wait(150);

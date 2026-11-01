@@ -20,6 +20,7 @@ assert.deepStrictEqual({ ...W.item('Mom 22:11 Call me when you land 3 (3 unread 
 assert.deepStrictEqual({ ...W.item('Asha Rao 22:17 Moving our call to 4 (2 unread messages)') }, { title: 'Asha Rao', when: '22:17', detail: 'Moving our call to 4' }); n++;
 assert.deepStrictEqual({ ...W.item('Acme Corp@acme · now Big launch') }, { title: 'Acme Corp (@acme)', when: 'now', detail: 'Big launch' }); n++;
 
+assert.deepStrictEqual({ ...W.item('[10:05, 01/11/2026] Varun: Sending the venue details in a bit 10:05') }, { title: 'Varun', when: '10:05', detail: 'Sending the venue details in a bit' }); n++;
 // detectors: the first read is the baseline; then once per event
 const run = (detect, seq) => { const w = W.make({ name: 'T', detect }); return seq.map(g => { const h = W.detect(w, g); w.state.at = 1; return h && h.headline; }); };
 let r = run({ kind: 'new' }, [['a 9:00 x', 'b 9:01 y'], ['a 9:00 x', 'b 9:01 y'], ['c 9:05 z', 'a 9:00 x', 'b 9:01 y'], ['c 9:06 z', 'a 9:00 x']]);

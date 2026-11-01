@@ -30,6 +30,19 @@ r = run({ kind: 'contains', words: 'in stock||available' }, ['Out of stock', 'Ou
 ok(JSON.stringify(r.map(Boolean)) === '[false,false,true,false,false,true]', 'words: ' + JSON.stringify(r));
 const w = W.make({ name: 'T', detect: { kind: 'changes' } }); const ch = ['Hours: 9 to 5. Closed Sunday. Updated 10:02', 'Hours: 9 to 5. Closed Sunday. Updated 10:07', 'Hours: 9 to 6. Closed Sunday. Updated 10:12'].map(g => { const h = W.detect(w, g); w.state.at = 1; return h; });
 ok(!ch[0] && !ch[1] && ch[2] && ch[2].items.length === 2 && ch[2].items.every(i => /Hours/.test(i.detail)), 'changes ignore a moved clock: ' + JSON.stringify(ch[2]));
+// ids stay unique when several are made at once (templates, voice, imports)
+ok(new Set(Array.from({ length: 50 }, () => W.make({ name: 'x' }).id)).size === 50, 'unique ids');
+// filters: only from, ignore a sentence, hold for 2 checks, % moves, counts, patterns, moved meetings
+const R = (detect, filter, seq) => { const w = W.make({ name: 'T', detect, filter }); return seq.map(g => { const h = W.detect(w, g); w.state.at = 1; return h && h.headline; }); };
+ok(JSON.stringify(R({ kind: 'new' }, { from: 'priya' }, [['a 9:00 Rahul hi'], ['b 9:01 Priya hello', 'c 9:02 Rahul yo', 'a 9:00 Rahul hi']]).map(Boolean)) === '[false,true]', 'only from');
+ok(JSON.stringify(R({ kind: 'changes' }, { ignore: 'sponsored' }, ['Price 10. Sponsored: buy X now.', 'Price 10. Sponsored: buy Y now.', 'Price 12. Sponsored: buy Z.']).map(Boolean)) === '[false,false,true]', 'ignore a sentence');
+ok(JSON.stringify(R({ kind: 'value', cond: 'below 500' }, { hold: 2 }, ['600', '480', '490', '470', '520', '450', '440']).map(Boolean)) === '[false,false,true,false,false,false,true]', 'hold for 2 checks');
+ok(JSON.stringify(R({ kind: 'value', cond: 'drops 5%' }, {}, ['1000', '980', '900', '890']).map(Boolean)) === '[false,false,true,false]', 'drops 5%');
+ok(JSON.stringify(R({ kind: 'count', cond: 'above 3' }, {}, [['a', 'b'], ['a', 'b', 'c'], ['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd', 'e']]).map(Boolean)) === '[false,false,true,false]', 'count');
+ok(JSON.stringify(R({ kind: 'pattern', re: 'gate [A-Z]\\d+' }, {}, ['Boarding soon', 'Boarding soon', 'Boarding at gate B12']).map(Boolean)) === '[false,false,true]', 'pattern');
+const cal = R({ kind: 'new', gone: true }, {}, [['Weekly sync, Monday 10:00, Room 4', 'Acme review, Tuesday 14:00, Teams', '1:1 with Priya, Wednesday 11:30, Room 2'], ['Weekly sync, Monday 10:00, Room 4', 'Acme review, Wednesday 16:00, Teams', 'Budget call, Friday 09:00, Teams']]);
+ok(cal[1] === 'T: 1 moved, 1 new, 1 gone', 'calendar: ' + cal[1]);
+ok(JSON.stringify(R({ kind: 'contains', field: 'in_stock', words: 'true' }, {}, [{ in_stock: false }, { in_stock: false }, { in_stock: true }])) === '[null,null,"T: in stock now"]', 'a field the model pulled out');
 // quiet hours wrap past midnight
 ok(typeof W.quiet({ quiet: '00:00-23:59' }) === 'boolean', 'quiet hours');
 console.log(`${n}/${n} watcher tests pass`);

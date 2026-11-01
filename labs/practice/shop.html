@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Shop</title>
+<style>
+:root{--bg:#fff;--ink:#0f1111;--ink2:#565959;--line:#ddd;--acc:#ff9900;--fk:#2874f0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111;--ink:#eee;--ink2:#aaa;--line:#333}}
+:root[data-theme="dark"]{--bg:#111;--ink:#eee;--ink2:#aaa;--line:#333}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 -apple-system,system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:12px 20px;background:#131921;color:#fff;font-weight:700}header.fk{background:var(--fk)}
+.wrap{max-width:980px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.pic{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:64px}
+h1{font-size:22px;margin:0 0 8px}.a-price{font-size:28px}.a-price-symbol{font-size:16px;vertical-align:top}.a-offscreen{position:absolute;left:-9999px}
+#availability{margin:10px 0;font-size:17px}.ok{color:#007600}.no{color:#b12704}
+button{height:40px;border-radius:20px;border:0;padding:0 22px;font:600 15px system-ui;cursor:pointer;background:#ffd814;margin-right:8px}
+.fkbtn{border-radius:2px;background:#ff9f00;color:#fff}.fkbtn.buy{background:#fb641b}
+.Nx9bqj{font-size:28px;font-weight:600}.also{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;color:var(--ink2)}
+.also div{display:inline-block;margin-right:24px}
+@media (max-width:700px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* A made-up shop for practising watchers (price drop, back in stock): ?style=amazon (Amazon's markup: #corePrice_feature_div
+   .a-price-whole, #availability) or ?style=flipkart (div.Nx9bqj, ADD TO CART / Sold Out). ?price=11999 and ?stock=0|1 change
+   it (kept in this browser); ?layout=2 renames everything, as a site redesign would (for self-healing and the model's
+   fallback); ?reset starts over. Other products' prices are below, so a watcher must read the right one. */
+const q = new URLSearchParams(location.search), style = q.get('style') === 'flipkart' ? 'flipkart' : 'amazon', K = `practiceShop.${style}`;
+if (q.has('reset')) localStorage.removeItem(K);
+const S = { price: 12999, stock: 1, layout: 1, ...JSON.parse(localStorage.getItem(K) || '{}') };
+if (q.has('price')) S.price = +q.get('price'); if (q.has('stock')) S.stock = +q.get('stock'); if (q.has('layout')) S.layout = +q.get('layout');
+localStorage.setItem(K, JSON.stringify(S));
+const inr = n => n.toLocaleString('en-IN'), name = 'Acme Noise-Cancelling Headphones, Black', also = '<section class="also"><b>Customers also bought</b><br><div>Acme Earbuds ₹1,499</div><div>Acme Case ₹799</div><div>Acme Speaker ₹4,299</div></section>';
+const amazon = () => S.layout === 2
+  ? `<header>practice-shop.in</header><div class="wrap"><div class="pic">🎧</div><div id="buy-box-v2"><h1 class="title-v2">${name}</h1><div class="price-v2"><span class="cur">₹</span><span class="amt">${inr(S.price)}</span></div><p class="${S.stock ? 'ok' : 'no'}">${S.stock ? 'In stock' : 'Currently unavailable.'}</p>${S.stock ? '<button>Add to Cart</button>' : ''}</div>${also}</div>`
+  : `<header>practice-shop.in</header><div id="dp" class="wrap"><div class="pic">🎧</div><div id="ppd"><h1 id="productTitle">${name}</h1><div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">₹${inr(S.price)}.00</span><span class="a-price-symbol">₹</span><span class="a-price-whole">${inr(S.price)}<span class="a-price-decimal">.</span></span></span></div>
+     <div id="availability"><span class="${S.stock ? 'ok' : 'no'}">${S.stock ? 'In stock' : 'Currently unavailable.'}</span></div>${S.stock ? '<button id="add-to-cart-button">Add to Cart</button><button>Buy Now</button>' : ''}</div>${also}</div>`;
+const flipkart = () => `<header class="fk">practice-kart</header><div class="wrap"><div class="pic">🎧</div><div><h1>${name}</h1><div class="${S.layout === 2 ? 'pr-new' : 'Nx9bqj CxhGGd'}">₹${inr(S.price)}</div>
+  ${S.stock ? '<p><button class="fkbtn">ADD TO CART</button><button class="fkbtn buy">BUY NOW</button></p>' : '<p class="no"><b>Sold Out</b></p><p>This item is currently out of stock</p><button class="fkbtn">NOTIFY ME</button>'}</div>${also}</div>`;
+document.getElementById('root').innerHTML = style === 'flipkart' ? flipkart() : amazon();
+if ([...q.keys()].some(k => k !== 'style')) history.replaceState(null, '', `${location.pathname}?style=${style}`);
+</script>
+</body>
+</html>

@@ -27,7 +27,7 @@ const write = (f, o) => { const p = path.join(DATA, f); fs.writeFileSync(p + '.t
 const S = load('state.json', {});
 S.id ||= b64u(crypto.randomBytes(12)); S.vapid ||= webpush.generateVAPIDKeys();
 S.admin = process.env.BEE_ADMIN_CODE || S.admin || code(10);
-S.meshes ||= {}; S.peers ||= {}; S.linkTokens ||= {}; S.passkeys ||= []; S.subs ||= {}; S.backups ||= {}; S.seen ||= {};
+S.meshes ||= {}; S.peers ||= {}; S.linkTokens ||= {}; S.passkeys ||= []; S.subs ||= {}; S.backups ||= {}; S.seen ||= {}; S.hooks ||= {};
 S.settings = { keepDays: 7, push: true, ...(S.settings || {}) };
 let Q = load('queue.json', []), EV = load('events.json', []);
 let dirty = false; const save = () => { dirty = true; };
@@ -156,6 +156,12 @@ async function onDevice(ws, m, nonce) {
     }
     case 'link-accept': { if (!owner) throw new Error('Only a mesh owner'); return ok(linkAccept(m.peer, ws.mesh)); }
     case 'link-drop': { if (!owner) throw new Error('Only a mesh owner'); linkDrop(m.peer); return ok(); }
+    case 'hook-new': { /* a webhook for a watcher (js/watch.js): POST /hook/<token> reaches this device, kept while it's away */
+      const mine = Object.values(S.hooks).filter(h => h.dev === ws.dev).length; if (mine >= 50) throw new Error('At most 50 webhooks per device');
+      const token = b64u(crypto.randomBytes(18)); S.hooks[token] = { mesh: ws.mesh, dev: ws.dev, name: String(m.name || '').slice(0, 60), at: now() }; save(); event('hook-new', { mesh: ws.mesh, dev: ws.dev });
+      return ok({ token, path: `/hook/${token}` });
+    }
+    case 'hook-del': { const h = S.hooks[m.token]; if (h && h.dev === ws.dev) { delete S.hooks[m.token]; save(); } return ok(); }
     case 'status': return ok(status(ws.mesh));
     default: throw new Error(`Unknown request ${m.t}`);
   }
@@ -242,6 +248,13 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), json = (o, st = 200) => { res.writeHead(st, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(J(o)); };
   try {
+    if (u.pathname.startsWith('/hook/') && req.method === 'POST') { /* a webhook: whatever is posted (16 KB) goes to the watcher's device; the bee sees it (it came from outside, unsealed) */
+      const h = S.hooks[u.pathname.slice(6)]; if (!h) return json({ error: 'No such webhook' }, 404);
+      const t = now(); h.n = (h.win || 0) > t - 60000 ? (h.n || 0) + 1 : 1; if (h.n === 1) h.win = t; if (h.n > 60) return json({ error: 'Too many (60 a minute)' }, 429);
+      const text = await new Promise(r => { let x = ''; req.on('data', c => { x += c; if (x.length > 16384) req.destroy(); }); req.on('end', () => r(x)); });
+      const msg = { id: `h${t.toString(36)}${b64u(crypto.randomBytes(4))}`, mesh: h.mesh, from: 'hook', to: h.dev, kind: 'hook', data: J({ token: u.pathname.slice(6), body: text.slice(0, 16384), at: t }), at: t, until: t + 7 * 864e5 };
+      deliver(msg); event('hook', { mesh: h.mesh, to: h.dev, size: text.length }); return json({ ok: true });
+    }
     if (u.pathname === '/healthz') return json({ ok: true, name: NAME, id: S.id, since: started, devices: conns.size, queued: Q.length });
     if (u.pathname === '/api/login' && req.method === 'POST') { const b = await body(req), c = dashCodes.get(String(b.code || '').toUpperCase().replace(/\s+/g, '')); if (!c || c.until < now()) return json({ error: 'That code isn’t valid (get a new one in StudioGen)' }, 401); dashCodes.delete(String(b.code).toUpperCase().replace(/\s+/g, '')); login(res, req, c.mesh); return json({ ok: true }); }
     if (u.pathname === '/api/passkey/options' && req.method === 'POST') { // a challenge, to register (signed in) or to sign in

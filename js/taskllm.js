@@ -67,6 +67,7 @@ const TaskLLM = {
       the results go to `opt.onReport(last)` instead of sheets; problems to `opt.onError(list)`. */
   import(text, opt = {}) {
     let o; try { o = this.parse(text); } catch (e) { return opt.auto ? opt.onError?.([e.message]) : sheet('Didn’t import', `<p>${esc(e.message)}</p>`, [['Close']]); }
+    if ((o.format === 'studiogen-watcher' || o.watcher) && typeof Watch !== 'undefined') return Watch.import(o, opt); // a watcher (docs/llm/build-prompt.md § Watchers)
     const kind = o.format === 'studiogen-script' || o.script || o.beats || o.intents ? 'script' : 'task';
     if (kind === 'script') {
       const s = o.script || o, chk = scriptCheck(s);

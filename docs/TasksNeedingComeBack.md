@@ -37,6 +37,16 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] A real site changing its layout: does the watcher find it again (🩹), or ask to pick it again?
 - [ ] Deploy the new StudioGBee (0.2.0: watcher pushes) where your bee runs.
 
+**Phase 6: watchers by voice, editor, actions, history, more sources** (tested on the practice sites, real feeds, a local StudioGBee; guide docs/watchers-guide.html)
+- [ ] After the 0.18 update: one Keychain prompt at most, and the window is there while it's open; `~/Library/Logs/StudioGen/main.log` shows a `startup:` line with the steps.
+- [ ] Amazon and Flipkart templates on real product pages (amazon.in, flipkart.com): the price read, a drop told, the history chart after a few days.
+- [ ] “Tell me when …” by voice on Stage with the microphone; say yes.
+- [ ] An app window watcher (Screen Recording asked the first time); a folder watcher on your Downloads.
+- [ ] A webhook from a real service (your StudioGBee must be reachable from the internet; deploy StudioGBee 0.3.0).
+- [ ] Teach it on a page behind a search; Check for noise on a busy page; an action that runs a task.
+- [ ] The calendar watcher on your real Outlook (the selectors for meetings are a guess until tried there).
+- [ ] DriveGen: Settings › Assistant › Watchers lists your Mac's watchers; Check now and Pause from the phone.
+
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
 
 ## To perform (with you)

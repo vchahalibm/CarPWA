@@ -90,6 +90,26 @@ Built-in values: `{outlook}` `{slack}` `{whatsapp}` `{teams}` (the user's sites,
 - `agent.open` flag `stay`: if the task's browser already shows that address, use the page as it is (no reload). For watching pages that update themselves.
 - To be told when something changes, the user makes a watcher (Agent › Watchers), not a task that loops: build a task that reads the list or value once; a watcher can run it on a schedule (👁 Watch this on its card).
 
+### Watchers (when the user wants to be told when something happens)
+
+Answer with a watcher instead of a task when they want to be told about something again and again (new mail from X, a price below Y, a page changing). The user pastes it in Watchers › + New watcher › Paste a watcher:
+
+```json
+{ "format": "studiogen-watcher", "version": 1, "watcher": {
+  "name": "Headphones price", "url": "https://www.amazon.in/dp/…",
+  "read": "#corePrice_feature_div .a-price-whole",
+  "detect": { "kind": "value", "cond": "below 11000" },
+  "every": "1h", "record": true,
+  "filter": { "ignore": "", "from": "", "cooldown": 0, "hold": 1 },
+  "ask": "", "actions": [] } }
+```
+
+- `url` + `read` (a part's text) or `rows` (one line per matching element: lists); `keep`: only lines with these words (`||` between); `steps`: task steps before reading (search, open a tab). Or `source`: `feed` (RSS/Atom or a page that names one), `json` (with `path` like `current.price`).
+- `detect.kind`: `new` (new rows; `gone: true` also tells what disappeared), `gone`, `changes`, `value` (`cond`: `below 500`, `above 3000`, `drops`, `drops 5%`, `moves 3%`), `count`, `contains` (`words`), `pattern` (`re`), `appears`, `disappears`, `visual` (`pct`), `stale` (`mins`).
+- `extract`: `{ "fields": ["price", "in_stock"] }` makes the model pull those out of what was read; `detect.field` picks the one to watch.
+- `every`: `live`, `2m`, `5m`, `15m`, `30m`, `1h`, `6h`, `1d` (shops and travel 1h or more; chats 5m).
+- `ask`: “only tell me if …” in words; `actions`: `{ "do": "task", "id": "…", "inputs": { "name": "{item}" } }`, `{ "do": "script", "name": "…" }`, `{ "do": "start", "id": "…" }`.
+
 ## 5. Site notes (checked; use these selectors as given)
 **Outlook on the web** (`{outlook}`): inbox `{outlook}/mail/inbox`, ready `[role="listbox"]`; rows `[role="listbox"] [role="option"]` (unread rows start with “Unread”: read them with `keep=Unread`); open message `[aria-label="Message body"]||[role="document"]`; search field label `Search`, then Enter; compose `{outlook}/mail/deeplink/compose` with `?to=`, `?subject=`, `?body=`; send `button[aria-label="Send"]||button[title="Send"]`; reply `button[aria-label="Reply"]`; calendar day `{outlook}/calendar/view/day` (another day: `{outlook}/calendar/view/day/{slot.day}` after `{ "do": "ai.when", "value": "{day}", "as": "slot" }`, which also gives `{slot.date}` in words), read `[role="main"]`.
 

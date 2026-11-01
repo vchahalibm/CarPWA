@@ -10,6 +10,8 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Watchers by voice (“tell me when the price drops below 12000”), Amazon and Flipkart prices, travel, news, folders, app windows and webhooks; edit them, add actions, and see a price’s history in the data widget (guide: docs/watchers-guide.html)',
+  'StudioGen opens its window first and unlocks your sign-ins after, so a Keychain prompt no longer leaves it without a window',
   'Watchers can run on a Worker (always on), tell your phone (a push when it’s away), notice live pages within seconds, and find a moved part again by themselves',
   'Watchers: tell me when there’s new mail, a chat, a Slack mention, an X post, or a page changes (Agent screen › 👁 Watchers; 👁 Watch this on a task’s card)',
   'The assistant remembers: what you ask it to (“remember that …”) and what it learns from conversations, kept on this Mac (Settings › Assistant › Memory)',

@@ -97,9 +97,9 @@ const ScreenAI = {
     return null;
   },
   /** Every piece of text on screen: [{ text, box: [x0, y0, x1, y1] }] in CSS pixels. */
-  async read(scope) {
+  async read(scope, shotIn) { // shotIn: { canvas, k } a picture of something else (an app window, for a watcher)
     // The model sees 768×768, so small text in a big area is read in four overlapping tiles.
-    const shot = await AppSteps.screen(), A = this.area(scope), big = A.w > 700 || A.h > 700, out = [];
+    const shot = shotIn || await AppSteps.screen(), A = shotIn ? { x: 0, y: 0, w: shotIn.canvas.width / shotIn.k, h: shotIn.canvas.height / shotIn.k } : this.area(scope), big = A.w > 700 || A.h > 700, out = [];
     const tiles = big ? [[0, 0], [0.45, 0], [0, 0.45], [0.45, 0.45]].map(([fx, fy]) => ({ x: A.x + A.w * fx, y: A.y + A.h * fy, w: A.w * 0.55, h: A.h * 0.55 })) : [A];
     for (const T of tiles) {
       const { result, map } = await this.run('<OCR_WITH_REGION>', '', scope, shot, T);

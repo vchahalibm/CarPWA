@@ -191,7 +191,7 @@ const TaskTeach = {
   bar(on) {
     const box = $('#agentWeb'); if (!box) return; let b = $('.ag-teach', box);
     if (!on) return b?.remove();
-    if (!b) { box.querySelector('.ag-web-bar').insertAdjacentHTML('afterend', `<div class="ag-teach"><i class="rec-dot"></i><span class="ag-teach-n">Teaching: 0 steps</span><span class="te-sp"></span><button class="chip" data-teach="read">Read this part</button><button class="chip accent" data-teach="done">Done</button><button class="chip" data-teach="cancel">Cancel</button></div>`); b = $('.ag-teach', box); }
+    if (!b) { box.querySelector('.ag-web-bar').insertAdjacentHTML('afterend', `<div class="ag-teach"><i class="rec-dot"></i><span class="ag-teach-n">Teaching: 0 steps</span><span class="te-sp"></span><button class="chip" data-teach="read">${this.forWatch ? 'Watch this part' : 'Read this part'}</button><button class="chip accent" data-teach="done">Done</button><button class="chip" data-teach="cancel">Cancel</button></div>`); b = $('.ag-teach', box); }
   },
   count() { const n = $('#agentWeb .ag-teach-n'); if (n) n.textContent = `Teaching: ${this.steps.length} step${this.steps.length === 1 ? '' : 's'}`; },
   /** A recorded step from the page (the bridge's recorder). */
@@ -211,14 +211,23 @@ const TaskTeach = {
   /** A new page loaded in the agent browser: keep recording there. */
   page() { if (this.on) AgentWeb.call('record', [true]); },
   async read() {
+    if (this.forWatch) return this.watchPart(); // teaching a watcher (js/watch.js): what you tap is what it watches
     toast('Click the part to read (the list, the message…)');
     const r = await AgentWeb.call('pick', [120000], 125000);
     if (!r.ok) return toast('Nothing picked');
     const role = r.role ? `[role="${r.role}"]` : ''; this.steps.push({ do: 'agent.wait', value: role || r.css, args: ['ms=10000'] }, { do: 'agent.read', value: [role, r.css].filter(Boolean).join('||'), as: 'read' }); this.count();
     toast(`Will read: ${r.text.slice(0, 60)}…`);
   },
+  /** Teaching a watcher: the steps so far, then the part tapped; the watcher form takes it from there. */
+  async watchPart() {
+    toast('Tap what to watch'); const r = await AgentWeb.call('pick', [120000, true], 125000);
+    if (!r?.ok) return toast('Nothing picked');
+    const steps = this.steps.flatMap(s => s.do === 'agent.click' ? [s, { do: 'wait', value: '1.5' }] : [s]), url = this.start0;
+    this.on = false; this.forWatch = false; AgentWeb.call('record', [false], 3000); this.bar(false); AgentWeb.show(false);
+    Watch.picked(r, url, steps);
+  },
   async done(cancel) {
-    this.on = false; AgentWeb.call('record', [false], 3000); this.bar(false); AgentWeb.show(false); // no waiting on the page
+    this.forWatch = false; this.on = false; AgentWeb.call('record', [false], 3000); this.bar(false); AgentWeb.show(false); // no waiting on the page
     if (cancel) return toast('Teaching cancelled');
     const d = TaskUI.read() || TaskUI.draft; if (!d) return;
     const host = (() => { try { return new URL(this.start0).hostname; } catch { return ''; } })();

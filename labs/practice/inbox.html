@@ -61,6 +61,21 @@ list.addEventListener('click', e => { const o = e.target.closest('[role=option]'
 document.getElementById('search').addEventListener('keydown', e => { if (e.key === 'Enter') draw(e.target.value); });
 document.getElementById('search').addEventListener('input', e => { if (!e.target.value) draw(); });
 draw();
+// The calendar (#/calendar/…, for “What's my day” and the calendar watcher): a week of meetings, each a button whose label
+// says what, when and where, as Outlook's do. ?event=Title|Day|Time|Place adds one, ?move=Title|Day|Time moves it,
+// ?cancel=Title removes it (kept in this browser); ?reset starts over.
+addEventListener('hashchange', () => location.reload()); // mail ↔ calendar by address, as Outlook's own addresses do
+if (/\/calendar/.test(location.hash)) {
+  const k = 'practiceCal', qs = new URLSearchParams(location.search); if (qs.has('reset')) localStorage.removeItem(k);
+  let cal = JSON.parse(localStorage.getItem(k) || 'null') || [['Weekly sync', 'Monday', '10:00', 'Room 4'], ['Acme review', 'Tuesday', '14:00', 'Teams'], ['1:1 with Priya', 'Wednesday', '11:30', 'Room 2'], ['Quarterly review', 'Thursday', '15:00', 'Board room']];
+  const find = t => cal.findIndex(e => e[0].toLowerCase() === String(t).toLowerCase());
+  if (qs.get('event')) cal.push(qs.get('event').split('|').concat(['', '', '']).slice(0, 4));
+  if (qs.get('move')) { const [t, d, h] = qs.get('move').split('|'), i = find(t); if (i >= 0) cal[i] = [cal[i][0], d || cal[i][1], h || cal[i][2], cal[i][3]]; }
+  if (qs.get('cancel')) { const i = find(qs.get('cancel')); if (i >= 0) cal.splice(i, 1); }
+  localStorage.setItem(k, JSON.stringify(cal));
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  main.outerHTML = `<main role="main" aria-label="Calendar" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:16px">${days.map(d => `<section aria-label="${d}"><h3>${d}</h3>${cal.filter(e => e[1] === d).sort((a, b) => a[2].localeCompare(b[2])).map(e => `<div role="button" tabindex="0" aria-label="${e[0]}, ${e[1]} ${e[2]}, ${e[3] || 'no place'}" style="background:var(--panel);border-left:4px solid var(--acc);border-radius:6px;padding:8px;margin:6px 0"><b>${e[0]}</b><br>${e[2]} · ${e[3] || ''}</div>`).join('')}</section>`).join('')}</main>`;
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchers guide</title>
+<style>
+:root{--bg:#fbfbfd;--panel:#fff;--ink:#1d1d1f;--ink2:#515154;--line:#e3e3e8;--acc:#0a6cff;--acc2:#b84df0;--tip:#eef5ff;--warn:#fff4e5;--code:#f2f2f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228}}
+:root[data-theme="dark"]{--bg:#0d0d10;--panel:#17171b;--ink:#f2f2f5;--ink2:#a1a1a8;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--tip:#13233d;--warn:#33240f;--code:#222228}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line)}
+nav b{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);margin:18px 0 6px}
+nav a{display:block;color:var(--ink);text-decoration:none;padding:4px 8px;border-radius:8px;font-size:15px}
+nav a:hover{background:var(--code)}
+main{padding:40px clamp(16px,4vw,64px) 80px;min-width:0}
+header.hero{padding:10px 0 24px;border-bottom:1px solid var(--line);margin-bottom:12px}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.1;margin:0 0 10px;letter-spacing:-.02em;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:28px;margin:56px 0 8px;letter-spacing:-.01em;scroll-margin-top:16px}
+h3{font-size:20px;margin:30px 0 6px;scroll-margin-top:16px}
+.lead{font-size:19px;color:var(--ink2);max-width:780px}
+a{color:var(--acc)}
+.path{font-weight:600;white-space:nowrap}
+q.say{quotes:"“" "”";font-style:italic;background:var(--code);padding:1px 6px;border-radius:6px}
+.tip,.warn{border-radius:12px;padding:12px 16px;margin:16px 0}
+.tip{background:var(--tip)}.warn{background:var(--warn)}
+.tip b:first-child,.warn b:first-child{display:block;margin-bottom:2px}
+figure{margin:18px 0;max-width:900px}
+figure img{max-width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block}
+figcaption{font-size:14px;color:var(--ink2);margin-top:6px}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:1100px}
+.pair figure{margin:0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h4{margin:0 0 4px}
+.card p{margin:0;color:var(--ink2);font-size:15px}
+.tbl{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:15px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600}
+ol li,ul li{margin:4px 0}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:40px;margin:12px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;display:grid;place-items:center;font-size:15px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);columns:2;padding:16px}nav b{break-after:avoid}}
+@media (max-width:480px){nav{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <b>Start here</b>
+  <a href="#what">What a watcher is</a>
+  <a href="#first">Your first watcher</a>
+  <a href="#ways">More ways to make one</a>
+  <b>What it watches</b>
+  <a href="#templates">The templates</a>
+  <a href="#kinds">What it tells you about</a>
+  <b>Being told</b>
+  <a href="#told">How you're told</a>
+  <a href="#filters">When not to tell</a>
+  <a href="#actions">And then: actions</a>
+  <a href="#history">The change history</a>
+  <b>Looking after them</b>
+  <a href="#list">The Watchers list and editing</a>
+  <a href="#wrong">When something goes wrong</a>
+  <a href="#where">Where they run</a>
+  <a href="#hooks">Webhooks</a>
+  <b>Reference</b>
+  <a href="#say">Things you can say</a>
+  <a href="#privacy">Privacy and manners</a>
+</nav>
+<main>
+<header class="hero">
+  <h1>Watchers</h1>
+  <p class="lead">A watcher keeps an eye on something for you (new mail, a chat, a price, a page, a folder on your Mac) and tells you only when there's news. It checks on its own, again and again, and stays quiet the rest of the time.</p>
+</header>
+
+<h2 id="what">What a watcher is</h2>
+<p>Think of a watcher as an agent task that runs on its own schedule. It reads something: a list (mail, chats, posts), part of a web page, a price, a feed, a folder on your Mac, or a window. It compares that with what it saw last time. When something new or different turns up, you get a <b>👁 card</b> on the Agent screen, a quiet notification, and, when it matters, the assistant says it aloud.</p>
+<figure><img src="img/watchers/agent.jpg" alt="The Agent screen with watch cards: a WhatsApp message from Mom, an order from a webhook, a moved meeting and a new mail" loading="lazy"><figcaption>The Agent screen: each 👁 card is a watcher's news, with <b>Check now</b> and <b>Watchers</b>. The <b>👁 Watchers</b> button at the top right opens the list.</figcaption></figure>
+<div class="tip"><b>Watchers run in StudioGen on your Mac</b>Like tasks, they use the agent browser with your sign-ins, so they can see your Outlook, Slack, Teams, WhatsApp and X. DriveGen on your phone gets their news as cards (see <a href="#where">Where they run</a>).</div>
+
+<h2 id="first">Your first watcher, in a minute</h2>
+<ol class="steps">
+  <li>On the Agent screen, tap <span class="path">👁 Watchers</span>, then <span class="path">+ New watcher</span>. (Also in <span class="path">Settings › Assistant › Watchers</span>.)</li>
+  <li>Pick what to watch. Templates are grouped: Slack, Teams, Outlook, WhatsApp, X, Web pages, Shopping, Travel, Work, Life, News and money, Media, On this Mac.</li>
+  <li>Answer its question (a product's address, a person's name, a channel…), choose <b>how often</b> and <b>how to tell you</b>.</li>
+  <li>Tap <span class="path">Check and save</span>. It reads once to learn what's there now, so it won't tell you about things that were already there.</li>
+</ol>
+<div class="pair">
+  <figure><img src="img/watchers/new.jpg" alt="The New watcher sheet listing templates for Slack, Teams and Outlook" loading="lazy"><figcaption>+ New watcher: the templates.</figcaption></figure>
+  <figure><img src="img/watchers/form-amazon.jpg" alt="The Amazon price drop form: the product's address, when to tell, how often, notification, voice, digest, record changes, only tell me if" loading="lazy"><figcaption>A template's form (here Amazon: price drop).</figcaption></figure>
+</div>
+<figure><img src="img/watchers/watching.jpg" alt="The Watching confirmation: Headphones back in stock (Amazon), every hour, now: In stock" loading="lazy"><figcaption>After <b>Check and save</b>: what it reads now, and how often it checks.</figcaption></figure>
+<div class="tip"><b>Want to try one without your accounts?</b>Turn on <span class="path">Agent › Library › Settings › Use the practice sites</span>. The Slack, Teams, Outlook, WhatsApp and X templates then watch made-up copies of those sites, and the Amazon and Flipkart templates watch a practice shop. Nothing real is read or sent.</div>
+
+<h2 id="ways">More ways to make one</h2>
+<h3>Say it</h3>
+<p>Say (or type) what you want: <q class="say">tell me when the price of [a product's link] drops below 12000</q>, <q class="say">keep an eye on the news about Acme</q>, <q class="say">let me know when bitcoin goes above 90 lakh rupees</q>, <q class="say">notify me when ollama/ollama has a new release</q>. The assistant drafts the watcher and asks before saving it. Say <b>yes</b> and it reads once, as above. If it's missing something (which person? which page?), it opens the form instead.</p>
+<figure><img src="img/watchers/voice.jpg" alt="Saying tell me when the price drops below 12000; the assistant answers: I'll watch Amazon price, every hour, and tell you when it's below 12000. Shall I?" loading="lazy"><figcaption>By voice: the assistant drafts the watcher and asks “Shall I?”.</figcaption></figure>
+<h3>Tap what to watch on a page</h3>
+<p>Open any page in the agent browser and tap <span class="path">👁 Watch something here</span> in its bar (or <span class="path">+ New watcher › Watch something on a page</span> and give its address). Tap the part to watch: a list, a price, a status, a paragraph. StudioGen suggests the kind from what you tapped (a list: new items; a number: a price; text: changes). You choose the line (<code>below 11000</code>, <code>drops 5%</code>) or the words.</p>
+<div class="pair">
+  <figure><img src="img/watchers/browser.jpg" alt="The agent browser showing a product page, with a Watch something here button in its bar" loading="lazy"><figcaption>The agent browser's <b>👁 Watch something here</b>.</figcaption></figure>
+  <figure><img src="img/watchers/pick.jpg" alt="The Watch this sheet: you picked 11,499, tell me when a number crosses a line, below 11000" loading="lazy"><figcaption>After tapping the price: the kind is suggested.</figcaption></figure>
+</div>
+<h3>Teach it (pages behind a search or a tab)</h3>
+<p><span class="path">+ New watcher › Teach it</span>: the agent browser records what you do (type a search, open a tab), like <b>Teach me</b> for tasks. Then tap <span class="path">Watch this part</span> in the bar and tap what to watch. Each check repeats your steps first. Password, payment and one-time-code fields are never recorded.</p>
+<h3>From a task's card</h3>
+<p>A task's result card (one that only reads, like “Unread WhatsApp chats”) has <span class="path">👁 Watch this</span>. The task then runs on its own (every 30 minutes to start with), and you're told when its answer has something new. You can see this button in the picture under <a href="#actions">And then: actions</a>.</p>
+<h3>Paste one</h3>
+<p><span class="path">+ New watcher › Paste a watcher</span> takes a watcher as JSON: one a friend copied with <b>Copy as JSON</b>, or one an LLM wrote from the build prompt (<span class="path">Settings › Scripts &amp; tasks › Build with an LLM</span> has a watcher section). Watchers shared in your mesh arrive the same way (paused until you turn them on).</p>
+
+<h2 id="templates">The templates</h2>
+<div class="pair">
+  <figure><img src="img/watchers/new-shopping.jpg" alt="Shopping templates: Amazon price drop and back in stock, Flipkart price drop and back in stock, any shop, a sale or coupon, a pre-order" loading="lazy"><figcaption>Shopping, then Travel.</figcaption></figure>
+  <figure><img src="img/watchers/new-mac.jpg" alt="On this Mac templates: a folder, a file, an app's window, a webhook, another watcher's news; and Watch something on a page, Teach it, Paste a watcher" loading="lazy"><figcaption>On this Mac, and the other ways to make one.</figcaption></figure>
+</div>
+<div class="tbl"><table>
+<tr><th>Group</th><th>Templates</th></tr>
+<tr><td>Slack</td><td>New mentions · new messages in a channel · new messages from someone</td></tr>
+<tr><td>Teams</td><td>New chats · new messages in a chat</td></tr>
+<tr><td>Outlook</td><td>New mail · new mail from someone · new mail about something (words)</td></tr>
+<tr><td>WhatsApp</td><td>New messages · new messages from someone</td></tr>
+<tr><td>X</td><td>Your timeline · an account's posts · a search · your mentions (your own account, every 30 minutes to start with)</td></tr>
+<tr><td>Web pages</td><td>A page changes · words appear on a page</td></tr>
+<tr><td>Shopping</td><td><b>Amazon</b>: price drop, back in stock · <b>Flipkart</b>: price drop, back in stock · <b>any shop</b>: price drop, back in stock (the language model reads the price) · a sale or coupon appears · a pre-order opens</td></tr>
+<tr><td>Travel</td><td>Flight price · flight status and gate · appointment slots (visa, passport) · hotel price · train seat availability</td></tr>
+<tr><td>Work</td><td>Calendar: a meeting moved, added or cancelled · GitHub items assigned to me · a GitHub build failed · a status page shows an incident · a competitor's pricing page changes · new reviews · a shared document changed</td></tr>
+<tr><td>Life</td><td>Parcel status · tickets on sale · new apartment listings · new jobs on a careers page · school or society notices · results published</td></tr>
+<tr><td>News and money</td><td>A topic or company in the news · a stock crosses a price · a crypto coin crosses a price · a government tender or circular · a software release</td></tr>
+<tr><td>Media</td><td>A YouTube channel's new videos · a podcast's new episodes · a subreddit · a Hacker News mention · a blog's new posts (StudioGen finds its feed)</td></tr>
+<tr><td>On this Mac</td><td>New or changed files in a folder · a file changes · an app's window (words appear, or it changes) · a webhook · when another watcher has news</td></tr>
+</table></div>
+<p>Some templates (apartment listings, jobs, reviews, notices, tenders) open the page and ask you to tap one item, because every site lays its list out differently.</p>
+<div class="tip"><b>Amazon and Flipkart, when the shop changes its page</b>The price is read from the page's usual place. If the shop redesigns its page and that stops working, the language model reads the price from the whole page instead, so the watcher keeps going.</div>
+
+<h2 id="kinds">What it tells you about</h2>
+<div class="tbl"><table>
+<tr><th>Tell me when…</th><th>Example</th><th>Told</th></tr>
+<tr><td>New items appear in a list</td><td>New mail, a chat, a post, a file</td><td>Once per item. A row that only changed its time or unread count, or that you've read since, isn't new. With <b>Also tell me what's gone or moved</b> you also hear what disappeared, and a calendar meeting at a new time is told as <i>moved</i>.</td></tr>
+<tr><td>Items disappear</td><td>A listing is taken down</td><td>Once per item</td></tr>
+<tr><td>It changes</td><td>A policy page, a parcel's status</td><td>With the lines that changed: Now… / Was… (a clock or date moving doesn't count)</td></tr>
+<tr><td>A number crosses a line, or moves</td><td><code>below 11000</code> · <code>above 3000</code> · <code>drops</code> · <code>drops 5%</code> · <code>moves 3%</code></td><td>A line: once when it crosses, again only after it has gone back. A move: each time it happens.</td></tr>
+<tr><td>How many there are crosses a line</td><td><code>above 3</code> open tickets</td><td>Once when it crosses</td></tr>
+<tr><td>Some words appear</td><td><code>in stock||available</code> (<code>||</code> between choices)</td><td>Once when they appear</td></tr>
+<tr><td>A pattern matches</td><td><code>gate [A-Z]\d+</code> (for those who know regular expressions)</td><td>Once when it matches</td></tr>
+<tr><td>It appears / disappears</td><td>A “Book now” button</td><td>Once</td></tr>
+<tr><td>It looks different</td><td>A chart or a map (a small picture of it is compared)</td><td>When it differs by more than a set percentage (8% to start with)</td></tr>
+<tr><td>Nothing has changed for too long</td><td>A status page that should update daily (minutes, e.g. <code>1440</code>)</td><td>Once, until it changes again</td></tr>
+</table></div>
+
+<h2 id="told">How you're told</h2>
+<div class="two">
+  <div class="card"><h4>👁 A card</h4><p>On the Agent screen and in the timeline, with <b>Check now</b> and <b>Watchers</b>.</p></div>
+  <div class="card"><h4>A quiet notification</h4><p>A short note at the top, wherever you are. It never switches screens.</p></div>
+  <div class="card"><h4>Said aloud</h4><p><b>When it's important</b> (the default), <b>Always</b> or <b>Never</b>. Never while you're presenting.</p></div>
+  <div class="card"><h4>On your phone</h4><p>A card in DriveGen; when the phone is away, a notification through StudioGBee that says only “a watcher found something new”.</p></div>
+  <div class="card"><h4>The daily digest</h4><p>At 18:00, one card sums up what your watchers saw that day (written by the language model).</p></div>
+  <div class="card"><h4>Quiet hours</h4><p>22:00–07:00: no notifications or voice. Cards and the digest still come.</p></div>
+</div>
+<p><b>Only tell me if…</b> (on every watcher's form): a rule in your own words, such as <q class="say">it's from a customer, or needs me today</q> or <q class="say">it's from family and sounds urgent</q>. The language model reads each piece of news against your rule, and what it remembers about you, and decides whether it matters and whether it's worth saying aloud. The rest is skipped.</p>
+<p>Change the digest time and the quiet hours in <span class="path">👁 Watchers › Digest and quiet hours</span>.</p>
+
+<h2 id="filters">When not to tell</h2>
+<p>In a watcher's <b>Edit</b>, under <i>When not to tell</i>:</p>
+<ul>
+  <li><b>Ignore lines with</b>: words that mark noise (an ad, a “last updated” line); <code>||</code> between them.</li>
+  <li><b>Only from</b> / <b>Not from</b>: people's names, for lists of messages.</li>
+  <li><b>At most once per</b> so many minutes: news in between is still recorded, but not told.</li>
+  <li><b>Only after it holds for</b> so many checks: no flapping when a price bounces around a line.</li>
+  <li><b>While I'm presenting, keep it for later</b> (on to start with): news waits until your presentation ends, then comes together in one card.</li>
+</ul>
+<figure><img src="img/watchers/edit-filters.jpg" alt="The edit sheet: ignore lines with, only from, not from, at most once per 10 minutes, only after it holds for 1 check, keep it for later while presenting, how to tell me, only tell me if it's from family and sounds urgent" loading="lazy"><figcaption>When not to tell, and how to tell you.</figcaption></figure>
+<div class="tip"><b>Check for noise</b>In <b>Edit</b>, <span class="path">Check for noise (1 minute)</span> reads the page twice, a minute apart. Anything that changed on its own (a clock, a rotating ad) is listed, and you tick what to ignore from then on.</div>
+
+<h2 id="actions">And then: actions</h2>
+<p>A watcher can do something when it has news (in <b>Edit</b>, under <i>And then</i>):</p>
+<ul>
+  <li><b>Run a task</b>: tasks that only read or tell run straight away. Tasks that act (send, reply, book) ask you first, as always. Inputs can carry the news: <code>{headline}</code>, <code>{item}</code>, <code>{detail}</code>, <code>{value}</code>.</li>
+  <li><b>Run a script</b>: it asks first if the script can act on things (type, click, run a command on the Mac).</li>
+  <li><b>Start a watcher</b>: turn on another, paused, watcher.</li>
+</ul>
+<div class="pair">
+  <figure><img src="img/watchers/edit-actions.jpg" alt="The And then section: Run the task Unread WhatsApp chats, and pickers to add a task, a script or a watcher; Share in the mesh; Save, Check for noise, Show history, Copy as JSON" loading="lazy"><figcaption>Here, a WhatsApp message from Mom runs “Unread WhatsApp chats”.</figcaption></figure>
+  <figure><img src="img/watchers/action.jpg" alt="The Agent screen: the Unread WhatsApp chats card the action produced (with Watch this), below it the watcher's card" loading="lazy"><figcaption>The watcher's card, and the card from the task it ran.</figcaption></figure>
+</div>
+<p><b>Chains</b>: the template <span class="path">On this Mac › When another watcher has news</span> makes a watcher whose items are another watcher's news. Give it actions, or a rule of its own (“only tell me if…”).</p>
+
+<h2 id="history">The change history</h2>
+<p>Tick <b>Record changes</b> on any watcher (price templates have it on): every piece of news is written to a CSV file on your Mac (time, watcher, headline, value, items). <span class="path">Edit › Show history</span> opens it in the <b>data widget</b>: a table, and a line chart when there's a value, like a price over the weeks.</p>
+<figure><img src="img/watchers/history.jpg" alt="The data widget showing a headphones price falling from 12,999 to 11,499 over a week, with the rows below" loading="lazy"><figcaption>A price history in the data widget.</figcaption></figure>
+
+<h2 id="list">The Watchers list and editing</h2>
+<p><span class="path">👁 Watchers</span> lists each watcher: when it last checked, how many items it saw, when it last had news, and when it checks next. Each one has <b>Edit</b>, <b>Check now</b>, <b>Pause</b>/<b>Resume</b> and <b>Delete</b>.</p>
+<div class="pair">
+  <figure><img src="img/watchers/list.jpg" alt="The Watchers list: WhatsApp from Mom, New mail, Calendar changes, Headphones price, News, Invoices folder, each with Edit, Check now, Pause, Delete" loading="lazy"><figcaption>The Watchers list.</figcaption></figure>
+  <figure><img src="img/watchers/edit.jpg" alt="The top of the edit sheet: its name, the address, what it reads, only lines with these words, tell me when, the line" loading="lazy"><figcaption>Edit: what it reads and what it tells you about.</figcaption></figure>
+</div>
+<p>Changing what a watcher reads (its address, its part, its kind) gives it a fresh start: it reads once and tells you only about what's new from then on. <b>Copy as JSON</b> copies it to share. <b>Share in the mesh</b> offers it to your mesh; others get a copy that runs with their own sign-ins.</p>
+
+<h2 id="wrong">When something goes wrong</h2>
+<h3>Signed out</h3>
+<p>A watcher that lands on a sign-in page pauses and leaves a card: <b>Sign in</b> opens that site in the agent browser (or <b>Sign in from here</b> for one running on a Worker). Sign in, then tap <b>Check now</b>; it carries on. A robot check is handled the same way.</p>
+<h3>The site moved things around</h3>
+<p>A part you picked by tapping keeps several ways to find it again. When the first stops working, the next one that works is kept (🩹 in the list). If none work, it looks for the part's words on the page, then asks the on-device screen model to find it. Then it asks you once:</p>
+<figure><img src="img/watchers/card-confirm.jpg" alt="A card: I lost what it watches; is this it? Acme Noise-Cancelling Headphones, Black (found by its words), with Yes, that's it and No, I'll pick it" loading="lazy"><figcaption><b>Yes, that's it</b> keeps the new place; <b>No, I'll pick it</b> opens the page for you to tap it again.</figcaption></figure>
+<p>If even that fails, the card says <b>Pick it again</b>.</p>
+<h3>App windows</h3>
+<p>Watching another app's window needs <b>Screen Recording</b> for StudioGen. The first time, StudioGen asks. If it was turned down, the watcher pauses with a card that offers <b>Ask me again</b> or <b>Open System Settings</b> (<span class="path">Privacy &amp; Security › Screen Recording</span>).</p>
+<h3>Checks that fail</h3>
+<p>A page that doesn't answer is tried again after 5 minutes, then 15, then an hour, never hammering the site. The reason shows in the list (⚠️).</p>
+
+<h2 id="where">Where they run</h2>
+<div class="two">
+  <div class="card"><h4>This Mac</h4><p>In StudioGen's agent browser, with your sign-ins. It always leaves one of the 3 browser slots free for what you ask.</p></div>
+  <div class="card"><h4>A Worker</h4><p>With a Worker in your mesh (<span class="path">Mesh › Workers</span>), the form has <b>Runs on</b>. A Worker is always on and keeps its own sign-ins. Its news comes back to your Mac sealed, and StudioGBee keeps it while the Mac sleeps. <b>Check now</b>, <b>Pause</b> and <b>Delete</b> reach it.</p></div>
+  <div class="card"><h4>Your phone</h4><p>DriveGen gets each piece of news as a card (untick <b>On my phone too</b> to stop). <span class="path">Settings › Assistant › Watchers</span> there shows your Mac's watchers, with Check now and Pause.</p></div>
+</div>
+<p><b>Live</b> (in <i>How often</i>) keeps the page open in a hidden browser. The page itself says when the watched part changes, so you hear within a few seconds instead of on a schedule. That costs memory, so keep live watchers for chats, or put them on a Worker.</p>
+
+<h2 id="hooks">Webhooks</h2>
+<p><span class="path">On this Mac › A webhook</span> gives you an address on your StudioGBee. Whatever another service POSTs to it (a form, a shop's order notice, a home-automation event, up to 16 KB) becomes a 👁 card within seconds, even if it arrives while your Mac is asleep (it's kept for a week). The address is shown in the watcher's <b>Edit</b>. Anyone with the address can post to it, so share it only with the service that needs it.</p>
+<div class="warn"><b>Needs StudioGBee</b>Webhooks come in through your StudioGBee, which must be reachable from the internet for outside services. Without a bee, the webhook template says so.</div>
+
+<h2 id="say">Things you can say</h2>
+<div class="two">
+  <div class="card"><h4>Make one</h4><p><q class="say">tell me when …</q> · <q class="say">keep an eye on …</q> · <q class="say">let me know when …</q> · <q class="say">notify me when …</q> · <q class="say">watch … for me</q></p></div>
+  <div class="card"><h4>See them</h4><p><q class="say">what are my watchers</q> · <q class="say">what am I watching</q> · <q class="say">what did my watchers see today</q></p></div>
+  <div class="card"><h4>Pause and resume</h4><p><q class="say">pause the Acme watcher</q> · <q class="say">stop watching Acme</q> · <q class="say">start watching Acme again</q></p></div>
+</div>
+
+<h2 id="privacy">Privacy and manners</h2>
+<ul>
+  <li>Watchers read with your sign-ins on your own Mac or Worker. What they see, their history and their CSV files stay there. Only the news itself goes to your own devices, sealed.</li>
+  <li>StudioGBee never sees what your watchers found. A phone notification says only “a watcher found something new”. Webhooks are the exception: what an outside service posts reaches the bee as it was sent.</li>
+  <li>Watchers that act on things ask first. Password, payment and one-time-code fields are never recorded or typed.</li>
+  <li>Be gentle with sites: checks have a little randomness, failures back off, and the X templates check every 30 minutes to start with. Some sites' terms don't allow automated reading; whether to watch them is your choice.</li>
+</ul>
+<p>Watchers are part of the agent: see also <a href="user-guide.html#agent">The agent: tasks for you</a> in the main guide, and <a href="scripts-and-tasks-guide.html">the scripts and tasks guide</a> for building your own tasks.</p>
+</main>
+</div>
+</body>
+</html>

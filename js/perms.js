@@ -9,7 +9,7 @@
    Settings › System › Permissions lists them, with the same buttons.
    Loaded after voice.js.
    ============================================================ */
-const PERM_KINDS = { mic: 'the microphone', speech: 'speech recognition', camera: 'the camera' };
+const PERM_KINDS = { mic: 'the microphone', speech: 'speech recognition', camera: 'the camera', screen: 'seeing other apps’ windows (Screen Recording)' };
 const Perm = {
   desk: () => !!window.DriveDeckDesktop?.perm,
   /** 'granted' | 'denied' | 'not-determined' | 'restricted' | 'prompt' | 'unknown' */
@@ -53,7 +53,7 @@ const Perm = {
   },
   /** Settings › System › Permissions. */
   async settings() {
-    const kinds = this.desk() ? ['mic', 'speech', 'camera'] : ['mic', 'camera'];
+    const kinds = this.desk() ? ['mic', 'speech', 'camera', 'screen'] : ['mic', 'camera'];
     const st = await Promise.all(kinds.map(k => this.status(k)));
     const word = s => ({ granted: '✓ allowed', denied: '✗ off', restricted: '✗ blocked by the system', 'not-determined': 'not asked yet', prompt: 'asks when needed', unknown: this.desk() ? 'asked the first time you talk' : 'asks when needed' })[s] || s;
     sheet('Permissions', `<p class="se-note">What ${APP_NAME} may use. Turned one down by mistake? Ask again here.</p>

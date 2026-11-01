@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
   /** Watchers (js/watch.js): fetch(url) → { status, type, text } or { error }: a feed or JSON address, read-only. */
   fetch: url => ipcRenderer.invoke('dd:fetch', url),
+  files: (op, a) => ipcRenderer.invoke('dd:files', op, a), // watchers: folders and files picked in StudioGen (desktop/watchio.js)
+  windows: (op, a) => ipcRenderer.invoke('dd:windows', op, a), // watchers: app windows (names, a picture)
+  watchlog: (op, a) => ipcRenderer.invoke('dd:watchlog', op, a), // watchers: the change history (CSV)
+  browseReady: () => ipcRenderer.invoke('dd:browse-ready'), // the kept sign-ins are unlocked
   /** Memory (js/memory.js): memory('read') → the JSON, memory('write', json), memory('wipe'); a file locked with the Keychain. */
   memory: (op, data) => ipcRenderer.invoke('dd:memory', op, data),
   /** Permissions (js/perms.js): perm(op, kind), op 'status' | 'reset' | 'ask' | 'open', kind 'mic' | 'camera' | 'speech'. */

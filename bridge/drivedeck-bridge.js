@@ -87,6 +87,16 @@
       version: 1,
       ping: () => ({ ok: true, url: here(), title: doc.title }),
       record(on) { rec = !!on; return { ok: true, url: here() }; },
+      /** A watcher's part, for a picture of it (js/watch.js, visual changes): where the first visible match is. */
+      rect(sel) { for (const s of String(sel || '').split('||')) { let el = null; try { el = [...doc.querySelectorAll(s.trim())].find(visible); } catch {} if (el) { el.scrollIntoView({ block: 'nearest' }); return { ok: true, rect: rect(el) }; } } return { ok: false, error: 'not found' }; },
+      /** What is at a point (a watcher finding its part again by its words or the screen model): its selector and text;
+          row: the list row it's in, with the row's position taken out so it matches every row. */
+      cssAt(x, y, row) {
+        let el = doc.elementFromPoint(x, y); if (!el) return { ok: false };
+        if (row) el = el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],[role=article],li,article,tr') || el;
+        let c = css(el); if (row) c = c.replace(/:nth-of-type\(\d+\)(?!.*:nth-of-type)/, '');
+        return { ok: true, css: c, text: clean(el.innerText || el.getAttribute('aria-label') || '') };
+      },
       /** A watcher keeping this page open (js/watch.js): tells when the part it reads changes (at most every 2 s), so it
           checks within seconds instead of on its schedule. Nothing leaves the page but “changed”. */
       observe(sel, on = true) {

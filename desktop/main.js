@@ -46,6 +46,14 @@ const BUNDLED = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.
 const Updates = require('./updater')({ app, net, bundled: BUNDLED });
 const Tasks = require('./tasks')({ app, dialog, getWindow: () => mainWin }); // scripts' tasks on this computer (AppleScript, Shortcuts, shell)
 const Data = require('./data')({ app, dialog, getWindow: () => mainWin }); // SQLite (read-only) and data files for the data widget
+const WatchIO = require('./watchio')({ app, dialog, desktopCapturer, systemPreferences, getWindow: () => mainWin }); // watchers: picked folders, app windows, change history (js/watch.js)
+// The start, step by step, into main.log once the sign-ins are unlocked (or after a minute): a start that hangs can be told apart
+const T0 = Date.now(), startup = [];
+const trace = step => { startup.push(`+${Date.now() - T0} ms ${step}`); if (step === 'sign-ins unlocked' || step === 'gave up waiting') { clearTimeout(traceT); mainError('startup', startup.join(' · ')); } };
+const traceT = setTimeout(() => trace('gave up waiting'), 60000);
+// The kept sign-ins are unlocked (Keychain) after the window has loaded, so a password prompt never leaves StudioGen
+// without a window; the agent browser waits for this before loading anything (dd:browse-ready).
+let browseDone; const signinsReady = new Promise(r => { browseDone = r; });
 const Speech = require('./speech')({ app, getWindow: () => mainWin }); // Apple's speech recognizer (desktop/speech/main.swift) for voice commands
 const AI = require('./ai')({ app });
 const Builtin = require('./llm')({ app, send: p => mainWin?.webContents.send('dd:llm-progress', p) }); // the language model built in (llama.cpp, desktop/llm.js) // Apple's on-device language model (desktop/ai/main.swift): the Brain's “This Mac” and commands by intent
@@ -238,7 +246,9 @@ const LightWorkers = (() => {
 })();
 app.whenReady().then(async () => {
   // last session's sign-ins back before any page loads (desktop/browse.js)
-  await Browse.restore().then(n => n && console.log(`browse: ${n} session cookies restored`)).catch(e => console.warn('browse restore', e.message));
+  trace('ready');
+  const unlock = () => { if (unlock.done) return; unlock.done = true; trace('unlocking sign-ins');
+    Browse.restore().then(n => n && console.log(`browse: ${n} session cookies restored`)).catch(e => console.warn('browse restore', e.message)).finally(() => { trace('sign-ins unlocked'); browseDone(); }); };
   // Serve the web files; anything outside the web folder is refused.
   useWeb();
   // vendor/ may come from its own folder (libraries update separately from the app's files).
@@ -326,12 +336,13 @@ app.whenReady().then(async () => {
   // This computer's memory and chip (the language model's startup check, js/llm.js)
   ipcMain.on('dd:sys', e => { const os = require('os'); e.returnValue = String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { memory: os.totalmem(), chip: os.cpus()[0]?.model || '', cpus: os.cpus().length } : null; });
   // Permissions (js/perms.js): macOS asks only once; a “no” (often by mistake) is reset for this app and asked again
-  const PERM = { mic: ['microphone', 'Microphone', 'Privacy_Microphone'], camera: ['camera', 'Camera', 'Privacy_Camera'], speech: [null, 'SpeechRecognition', 'Privacy_SpeechRecognition'] };
+  const PERM = { mic: ['microphone', 'Microphone', 'Privacy_Microphone'], camera: ['camera', 'Camera', 'Privacy_Camera'], speech: [null, 'SpeechRecognition', 'Privacy_SpeechRecognition'], screen: ['screen', 'ScreenCapture', 'Privacy_ScreenCapture'] };
   const bundleId = () => app.isPackaged ? 'io.github.vchahalibm.studiogen' : 'com.github.Electron';
   ipcMain.handle('dd:perm', own(async (op, kind) => {
     const p = PERM[kind]; if (!p || process.platform !== 'darwin') return null;
     if (op === 'status') return p[0] ? systemPreferences.getMediaAccessStatus(p[0]) : 'unknown'; // not-determined | granted | denied | restricted
     if (op === 'reset') return new Promise(res => require('child_process').execFile('/usr/bin/tccutil', ['reset', p[1], bundleId()], e => res(!e)));
+    if (op === 'ask' && kind === 'screen') { await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 8, height: 8 } }).catch(() => {}); return systemPreferences.getMediaAccessStatus('screen') === 'granted'; } // macOS asks when another window is first looked at
     if (op === 'ask') return p[0] ? systemPreferences.askForMediaAccess(p[0]) : true; // speech: asked by the helper when it next starts
     if (op === 'open') { shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${p[2]}`); return true; }
     return null;
@@ -347,6 +358,11 @@ app.whenReady().then(async () => {
       const b = Buffer.from(await r.arrayBuffer()); return { status: r.status, type: r.headers.get('content-type') || '', text: b.subarray(0, 2e6).toString('utf8') }; }
     catch (e) { return { error: e.message }; }
   }));
+  // Watchers (js/watch.js, desktop/watchio.js): picked folders and files, app windows, each watcher's change history
+  ipcMain.handle('dd:files', own((op, a) => WatchIO.files(op, a).catch(e => ({ error: e.message }))));
+  ipcMain.handle('dd:windows', own((op, a) => WatchIO.windows(op, a).catch(e => ({ error: e.message }))));
+  ipcMain.handle('dd:watchlog', own((op, a) => { try { return WatchIO.history(op, a); } catch (e) { return { error: e.message }; } }));
+  ipcMain.handle('dd:browse-ready', own(() => signinsReady.then(() => true)));
   // Memory (js/memory.js): one file in StudioGen's folder, locked with the Keychain (safeStorage); never sent anywhere
   const memFile = () => path.join(app.getPath('userData'), 'memory.bin');
   ipcMain.handle('dd:memory', own((op, data) => {
@@ -379,7 +395,9 @@ app.whenReady().then(async () => {
   if (LIGHT) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // StudioGen › Workers › Show its window
   if (!WORKER) LightWorkers.resume();
   // Started at login: just the menu bar until you open it.
-  createWindow({ show: WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin });
+  createWindow({ show: WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin }); trace('window');
+  mainWin.webContents.once('did-finish-load', () => { trace('page loaded'); setTimeout(unlock, 200); });
+  setTimeout(unlock, 15000); /* the page never loaded: unlock anyway */
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

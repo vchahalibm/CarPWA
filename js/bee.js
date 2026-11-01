@@ -94,6 +94,7 @@ const Bee = {
     return p;
   },
   async onMsg(s, m) {
+    if (m.kind === 'hook') { s.ws.send(JSON.stringify({ t: 'ack', id: m.id })); try { if (typeof Watch !== 'undefined') Watch.hookIn(JSON.parse(m.data)); } catch {} return; } // a webhook's message for a watcher (from outside: not sealed)
     const me = (await Mesh.me()).id; let body;
     for (let i = 0; i < 40 && !Mesh.pairKeys[m.from]; i++) await new Promise(r => setTimeout(r, 250)); // just started: the mesh's keys are still being made
     try { body = await this.open(m.from, me, m.id, m.data); } catch { s.ws.send(JSON.stringify({ t: 'ack', id: m.id })); return Log.w('bee', 'A message that can’t be opened (not for this key)'); }
@@ -113,6 +114,11 @@ const Bee = {
     if (p && typeof Agent !== 'undefined') Agent.late(p, a);
   },
 
+  /** A webhook for a watcher: an address anything can POST to; what's posted reaches this device (js/watch.js hookIn). */
+  async hookNew(name) {
+    const s = this.any(); if (!s) throw new Error('StudioGBee isn’t connected');
+    const r = await this.req(s, { t: 'hook-new', name }); return { hook: r.token, hookUrl: s.url.replace(/^ws(s?):/, 'http$1:').replace(/\/(ws)?$/, '') + r.path };
+  },
   /* ---------- Push: “your answer is ready” on a DriveGen that is away ---------- */
   async notify(quiet) {
     const s = this.any(); if (!s?.bee?.vapid) throw new Error('StudioGBee isn’t connected');

@@ -57,6 +57,42 @@
       }
       return best;
     };
+    /** Words as shapes, for diagnosing a page without its contents: “Varun Chahal 10:05” → “Aaaaa Aaaaaa 99:99”. */
+    const shape = t => clean(t).slice(0, 60).replace(/[A-Z]/g, 'A').replace(/[a-z]/g, 'a').replace(/[0-9]/g, '9').replace(/[^\sAa9.,:;!?()\-–—/@#&%+*'"’“”|·•✓]/gu, 'x');
+    const safeId = id => id && !/\d{4,}|[A-Za-z0-9+/=]{24,}/.test(id) ? id : id ? '(id)' : '';
+    /** How a selector list fares on this page: per choice, matches and visible ones, and the first lines as shapes. */
+    const trial = sels => String(sels || '').split('||').map(x => x.trim()).filter(Boolean).map(s0 => {
+      const g = /^rows-in:/.test(s0) && rowsIn(s0.slice(8).trim()), sel = g ? g.css : /^rows-in:/.test(s0) ? null : s0;
+      let all = []; try { all = sel ? [...doc.querySelectorAll(sel)] : []; } catch { return { sel: s0, error: 'not a valid selector' }; }
+      const vis = all.filter(visible);
+      return { sel: s0, ...(g ? { found: g.css, n: g.n } : {}), ...(/^rows-in:/.test(s0) && !g ? { found: null } : {}), matches: all.length, visible: vis.length, first: vis.slice(0, 3).map(e => shape(e.innerText || e.getAttribute('aria-label') || '')) };
+    });
+    /** The page's skeleton for “Diagnose this page”: tags, ids, classes, roles, test ids, sizes, look-alike siblings, and
+        words only as shapes (aria-labels too); long runs of look-alike rows keep 3 and say how many more. At most `max`
+        nodes, deeper inside `focus` (selectors), shallower elsewhere. Nothing the page says leaves it. */
+    const skeleton = (focus, max = 2500) => {
+      let count = 0; const inFocus = new Set(); for (const f of String(focus || '').split('||').map(x => x.trim()).filter(Boolean)) { try { doc.querySelectorAll(f).forEach(e => inFocus.add(e)); } catch {} }
+      const near = el => [...inFocus].some(f => f.contains(el) || el.contains(f));
+      const node = (el, depth) => {
+        if (count++ > max) return null;
+        const r = el.getBoundingClientRect(), own = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(' ').trim();
+        const kids = [...el.children].filter(k => !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|svg|path|LINK|META)$/i.test(k.tagName));
+        const o = { t: el.tagName.toLowerCase(), ...(safeId(el.id) ? { id: safeId(el.id) } : {}), ...(el.classList.length ? { c: [...el.classList].slice(0, 6).join(' ') } : {}), ...(el.getAttribute('role') ? { r: el.getAttribute('role') } : {}),
+          ...(el.getAttribute('data-testid') || el.getAttribute('data-qa') || el.getAttribute('data-tid') ? { tid: el.getAttribute('data-testid') || el.getAttribute('data-qa') || el.getAttribute('data-tid') } : {}),
+          ...(el.getAttribute('aria-label') ? { a: shape(el.getAttribute('aria-label')) } : {}), ...(own ? { tx: shape(own) } : {}), ...(el.isContentEditable && el.getAttribute('contenteditable') ? { edit: 1 } : {}),
+          b: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)], ...(r.width === 0 || r.height === 0 ? { hidden: 1 } : {}), n: kids.length };
+        const limit = near(el) ? 40 : 7; if (depth >= limit || !kids.length) return o;
+        const out = []; let i = 0;
+        while (i < kids.length) { /* runs of look-alike siblings: 3 kept, the rest counted */
+          let j = i + 1; while (j < kids.length && kids[j].tagName === kids[i].tagName && sameish(kids[j], kids[i])) j++;
+          for (const k of kids.slice(i, Math.min(j, i + 3))) { const c = node(k, depth + 1); if (c) out.push(c); }
+          if (j - i > 3) out.push({ more: j - i - 3, like: kids[i].tagName.toLowerCase() + (kids[i].classList.length ? '.' + [...kids[i].classList].slice(0, 2).join('.') : '') });
+          i = j;
+        }
+        o.k = out; return o;
+      };
+      return node(doc.body, 0);
+    };
     /** The list row a click was in (a chat, a mail, a channel): its name (first line) and a selector for every row, so it
         can be found again by name (teaching a watcher: “Varun's chat”, wherever it is in the list). */
     const rowOf = el => { const g = !el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr') && groupOf(el), rw = g ? g.el : el.closest('[role=listitem],[role=row],[role=option],[role=treeitem],li,tr'); if (!rw) return null;
@@ -115,6 +151,24 @@
       version: 1,
       ping: () => ({ ok: true, url: here(), title: doc.title }),
       record(on) { rec = !!on; return { ok: true, url: here() }; },
+      /** Diagnose this page: where it is (no query string), signs of a sign-in or “open in another window”, each selector
+          list tried, and the skeleton (words as shapes). */
+      diagnose(o = {}) {
+        const body = (doc.body?.innerText || '').slice(0, 4000);
+        return { ok: true, url: win.location.origin + win.location.pathname, title: shape(doc.title), size: [win.innerWidth, win.innerHeight], ready: doc.readyState, elements: doc.getElementsByTagName('*').length,
+          signs: { anotherWindow: /open in another window/i.test(body), useHere: /use here/i.test(body), signIn: /scan the qr|link with phone|log into|sign in to|sign in with|enter your (email|password)/i.test(body), robot: /captcha|not a robot|unusual traffic/i.test(body), loading: /loading|connecting/i.test(body.slice(0, 300)) },
+          trials: [].concat(o.selectors || []).map(x => ({ for: x.for || '', results: trial(x.sel) })), skeleton: skeleton(o.focus, o.max || 2500) };
+      },
+      /** The selector tester: outline what a selector list matches (the first choice that matches), with the count and the
+          first lines (on your own screen, so as they are); off clears the outlines. */
+      highlight(sel, on = true) {
+        for (const e of doc.querySelectorAll('[data-dd-hl]')) { e.style.outline = e.dataset.ddHl === '-' ? '' : e.dataset.ddHl; e.removeAttribute('data-dd-hl'); }
+        if (!on) return { ok: true };
+        const t = trial(sel), hit = t.find(x => x.visible); if (!hit) return { ok: true, n: 0, trials: t };
+        const css = hit.found || hit.sel, els = [...doc.querySelectorAll(css)].filter(visible);
+        els.forEach(e => { e.dataset.ddHl = e.style.outline || '-'; e.style.outline = '2px solid #34c759'; }); els[0]?.scrollIntoView({ block: 'nearest' });
+        return { ok: true, n: els.length, used: hit.sel, css, lines: els.slice(0, 4).map(e => clean(e.innerText || e.getAttribute('aria-label') || '')), trials: t };
+      },
       /** A watcher's part, for a picture of it (js/watch.js, visual changes): where the first visible match is. */
       rect(sel) { for (const s of String(sel || '').split('||')) { let el = null; try { el = [...doc.querySelectorAll(s.trim())].find(visible); } catch {} if (el) { el.scrollIntoView({ block: 'nearest' }); return { ok: true, rect: rect(el) }; } } return { ok: false, error: 'not found' }; },
       /** What is at a point (a watcher finding its part again by its words or the screen model): its selector and text;
@@ -159,9 +213,10 @@
       /** For agent tasks: the text of the first selector (comma list, tried in order) that has some; each matching element
           is one line (its aria-label when it has one, as list rows often do). The whole page as a last resort. */
       read(sels, max = 6000) {
+        const tried = [];
         for (const s0 of [].concat(sels || []).flatMap(x => String(x).split('||'))) {
           const g = /^\s*rows-in:/.test(s0) && rowsIn(s0.replace(/^\s*rows-in:/, '').trim()), s = g ? g.css : s0; // rows-in:#pane-side: the list there, by shape
-          if (/^\s*rows-in:/.test(s0) && !g) continue;
+          if (/^\s*rows-in:/.test(s0) && !g) { tried.push([s0.trim(), 0]); continue; }
           let els = []; try { els = [...doc.querySelectorAll(s.trim())].filter(visible); } catch {}
           // the longer of the visible text and the label: list rows often carry a full summary in their label, while a message
           // area's label is just its name (“Message body”) and the text is what matters
@@ -171,9 +226,10 @@
             // a row's state words that only its label has (Outlook: “Unread …”): put them in front of the text
             const state = l.length <= t.length && (l.match(/^((?:unread|flagged|pinned|important|urgent|replied|forwarded|has attachments?)[,\s]+)+/i)?.[0] || '').replace(/[,\s]+$/, '');
             return pre + (state && !t.toLowerCase().startsWith(state.toLowerCase()) ? `${state} ` : '') + (l.length > t.length ? l : t) + (badges.length ? ` (${badges.join(', ')})` : ''); }).filter(Boolean);
-          if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title };
+          tried.push([s0.trim(), lines.length]);
+          if (lines.length) return { ok: true, sel: s.trim(), text: lines.join('\n').slice(0, max), url: win.location.href, title: doc.title, tried };
         }
-        return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title };
+        return { ok: true, sel: 'body', text: (doc.body?.innerText || '').replace(/\n\s*\n+/g, '\n').slice(0, max), url: win.location.href, title: doc.title, tried };
       },
       /** Teaching an agent task: the next element you click is picked, not clicked (outlined while you hover), and returned
           with a selector to read it by. Times out after `ms`. */

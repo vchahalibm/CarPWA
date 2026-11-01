@@ -164,3 +164,6 @@ const Log = (() => {
   }
   return api;
 })();
+// The debug log, while it's on, also in ~/Library/Logs/StudioGen/debug.log (StudioGen 0.18.3+, desktop/watchio.js): read
+// there directly instead of copied from Settings › Logs; batched every 2 s; secrets hidden as in the log itself.
+if (window.DriveDeckDesktop?.diag) { let q = [], t = 0; Log.sub(e => { q.push(Log.fmt(e)); if (!t) t = setTimeout(() => { t = 0; DriveDeckDesktop.diag('log', { lines: q.splice(0) }).catch(() => {}); }, 2000); }); }

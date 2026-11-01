@@ -46,6 +46,7 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] Teach it on a page behind a search; Check for noise on a busy page; an action that runs a task.
 - [ ] The calendar watcher on your real Outlook (the selectors for meetings are a guess until tried there).
 - [ ] DriveGen: Settings › Assistant › Watchers lists your Mac's watchers; Check now and Pause from the phone.
+- [ ] After 0.18.3 (one Keychain prompt): open WhatsApp in the agent browser, tap 🩺, and tell me the file's path (in ~/Library/Application Support/StudioGen/diagnostics/): I'll fix the WhatsApp templates against its real structure. Same later for Slack, Teams, Outlook, X.
 - [ ] The natural voice after the next update: replies in it (not the Mac's voice) a minute after start-up, also right after a watcher asked the model whether news matters.
 - [ ] A watcher with Say it aloud: Always, a while after you last used the assistant: the natural voice (not the Mac's), and the assistant waves and moves its lips.
 - [ ] After the 0.18.2 update (one Keychain prompt): close StudioGen's window (red ✕) and send yourself a WhatsApp from Varun: the card and voice come while the window stays closed (seen once in testing: the window came back on its own; not reproduced since).

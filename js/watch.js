@@ -54,8 +54,10 @@ const WATCH_TEMPLATES = [
 ];
 const Watch = {
   list: () => store.get('watchers', []),
-  put(w) { const l = Watch.list(), i = l.findIndex(x => x.id === w.id); if (i >= 0) l[i] = w; else l.push(w); store.set('watchers', l); },
-  del(id) { store.set('watchers', Watch.list().filter(w => w.id !== id)); },
+  put(w) { const l = Watch.list(), i = l.findIndex(x => x.id === w.id); if (i >= 0) l[i] = w; else l.push(w); store.set('watchers', l); if (i < 0) Watch.counted(); },
+  del(id) { store.set('watchers', Watch.list().filter(w => w.id !== id)); Watch.counted(); },
+  /** The “👁 Watchers · n” on the Agent screen and in Settings, kept in step when one is made or deleted. */
+  counted() { const n = Watch.list().filter(w => !w.origin).length; $$('.wt-count').forEach(e => { e.textContent = n ? ` · ${n}` : ''; }); },
   get: id => Watch.list().find(w => w.id === id),
   can: () => typeof AgentWeb !== 'undefined' && AgentWeb.can(),
   running: new Set(),
@@ -69,7 +71,7 @@ const Watch = {
   ident(line) { return plain(String(line).replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ').replace(/(\s\d{1,3})?\s*\(\d+ unread[^)]*\)|\b\d+ unread\b/gi, ' ').replace(/^((unread|read|flagged|pinned|important|unread chat|chat)[,\s]+)+/i, ' ') /* a row read since, with its count badge */.replace(/\b(\d+\s*(s|m|h|d|min|mins|minutes|hours?|days?)( ago)?|now|yesterday|today)\b/gi, ' ')).slice(0, 300); },
   hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
   /** What the source gives: lines (rows) or one text. */
-  async read(w) {
+  async read(w, trace) {
     const k = w.source || (w.task ? 'task' : 'page');
     if (k === 'hook' || k === 'chain') return (w.state.inbox || []).splice(0); /* what arrived since the last check (hookIn, chainOut) */
     if (k === 'files') {
@@ -101,7 +103,7 @@ const Watch = {
       // needs the page), then up to 15 s for the part itself (pages that fill in late)
       steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready && !sel.split('||').includes(w.ready) ? w.ready : 'body'}`, 'ms=30000', ...(w.every === 'live' ? ['stay'] : [])] },
         ...(w.steps || []), ...(w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? [] : [{ do: 'agent.wait', value: sel, args: ['ms=15000'] }]), w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? { do: 'agent.wait', value: sel, args: ['ms=3000'], as: 'read' } : { do: 'agent.read', value: sel, args: [`max=${w.rows ? 12000 : 20000}`, 'strict', ...(w.keep ? [`keep=${w.keep}`] : [])], as: 'read' }] };
-    let out, byModel = false; try { out = await Agent.exec(t, {}, { confirmed: true, quiet: true }); }
+    let out, byModel = false; try { out = await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }); }
     catch (e) { if (!/^NOTFOUND:/.test(e.message)) throw e;
       try { out = await this.heal(w, url); } catch (h) { if (!w.extract || !/^GONE:|^CONFIRM:/.test(h.message)) throw h; byModel = true; w.state.proposal = null; out = (await AgentWeb.call('read', ['body', 20000], 20000, { view: AgentWeb.views.get(this.viewKey(w)) })).text; } } /* the model reads the price from the whole page */
     if (w.detect?.kind === 'appears' || w.detect?.kind === 'disappears') return !!out;
@@ -344,11 +346,13 @@ const Watch = {
   /** One check of one watcher (the scheduler, or Check now). preview: only read, tell nothing, keep nothing. */
   async check(w, o = {}) {
     if (this.running.has(w.id)) return; this.running.add(w.id);
-    const t0 = Date.now();
+    const t0 = Date.now(), trace = [];
     try {
-      const got = await this.read(w);
-      if (o.preview) return { got };
-      const hit = this.detect(w, got);
+      const got = await this.read(w, trace);
+      trace.push(`read ${Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'}` : typeof got === 'string' ? `${got.length} characters` : JSON.stringify(got).slice(0, 80)}`);
+      if (o.preview) { w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) }; return { got }; }
+      const before = (w.state.seen || []).length, hit = this.detect(w, got);
+      trace.push(hit ? `news: ${hit.headline.slice(0, 140)}` : `nothing new${w.detect?.kind === 'new' ? ` (${before} seen before)` : ''}`);
       w.state.at = Date.now(); w.state.fails = 0; w.state.paused = ''; w.state.lastMs = Date.now() - t0; w.state.count = Array.isArray(got) ? got.length : null;
       if (hit) { const v = await this.judge(w, hit);
         const cool = +w.filter?.cooldown || 0, cooling = cool && Date.now() - (w.state.toldAt || 0) < cool * 60000;
@@ -359,7 +363,7 @@ const Watch = {
       if (w.every === 'live' && (w.rows || w.read) && !w.source) { const v = AgentWeb.views.get(this.viewKey(w)); if (v) AgentWeb.call('observe', [w.rows || w.read, true], 5000, { view: v }); } /* told within seconds when it changes */
       return { got, hit };
     } catch (e) {
-      const m = e.message; w.state.fails = (w.state.fails || 0) + 1; w.state.error = m;
+      const m = e.message; w.state.fails = (w.state.fails || 0) + 1; w.state.error = m; trace.push(`stopped: ${this.why(m)}`);
       if (/^SIGNIN:/.test(m) || /robot|captcha|not a robot/i.test(m)) { /* needs you: paused, said once */
         w.state.paused = /^SIGNIN:/.test(m) ? `Sign in to ${m.slice(7)}` : 'Answer the robot check';
         Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: /^SIGNIN:/.test(m) ? 'signin' : 'failed', headline: `${w.state.paused}, then it carries on (paused)`, watch: w.id });
@@ -380,7 +384,8 @@ const Watch = {
       if (o.preview) throw e;
     } finally {
       this.running.delete(w.id);
-      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(WATCH_MS[w.every] || 9e5, back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */ this.put(w); if (current === 'settings' && $('#sheet .wt-list')) this.sheet(); }
+      w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) };
+      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(WATCH_MS[w.every] || 9e5, back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */ if (this.get(w.id)) this.put(w); /* deleted while it was checking: it stays deleted */ if (current === 'settings' && $('#sheet .wt-list')) this.sheet(); }
     }
   },
 
@@ -456,12 +461,40 @@ const Watch = {
       this.detect(w, got); w.state.at = Date.now(); w.state.count = Array.isArray(got) ? got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
       const now = Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
       sheet('Watching', `<p><b>${esc(w.name)}</b> · ${esc((WATCH_EVERY.find(e => e[0] === w.every) || [])[1] || w.every)}</p><p class="se-note">${now}. It tells you when that changes.</p>`, [['Watchers', () => this.sheet()], ['Done']]);
-    } catch (e) { sheet('Couldn’t read it', `<p>${esc(this.why(e.message))}</p>`, [['Show me', () => this.showPage(w)], ...(this.where(w) === 'here' && (w.url || '').length ? [['Pick it again', () => { closeSheet(); this.put(w); this.here(String(w.url).replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }]] : []), ['Save anyway', () => { this.put(w); this.sheet(); }], ['Cancel']]); }
+    } catch (e) { sheet('Couldn’t read it', `<p>${esc(this.why(e.message))}</p>${w.state?.trace?.lines?.length ? `<pre style="white-space:pre-wrap;font-size:12px;max-height:12em;overflow:auto;background:rgba(127,127,127,.12);padding:8px;border-radius:8px">${esc(w.state.trace.lines.join('\n'))}</pre>` : ''}`, [['Show me', () => this.showPage(w)], ...(window.DriveDeckDesktop?.diag ? [['Diagnose the page', () => this.diagnose(w)]] : []), ...(this.where(w) === 'here' && (w.url || '').length ? [['Pick it again', () => { closeSheet(); this.put(w); this.here(String(w.url).replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }]] : []), ['Save anyway', () => { this.put(w); this.sheet(); }], ['Cancel']]); }
   },
   /** An error in words for you (not GONE:…). */
   why(m) {
     return String(m).replace(/^SIGNIN:(.+)$/, 'Sign in to $1 in the agent browser first, then try again.').replace(/^GONE:.*$/, 'The page opened, but what it watches wasn’t on it (the site may have changed). Show me shows the page as the watcher saw it; Pick it again lets you tap it.')
       .replace(/^CONFIRM:(.*)$/, 'It found something like it: “$1”. Check the card to say whether that’s it.').replace(/^PERM:screen$/, 'StudioGen needs Screen Recording to see other windows.').replace(/^NOTFOUND:.*$/, 'What it watches wasn’t on the page.');
+  },
+  /** Diagnose: the page's structure (words as shapes), each selector this page's watchers use tried on it, and their last
+      checks, into a file in StudioGen's diagnostics folder (to look at, or to send). w: a watcher (its own browser), or
+      none (the page in the agent browser). */
+  async diagnose(w) {
+    if (!window.DriveDeckDesktop?.diag) return toast('Diagnosing needs StudioGen 0.18.3 or later on a Mac');
+    const v = w ? AgentWeb.views.get(this.viewKey(w)) : AgentWeb.views.get(AgentWeb.cur), url = v ? AgentWeb.url({ view: v }) : '';
+    if (!v || !url || url === 'about:blank') return toast(w ? 'The watcher hasn’t opened its page yet: Check now first' : 'Open a page in the agent browser first');
+    const host = (() => { try { return new URL(url).host; } catch { return ''; } })(), mine = w ? [w] : this.list().filter(x => { try { return new URL(String(x.url || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host === host; } catch { return false; } });
+    const selectors = mine.flatMap(x => [x.ready && { for: `${x.name}: ready`, sel: x.ready }, (x.rows || x.read) && { for: `${x.name}: ${x.rows ? 'rows' : 'part'}`, sel: x.rows || x.read }, ...(x.finders || []).map(f => ({ for: `${x.name}: another finder`, sel: f }))]).filter(Boolean);
+    const T = mine[0]?.template && WATCH_TEMPLATES.find(t => t.id === mine[0].template); if (T) try { const d = T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || '']))); if (d.rows || d.read) selectors.push({ for: `template ${T.id} now`, sel: d.rows || d.read }); } catch {}
+    toast('Diagnosing the page…');
+    const page = await AgentWeb.call('diagnose', [{ selectors, focus: selectors.map(x => x.sel.split('||')[0]).filter(x => !/^rows-in:/.test(x)).concat(selectors.flatMap(x => x.sel.split('||').filter(y => /^rows-in:/.test(y)).map(y => y.slice(8)))).join('||') }], 30000, { view: v });
+    if (!page?.ok) return toast(`Couldn’t diagnose: ${page?.error || 'the page didn’t answer'}`);
+    const report = { what: 'StudioGen page diagnosis (words replaced by shapes)', at: new Date().toISOString(), app: store.get('setupDone') || '', page,
+      watchers: mine.map(x => ({ name: x.name, template: x.template || '', url: x.url, ready: x.ready || '', rows: x.rows || '', read: x.read || '', keep: x.keep ? '(set)' : '', detect: x.detect, every: x.every, error: x.state?.error ? this.why(x.state.error) : '', fails: x.state?.fails || 0, lastCheck: x.state?.trace || null })) };
+    const f = await DriveDeckDesktop.diag('write', { name: `${host || 'page'}${w ? '-' + w.name : ''}`, text: JSON.stringify(report, null, 1) });
+    if (f?.error) return toast(`Couldn’t save it: ${f.error}`);
+    sheet('Page diagnosed', `<p class="se-note">Saved (no words from the page, only their shapes):</p><p><code>${esc(f)}</code></p><p class="se-note">${page.trials.map(t => `${esc(t.for)}: ${t.results.map(r => `${esc(r.sel.slice(0, 50))} → ${r.visible ?? 0}`).join(' · ')}`).join('<br>') || 'No watchers on this page yet.'}</p>`,
+      [['Copy the path', () => { navigator.clipboard?.writeText(f); toast('Copied'); }], ['Close']]);
+  },
+  /** The selector tester in the agent browser's bar: matches outlined on the page, how many, the first lines. */
+  tester() {
+    const box = AgentWeb.el() && $('#agentWeb'); if (!box || $('.ag-test', box)) return $('.ag-test input', box)?.focus();
+    box.querySelector('.ag-web-bar').insertAdjacentHTML('afterend', `<div class="ag-teach ag-test"><span>🔎</span><input placeholder="A selector, || between choices, or rows-in:#container" style="flex:1;min-width:12em;height:32px;border-radius:8px;border:0;padding:0 10px"><span class="ag-test-out se-note"></span><button class="chip" data-wt="testclose">Close</button></div>`);
+    const i = $('.ag-test input', box); i.focus();
+    i.addEventListener('keydown', async e => { if (e.key !== 'Enter') return; const r = await AgentWeb.call('highlight', [i.value.trim(), true], 8000);
+      $('.ag-test-out', box).textContent = !r?.ok ? (r?.error || 'The page didn’t answer') : r.n ? `${r.n} match${r.n > 1 ? 'es' : ''}${r.used !== r.css ? ` (${r.used} → ${r.css.slice(0, 60)})` : ''}: ${r.lines.map(l => `“${l.slice(0, 40)}”`).join(' ')}` : `No match (${(r.trials || []).map(t => `${t.sel.slice(0, 30)} → ${t.matches ?? 0}`).join(' · ')})`; });
   },
   /** Show me: the page in the watcher's own browser, as it last saw it. */
   showPage(w) { const v = AgentWeb.views.get(this.viewKey(w)); closeSheet(); if (v) AgentWeb.use(v.id); AgentWeb.show(true); toast(v ? 'This is the page as the watcher saw it' : 'The watcher hasn’t opened a page yet'); },
@@ -656,8 +689,10 @@ const Watch = {
       <div class="chip-row"><select id="weTask"><option value="">Run a task…</option>${opt(Agent.all().filter(t => !/^watch\./.test(t.id)).map(t => [t.id, t.name]), '')}</select><input id="weTaskIn" placeholder="inputs: name=value; …" style="flex:1;min-width:10em"><button class="chip" data-wt="actadd|${w.id}|task">Add</button></div>
       <div class="chip-row"><select id="weScript"><option value="">Run a script…</option>${opt(Scripts.all().map(x => [x.name, x.name]), '')}</select><button class="chip" data-wt="actadd|${w.id}|script">Add</button></div>
       <div class="chip-row"><select id="weStart"><option value="">Start a watcher…</option>${opt(this.list().filter(x => x.id !== w.id).map(x => [x.id, x.name]), '')}</select><button class="chip" data-wt="actadd|${w.id}|start">Add</button></div>
+      <p class="se-note"><b>Last check</b>${w.state?.trace ? ` · ${esc(new Date(w.state.trace.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }))} · ${Math.round(w.state.trace.ms / 100) / 10} s` : ''}</p>
+      <pre class="wt-trace" style="white-space:pre-wrap;font-size:12px;max-height:14em;overflow:auto;background:var(--code, rgba(127,127,127,.12));padding:8px;border-radius:8px">${esc((w.state?.trace?.lines || ['Not checked yet']).join('\n'))}</pre>
       <label class="se-check"><input type="checkbox" id="weShare" ${w.share ? 'checked' : ''}> Share in the mesh</label><p class="se-note">Others get a copy that runs with their own sign-ins.</p>`,
-      [['Save', () => this.saveEdit(w)], ...(src === 'page' && this.where(w) === 'here' ? [['Check for noise (1 minute)', () => this.noise(w)]] : []), ['Show history', () => this.showHistory(w)], ['Copy as JSON', () => { navigator.clipboard?.writeText(JSON.stringify(this.exportDef(w), null, 2)); toast('Copied: paste it to share, or to an LLM'); }], ['Back', () => this.sheet()]]);
+      [['Save', () => this.saveEdit(w)], ...(src === 'page' && this.where(w) === 'here' ? [['Check for noise (1 minute)', () => this.noise(w)]] : []), ['Show history', () => this.showHistory(w)], ...(this.where(w) === 'here' && window.DriveDeckDesktop?.diag ? [['Diagnose the page', () => this.diagnose(w)]] : []), ['Copy as JSON', () => { navigator.clipboard?.writeText(JSON.stringify(this.exportDef(w), null, 2)); toast('Copied: paste it to share, or to an LLM'); }], ['Back', () => this.sheet()]]);
     this.condShow();
   },
   formEdit(w) {
@@ -734,6 +769,9 @@ document.addEventListener('click', async e => {
     if (!a) return toast('Choose one first'); (w.actions ||= []).push(a); Watch.put(w); return Watch.edit(id); }
   if (k === 'pnow' || k === 'ponoff') { try { const r = await Link.watch({ op: k, id }); if (k === 'pnow') toast(r.hit || r.paused || 'Nothing new'); } catch (e) { toast(e.message); } return Watch.phoneSheet(); }
   if (k === 'showme' && w) return Watch.showPage(w);
+  if (k === 'diagnose') return Watch.diagnose(w || null);
+  if (k === 'tester') return Watch.tester();
+  if (k === 'testclose') { AgentWeb.call('highlight', ['', false], 3000); return $('#agentWeb .ag-test')?.remove(); }
   if (k === 'pickcancel') return AgentWeb.call('pickCancel', [], 3000);
   if (k === 'herenow') { AgentWeb.show(false); return Watch.here(); } /* the agent browser's bar */
   if (k === 'repick' && w) { closeSheet(); if (w.runOn && w.runOn !== 'here') return toast(`Pick it again on ${Watch.where(w)} (Sign in from here)`); return Watch.here(String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }

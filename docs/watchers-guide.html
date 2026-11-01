@@ -245,6 +245,13 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <p>If even that fails, the card says <b>Pick it again</b>.</p>
 <h3>App windows</h3>
 <p>Watching another app's window needs <b>Screen Recording</b> for StudioGen. The first time, StudioGen asks. If it was turned down, the watcher pauses with a card that offers <b>Ask me again</b> or <b>Open System Settings</b> (<span class="path">Privacy &amp; Security › Screen Recording</span>).</p>
+<h3>Finding out why</h3>
+<ul>
+  <li><b>Last check</b> (in a watcher's <b>Edit</b>, and on the “Couldn't read it” sheet): each step of its last check in plain words, for example opened in 1.3 s, pressed Use here, which ways of finding the part matched and how many, how many it kept, news or nothing new, or where it stopped.</li>
+  <li><b>Diagnose the page</b> (Edit, the “Couldn't read it” sheet, or 🩺 in the agent browser's bar): saves the page's <i>structure</i>, with every word replaced by its shape (“Varun 10:05” becomes “Aaaaa 99:99”), and how each of its watchers' selectors fares on it, to a file in <code>~/Library/Application Support/StudioGen/diagnostics/</code>. Nothing the page says is in it, so it's safe to send to whoever helps you fix a watcher.</li>
+  <li><b>🔎 in the agent browser's bar</b>: type a selector (<code>||</code> between choices, or <code>rows-in:#container</code>) and see what it matches, outlined on the page, with the first lines.</li>
+  <li><b>The debug log</b>, when it's on (<span class="path">Settings › System › Debug log</span>), is also written to <code>~/Library/Logs/StudioGen/debug.log</code>.</li>
+</ul>
 <h3>Checks that fail</h3>
 <p>A page that doesn't answer is tried again after 5 minutes, then 15, then an hour, never hammering the site. The reason shows in the list (⚠️).</p>
 

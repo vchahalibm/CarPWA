@@ -365,6 +365,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:files', own((op, a) => WatchIO.files(op, a).catch(e => ({ error: e.message }))));
   ipcMain.handle('dd:windows', own((op, a) => WatchIO.windows(op, a).catch(e => ({ error: e.message }))));
   ipcMain.handle('dd:watchlog', own((op, a) => { try { return WatchIO.history(op, a); } catch (e) { return { error: e.message }; } }));
+  ipcMain.handle('dd:diag', own((op, a) => { try { return WatchIO.diag(op, a); } catch (e) { return { error: e.message }; } })); // debugging: Diagnose files, the debug log
   ipcMain.handle('dd:browse-ready', own(() => signinsReady.then(() => true)));
   // Memory (js/memory.js): one file in StudioGen's folder, locked with the Keychain (safeStorage); never sent anywhere
   const memFile = () => path.join(app.getPath('userData'), 'memory.bin');

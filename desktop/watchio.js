@@ -5,7 +5,9 @@
    - app windows: their names, and a picture of one (desktopCapturer; needs Screen Recording for StudioGen), read on the page
      by the screen model; nothing is kept;
    - the change history: one CSV per watcher in <userData>/watch-history, appended when a watcher tells something, shown in
-     the data widget. */
+     the data widget;
+   - debugging: “Diagnose this page” files (a page's structure with its words replaced by shapes, what was tried) in
+     <userData>/diagnostics (the newest 40), and the debug log, when it's on, in ~/Library/Logs/StudioGen/debug.log. */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -67,5 +69,24 @@ module.exports = ({ app, dialog, desktopCapturer, systemPreferences, getWindow }
     if (op === 'path') return f;
     return null;
   }
-  return { files, windows, history };
+  const diagDir = () => path.join(app.getPath('userData'), 'diagnostics');
+  function diag(op, a = {}) {
+    if (op === 'write') {
+      const text = String(a.text || ''); if (text.length > 8e6) throw new Error('Too big');
+      fs.mkdirSync(diagDir(), { recursive: true });
+      const name = String(a.name || 'page').toLowerCase().replace(/[^a-z0-9.-]+/g, '-').slice(0, 50), stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const f = path.join(diagDir(), `${stamp}-${name}.json`); fs.writeFileSync(f, text);
+      const all = fs.readdirSync(diagDir()).filter(x => x.endsWith('.json')).sort(); for (const old of all.slice(0, Math.max(0, all.length - 40))) try { fs.unlinkSync(path.join(diagDir(), old)); } catch {}
+      return f;
+    }
+    if (op === 'log') {
+      const dir = app.getPath('logs'), f = path.join(dir, 'debug.log'); fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(f, [].concat(a.lines || []).map(String).join('\n') + '\n');
+      const s = fs.statSync(f); if (s.size > 2e6) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').slice(-1e6)); /* the newest megabyte */
+      return true;
+    }
+    if (op === 'where') return { diagnostics: diagDir(), log: path.join(app.getPath('logs'), 'debug.log') };
+    return null;
+  }
+  return { files, windows, history, diag };
 };

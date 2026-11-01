@@ -34,4 +34,5 @@ Bus.define('voice.heard', 'You say something', 'the words heard');
 Bus.define('voice.listen', 'The assistant starts listening', '');
 Bus.define('voice.idle', 'The assistant finishes', '');
 Bus.define('voice.reply', 'The assistant replies', 'what it says');
+Bus.define('voice.announce', 'The assistant tells you something you didn’t ask for (a watcher’s news)', 'what it says');
 Bus.define('cmd.run', 'A voice command runs', 'the words it captured');

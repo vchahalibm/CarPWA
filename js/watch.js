@@ -271,7 +271,7 @@ const Watch = {
     const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
     if (t.toast !== false && !quiet) toast(`👁 ${hit.headline}`);
-    if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && verdict?.important))) Voice.speak?.(hit.headline);
+    if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && verdict?.important))) Voice.announce(hit.headline); /* the assistant's voice, with its gestures */
     if (t.digest !== false) store.set('watchDigest', [...store.get('watchDigest', []), { at: Date.now(), w: w.name, h: hit.headline, items: (hit.items || []).slice(0, 3) }].slice(-200));
     if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important });
     this.record(w, hit); this.chainOut(w, hit); this.act(w, hit);

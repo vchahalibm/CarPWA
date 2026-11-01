@@ -74,18 +74,22 @@ const Phonon = {
       for (const key of [...new Set([this.buildKey(), 'cpu'])]) {
         const b = PHONON_BUILDS[key], t0 = performance.now();
         if (typeof Budget !== 'undefined' && !Budget.room('phonon', b.mb * 3)) Log.w('tts', 'Phonon: little memory free; loading anyway (it is small)');
+        // time limits: a load or a warm-up that stalls (it happens) would leave the voice “loading” for good, and every reply
+        // in the device's voice; stopped, the next build is tried, and a later reply can try again
+        const limit = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} took over ${ms / 1000} s`)), ms))]);
+        let eng = null;
         try {
-          const eng = await this.worker(b, onProgress).catch(async e => { Log.w('tts', `Phonon ${b.label}: the worker couldn't load it, trying the main thread`, { error: e.message }); return this.main(b, onProgress); });
+          eng = await limit(this.worker(b, onProgress), 180000, 'Loading').catch(async e => { Log.w('tts', `Phonon ${b.label}: the worker couldn't load it, trying the main thread`, { error: e.message }); return limit(this.main(b, onProgress), 120000, 'Loading on the main thread'); });
           // Warm up: the first generation compiles the GPU's shaders (and sizes its buffers), several times slower than the rest.
-          const w0 = performance.now(); await eng.speak('Ready.', this.voiceId(), () => {}).done.catch(() => {});
+          const w0 = performance.now(); await limit(eng.speak('Ready.', this.voiceId(), () => {}).done.catch(e => { if (/took over/.test(e.message)) throw e; }), 45000, 'Warming up');
           Log.d('tts', `Phonon warmed up in ${Math.round(performance.now() - w0)} ms`);
           this.engine = eng; store.set('phononOK', true); if (key !== this.buildKey()) store.set('phononBuild', key);
           if (typeof Budget !== 'undefined') Budget.add('phonon', `Phonon ${b.label} ${b.dtype}`, () => this.unload(), b.mb * 3);
           Log.i('tts', `Phonon loaded in ${Math.round(performance.now() - t0)} ms (${b.label} ${b.dtype}, ${eng.kind})`);
           return eng;
-        } catch (e) { Log.w('tts', `Phonon ${b.label} ${b.dtype} didn't load`, { error: e.message }); if (key === 'gpu') store.set('phononBuild', 'cpu'); }
+        } catch (e) { Log.w('tts', `Phonon ${b.label} ${b.dtype} didn't load`, { error: e.message }); try { eng?.terminate?.(); } catch {} if (key === 'gpu' && !/took over/.test(e.message)) store.set('phononBuild', 'cpu'); }
       }
-      this.broken = 'didn’t load'; throw new Error('The natural voice didn’t load');
+      this.broken = 'didn’t load'; setTimeout(() => { if (this.broken === 'didn’t load') this.broken = ''; }, 300000); /* tried again in 5 minutes */ throw new Error('The natural voice didn’t load');
     })().finally(() => { this.loading = null; }));
   },
   unload() { this.engine?.terminate(); this.engine = null; },

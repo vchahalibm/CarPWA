@@ -448,8 +448,20 @@ const Voice = {
     $('#vReply').hidden = false; $('#vChips').hidden = true;
   },
   /** Show and log a reply, say it and act. Hand-offs to other apps wait for the reply to finish (up to 4 s) so it isn't cut off. */
+  /** Something to tell you that you didn't ask for (a watcher's news): in the voice you chose for the assistant (the
+      natural voice is waited for, up to 30 s, instead of the device's voice after 6 s as for a reply), then as a reply,
+      so the assistant reacts (gesture, lips) and the words show. Not while presenting or in a conversation. */
+  async announce(msg) {
+    if (typeof Script !== 'undefined' && Script.running || typeof Convo !== 'undefined' && Convo.active || this.rec || this.sr) return false;
+    if (this.ttsMode() === 'phonon' && typeof Phonon !== 'undefined' && !Phonon.engine && Phonon.ok()) {
+      const t0 = Date.now(); await Promise.race([Phonon.load().catch(() => null), new Promise(r => setTimeout(r, 30000))]);
+      Log.i('tts', `Natural voice for an announcement: ${Phonon.engine ? `ready in ${Date.now() - t0} ms` : 'not ready, the device’s voice'}`);
+    }
+    Bus.emit('voice.announce', { value: msg });
+    return this.respond(msg, null, { announce: true });
+  },
   respond(msg, then, o = {}) {
-    this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves }); Bus.emit('voice.reply', { value: msg });
+    this.reply(msg); clearTimeout(this.closeT); Log.i('reply', msg, { leaves: !!o.leaves }); Bus.emit('voice.reply', { value: msg, ...(o.announce ? { announce: true } : {}) });
     const id = ++this.respId, t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms)), said = speak(msg) || Promise.resolve();
     const done = () => id === this.respId && !this.rec && !this.sr && !(typeof Convo !== 'undefined' && Convo.active);
     if (typeof Convo !== 'undefined' && Convo.active) Convo.replying(msg, said, o);

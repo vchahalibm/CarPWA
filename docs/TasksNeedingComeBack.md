@@ -46,6 +46,7 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] Teach it on a page behind a search; Check for noise on a busy page; an action that runs a task.
 - [ ] The calendar watcher on your real Outlook (the selectors for meetings are a guess until tried there).
 - [ ] DriveGen: Settings › Assistant › Watchers lists your Mac's watchers; Check now and Pause from the phone.
+- [ ] A watcher with Say it aloud: Always, a while after you last used the assistant: the natural voice (not the Mac's), and the assistant waves and moves its lips.
 - [ ] The Varun example (docs/watchers-guide.html#varun) on your real WhatsApp: the template, then tap his chat (Way 1). Delete the old “WhatsApp from Varun Chahal” first (made before the fix: it keeps a selector by position). Does Use here happen by itself, and does the chat list come out one row per chat?
 
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).

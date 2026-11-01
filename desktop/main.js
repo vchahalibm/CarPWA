@@ -80,7 +80,7 @@ function openOutside(url) {
   shell.openExternal(url).then(() => { lastExternal = Date.now(); }, e => console.warn('No app for', url, e.message));
 }
 
-let mainWin = null, presWin = null, tray = null, presenting = false;
+let mainWin = null, presWin = null, tray = null, presenting = false, quitting = false;
 const webPrefs = { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js'), webviewTag: true };
 
 /* ---------- Browser widgets: <webview> in the page, a real browser per web widget ----------
@@ -132,6 +132,9 @@ function createWindow({ show = true } = {}) {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: LIGHT ? { ...webPrefs, paintWhenInitiallyHidden: true } : webPrefs, // a light Worker paints while hidden (seen from afar)
   });
   guard(win); guestRules(win.webContents);
+  // On a Mac, closing the window hides it: StudioGen stays in the menu bar and keeps working (watchers, your phone's
+  // requests, the mesh); Quit (⌘Q, the menu bar, an update) really quits.
+  win.on('close', e => { if (quitting || process.platform !== 'darwin' || WORKER) return; e.preventDefault(); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); });
   win.on('closed', () => { if (mainWin === win) mainWin = null; presenting = false; presWin?.close(); menu(); });
   win.on('leave-full-screen', () => { if (presenting) { presenting = false; menu(); } });
   // Hidden or minimized (and not presenting): let Chromium slow the page down, so the 3D assistant and timers stop costing
@@ -404,6 +407,7 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // Quitting (also for an update): the browsers' session cookies saved first, at most 3 s (desktop/browse.js)
 let browseSaved = false;
 app.on('before-quit', e => {
+  quitting = true;
   if (browseSaved) return; e.preventDefault();
   Promise.race([Browse.save(), new Promise(r => setTimeout(r, 3000))]).catch(err => console.warn('browse save', err.message)).finally(() => { browseSaved = true; app.quit(); });
 });

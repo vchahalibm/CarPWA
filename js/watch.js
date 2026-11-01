@@ -707,6 +707,7 @@ const Watch = {
 ACTIONS.watchers = () => Watch.sheet();
 document.addEventListener('change', e => { if (e.target.id === 'wtKind') Watch.condShow(); });
 setInterval(() => { try { Watch.tick(); } catch (e) { Log.w('watch', 'Scheduler', e); } }, 30000);
+setTimeout(() => { try { Watch.tick(); } catch {} }, 10000); /* after a start or an update: watchers carry on by themselves, the first check soon */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-wt]'); if (!b) return; e.stopPropagation();
   const [k, id] = b.dataset.wt.split('|'), w = id && Watch.get(id);

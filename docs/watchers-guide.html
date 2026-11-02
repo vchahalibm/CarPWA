@@ -150,13 +150,25 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <p>Which to choose? <b>Way 1</b> is lighter (one page, no clicks each check) and sees his latest message without marking it read. <b>Way 2</b> sees every message in his chat, but marks them read. With either, add <b>Only tell me if…</b> (for example <q class="say">he needs an answer today</q>) or <b>Say it aloud: Always</b> in <b>Edit</b>.</p>
 
 <h2 id="road">On the road: traffic, a faster way, leave by</h2>
-<p>Three watchers in <span class="path">+ New watcher › On the road</span> read <b>Google Maps</b> on your Mac (design: <a href="maps-watchers.html">maps-watchers.html</a>):</p>
+<p>Four watchers in <span class="path">+ New watcher › On the road</span> read <b>Google Maps</b> on your Mac (design: <a href="maps-watchers.html">maps-watchers.html</a>):</p>
 <ul>
   <li><b>Traffic on my route</b>: while you drive with DriveGen, every 5 minutes: “Traffic adds 8 min to Whitefield: arriving about 22:49”, when it eases, and when Google reports an accident on your way.</li>
   <li><b>A faster way</b>: when another route saves 5 minutes or more: “A faster way to Whitefield via NH44 saves 6 min”.</li>
+  <li><b>Be there by a time</b>: a trip you make on certain days (“work by 9:30 on weekdays”): “Leave by 8:52 for work at 9:30 (38 min with traffic)”, then “Leave now”.</li>
   <li><b>Leave by</b>: your next meeting with a place (from your calendar), the drive from home, work or where you are, with traffic: “Leave by 2:10 for Acme review at 3:00”, then “Leave now”.</li>
 </ul>
 <p>How it knows where you are: while you drive, DriveGen sends your position and where it's navigating to your own Mac every 30 seconds (sealed, own devices only, not kept; turn it off in DriveGen's <span class="path">Settings › Location › Tell my Mac where I am while driving</span>). Set your <b>Home</b> and <b>Work</b> there too, for leave-by. The news comes back to your phone as a card and is said aloud; <b>Open in Google Maps</b> on the card opens the route.</p>
+<h3>From, to and your own route rules</h3>
+<p>Each map watcher opens a form when you make it (and the same fields in <b>Edit</b>):</p>
+<ul>
+  <li><b>From</b> and <b>To</b>: tap a quick choice (<i>Where I am</i>, <i>Where I'm navigating to</i>, <i>Home</i>, <i>Work</i>, your saved places), or type any address or place and pick it from the list. The start can be anywhere, not just home or work.</li>
+  <li><b>Avoid tolls</b> and <b>Avoid highways</b>: Google Maps leaves those routes out.</li>
+  <li><b>Avoid roadworks and closures</b>: StudioGen skips a route Google marks with construction, a closure or an accident.</li>
+  <li><b>Avoid roads</b> and <b>Prefer roads</b>: road names, comma-separated (“Old Madras Rd, Silk Board”). A route along an avoided road is skipped; a preferred one is told first when it is within a few minutes of the fastest. Google Maps can't do this.</li>
+  <li><b>Only on</b> days and between times (for example weekdays 8:00–10:00): outside them the watcher rests.</li>
+</ul>
+<p><b>Last check</b> shows what it read, for example <i>routes: 26 min via Outer Ring Rd · 38 min via Old Madras Rd [skipped: along old madras]</i>.</p>
+<p><b>Places</b>: <span class="path">👁 Watchers › Places</span> keeps Home, Work and any other places you name (“Gym”, “Mum's”). They are the quick choices in the form. In DriveGen they are also in <span class="path">Settings › Location</span>, which is hidden in Stage mode; Watchers › Places works in every mode. Narrow roads aren't in Google's data, so that option will come later from OpenStreetMap.</p>
 
 <h2 id="templates">The templates</h2>
 <div class="pair">

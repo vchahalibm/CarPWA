@@ -25,22 +25,25 @@ h1.via{font-size:15px;font-weight:500;margin:4px 0}.note{color:var(--ink2);font-
 /* A made-up Google Maps directions page for practising map watchers (docs/maps-watchers.html), built like Google's: each
    route option is a block with id section-directions-trip-N and data-trip-index, its time in traffic, distance, “via” road,
    notes and warnings. Address as Google's: ?origin=LAT,LON&destination=NAME@LAT,LON (or LAT,LON).
+   Also ?saddr=&daddr=&dirflg=dth (Google's older form, with avoid tolls t / highways h).
    ?routes=35:Outer Ring Rd,42:NH44:Accident reported,50:Old Madras Rd sets the routes (minutes:via:warning), kept in this
    browser per destination; ?reset forgets them. Without it, times come from the distance. */
 const q = new URLSearchParams(location.search), K = 'practiceGmaps';
 const parse = s => { const [n, ll] = String(s || '').includes('@') ? s.split('@') : ['', s]; const [lat, lon] = String(ll || '').split(',').map(Number); return { name: n || ll, lat, lon }; };
-const from = parse(q.get('origin')), to = parse(q.get('destination')), key = `${to.lat?.toFixed?.(3)},${to.lon?.toFixed?.(3)}`;
+const from = parse(q.get('origin') || q.get('saddr')), to = parse(q.get('destination') || q.get('daddr')), flg = q.get('dirflg') || '', key = `${to.lat?.toFixed?.(3)},${to.lon?.toFixed?.(3)}`;
 const all = JSON.parse(localStorage.getItem(K) || '{}'); if (q.has('reset')) { delete all[key]; if (q.get('reset') === 'all') for (const k in all) delete all[k]; }
 if (q.get('routes')) all[key] = q.get('routes').split(',').map(x => { const [min, via, warn] = x.split(':'); return { min: +min, via: via || '', warn: warn || '' }; });
 localStorage.setItem(K, JSON.stringify(all));
 const R = 6371, rad = d => d * Math.PI / 180, km0 = (from.lat && to.lat) ? 2 * R * Math.asin(Math.sqrt(Math.sin(rad(to.lat - from.lat) / 2) ** 2 + Math.cos(rad(from.lat)) * Math.cos(rad(to.lat)) * Math.sin(rad(to.lon - from.lon) / 2) ** 2)) * 1.3 : 12;
 const routes = all[key] || [{ min: Math.round(km0 * 2.2) + 3, via: 'Outer Ring Rd' }, { min: Math.round(km0 * 2.2) + 8, via: 'NH44' }, { min: Math.round(km0 * 2.4) + 12, via: 'Old Madras Rd' }];
-const fastest = Math.min(...routes.map(r => r.min)), dur = m => m >= 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`;
+const shown = routes.map((r, i) => ({ ...r, tolls: i === 1 })).filter(r => !(flg.includes('t') && r.tolls) && !(flg.includes('h') && /^NH|highway/i.test(r.via))); /* Google's avoid options (the older address form: dirflg t, h) */
+const fastest = Math.min(...shown.map(r => r.min)), dur = m => m >= 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`;
 document.getElementById('pane').innerHTML = `<header><div class="fld">${from.lat ? `${from.lat.toFixed(4)}, ${from.lon.toFixed(4)}` : 'Your location'}</div><div class="fld">${to.name || 'Choose destination'}</div></header>
-  ${routes.map((r, i) => `<div id="section-directions-trip-${i}" data-trip-index="${i}" class="trip ${i === 0 ? 'selected' : ''}">
+  ${flg.replace('d', '') ? `<div class="note" style="padding:8px 16px">Options: ${[flg.includes('t') && 'avoiding tolls', flg.includes('h') && 'avoiding highways'].filter(Boolean).join(', ')}</div>` : ''}
+  ${shown.map((r, i) => `<div id="section-directions-trip-${i}" data-trip-index="${i}" class="trip ${i === 0 ? 'selected' : ''}">
     <div class="dur ${r.min === fastest ? 'ok' : r.min - fastest > 5 ? 'slow' : ''}">${dur(r.min)}</div><div class="dist">${(km0 * (1 + i * 0.12)).toFixed(1)} km</div>
     <h1 class="via">via ${r.via}</h1><div class="note">${r.min === fastest ? 'Fastest route now due to traffic conditions' : r.min - fastest > 5 ? 'Heavier traffic than usual' : 'Typical traffic'}</div>
-    ${r.warn ? `<div class="warn">${r.warn}</div>` : ''}${i === 1 ? '<div class="note">This route has tolls.</div>' : ''}</div>`).join('')}`;
+    ${r.warn ? `<div class="warn">${r.warn}</div>` : ''}${r.tolls ? '<div class="note">This route has tolls.</div>' : ''}</div>`).join('')}`;
 </script>
 </body>
 </html>

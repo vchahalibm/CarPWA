@@ -442,6 +442,7 @@ const Watch = {
       how often and how to tell; templates with pick: open the page and you tap the list or part. */
   async fromTemplate(id) {
     const T = WATCH_TEMPLATES.find(x => x.id === id); if (!T) return;
+    if (T.map && typeof MapWatch !== 'undefined') return MapWatch.formSheet(T); /* from, to, route options (js/mapwatch.js) */
     const wins = T.inputs.some(x => x[3] === 'window') && window.DriveDeckDesktop?.windows ? (await DriveDeckDesktop.windows('list').catch(() => ({}))).list || [] : [];
     const field = ([k, q, ph, type]) => type === 'folder' || type === 'file' ? `<div class="se-field"><span>${esc(q)}</span><div class="chip-row"><button class="chip" data-wt="pickpath|${type}|${k}">Choose…</button><span class="se-note" id="wtp_${k}">none yet</span><input type="hidden" data-wti="${k}"></div></div>`
       : type === 'window' ? `<label class="se-field"><span>${esc(q)}</span><select data-wti="${k}">${wins.map(n => `<option>${esc(n)}</option>`).join('') || '<option value="">(no windows: allow Screen Recording, or open the app)</option>'}</select></label>`
@@ -482,7 +483,7 @@ const Watch = {
     try {
       const r = await this.check(w, { preview: true }), got = r.got;
       this.detect(w, got); w.state.at = Date.now(); w.state.count = Array.isArray(got) ? got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
-      const now = Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
+      const now = got?.routes ? `Now: ${got.routes[0].min} min${got.routes[0].via ? ` via ${esc(got.routes[0].via)}` : ''}${got.routes.length > 1 ? ` (${got.routes.length - 1} other way${got.routes.length > 2 ? 's' : ''})` : ''}${got.event ? ` to ${esc(got.event.title)} at ${esc(got.event.when)}` : ''}` : got?.idle ? 'Nothing to read yet: it starts when there is (you drive, or the time comes)' : Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
       sheet('Watching', `<p><b>${esc(w.name)}</b> · ${esc((WATCH_EVERY.find(e => e[0] === w.every) || [])[1] || w.every)}</p><p class="se-note">${now}. It tells you when that changes.</p>`, [['Watchers', () => this.sheet()], ['Done']]);
     } catch (e) { sheet('Couldn’t read it', `<p>${esc(this.why(e.message))}</p>${w.state?.trace?.lines?.length ? `<pre style="white-space:pre-wrap;font-size:12px;max-height:12em;overflow:auto;background:rgba(127,127,127,.12);padding:8px;border-radius:8px">${esc(w.state.trace.lines.join('\n'))}</pre>` : ''}`, [['Show me', () => this.showPage(w)], ...(window.DriveDeckDesktop?.diag ? [['Diagnose the page', () => this.diagnose(w)]] : []), ...(this.where(w) === 'here' && (w.url || '').length ? [['Pick it again', () => { closeSheet(); this.put(w); this.here(String(w.url).replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }]] : []), ['Save anyway', () => { this.put(w); this.sheet(); }], ['Cancel']]); }
   },
@@ -700,12 +701,13 @@ const Watch = {
     const condOf = d.kind === 'value' || d.kind === 'count' ? d.cond : d.kind === 'contains' ? d.words : d.kind === 'pattern' ? d.re : d.kind === 'stale' ? d.mins : d.kind === 'visual' ? d.pct : '';
     const acts = (w.actions || []).map((a, i) => `<div class="mem-row"><span>${a.do === 'task' ? `Run the task “${esc(Agent.get(a.id)?.name || a.id)}”${Object.keys(a.inputs || {}).length ? ` (${esc(Object.entries(a.inputs).map(([k, v]) => `${k}=${v}`).join('; '))})` : ''}` : a.do === 'script' ? `Run the script “${esc(a.name)}”` : `Start watching “${esc(this.get(a.id)?.name || a.id)}”`}</span><button class="link-btn" data-wt="actdel|${w.id}|${i}">Remove</button></div>`).join('');
     sheet(`Edit: ${w.name}`, `<label class="se-field"><span>Its name</span><input id="weName" value="${esc(w.name)}"></label>
+      ${src === 'gmaps' && typeof MapWatch !== 'undefined' ? MapWatch.formHtml(w, d.kind) : ''}
       ${src === 'page' || src === 'feed' || src === 'json' ? `<label class="se-field"><span>The address</span><input id="weUrl" value="${esc(w.url || '')}"></label>` : src === 'files' ? `<p class="se-note">Watching ${esc(w.path)}</p>` : src === 'window' ? `<label class="se-field"><span>The window</span><input id="weWin" value="${esc(w.window || '')}"></label>` : src === 'hook' ? `<p class="se-note">Its webhook: <code>${esc(w.hookUrl || '')}</code></p>` : ''}
       ${src === 'page' ? `<label class="se-field"><span>What it reads (selectors, || between; picked for you when you tap)</span><input id="weSel" value="${esc(w.rows || w.read || '')}"></label><label class="se-field"><span>Only lines with these words (|| between)</span><input id="weKeep" value="${esc(w.keep || '')}"></label>` : ''}
       ${src === 'json' ? `<label class="se-field"><span>The value in it (a path like current.price)</span><input id="wePath" value="${esc(w.path || '')}"></label>` : ''}
-      <label class="se-row"><span>Tell me when</span><select id="wtKind">${opt(WATCH_KINDS, d.kind || 'changes')}</select></label>
+      ${src === 'gmaps' ? '' : `<label class="se-row"><span>Tell me when</span><select id="wtKind">${opt(WATCH_KINDS, d.kind || 'changes')}</select></label>
       <label class="se-field"><span>The line, words, pattern, minutes or % (for those kinds)</span><input id="wtCond" value="${esc(condOf ?? '')}" placeholder="below 500 · drops 5% · in stock||available · 1440"></label>
-      <label class="se-check"><input type="checkbox" id="weGone" ${d.gone ? 'checked' : ''}> Also tell me what's gone or moved</label>
+      <label class="se-check"><input type="checkbox" id="weGone" ${d.gone ? 'checked' : ''}> Also tell me what's gone or moved</label>`}
       ${w.extract ? `<label class="se-field"><span>The model pulls out (fields, comma between)</span><input id="weFields" value="${esc([].concat(w.extract.fields || w.extract).join(', '))}"></label><label class="se-field"><span>…and the one to watch</span><input id="weField" value="${esc(d.field || '')}"></label>` : ''}
       <p class="se-note"><b>When not to tell</b></p>
       <label class="se-field"><span>Ignore lines with (ads, clocks; || between)</span><input id="weIgnore" value="${esc(f.ignore || '')}"></label>
@@ -726,14 +728,15 @@ const Watch = {
     this.condShow();
   },
   formEdit(w) {
-    const v = id => $(id)?.value.trim() ?? '', before = JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract]);
+    const v = id => $(id)?.value.trim() ?? '', before = JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive]);
+    if (w.source === 'gmaps' && typeof MapWatch !== 'undefined') MapWatch.formRead(w);
     w.name = v('#weName') || w.name; if ($('#weUrl')) w.url = v('#weUrl'); if ($('#weWin')) w.window = v('#weWin'); if ($('#wePath')) w.path = v('#wePath');
     if ($('#weSel')) { if (w.rows) w.rows = v('#weSel'); else w.read = v('#weSel'); } if ($('#weKeep')) { if (v('#weKeep')) w.keep = v('#weKeep'); else delete w.keep; }
-    w.detect = { ...this.kindDetect($('#wtKind').value, v('#wtCond')), ...($('#weGone')?.checked && $('#wtKind').value === 'new' ? { gone: true } : {}), ...(v('#weField') ? { field: v('#weField') } : {}) };
+    if (w.source !== 'gmaps') w.detect = { ...this.kindDetect($('#wtKind').value, v('#wtCond')), ...($('#weGone')?.checked && $('#wtKind').value === 'new' ? { gone: true } : {}), ...(v('#weField') ? { field: v('#weField') } : {}) };
     if ($('#weFields')) w.extract = { ...(typeof w.extract === 'object' && !Array.isArray(w.extract) ? w.extract : {}), fields: v('#weFields').split(/\s*,\s*/).filter(Boolean) };
     w.filter = { ignore: v('#weIgnore'), from: v('#weFrom'), notFrom: v('#weNot'), cooldown: +v('#weCool') || 0, hold: Math.max(1, +v('#weHold') || 1), presenting: !!$('#wePres')?.checked };
     w.share = !!$('#weShare')?.checked; this.formRead(w);
-    return before !== JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract]);
+    return before !== JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive]);
   },
   async saveEdit(w) {
     const changed = this.formEdit(w);
@@ -770,7 +773,7 @@ const Watch = {
     sheet('Watchers', `<p class="se-note">They check on their own${this.can() ? ' (in this Mac’s agent browser, with your sign-ins)' : ''} and tell you when something new or different shows up: a card, a quiet notification, the voice when it matters, a daily digest at ${esc(store.get('watchDigestAt', '18:00'))}. Quiet hours ${esc(store.get('watchQuiet', '22:00-07:00'))}.</p>
       <div class="wt-list">${l.map(w => `<div class="mem-row"><span><b>${w.on ? '' : '⏸ '}${esc(w.name)}</b>${w.runOn && w.runOn !== 'here' ? ` <span class="se-note">· on ${esc(this.where(w))}</span>` : ''}<br><span class="se-note">${w.state?.healed && Date.now() - w.state.healed.at < 864e5 ? '🩹 found it again another way · ' : ''}${w.state?.paused ? `⚠️ ${esc(w.state.paused)}` : w.state?.error && w.state.fails ? `⚠️ ${esc(this.why(w.state.error).slice(0, 90))}` : `checked ${ago(w.state?.at)}${w.state?.count != null ? ` · ${w.state.count} item${w.state.count === 1 ? '' : 's'}` : ''}`} · ${w.state?.changedAt ? `last news ${ago(w.state.changedAt)}` : 'no news yet'} · next ${w.on ? inn(w.state?.next) : 'off'}</span></span>
         <span><button class="link-btn" data-wt="edit|${w.id}">Edit</button> <button class="link-btn" data-wt="now|${w.id}">Check now</button> ${/isn’t on the page/.test(w.state?.paused || '') ? `<button class="link-btn" data-wt="repick|${w.id}">Pick it again</button> ` : ''}${w.state?.error && w.state.fails || w.state?.paused ? `<button class="link-btn" data-wt="showme|${w.id}">Show me</button> ` : ''}<button class="link-btn" data-wt="onoff|${w.id}">${w.on ? 'Pause' : 'Resume'}</button> <button class="link-btn" data-wt="del|${w.id}">Delete</button></span></div>`).join('') || '<p class="se-note">None yet.</p>'}</div>
-      <div class="chip-row"><button class="chip accent" data-wt="new">+ New watcher</button><button class="chip" data-wt="opts">Digest and quiet hours</button></div>`, [['Close']]);
+      <div class="chip-row"><button class="chip accent" data-wt="new">+ New watcher</button><button class="chip" data-wt="opts">Digest and quiet hours</button>${typeof MapWatch !== 'undefined' ? '<button class="chip" data-wt="places">Places</button>' : ''}</div>`, [['Close']]);
   },
 };
 ACTIONS.watchers = () => Watch.sheet();
@@ -799,6 +802,7 @@ document.addEventListener('click', async e => {
     if (!a) return toast('Choose one first'); (w.actions ||= []).push(a); Watch.put(w); return Watch.edit(id); }
   if (k === 'pnow' || k === 'ponoff') { try { const r = await Link.watch({ op: k, id }); if (k === 'pnow') toast(r.hit || r.paused || 'Nothing new'); } catch (e) { toast(e.message); } return Watch.phoneSheet(); }
   if (k === 'showme' && w) return Watch.showPage(w);
+  if (k === 'places') return MapWatch.placesSheet();
   if (k === 'diagnose') return Watch.diagnose(w || null);
   if (k === 'tester') return Watch.tester();
   if (k === 'testclose') { AgentWeb.call('highlight', ['', false], 3000); return $('#agentWeb .ag-test')?.remove(); }

@@ -43,7 +43,8 @@ const MapWatch = {
   /** A place to drive from or to: here (from DriveGen), home, work, where DriveGen is navigating to, coordinates, or an
       address (found once with the place search, then kept). */
   async place(w, what) {
-    const v = String(what || '').trim();
+    if (what && typeof what === 'object' && +what.lat) return what; /* picked in the form */
+    const v = String(what || '').trim(), saved = (places().others || []).find(p => p.name.toLowerCase() === v.toLowerCase()); if (saved) return saved;
     if (v === 'here') { const h = this.fresh(); return h && { name: 'where you are', lat: h.lat, lon: h.lon }; }
     if (v === 'nav') return this.fresh()?.dest || null;
     if (v === 'home' || v === 'work') { const p = places()[v]; return p && { name: v === 'home' ? 'home' : 'work', lat: p.lat, lon: p.lon }; }
@@ -53,10 +54,29 @@ const MapWatch = {
     return (w.found[v] = { name: r.name, lat: r.lat, lon: r.lon });
   },
   /** Google Maps' directions address (or the practice copy's). */
-  dirUrl(from, to) {
-    const ll = p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
-    return Agent.cfg().practice ? new URL(`labs/practice/gmaps.html?origin=${ll(from)}&destination=${encodeURIComponent(to.name ? `${to.name}@${ll(to)}` : ll(to))}`, location.href).href
-      : `https://www.google.com/maps/dir/?api=1&origin=${ll(from)}&destination=${ll(to)}&travelmode=driving`;
+  dirUrl(from, to, avoid = {}) {
+    const ll = p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`, flg = `${avoid.tolls ? 't' : ''}${avoid.highways ? 'h' : ''}`;
+    if (Agent.cfg().practice) return new URL(`labs/practice/gmaps.html?origin=${ll(from)}&destination=${encodeURIComponent(to.name ? `${to.name}@${ll(to)}` : ll(to))}${flg ? `&dirflg=d${flg}` : ''}`, location.href).href;
+    /* avoid tolls / highways: Google's older address form takes them (dirflg); the newer one doesn't */
+    return flg ? `https://www.google.com/maps?saddr=${ll(from)}&daddr=${ll(to)}&dirflg=d${flg}` : `https://www.google.com/maps/dir/?api=1&origin=${ll(from)}&destination=${ll(to)}&travelmode=driving`;
+  },
+  /** This app's own route rules (Google Maps has none of them): skip routes with construction or closures, routes along
+      roads you avoid; prefer roads you like. Each route gets skip (why) or prefer. */
+  rules(w, routes) {
+    const names = x => String(x || '').toLowerCase().split('||').map(t => t.trim()).filter(Boolean), avoid = names(w.avoidRoads), prefer = names(w.preferRoads);
+    for (const r of routes) {
+      const t = `${r.via} ${r.notes.join(' ')}`.toLowerCase();
+      r.skip = w.avoid?.work && r.warn.length ? r.warn[0] : avoid.find(a => t.includes(a)) ? `along ${avoid.find(a => t.includes(a))}` : '';
+      r.prefer = prefer.some(p => t.includes(p));
+    }
+    const ok = routes.filter(r => !r.skip); return ok.length ? ok.sort((a, b) => (b.prefer - a.prefer) || 0) : routes;
+  },
+  /** Days and hours to watch (weekdays 8–10, say): outside them, nothing is read. */
+  activeNow(w) {
+    const a = w.active; if (!a) return true; const d = new Date(), m = d.getHours() * 60 + d.getMinutes(), hm = x => { const [h, mi] = String(x || '').split(':').map(Number); return h * 60 + (mi || 0); };
+    if (a.days?.length && !a.days.includes(d.getDay())) return false;
+    if (a.from && a.to) { const f = hm(a.from), t = hm(a.to); return f <= t ? m >= f && m < t : m >= f || m < t; }
+    return true;
   },
   /** What a directions page says about one route: minutes (in traffic), km, via, notes (traffic, tolls, accidents). */
   route(line) {
@@ -69,17 +89,19 @@ const MapWatch = {
   },
   /** Read Google Maps' directions from → to in the agent browser: { from, to, routes: [{ min, km, via, notes }] }. */
   async directions(w, from, to, trace) {
-    const url = this.dirUrl(from, to), rows = '[data-trip-index]||[id^="section-directions-trip-"]||rows-in:#pane||rows-in:[role="main"]';
+    const url = this.dirUrl(from, to, w.avoid), rows = '[data-trip-index]||[id^="section-directions-trip-"]||rows-in:#pane||rows-in:[role="main"]';
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', result: 'read', steps: [{ do: 'agent.open', value: url, args: ['site=Google Maps', 'wait=body', 'ms=30000'] },
       { do: 'agent.wait', value: rows, args: ['ms=20000'] }, { do: 'agent.read', value: rows, args: ['max=8000', 'strict'], as: 'read' }] };
     const text = String(await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }) ?? '');
     const routes = text.split('\n').map(l => this.route(l)).filter(Boolean).slice(0, 4);
-    trace?.push(`  routes: ${routes.map(r => `${r.min} min${r.via ? ` via ${r.via}` : ''}${r.warn.length ? ` (${r.warn[0]})` : ''}`).join(' · ') || 'none read'}`);
-    if (!routes.length) throw new Error(`NOTFOUND:${rows}`);
-    return { from, to, routes, url };
+    if (!routes.length) { trace?.push('  routes: none read'); throw new Error(`NOTFOUND:${rows}`); }
+    const pool = this.rules(w, routes);
+    trace?.push(`  routes: ${routes.map(r => `${r.min} min${r.via ? ` via ${r.via}` : ''}${r.warn.length ? ` (${r.warn[0]})` : ''}${r.skip ? ` [skipped: ${r.skip}]` : r.prefer ? ' [preferred]' : ''}`).join(' · ')}`);
+    return { from, to, routes: pool, all: routes, url };
   },
   /** The source 'gmaps' (js/watch.js read): traffic and faster ways between two places, or the next meeting's leave-by. */
   async read(w, trace) {
+    if (!this.activeNow(w)) { trace?.push('  not now (outside the days and hours it watches)'); return { idle: true }; }
     if (w.detect?.kind === 'leaveby') return this.leaveRead(w, trace);
     const from = await this.place(w, w.from || 'here'), to = await this.place(w, w.to || 'nav');
     if (!from || !to) { trace?.push(`  waiting: ${!from ? 'no recent position from your phone (it sends one while you drive)' : 'no destination (navigate in DriveGen, or set one in Edit)'}`); return { idle: true }; }
@@ -87,6 +109,12 @@ const MapWatch = {
   },
   /** Leave by: the next meeting with a place (the calendar task), then directions to it from home, work or here. */
   async leaveRead(w, trace) {
+    if (w.arrive) { /* be somewhere by a time (no calendar) */
+      const start = this.when(w.arrive), to = await this.place(w, w.to), from = await this.place(w, w.from || 'home') || await this.place(w, 'home');
+      if (!to || !from) throw new Error(!to ? 'Where to? (Edit the watcher)' : 'Where from? (Edit the watcher, or set Home in Places)');
+      if (!start || start < Date.now() || start - Date.now() > 3 * 3600e3) { trace?.push(`  ${w.arrive} isn't within the next 3 hours`); return { idle: true }; }
+      const d = await this.directions(w, from, to, trace); return { ...d, event: { title: to.name, when: w.arrive, place: to.name, start } };
+    }
     const t = Agent.get('cal.next'); if (!t) throw new Error('No calendar task here (Agent › Library)');
     const c = Agent.asCard(await Agent.exec(t, {}, { confirmed: true, quiet: true, trace })), it = c.items?.[0];
     const start = it && this.when(it.when), placeName = it && (it.place || '').trim();
@@ -135,27 +163,92 @@ const MapWatch = {
     return null;
   },
 
+  /* ---------- The form: from, to, route options, when ---------- */
+  /** A place field: quick choices (where I am, where DriveGen is navigating, home, work, your places) or a search. */
+  field(id, label, v, o = {}) {
+    const P = places(), quick = [...(o.here ? [['here', 'Where I am (my phone)']] : []), ...(o.nav ? [['nav', 'Where DriveGen is navigating']] : []), ...(P.home ? [['home', 'Home']] : []), ...(P.work ? [['work', 'Work']] : []), ...(P.others || []).map(p => [p.name, p.name])];
+    const shown = !v ? 'not chosen' : typeof v === 'object' ? v.name : (quick.find(q => q[0] === v) || [v, v])[1];
+    return `<div class="se-field mp-field"><span>${esc(label)}: <b id="mpn_${id}">${esc(shown)}</b></span><input type="hidden" data-mpv="${id}" value="${esc(typeof v === 'object' ? JSON.stringify(v) : v || '')}">
+      <div class="chip-row">${quick.map(([k, n]) => `<button type="button" class="chip" data-mpchip="${id}|${esc(k)}|${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <div class="chip-row"><input data-mpq="${id}" placeholder="Or search an address or place" style="flex:1;min-width:12em"><button type="button" class="chip" data-mps="${id}">Search</button></div><div class="pick-list" id="mpr_${id}"></div></div>`;
+  },
+  value(id) { const v = $(`[data-mpv="${id}"]`)?.value || ''; if (!v) return ''; try { return v.startsWith('{') ? JSON.parse(v) : v; } catch { return v; } },
+  /** Route options and when: Google's (tolls, highways) and this app's own (construction, roads to avoid or prefer, days). */
+  options(w = {}) {
+    const a = w.avoid || {}, act = w.active || {}, day = (d, n) => `<label class="se-check" style="display:inline-flex;margin-right:10px"><input type="checkbox" data-mpday="${d}" ${(act.days || []).includes(d) ? 'checked' : ''}> ${n}</label>`;
+    return `<p class="se-note"><b>Route options</b></p>
+      <label class="se-check"><input type="checkbox" id="mpTolls" ${a.tolls ? 'checked' : ''}> Avoid tolls</label>
+      <label class="se-check"><input type="checkbox" id="mpHighways" ${a.highways ? 'checked' : ''}> Avoid highways</label>
+      <label class="se-check"><input type="checkbox" id="mpWork" ${a.work ? 'checked' : ''}> Avoid routes with construction or closures</label>
+      <label class="se-field"><span>Avoid these roads or areas (|| between)</span><input id="mpAvoid" value="${esc(w.avoidRoads || '')}" placeholder="Silk Board||MG Road"></label>
+      <label class="se-field"><span>Prefer these roads (|| between)</span><input id="mpPrefer" value="${esc(w.preferRoads || '')}" placeholder="NH44"></label>
+      <p class="se-note"><b>When to watch</b> (empty: always)</p><div>${[[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']].map(([d, n]) => day(d, n)).join('')}</div>
+      <div class="chip-row"><label class="se-row"><span>From</span><input id="mpFrom" type="time" value="${esc(act.from || '')}"></label><label class="se-row"><span>to</span><input id="mpTo" type="time" value="${esc(act.to || '')}"></label></div>`;
+  },
+  readOptions(w) {
+    w.avoid = { tolls: !!$('#mpTolls')?.checked, highways: !!$('#mpHighways')?.checked, work: !!$('#mpWork')?.checked };
+    w.avoidRoads = $('#mpAvoid')?.value.trim() || ''; w.preferRoads = $('#mpPrefer')?.value.trim() || '';
+    const days = $$('[data-mpday]').filter(c => c.checked).map(c => +c.dataset.mpday), from = $('#mpFrom')?.value || '', to = $('#mpTo')?.value || '';
+    w.active = days.length || (from && to) ? { days, from, to } : null;
+  },
+  /** The whole form for a map template, or a map watcher's Edit (fields first, then how to tell). */
+  formHtml(w, kind) {
+    const lb = kind === 'leaveby';
+    return `${this.field('from', 'From', w.from ?? (lb ? 'home' : 'here'), { here: true })}${lb && !w.arrive && !w.to ? '<p class="se-note">To: your next meeting with a place (from your calendar).</p>' : this.field('to', 'To', w.to ?? (lb ? '' : 'nav'), { nav: !lb })}
+      ${lb ? `<label class="se-row"><span>Be there by (empty: your next meeting)</span><input id="mpArrive" type="time" value="${esc(w.arrive || '')}"></label>` : ''}${this.options(w)}`;
+  },
+  formRead(w) { w.from = this.value('from') || w.from; if ($('[data-mpv="to"]')) w.to = this.value('to') || w.to; if ($('#mpArrive')) w.arrive = $('#mpArrive').value || ''; this.readOptions(w); },
+  formSheet(T) {
+    const base = T.make({}), kind = base.detect?.kind;
+    sheet(T.name, `${T.about ? `<p class="se-note">${esc(T.about)}</p>` : ''}${this.formHtml(base, kind)}${Watch.formHtml(base)}`,
+      [['Check and save', async () => { const w = Watch.make({ name: T.name, template: T.id, templateInputs: {}, ...base }); this.formRead(w); Watch.formRead(w);
+        if (kind !== 'leaveby' || w.arrive) { if (!w.to) return toast('Where to? Choose or search a place'); }
+        if (w.to && typeof w.to === 'object') w.name = `${kind === 'faster' ? 'Faster way' : kind === 'leaveby' ? 'Be there' : 'Traffic'} to ${w.to.name.split(',')[0]}`;
+        await Watch.saveChecked(w); }], ['Back', () => Watch.templates()]]);
+  },
+  /* ---------- Places: home, work and your own ---------- */
+  placesSheet() {
+    const P = places(), row = (k, n, p) => `<div class="mem-row"><span><b>${esc(n)}</b><br><span class="se-note">${esc(p?.name || 'not set')}</span></span><span><button class="link-btn" data-mpset="${esc(k)}">${p ? 'Change' : 'Set'}</button>${p ? ` <button class="link-btn" data-mpdel="${esc(k)}">Forget</button>` : ''}</span></div>`;
+    sheet('Places', `<p class="se-note">For map watchers (from, to, leave by). On this device and your own devices only.</p>${row('home', 'Home', P.home)}${row('work', 'Work', P.work)}${(P.others || []).map(p => row(`o:${p.name}`, p.label || p.name, p)).join('')}
+      <div class="chip-row"><button class="chip accent" data-mpset="new">+ Add a place</button></div>`, [['Back', () => Watch.sheet()], ['Close']]);
+  },
   /* ---------- Settings: home and work ---------- */
   placeSheet(which) {
-    const p = places()[which];
+    const named = which === 'new' || which.startsWith('o:'), p = which.startsWith('o:') ? (places().others || []).find(x => `o:${x.name}` === which) : places()[which];
+    if (named) return sheet(which === 'new' ? 'Add a place' : 'Change the place', `<label class="se-field"><span>Its name (e.g. Mom's, Gym, Client office)</span><input id="mpName" value="${esc(p?.label || '')}"></label><label class="se-field"><span>Address</span><input id="mpQ" value="${esc(p?.name || '')}"></label><div id="mpRes" class="pick-list"></div>`,
+      [['Search', async () => { const q = $('#mpQ').value.trim(); if (!q) return; const box = $('#mpRes'); box.textContent = 'Looking…';
+        try { const l = await Routing.search(q, loc); box.innerHTML = l.slice(0, 6).map(r => `<button class="big-btn" data-mplace="${esc(which)}|${r.lat},${r.lon}|${esc([r.name, r.sub].filter(Boolean).join(', '))}">${esc(r.name)}<br><small>${esc(r.sub || '')}</small></button>`).join('') || 'Nothing found'; } catch { box.textContent = 'The place search didn’t answer (offline?)'; } }], ['Back', () => this.placesSheet()]]);
     sheet(which === 'home' ? 'Home' : 'Work', `<p class="se-note">For leave-by and trips (only on this device and your own devices). Type the address or a landmark.</p><label class="se-field"><span>Address</span><input id="mpQ" value="${esc(p?.name || '')}"></label><div id="mpRes" class="pick-list"></div>`,
       [['Search', async () => { const q = $('#mpQ').value.trim(); if (!q) return; const box = $('#mpRes'); box.textContent = 'Looking…';
         try { const l = await Routing.search(q, loc); box.innerHTML = l.slice(0, 6).map(r => `<button class="big-btn" data-mplace="${which}|${r.lat},${r.lon}|${esc([r.name, r.sub].filter(Boolean).join(', '))}">${esc(r.name)}<br><small>${esc(r.sub || '')}</small></button>`).join('') || 'Nothing found'; }
         catch { box.textContent = 'The place search didn’t answer (offline?)'; } }], ...(p ? [['Forget it', () => { const all = places(); delete all[which]; store.set('places', all); closeSheet(); if (current === 'settings') renderSettings(); }]] : []), ['Cancel']]);
   },
 };
-document.addEventListener('click', e => { const b = e.target.closest('[data-mplace]'); if (!b) return; const [which, ll, name] = b.dataset.mplace.split('|'), [lat, lon] = ll.split(',').map(Number);
-  store.set('places', { ...places(), [which]: { name, lat, lon } }); closeSheet(); toast(`${which === 'home' ? 'Home' : 'Work'}: ${name}`); if (current === 'settings') renderSettings(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-mplace]');
+  if (b) { const [which, ll, name] = b.dataset.mplace.split('|'), [lat, lon] = ll.split(',').map(Number), all = places();
+    if (which === 'new' || which.startsWith('o:')) { const label = ($('#mpName')?.value.trim() || name.split(',')[0]).slice(0, 40); all.others = [...(all.others || []).filter(x => `o:${x.name}` !== which && x.label !== label), { label, name: label, address: name, lat, lon }]; }
+    else all[which] = { name, lat, lon };
+    store.set('places', all); toast(`Saved: ${name.split(',')[0]}`); if (current === 'settings') renderSettings(); return MapWatch.placesSheet(); }
+  const c = e.target.closest('[data-mpchip]'); if (c) { const [id, v, n] = c.dataset.mpchip.split('|'); const i = $(`[data-mpv="${id}"]`); if (i) i.value = v; const t = $(`#mpn_${id}`); if (t) t.textContent = n; return; }
+  const s = e.target.closest('[data-mps]'); if (s) { const id = s.dataset.mps, q = $(`[data-mpq="${id}"]`)?.value.trim(), box = $(`#mpr_${id}`); if (!q || !box) return; box.textContent = 'Looking…';
+    Routing.search(q, MapWatch.fresh() || places().home || loc).then(l => { box.innerHTML = l.slice(0, 5).map(r => `<button type="button" class="big-btn" data-mpick="${id}|${r.lat},${r.lon}|${esc([r.name, r.sub].filter(Boolean).join(', ').slice(0, 90))}">${esc(r.name)}<br><small>${esc(r.sub || '')}</small></button>`).join('') || 'Nothing found'; }).catch(() => { box.textContent = 'The place search didn’t answer (offline?)'; }); return; }
+  const k = e.target.closest('[data-mpick]'); if (k) { const [id, ll, name] = k.dataset.mpick.split('|'), [lat, lon] = ll.split(',').map(Number); const i = $(`[data-mpv="${id}"]`); if (i) i.value = JSON.stringify({ name, lat, lon }); const t = $(`#mpn_${id}`); if (t) t.textContent = name; $(`#mpr_${id}`).innerHTML = ''; return; }
+  const set = e.target.closest('[data-mpset]'); if (set) return MapWatch.placeSheet(set.dataset.mpset);
+  const del = e.target.closest('[data-mpdel]'); if (del) { const k2 = del.dataset.mpdel, all = places(); if (k2.startsWith('o:')) all.others = (all.others || []).filter(x => `o:${x.name}` !== k2); else delete all[k2]; store.set('places', all); return MapWatch.placesSheet(); }
+});
 ACTIONS.placeHome = () => MapWatch.placeSheet('home');
 ACTIONS.placeWork = () => MapWatch.placeSheet('work');
 setInterval(() => { try { MapWatch.share(); } catch {} }, 10000);
 
 /* The templates (group “On the road”) */
 WATCH_TEMPLATES.push(
-  { id: 'map.traffic', group: 'On the road', name: 'Traffic on my route', about: 'While you drive with DriveGen, your Mac checks Google Maps every few minutes and tells you when traffic adds 5 minutes or more (and when it eases, or an accident is on the way).', inputs: [['to', 'Where to? (empty: where DriveGen is navigating)', '']],
+  { id: 'map.arrive', group: 'On the road', map: true, name: 'Be there by a time (leave-by for any trip)', about: 'Choose where from and where to, and when you want to be there (and which days): it checks the drive on Google Maps and tells you when to leave, then when to go.', inputs: [],
+    make: () => ({ name: 'Be there by', source: 'gmaps', from: 'home', to: '', arrive: '09:30', detect: { kind: 'leaveby', buffer: 10 }, every: '15m', tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
+  { id: 'map.traffic', group: 'On the road', map: true, name: 'Traffic on my route', about: 'While you drive with DriveGen, your Mac checks Google Maps every few minutes and tells you when traffic adds 5 minutes or more (and when it eases, or an accident is on the way).', inputs: [['to', 'Where to? (empty: where DriveGen is navigating)', '']],
     make: v => ({ name: v.to ? `Traffic to ${v.to}` : 'Traffic on my route', source: 'gmaps', from: 'here', to: v.to || 'nav', detect: { kind: 'traffic', min: 5 }, every: '5m', record: true, tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
-  { id: 'map.faster', group: 'On the road', name: 'A faster way (5+ minutes saved)', about: 'Compares your way with the other routes Google Maps offers; tells you when one saves 5 minutes or more.', inputs: [['to', 'Where to? (empty: where DriveGen is navigating)', '']],
+  { id: 'map.faster', group: 'On the road', map: true, name: 'A faster way (5+ minutes saved)', about: 'Compares your way with the other routes Google Maps offers; tells you when one saves 5 minutes or more.', inputs: [['to', 'Where to? (empty: where DriveGen is navigating)', '']],
     make: v => ({ name: v.to ? `Faster way to ${v.to}` : 'A faster way', source: 'gmaps', from: 'here', to: v.to || 'nav', detect: { kind: 'faster', save: 5 }, every: '5m', tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
-  { id: 'map.leaveby', group: 'On the road', name: 'Leave by (my next meeting)', about: 'Reads your next meeting with a place from your calendar, checks the drive on Google Maps, and tells you when to leave (10 minutes to spare), then when to go.', inputs: [['from', 'Leaving from (home, work or here)', 'home']],
+  { id: 'map.leaveby', group: 'On the road', map: true, name: 'Leave by (my next meeting)', about: 'Reads your next meeting with a place from your calendar, checks the drive on Google Maps, and tells you when to leave (10 minutes to spare), then when to go.', inputs: [['from', 'Leaving from (home, work or here)', 'home']],
     make: v => ({ name: 'Leave by', source: 'gmaps', from: /^(home|work|here)$/i.test(v.from) ? v.from.toLowerCase() : 'home', detect: { kind: 'leaveby', buffer: 10 }, every: '15m', tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
 );

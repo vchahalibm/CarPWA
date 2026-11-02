@@ -72,7 +72,10 @@ Kept as each phase lands; try them together when the phases are done. Tested par
   - [ ] A real morning: does it find something real on your way (news or posts), and is it really on your route?
   - [ ] Take it on the phone while DriveGen navigates: does it re-route through the other way? Without navigating: does Google Maps open through it?
   - [ ] Your city's traffic police feed in “Your own feeds”, if it has one.
-- [ ] **Map watchers phase 3** next: fuel/charging on the way, weather ahead along the route, next town, the phone's fallback with no Mac.
+- [x] **Map watchers phase 3** built 3 Nov (fuel, weather ahead, next town tested on a real highway, Electronic City → Krishnagiri). To try:
+  - [ ] A drive out of town with Fuel on the way, Weather ahead and Next town: are they said between turns, and not too often?
+  - [ ] DriveGen navigating with the Mac off (or away from the link): does the phone tell the next town and the last fuel by itself?
+- [ ] **Map watchers phase 4** next: the later watchers.
 
 ## To perform (with you)
 

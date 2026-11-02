@@ -5,8 +5,8 @@ const mem = {}, ctx = { console, setInterval() {}, setTimeout, clearTimeout, doc
   store: { get: (k, d) => k in mem ? mem[k] : d, set: (k, v) => { mem[k] = v; } }, WATCH_TEMPLATES: [], Agent: { cfg: () => ({}) }, settings: {}, LINK_HOST: false, loc: { lat: 12.97, lon: 77.59, speed: 0, source: 'gps' }, nav: null,
   Link: { ready: () => false }, Mesh: { m: null }, LLM: { ask: async () => { throw new Error('none here'); }, prompt: () => '' }, window: {} };
 vm.createContext(ctx);
-vm.runInContext(['mapwatch', 'lookahead'].map(f => fs.readFileSync(`${__dirname}/../js/${f}.js`, 'utf8')).join('\n') + '\nthis.M = MapWatch; this.L = Lookahead;', ctx);
-const { M, L } = ctx; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
+vm.runInContext(['mapwatch', 'lookahead'].map(f => fs.readFileSync(`${__dirname}/../js/${f}.js`, 'utf8')).join('\n') + '\nthis.M = MapWatch; this.L = Lookahead; this.R = Roadside;', ctx);
+const { M, L, R } = ctx; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 (async () => {
   const r0 = { i: 0, via: 'Hosur Rd and NH 44/NH 48', steps: 'Take · Intermediate Ring Rd · NH 44 · Santhosapuram · Turn · left · onto · 8th Main Rd · Follow · Chennekothapalli Rd · Attibele · Pass by the gas station (on the right) · 19 min (6.6 km)', min: 46, km: 33, notes: [], warn: [] };
   const nm = L.names(r0);
@@ -30,5 +30,16 @@ const { M, L } = ctx; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   const h1 = M.detect(w, { ...got, routes: [r0, r1], causes: [cause] });
   ok(/^Protest: Hosur Rd, on your way to Attibele/.test(h1?.headline || '') && h1.items.some(i => /^Or via Sarjapur/.test(i.title)) && h1.shotOf === 1 && h1.take, 'told with the other way: ' + JSON.stringify(h1 && { h: h1.headline, items: h1.items }));
   ok(!M.detect(w, { ...got, routes: [r0, r1], causes: [{ ...cause, fresh: false }] }), 'not told twice');
+  /* along the way (phase 3): where you are on the path, points ahead, stations on the way, the last fuel for a while, towns */
+  const path = [[12.85, 77.66], [12.80, 77.74], [12.70, 77.85], [12.52, 78.21]], here = { lat: 12.81, lon: 77.72 }, P = R.proj(path, here);
+  ok(P.off < 1 && P.km > 5 && P.km < 15 && P.total > 70, 'on the path: ' + JSON.stringify(P));
+  const ah = R.ahead(path, here, 60, 10, 40); ok(ah.length === 5 && ah[0].km === 10 && ah[0].eta > 5 && ah.at(-1).end, 'points ahead with times: ' + JSON.stringify(ah.map(p => [p.km, p.eta])));
+  const st = [{ name: 'A', ...L.along(path, 0.2), open: 'Open 24 hours', rating: 4.2 }, { name: 'B', ...L.along(path, 0.75), open: '' }, { name: 'Behind', ...L.along(path, 0.02) }, { name: 'Far off', lat: 13.2, lon: 77.0 }, { name: 'Shut', ...L.along(path, 0.3), open: 'Closed' }];
+  const on2 = R.onWay(path, here, st); ok(on2.map(x => x.name).join() === 'A,B', 'stations on the way, ahead, open: ' + on2.map(x => x.name));
+  const fw = { detect: { kind: 'fuel', gap: 30 }, state: {} }, fg = { to: { lat: 12.52, lon: 78.21, name: 'Krishnagiri' } };
+  const f1 = R.detect(fw, { ...fg, side: { fuel: on2, what: 'petrol pump', searched: 60 } }), f2 = R.detect(fw, { ...fg, side: { fuel: on2, what: 'petrol pump', searched: 60 } });
+  ok(/^Last petrol pump for a while: A, \d+ km, 4.2★, open 24 hours/.test(f1?.headline || '') && /^Next after that: B/.test(f1.items[1].title) && !f2, 'the last fuel for a while, once: ' + (f1 && f1.headline));
+  const t1 = R.detect({ detect: { kind: 'town' }, state: {} }, { ...fg, side: { town: { cur: 'Attibele', next: 'Hosur', eta: 15, about: 'Hosur is an industrial city.', weather: '28° and clear' } } });
+  ok(t1?.headline === 'Coming up: Hosur, about 15 min' && t1.items.length === 2 && !t1.important, 'the next town: ' + JSON.stringify(t1));
   console.log(`${n}/${n} lookahead tests pass`);
 })().catch(e => { console.error(e.message); process.exit(1); });

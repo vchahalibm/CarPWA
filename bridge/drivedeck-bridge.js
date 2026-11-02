@@ -237,6 +237,12 @@
         for (const t0 = Date.now(); Date.now() - t0 < ms && at() === was;) await new Promise(r => setTimeout(r, 100));
         const now = at(); return { ok: true, n: els.length, at: now !== was ? now : '' };
       },
+      /** Links and the words of the card each sits in (a list of places: name, rating, hours), with their addresses (Google
+          Maps keeps a place's position in it: !3d<lat>!4d<lon>). */
+      links(sel, max = 20) {
+        let l = []; try { l = [...doc.querySelectorAll(sel)].slice(0, max); } catch {}
+        return { ok: true, links: l.map(a => ({ label: a.getAttribute('aria-label') || '', href: a.href || '', text: (textOf(a.parentElement) || '').split('\n').map(x => x.trim()).filter(Boolean).join(' ¦ ').slice(0, 400) })) };
+      },
       read(sels, max = 6000) {
         const tried = [];
         for (const s0 of [].concat(sels || []).flatMap(x => String(x).split('||'))) {

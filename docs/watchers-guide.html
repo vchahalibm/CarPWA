@@ -164,6 +164,15 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <p>Besides Google Maps, the lookahead watcher reads <b>the news</b> (Google News in your country and language, and GDELT), <b>posts</b> on Reddit and on X (sign in to X in the agent browser for X), <b>the weather</b> at the start, middle and end of the drive, and <b>your own feeds</b> (your city's traffic police, say: paste its RSS address in the watcher's form). The language model picks out what is about your drive: a road or area on it, or a place within about a kilometre of a route. It tells each thing once, with its source.</p>
 <p><b>Take it</b>: on the card, or say yes when your phone asks “Take Sarjapur Rd?”. If DriveGen is navigating, it re-routes that way; otherwise Google Maps opens and navigates that way.</p>
 <p>In the watcher's form, <b>Look ahead</b> turns each source on or off. <b>Last check</b> shows what it read and found, for example <i>looked ahead: Google News 40 · Reddit 6 · X: sign in to X in the agent browser to add posts</i> and <i>ahead: Protest near Hosur Road (City Times, new)</i>. The first check of a drive takes about a minute (it reads each route's turns); later ones a few seconds.</p>
+<h3>Along the way: fuel, the weather, the next town</h3>
+<p>Three more in <span class="path">+ New watcher › On the road</span>, for while you drive (they start once your phone is on the way):</p>
+<ul>
+  <li><b>Fuel or charging on the way</b>: petrol or diesel, CNG, or EV charging, found along the route ahead on Google Maps, with ratings and whether they're open. It tells you before a long stretch without one: “Last petrol pump for a while: HP, 3 km, 4.2★, open 24 hours” and “Next after that: 38 km”. Choose the least rating, how long a gap to warn about, and whether to hear the nearest one too.</li>
+  <li><b>Weather ahead</b>: the weather where you'll be when you get there: “Heavy rain where you'll be in about 30 min (near Hosur)”.</li>
+  <li><b>Next town</b>: about 15 minutes ahead: “Coming up: Hosur, about 15 min”, a line about it from Wikipedia, the weather there now, and a local headline.</li>
+</ul>
+<p>Your phone says these between turns, never over a turn coming up, a call or a question; the nice-to-know ones (the next town) at most every 4 minutes.</p>
+<p><b>No Mac?</b> When DriveGen is navigating and none of your Macs can be reached, it looks ahead itself with open data: the weather ahead, the next town, and the last fuel for a while (from OpenStreetMap, without ratings). <span class="path">Settings › Location › Look ahead myself when no Mac is reachable</span>.</p>
 <h3>From, to and your own route rules</h3>
 <p>Each map watcher opens a form when you make it (and the same fields in <b>Edit</b>):</p>
 <ul>

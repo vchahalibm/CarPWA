@@ -281,3 +281,139 @@ const RoadVoice = {
     if (this.q.length) this.timer = setTimeout(() => this.tick(), 8000);
   },
 };
+
+/* ---------- Along the way (map watchers phase 3) ----------
+   Fuel or charging on the way (Google Maps' places near the route ahead: rating, open now; the gap to the next one), the
+   weather ahead (at the time you'll reach each part), the next town (Wikipedia, the weather there, a local headline).
+   The same on the phone with no Mac reachable (RoadLocal: OpenStreetMap's fuel stations instead of Google's). */
+const Roadside = {
+  /** Where p is along a path [[lat, lon]…]: km from its start, and km off it. */
+  proj(path, p) {
+    let best = { km: 0, off: Infinity }, run = 0;
+    for (let i = 1; i < path.length; i++) {
+      const a = { lat: path[i - 1][0], lon: path[i - 1][1] }, b = { lat: path[i][0], lon: path[i][1] }, L = Lookahead.km(a, b);
+      const kx = 111.32 * Math.cos(p.lat * Math.PI / 180), ax = (a.lon - p.lon) * kx, ay = (a.lat - p.lat) * 110.57, dx = (b.lon - a.lon) * kx, dy = (b.lat - a.lat) * 110.57, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0, off = Math.hypot(ax + t * dx, ay + t * dy);
+      if (off < best.off) best = { km: run + t * L, off }; run += L;
+    }
+    return { ...best, total: run };
+  },
+  /** Points ahead of `here` on a path, every stepKm up to maxKm, each with when you'll be there (min, at the path's pace). */
+  ahead(path, here, min, stepKm = 10, maxKm = 120) {
+    const P = this.proj(path, here), pace = min / Math.max(0.5, P.total - P.km) || 1.5, out = []; /* min: the time for the rest of the path */
+    for (let k = stepKm; k <= maxKm && P.km + k < P.total; k += stepKm) out.push({ ...Lookahead.along(path, (P.km + k) / P.total), km: k, eta: Math.round(k * pace) });
+    out.push({ lat: path.at(-1)[0], lon: path.at(-1)[1], km: Math.round(P.total - P.km), eta: Math.round((P.total - P.km) * pace), end: true });
+    return out;
+  },
+  /** What to search for: fuel by country's words, or charging, or CNG. */
+  what(kind, cc) { return kind === 'ev' ? 'EV charging station' : kind === 'cng' ? 'CNG station' : /^(US|CA)$/.test(cc) ? 'gas station' : 'petrol pump'; },
+  /** A Google Maps search list near a point → places { name, lat, lon, rating, reviews, open, type }. */
+  async google(w, what, p, trace) {
+    const url = Agent.cfg().practice ? new URL(`labs/practice/gmaps.html?search=${encodeURIComponent(what)}&at=${p.lat.toFixed(5)},${p.lon.toFixed(5)}`, location.href).href : `https://www.google.com/maps/search/${encodeURIComponent(what)}/@${p.lat.toFixed(5)},${p.lon.toFixed(5)},14z`;
+    const ctx = { quiet: true }; await AgentWeb.go(url, w.container, ctx); await AgentWeb.call('waitFor', [{ sel: '[role="feed"] a[href*="/maps/place/"]' }, 15000], 16000, ctx);
+    const r = await AgentWeb.call('links', ['[role="feed"] a[href*="/maps/place/"]', 20], 8000, ctx);
+    return (r?.links || []).map(l => { const m = l.href.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/), t = l.text, rt = t.match(/(\d[.,]\d)\s*\(([\d,.]+)\)/);
+      return m && { name: l.label || t.split(' ¦ ')[0], lat: +m[1], lon: +m[2], rating: rt ? +rt[1].replace(',', '.') : 0, reviews: rt ? rt[2] : '', open: (t.match(/Open 24 hours|Open\s*[⋅·]\s*Closes [^¦·]+|Closes soon[^¦·]*|Closed\s*[⋅·]\s*Opens [^¦·]+|Closed|Open/i) || [''])[0].trim(), type: what }; }).filter(Boolean);
+  },
+  /** OpenStreetMap's stations within 800 m of the path ahead (Overpass), for the phone with no Mac. */
+  async osm(kind, path) {
+    const tag = kind === 'ev' ? 'amenity=charging_station' : kind === 'cng' ? 'fuel:cng=yes' : 'amenity=fuel', pts = path.filter((_, i) => i % Math.max(1, Math.ceil(path.length / 90)) === 0).map(([la, lo]) => `${la.toFixed(4)},${lo.toFixed(4)}`).join(',');
+    const [k, v] = tag.split('='), q = `[out:json][timeout:25];node["${k}"="${v}"](around:800,${pts});out 60;`;
+    const j = await (await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)).json();
+    return (j.elements || []).map(e => ({ name: e.tags?.brand || e.tags?.name || (kind === 'ev' ? 'Charging station' : 'Fuel station'), lat: e.lat, lon: e.lon, rating: 0, reviews: '', open: e.tags?.opening_hours === '24/7' ? 'Open 24 hours' : '', type: tag }));
+  },
+  /** The stations on the way ahead (within 1 km of the route), nearest first, each with how far. */
+  onWay(path, here, list, minRating = 0) {
+    const P = this.proj(path, here), seen = new Set();
+    return list.map(s => ({ ...s, ...(x => ({ at: x.km - P.km, off: x.off }))(this.proj(path, s)) })).filter(s => s.off <= 1 && s.at > 0.3 && (!minRating || !s.rating || s.rating >= minRating) && !/^Closed(?!\s*[⋅·]\s*Opens)/i.test(s.open))
+      .filter(s => { const k = `${s.name}|${Math.round(s.at)}`; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.at - b.at);
+  },
+  /** The weather where you'll be when you get there: the first bad stretch ahead. */
+  async weatherAhead(pts) {
+    const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pts.map(p => p.lat.toFixed(3)).join(',')}&longitude=${pts.map(p => p.lon.toFixed(3)).join(',')}&hourly=precipitation,weather_code,wind_gusts_10m,visibility,temperature_2m&forecast_hours=8&timezone=auto`)).json();
+    const l = [].concat(j);
+    for (let i = 0; i < pts.length; i++) { const h = l[i]?.hourly; if (!h) continue; const k = Math.min(h.time.length - 1, Math.floor((new Date().getMinutes() + pts[i].eta) / 60));
+      const code = h.weather_code[k], mm = h.precipitation[k], gust = h.wind_gusts_10m[k], vis = h.visibility?.[k];
+      const what = code >= 95 ? 'A thunderstorm' : mm >= 7.6 || [65, 82].includes(code) ? 'Heavy rain' : [61, 63, 80, 81].includes(code) ? 'Rain' : [71, 73, 75, 77, 85, 86].includes(code) ? 'Snow' : [45, 48].includes(code) && vis < 1000 ? 'Fog' : gust >= 60 ? 'Strong wind' : '';
+      if (what) return { what, p: pts[i], mm, temp: h.temperature_2m[k], important: !/^Rain$/.test(what) }; }
+    return null;
+  },
+  /** The town at a point (OpenStreetMap), and a line about it (Wikipedia, in your language when it has one). */
+  async town(p) {
+    const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${p.lat}&lon=${p.lon}&format=jsonv2&zoom=12&accept-language=${(navigator.language || 'en').split('-')[0]}`)).json(), a = j.address || {};
+    return { name: a.town || a.city || a.village || a.suburb || a.municipality || a.county || '', state: a.state || '', cc: (a.country_code || '').toUpperCase() };
+  },
+  async about(name, p) {
+    const lang = (navigator.language || 'en').split('-')[0];
+    try { const g = await (await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${p.lat}|${p.lon}&gsradius=10000&gslimit=8&format=json&origin=*`)).json();
+      const l = g.query?.geosearch || [], t = (l.find(x => Lookahead.norm(x.title).startsWith(Lookahead.norm(name))) || l.find(x => Lookahead.norm(x.title).includes(Lookahead.norm(name))))?.title; if (!t) return '';
+      const s = await (await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t)}`)).json();
+      return (String(s.extract || '').match(/^.+?[.!?](\s|$)/) || [''])[0].trim().slice(0, 220); } catch { return ''; }
+  },
+  async now(p) { try { const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(3)}&longitude=${p.lon.toFixed(3)}&current=temperature_2m,weather_code`)).json(); const c = j.current || {}; return `${Math.round(c.temperature_2m)}° and ${Roadside.sky(c.weather_code)}`; } catch { return ''; } },
+  sky: c => c === 0 ? 'clear' : c <= 3 ? 'some cloud' : c <= 48 ? 'foggy' : c <= 67 ? 'rainy' : c <= 77 ? 'snowy' : c <= 82 ? 'showers' : 'stormy',
+  fmt: km => km < 1 ? `${Math.round(km * 1000)} m` : `${Math.round(km)} km`,
+
+  /* ---------- As map watchers (kinds fuel, weatherahead, town; source gmaps, js/mapwatch.js) ---------- */
+  async read(w, got, trace) {
+    const best = got.routes[0], path = Lookahead.pathOf(got, best), here = got.from, k = w.detect.kind, out = { path };
+    if (k === 'fuel') {
+      const pts = this.ahead(path, here, best.min, 15, 60).slice(0, 4), geo = await Lookahead.geo(w, here), what = this.what(w.detect.fuel, geo.cc), all = [];
+      if (Date.now() - (w.state.fuelAt || 0) < 10 * 60000 && w.state.fuelList) all.push(...w.state.fuelList);
+      else { for (const p of pts) try { all.push(...await this.google(w, what, p, trace)); } catch (e) { trace?.push(`  ${what} near ${Math.round(p.km)} km: ${e.message.slice(0, 40)}`); }
+        w.state.fuelAt = Date.now(); w.state.fuelList = all.slice(0, 60); }
+      out.fuel = this.onWay(path, here, all, +w.detect.rating || 0); out.what = what; out.searched = Math.round(pts.at(-1)?.km || 0);
+      trace?.push(`  ${what}: ${out.fuel.length} on the way in the next ${out.searched} km${out.fuel[0] ? ` (nearest: ${out.fuel[0].name}, ${this.fmt(out.fuel[0].at)})` : ''}`);
+    }
+    if (k === 'weatherahead') { out.weather = await this.weatherAhead(this.ahead(path, here, best.min, 10, 200)); if (out.weather) out.weather.town = (await this.town(out.weather.p).catch(() => ({}))).name || ''; trace?.push(`  weather ahead: ${out.weather ? `${out.weather.what} in ${out.weather.p.eta} min` : 'fine all the way'}`); }
+    if (k === 'town') {
+      const pts = this.ahead(path, here, best.min, 5, 80), p = pts.find(x => x.eta >= 12) || pts.at(-1), [cur, next] = await Promise.all([this.town(here), this.town(p)]);
+      out.town = { cur: cur.name, next: next.name, state: next.state, cc: next.cc, eta: p.eta, p };
+      if (next.name && next.name !== cur.name && !(w.state.towns || []).includes(next.name)) { out.town.about = await this.about(next.name, p); out.town.weather = await this.now(p);
+        if (!Agent.cfg().practice) try { const n = (await Lookahead.gnews(`"${next.name}" when:1d`, { cc: next.cc }))[0]; if (n) out.town.news = n.title; } catch {} }
+      trace?.push(`  town: ${cur.name || '?'} now, ${next.name || '?'} in ${p.eta} min`);
+    }
+    return out;
+  },
+  detect(w, got) {
+    const s = w.state, side = got.side || {}, where = String(got.to.name || 'there').split(',')[0], link = MapWatch.gmapsLink(got.to), drive = `${got.to.lat.toFixed(3)},${got.to.lon.toFixed(3)}`;
+    if (s.drive !== drive || Date.now() - (s.driveAt || 0) > 3 * 3600e3) { s.drive = drive; s.fuelTold = []; s.towns = []; s.wxTold = ''; } s.driveAt = Date.now();
+    if (side.fuel) { const [a, b] = side.fuel, gap = +w.detect.gap || 30, line = x => `${x.name}, ${this.fmt(x.at)}${x.rating ? `, ${x.rating}★` : ''}${x.open ? `, ${x.open.toLowerCase()}` : ''}`;
+      if (!a && side.searched >= 20 && !s.fuelTold.includes('none')) { s.fuelTold.push('none'); return { headline: `No ${side.what} on your route in the next ${side.searched} km`, items: [], important: true, link }; }
+      if (a && (!b || b.at - a.at > gap) && !s.fuelTold.includes(a.name)) { s.fuelTold.push(a.name);
+        return { headline: `Last ${side.what} for a while: ${line(a)}`, items: [{ title: a.name, detail: [this.fmt(a.at) + ' ahead', a.rating ? `${a.rating}★ (${a.reviews})` : '', a.open].filter(Boolean).join(' · ') }, { title: b ? `Next after that: ${b.name}, ${this.fmt(b.at)}` : `None after it in the next ${side.searched} km` }], important: true, link: `https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lon}&travelmode=driving` }; }
+      if (a && w.detect.always && !s.fuelTold.includes(`n:${a.name}`)) { s.fuelTold.push(`n:${a.name}`); return { headline: `${side.what[0].toUpperCase()}${side.what.slice(1)} on the way: ${line(a)}`, items: side.fuel.slice(0, 3).map(x => ({ title: x.name, detail: [this.fmt(x.at), x.rating ? `${x.rating}★` : '', x.open].filter(Boolean).join(' · ') })), link: `https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lon}&travelmode=driving` }; }
+    }
+    if (side.weather) { const x = side.weather, key = `${x.what}@${Math.round(x.p.eta / 30)}`;
+      if (s.wxTold !== key) { s.wxTold = key; return { headline: `${x.what} where you'll be in about ${x.p.eta} min${x.town ? ` (near ${x.town})` : ''}`, items: [{ title: `${x.what}${x.mm >= 1 ? `, ${Math.round(x.mm)} mm/h` : ''}, ${Math.round(x.temp)}°`, detail: `${this.fmt(x.p.km)} ahead on your way to ${where}` }], important: x.important, link }; } }
+    if (side.town && side.town.next && side.town.next !== side.town.cur && !s.towns.includes(side.town.next)) { const t = side.town; s.towns.push(t.next);
+      return { headline: `Coming up: ${t.next}, about ${t.eta} min`, items: [t.about && { title: t.about }, t.weather && { title: t.weather }, t.news && { title: t.news, detail: 'In the news' }].filter(Boolean), important: false, link }; }
+    return null;
+  },
+};
+
+/* ---------- On the phone with no Mac (map watchers phase 3) ----------
+   While DriveGen navigates and none of your Macs can be reached, it looks ahead itself with open data, every 5 minutes:
+   the weather ahead, the next town, and fuel (OpenStreetMap's stations; the last one for a while). Settings › Location. */
+const RoadLocal = {
+  state: { fuelTold: [], towns: [], wxTold: '' },
+  mac() { try { if (typeof Link !== 'undefined' && Link.ready?.()) return true; } catch {} return typeof Mesh !== 'undefined' && !!Mesh.m && Mesh.members().some(m => m.app === 'StudioGen' && Mesh.own(m.id) && Mesh.presence[m.id]?.caps?.watch && Date.now() - (Mesh.presence[m.id].at || 0) < 180000); },
+  async tick() {
+    if ((typeof LINK_HOST !== 'undefined' && LINK_HOST) || settings.roadAhead === false || typeof nav === 'undefined' || !nav?.route?.coords?.length || this.mac()) return;
+    if (Date.now() - (this.at || 0) < 5 * 60000 || this.busy) return; this.at = Date.now(); this.busy = true;
+    try {
+      const path = nav.route.coords, here = { lat: loc.lat, lon: loc.lon }, min = (nav.view?.remainT || nav.route.duration || 1800) / 60, to = nav.dest || { lat: path.at(-1)[0], lon: path.at(-1)[1], name: 'there' };
+      if (this.state.dest !== `${to.lat},${to.lon}`) this.state = { fuelTold: [], towns: [], wxTold: '', dest: `${to.lat},${to.lon}` };
+      const w = { detect: {}, state: { ...this.state, drive: `${to.lat.toFixed(3)},${to.lon.toFixed(3)}`, driveAt: Date.now() } }, got = { to: { ...to, name: to.name || 'there' }, side: {} };
+      let i0 = 0, d0 = Infinity; path.forEach(([la, lo], i) => { const d = Math.hypot(la - here.lat, lo - here.lon); if (d < d0) { d0 = d; i0 = i; } });
+      const fuel = Roadside.onWay(path, here, await Roadside.osm('fuel', path.slice(i0)).catch(() => [])); /* the stations along the rest of the way */
+      const tell = hit => { if (!hit) return; const c = Agent.post({ task: 'road.local', title: '🛣 On the way', type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', ...(hit.link ? { link: hit.link } : {}) }); RoadVoice.say({ headline: hit.headline, important: hit.important }, c); };
+      for (const side of [{ fuel, what: 'fuel', searched: 60 }, { weather: await Roadside.weatherAhead(Roadside.ahead(path, here, min, 10, 200)).catch(() => null) }]) { got.side = side; tell(Roadside.detect({ ...w, detect: { kind: 'x', gap: 30 } }, got)); }
+      const pts = Roadside.ahead(path, here, min, 5, 80), p = pts.find(x => x.eta >= 12) || pts.at(-1), [cur, next] = await Promise.all([Roadside.town(here), Roadside.town(p)]).catch(() => [{}, {}]);
+      if (next.name && next.name !== cur.name && !w.state.towns.includes(next.name)) { got.side = { town: { cur: cur.name, next: next.name, eta: p.eta, about: await Roadside.about(next.name, p), weather: await Roadside.now(p) } }; tell(Roadside.detect(w, got)); }
+      Object.assign(this.state, { fuelTold: w.state.fuelTold, towns: w.state.towns, wxTold: w.state.wxTold });
+    } catch (e) { Log.w('road', 'Looking ahead on the phone failed', { error: e.message }); }
+    this.busy = false;
+  },
+};
+setInterval(() => { try { RoadLocal.tick(); } catch {} }, 60000);

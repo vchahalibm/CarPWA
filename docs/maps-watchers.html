@@ -38,6 +38,7 @@
   <li><a href="#voice">Telling you while you drive</a></li>
   <li><a href="#privacy">Privacy, manners and limits</a></li>
   <li><a href="#lookahead">Lookahead</a></li>
+  <li><a href="#along">Along the way</a></li>
   <li><a href="#later">Later watchers</a></li>
   <li><a href="#phases">Decisions and phases</a></li>
 </ol>
@@ -122,6 +123,16 @@
   <li><b>Cost.</b> The first check of a drive reads each route's turns and places them on the map (about a minute); they're kept 12 hours. The sources are read at most every 10 minutes, X every 15, GDELT once per 5 seconds at most.</li>
 </ul>
 
+<h2 id="along">Along the way (phase 3, built 3 November)</h2>
+<ul>
+  <li><b>Fuel or charging on the way</b> (map.fuel): Google Maps searches (“petrol pump”, “gas station” in the US and Canada, “CNG station”, “EV charging station”) at points 15, 30, 45 and 60 km ahead; places within 1 km of the route and ahead of you, open (or opening), at least the rating you set. Told: the last one before a gap longer than you set (30 km), none in 60 km, or the nearest when you ask for it. The bridge's <code>links</code> reads each place's position from its address (!3d!4d).</li>
+  <li><b>Weather ahead</b> (map.weather): Open-Meteo at points every 10 km ahead, at the hour you'll reach each; the first thunderstorm, heavy rain, rain, snow, fog or strong wind, with the town there.</li>
+  <li><b>Next town</b> (map.town): the town about 12–20 minutes ahead (OpenStreetMap), when it isn't the one you're in: Wikipedia's first sentence (in your language when it has the article), the weather there now, a local headline (Google News).</li>
+  <li><b>Speaking while driving</b> (RoadVoice, on the phone): important news when the voice is free, never within 300 m of a turn, during a call or while a question waits; nice-to-know at most every 4 minutes, dropped after 10; “Take X? Say yes or no” for the other way.</li>
+  <li><b>The phone with no Mac</b> (RoadLocal, Settings › Location): while DriveGen navigates and no Mac of yours can be reached, every 5 minutes along its own route: the weather ahead, the next town, and fuel from OpenStreetMap (Overpass, within 800 m of the route ahead).</li>
+  <li>Turns read by one map watcher are kept for every map watcher to the same place (12 hours); fuel, weather and town read only the route you'll drive.</li>
+</ul>
+
 <h2 id="later">8. Later watchers</h2>
 <p>Food at meal times (ratings, near where you'll be at lunch) · tolls and toll costs ahead · speed cameras · parking near the destination · “10 minutes away” (tell someone) · the weekday commute (usual 35 minutes, today 55) · tomorrow's long drive, the evening before (weather, closures, events on the route) · a place opening or getting less busy · EV charger availability · air quality ahead · sunset during the drive · border or state crossings (permits, tax).</p>
 
@@ -138,7 +149,7 @@
 <tr><th>Phase</th><th>What</th></tr>
 <tr><td>1</td><td>Home and work places (Settings › Location); position and route from the phone to your Mac (sealed, own devices); a Google Maps reader in the agent browser (directions with traffic and alternatives, places with ratings) with a practice Google Maps page; <b>traffic on my route</b>, <b>a faster way</b> (5+ minutes), <b>leave-by</b>; cards and voice in DriveGen · <b>built 1 Nov</b></td></tr>
 <tr><td>2</td><td><b>Lookahead</b> (section above): from where you are once on the way, your usual time before you start; news, posts, the weather and your feeds sorted by the language model; the other way with its map in the card; Take it · built 3 Nov</td></tr>
-<tr><td>3</td><td><b>Fuel/charging on the way</b> (ratings, open now, distance ahead), <b>weather ahead</b> (along the route at the time you reach each part), <b>next town</b> (Wikipedia, the weather, local news); speaking well while driving (spaced, never over turns or calls, “Take it?” by voice); the phone's open-data fallback with no Mac</td></tr>
+<tr><td>3</td><td><b>Fuel/charging on the way</b> (ratings, open now, distance ahead), <b>weather ahead</b> (along the route at the time you reach each part), <b>next town</b> (Wikipedia, the weather, local news); speaking well while driving (spaced, never over turns or calls, “Take it?” by voice); the phone's open-data fallback with no Mac · built 3 Nov (templates map.fuel, map.weather, map.town; RoadVoice; RoadLocal)</td></tr>
 <tr><td>4</td><td>The later watchers (section 8), as chosen</td></tr>
 </table></div>
 </main>

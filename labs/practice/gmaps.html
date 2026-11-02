@@ -26,6 +26,7 @@ h1.via{font-size:15px;font-weight:500;margin:4px 0}.note{color:var(--ink2);font-
    route option is a block with id section-directions-trip-N and data-trip-index, its time in traffic, distance, “via” road,
    notes and warnings. Address as Google's: ?origin=LAT,LON&destination=NAME@LAT,LON (or LAT,LON).
    Also ?saddr=&daddr=&dirflg=dth (Google's older form, with avoid tolls t / highways h).
+   ?search=petrol+pump&at=LAT,LON: a search list of places near there.
    Details lists a route's turns (folded, as Google's); a click on a turn moves the map there (the address's @lat,lon).
    ?routes=35:Outer Ring Rd,42:NH44:Accident reported,50:Old Madras Rd sets the routes (minutes:via:warning), kept in this
    browser per destination; ?reset forgets them. Without it, times come from the distance. */
@@ -68,7 +69,12 @@ function details(i) { const r = shown[i], g = TURNS[r.via] || [[`Follow ${r.via}
   pane.innerHTML = `<header><button class="det" onclick="draw()">Back</button></header><div class="trip"><div class="dur">${dur(r.min)}</div><h1 class="via">via ${r.via}</h1></div>
     ${g.map(([h, l]) => `<div class="trip"><div>${h}</div><div hidden>${l.map(t => { const [la, lo] = at(t); return `<div data-stepindex data-at="${la.toFixed(5)},${lo.toFixed(5)}">${Array.isArray(t) ? t[0] : t}</div>`; }).join('')}</div></div>`).join('')}`;
   pane.querySelectorAll('[data-stepindex]').forEach(e => e.onclick = () => history.replaceState(null, '', location.pathname + location.search.replace(/&?at=[^&]*/, '') + `&at=@${e.dataset.at},17z`)); }
-draw();
+/* ?search=petrol+pump&at=LAT,LON: Google's search list (role feed; each place a link with its position, rating, hours) */
+function search() { const [la, lo] = (q.get('at') || '12.9,77.6').split(',').map(Number), what = q.get('search'), ev = /ev|charg/i.test(what);
+  const names = ev ? ['Tata Power EZ Charge', 'Statiq Charging Hub', 'ChargeZone'] : ['Indian Oil', 'HP Petrol Pump', 'Bharat Petroleum', 'Shell'];
+  pane.innerHTML = `<div role="feed">${names.map((n, k) => { const d = (k - 1) * 0.004; return `<div class="trip"><a href="https://www.google.com/maps/place/${encodeURIComponent(n)}/data=!3d${(la + d).toFixed(5)}!4d${(lo - d).toFixed(5)}" aria-label="${n}">${n}</a>
+    <div class="note">${(4.4 - k * 0.3).toFixed(1)}(${1200 - k * 300}) · ${ev ? 'EV charging station' : 'Petrol pump'}</div><div class="note">${k === 2 ? 'Closed · Opens 6 am' : 'Open 24 hours'}</div></div>`; }).join('')}</div>`; }
+q.has('search') ? search() : draw();
 </script>
 </body>
 </html>

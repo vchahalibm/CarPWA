@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'On the road: fuel or charging on the way (the last one for a while, with ratings), the weather where you’ll be, and the next town; your phone says them between turns, and looks ahead itself when no Mac is reachable',
   'Lookahead: the traffic watcher looks ahead along your drive in any city (news, Reddit, X, the weather, your own feeds) for accidents, jams, road works, closures, VIP movement, protests, processions, flooding and more, from where you are once on the way; with the other way, its map in the card, and Take it',
   'Map watchers: Avoid roads looks at every turn of each route, and places such as Silk Board by where they are on the map; watcher buttons have a | between them',
   'Fixed: map watchers couldn’t read the real Google Maps (the hidden agent browser wasn’t drawing its pages, so Google never listed the routes); Diagnose and Show me now work for map watchers',

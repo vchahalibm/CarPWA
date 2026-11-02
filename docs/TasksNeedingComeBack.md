@@ -75,7 +75,10 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [x] **Map watchers phase 3** built 3 Nov (fuel, weather ahead, next town tested on a real highway, Electronic City → Krishnagiri). To try:
   - [ ] A drive out of town with Fuel on the way, Weather ahead and Next town: are they said between turns, and not too often?
   - [ ] DriveGen navigating with the Mac off (or away from the link): does the phone tell the next town and the last fuel by itself?
-- [ ] **Map watchers phase 4** next: the later watchers.
+- [x] **Map watchers phase 4** built 3 Nov (food, parking, 10 minutes away, speed cameras, tolls, tomorrow's drive; air, sunset, state crossings, free EV chargers). To try:
+  - [ ] Speed cameras and Toll plazas on a highway drive (OpenStreetMap's servers were busy while testing: Last check says when they don't answer).
+  - [ ] Food at lunch time on a drive; Parking 15 min before arriving; 10 minutes away: does Send open WhatsApp with the message (you press send)?
+  - [ ] Tomorrow's drive: a watcher for a morning trip; does the evening card come between 18:00 and 22:00?
 
 ## To perform (with you)
 

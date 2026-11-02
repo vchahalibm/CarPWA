@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'More on the road: food at meal times on the way, parking near where you’re going, “10 minutes away” with a message to send, speed cameras and toll plazas ahead, tomorrow’s drive the evening before; poor air, sunset and state crossings',
   'On the road: fuel or charging on the way (the last one for a while, with ratings), the weather where you’ll be, and the next town; your phone says them between turns, and looks ahead itself when no Mac is reachable',
   'Lookahead: the traffic watcher looks ahead along your drive in any city (news, Reddit, X, the weather, your own feeds) for accidents, jams, road works, closures, VIP movement, protests, processions, flooding and more, from where you are once on the way; with the other way, its map in the card, and Take it',
   'Map watchers: Avoid roads looks at every turn of each route, and places such as Silk Board by where they are on the map; watcher buttons have a | between them',

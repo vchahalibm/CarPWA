@@ -296,12 +296,12 @@ const Watch = {
   tell(w, hit, verdict) {
     if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], value: hit.value, important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another StudioGen of yours: it tells */
     const t = w.tell || {}, quiet = this.quiet(w), presenting = typeof Script !== 'undefined' && Script.running;
-    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}), ...(hit.shot ? { shot: Agent.img(hit.shot) } : {}), ...(hit.take ? { take: hit.take } : {}) };
+    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}), ...(hit.shot ? { shot: Agent.img(hit.shot) } : {}), ...(hit.take ? { take: hit.take } : {}), ...(hit.share ? { share: hit.share } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
     if (t.toast !== false && !quiet) toast(`👁 ${hit.headline}`);
     if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && (verdict?.important || hit.important)))) Voice.announce(hit.headline); /* the assistant's voice, with its gestures */
     if (t.digest !== false) store.set('watchDigest', [...store.get('watchDigest', []), { at: Date.now(), w: w.name, h: hit.headline, items: (hit.items || []).slice(0, 3) }].slice(-200));
-    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important || !!hit.important, ...(hit.link ? { link: hit.link } : {}), ...(hit.shot && hit.shot.length < 160000 ? { shot: hit.shot } : {}), ...(hit.take ? { take: hit.take, alt: hit.alt } : {}), ...(hit.severity ? { severity: hit.severity } : {}), ...(w.source === 'gmaps' ? { map: true } : {}) });
+    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important || !!hit.important, ...(hit.link ? { link: hit.link } : {}), ...(hit.shot && hit.shot.length < 160000 ? { shot: hit.shot } : {}), ...(hit.take ? { take: hit.take, alt: hit.alt } : {}), ...(hit.severity ? { severity: hit.severity } : {}), ...(hit.share ? { share: hit.share } : {}), ...(w.source === 'gmaps' ? { map: true } : {}) });
     this.record(w, hit); this.chainOut(w, hit); this.act(w, hit);
     Log.i('watch', `Told: ${hit.headline}`, { quiet, important: !!verdict?.important });
   },
@@ -355,7 +355,7 @@ const Watch = {
   event(p, who) {
     const from = who.meshId || who.id;
     if (p.phone) { /* on a phone: a card and a quiet note; the Mac keeps the watcher */
-      const c = Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac', ...(p.link ? { link: p.link } : {}), ...(p.shot ? { shot: Agent.img(p.shot) } : {}), ...(p.take ? { take: p.take } : {}) });
+      const c = Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac', ...(p.link ? { link: p.link } : {}), ...(p.shot ? { shot: Agent.img(p.shot) } : {}), ...(p.take ? { take: p.take } : {}), ...(p.share ? { share: p.share } : {}) });
       if (!this.quiet({})) { toast(`👁 ${p.headline}`); if (p.map && typeof RoadVoice !== 'undefined') RoadVoice.say(p, c); else if (p.important && typeof Voice !== 'undefined') Voice.announce?.(p.headline); } /* in the car: important news said (traffic, a faster way, leave now), spaced (js/lookahead.js) */ return { ok: true };
     }
     const w = this.list().find(x => x.id === p.id && x.runOn === from); if (!w) return { ok: false, error: 'No such watcher here' };

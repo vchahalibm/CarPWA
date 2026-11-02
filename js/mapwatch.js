@@ -108,7 +108,7 @@ const MapWatch = {
   /** A traffic watcher that looks ahead (js/lookahead.js): it reads each route's turns and where they are. */
   looking(w) { return typeof Lookahead !== 'undefined' && (w.detect?.kind === 'traffic' ? Lookahead.look(w).on : this.SIDE.includes(w.detect?.kind)); },
   /** Kinds about what's along the way (js/lookahead.js Roadside): they need the route's turns and where they are. */
-  SIDE: ['fuel', 'weatherahead', 'town'],
+  SIDE: ['fuel', 'weatherahead', 'town', 'food', 'parking', 'arrive', 'cameras', 'tolls'],
   /** Each route's turn-by-turn steps (Google's Details: every road and landmark on the way, not just its “via”), for avoid
       and prefer roads; and, when a name isn't in them (a junction such as Silk Board: Google names roads, not what they
       cross), where each turn is (a click on a turn moves the map there), so a place can be checked against the route's
@@ -177,11 +177,12 @@ const MapWatch = {
   async read(w, trace) {
     if (!this.activeNow(w)) { trace?.push('  not now (outside the days and hours it watches)'); return { idle: true }; }
     if (w.detect?.kind === 'leaveby') return this.leaveRead(w, trace);
+    if (w.detect?.kind === 'tomorrow') return this.tomorrowRead(w, trace);
     let from = await this.place(w, w.from || 'here'), onWay = (w.from || 'here') === 'here' && !!from; const to = await this.place(w, w.to || 'nav'), h = this.fresh();
     if (!from || !to) { trace?.push(`  waiting: ${!from ? 'no recent position from your phone (it sends one while you drive)' : 'no destination (navigate in DriveGen, or set one in Edit)'}`); return { idle: true }; }
     /* on the way (your phone's position between the start and the end): only the road still ahead counts */
     if (!onWay && h && typeof Lookahead !== 'undefined' && Lookahead.onWay(from, h, to)) { from = { name: 'where you are', lat: h.lat, lon: h.lon }; onWay = true; trace?.push('  on the way: from where you are now'); }
-    if (!onWay && /^(fuel|town)$/.test(w.detect?.kind)) { trace?.push('  waiting: it starts once you’re on the way (your phone between the start and the end)'); return { idle: true }; }
+    if (!onWay && this.SIDE.includes(w.detect?.kind) && w.detect.kind !== 'weatherahead') { trace?.push('  waiting: it starts once you’re on the way (your phone between the start and the end)'); return { idle: true }; }
     const d = await this.directions(w, from, to, trace); d.onWay = onWay;
     if (w.detect?.kind === 'traffic' && this.looking(w)) d.causes = await Lookahead.causes(w, d, trace).catch(e => { trace?.push(`  looking ahead failed: ${e.message.slice(0, 60)}`); return []; });
     if (this.SIDE.includes(w.detect?.kind)) d.side = await Roadside.read(w, d, trace);
@@ -205,6 +206,20 @@ const MapWatch = {
     const d = await this.directions(w, from, to, trace);
     return { ...d, event: { title: it.title, when: it.when, place: placeName, start } };
   },
+  /** Tomorrow's drive, the evening before (18:00–22:00, once): the drive now (as a guide), the weather there at that time
+      tomorrow, and news of strikes, closures or events on the way. */
+  async tomorrowRead(w, trace) {
+    const h = new Date().getHours(), day = new Date().toDateString(), tm = new Date(Date.now() + 864e5);
+    if (h < 18 || h >= 22 || w.state.tmDay === day) { trace?.push('  it looks between 18:00 and 22:00, once'); return { idle: true }; }
+    if (w.active?.days?.length && !w.active.days.includes(tm.getDay())) { trace?.push('  no drive tomorrow (the days it watches)'); return { idle: true }; }
+    const from = await this.place(w, w.from || 'home'), to = await this.place(w, w.to); if (!from || !to) throw new Error(!to ? 'Where to? (Edit the watcher)' : 'Where from? (set Home in Places)');
+    const d = await this.directions(w, from, to, trace), [hh, mm] = String(w.arrive || '09:00').split(':').map(Number), at = new Date(tm); at.setHours(hh, mm || 0, 0, 0);
+    try { const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${to.lat.toFixed(3)}&longitude=${to.lon.toFixed(3)}&hourly=precipitation,weather_code,temperature_2m&forecast_days=2&timezone=auto`)).json(), i = 24 + hh;
+      const code = j.hourly?.weather_code?.[i]; if (code != null) d.weather = { code, mm: j.hourly.precipitation[i], temp: j.hourly.temperature_2m[i] }; } catch {}
+    if (typeof Lookahead !== 'undefined') try { const g = await Lookahead.gather(w, d, { ...Lookahead.look(w), x: false }, trace), names = [...g.roads, ...g.areas];
+      d.news = g.items.filter(i => /tomorrow|bandh|strike|hartal|closed|closure|diversion|protest|rally|procession|marathon|match/i.test(`${i.title} ${i.text}`) && (Lookahead.mentions(`${i.title} ${i.text}`, names).length || /bandh|strike|hartal/i.test(i.title))).slice(0, 3); } catch {}
+    d.tomorrow = { at: +at, arrive: w.arrive || '09:00' }; return d;
+  },
   /** “3:00 PM”, “15:00”, “3 pm” today → a time; null when it can't tell. */
   when(s) { const m = String(s || '').match(/(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?/i); if (!m) return null; let h = +m[1]; const mi = +(m[2] || 0), ap = (m[3] || '').toLowerCase(); if (ap.startsWith('p') && h < 12) h += 12; if (ap.startsWith('a') && h === 12) h = 0; const d = new Date(); d.setHours(h, mi, 0, 0); return +d; },
   clock: t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
@@ -214,7 +229,9 @@ const MapWatch = {
   /** Map kinds (js/watch.js detect): traffic, faster, leaveby. */
   detect(w, got) {
     const d = w.detect, s = w.state; if (!got || got.idle || !got.routes?.length) return null;
-    if (this.SIDE.includes(d.kind)) return typeof Roadside !== 'undefined' ? Roadside.detect(w, got) : null; /* fuel, weather ahead, next town */
+    if (this.SIDE.includes(d.kind)) return typeof Roadside !== 'undefined' ? Roadside.detect(w, got) : null; /* fuel, weather ahead, next town, food, parking, arriving, cameras, tolls */
+    if (d.kind === 'tomorrow' && got.tomorrow) { const t = got.tomorrow, best = got.routes[0], wx = got.weather, leave = t.at - (best.min + (+d.buffer || 15)) * 60000, where = String(got.to.name || 'there').split(',')[0]; s.tmDay = new Date().toDateString();
+      return { headline: `Tomorrow: ${where} by ${t.arrive}, about ${best.min} min at today's traffic: leave by ${this.clock(leave)}`, items: [wx && { title: `${wx.code >= 95 ? 'Thunderstorms' : wx.mm >= 2 ? 'Rain' : 'Dry'} there around ${t.arrive}, ${Math.round(wx.temp)}°`, detail: wx.mm >= 0.5 ? `${Math.round(wx.mm * 10) / 10} mm/h` : '' }, ...(got.news || []).map(n => ({ title: n.title, detail: n.source })), { title: `${best.min} min${best.via ? ` via ${best.via}` : ''} now`, detail: best.notes.join(' · ') }].filter(Boolean), important: true, link: this.gmapsLink(got.to) }; }
     const trip = `${got.to.lat.toFixed(3)},${got.to.lon.toFixed(3)}`, best = got.routes.reduce((a, b) => b.min < a.min ? b : a), now = Date.now();
     if (s.trip !== trip || now - (s.tripAt || 0) > 3 * 3600e3) { s.trip = trip; s.base = best.min; s.told = best.min; s.via = best.via; s.suggested = ''; s.leave = {}; } /* a new trip: what's there now is the starting point */
     s.tripAt = now;
@@ -293,6 +310,8 @@ const MapWatch = {
       <label class="se-field"><span>Your own feeds (RSS addresses, e.g. your city's traffic police; spaces between)</span><input id="mlFeeds" value="${esc(l.feeds || '')}" placeholder="https://…/rss"></label>`;
   },
   readOptions(w) {
+    if ($('#mkRating')) w.detect = { ...w.detect, rating: +$('#mkRating').value || 0, what: $('#mkWhat').value.trim() ? `${$('#mkWhat').value.trim()} restaurants` : 'restaurants' };
+    if ($('#mkMin')) w.detect = { ...w.detect, min: +$('#mkMin').value || 10, who: $('#mkWho').value.trim() };
     if ($('#mfKind')) w.detect = { ...w.detect, fuel: $('#mfKind').value, rating: +$('#mfRating').value || 0, gap: +$('#mfGap').value || 30, always: $('#mfAlways').checked };
     if ($('#mlOn')) w.look = { on: $('#mlOn').checked, news: $('#mlNews').checked, posts: $('#mlPosts').checked, x: $('#mlX').checked, weather: $('#mlWeather').checked, feeds: $('#mlFeeds').value.trim() };
     w.avoid = { tolls: !!$('#mpTolls')?.checked, highways: !!$('#mpHighways')?.checked, work: !!$('#mpWork')?.checked };
@@ -304,7 +323,7 @@ const MapWatch = {
   formHtml(w, kind) {
     const lb = kind === 'leaveby';
     return `${this.field('from', 'From', w.from ?? (lb ? 'home' : 'here'), { here: true })}${lb && !w.arrive && !w.to ? '<p class="se-note">To: your next meeting with a place (from your calendar).</p>' : this.field('to', 'To', w.to ?? (lb ? '' : 'nav'), { nav: !lb })}
-      ${lb ? `<label class="se-row"><span>Be there by (empty: your next meeting)</span><input id="mpArrive" type="time" value="${esc(w.arrive || '')}"></label>` : ''}${kind === 'fuel' ? this.fuelOptions(w) : ''}${this.options(w)}${kind === 'traffic' ? this.lookOptions(w) : ''}`;
+      ${lb ? `<label class="se-row"><span>Be there by (empty: your next meeting)</span><input id="mpArrive" type="time" value="${esc(w.arrive || '')}"></label>` : ''}${kind === 'fuel' ? this.fuelOptions(w) : ''}${kind === 'food' ? `<label class="se-row"><span>At least ★</span><input id="mkRating" type="number" min="0" max="5" step="0.5" value="${esc(w.detect?.rating ?? 4)}"></label><label class="se-field"><span>What kind of food (empty: any restaurant)</span><input id="mkWhat" value="${esc(w.detect?.what && w.detect.what !== 'restaurants' ? w.detect.what : '')}" placeholder="South Indian, vegetarian, cafe"></label>` : ''}${kind === 'arrive' ? `<label class="se-row"><span>Minutes before arriving</span><input id="mkMin" type="number" min="2" max="60" value="${esc(w.detect?.min ?? 10)}"></label><label class="se-field"><span>Send it to (WhatsApp number with country code; empty: choose when sending)</span><input id="mkWho" value="${esc(w.detect?.who || '')}" placeholder="+91 98xxxxxxxx"></label>` : ''}${kind === 'tomorrow' ? `<label class="se-row"><span>Be there by</span><input id="mpArrive" type="time" value="${esc(w.arrive || '09:00')}"></label>` : ''}${this.options(w)}${kind === 'traffic' ? this.lookOptions(w) : ''}`;
   },
   formRead(w) { w.from = this.value('from') || w.from; if ($('[data-mpv="to"]')) w.to = this.value('to') || w.to; if ($('#mpArrive')) w.arrive = $('#mpArrive').value || ''; this.readOptions(w); },
   formSheet(T) {
@@ -312,7 +331,7 @@ const MapWatch = {
     sheet(T.name, `${T.about ? `<p class="se-note">${esc(T.about)}</p>` : ''}${this.formHtml(base, kind)}${Watch.formHtml(base)}`,
       [['Check and save', async () => { const w = Watch.make({ name: T.name, template: T.id, templateInputs: {}, ...base }); this.formRead(w); Watch.formRead(w);
         if (kind !== 'leaveby' || w.arrive) { if (!w.to) return toast('Where to? Choose or search a place'); }
-        if (w.to && typeof w.to === 'object') w.name = `${{ faster: 'Faster way', leaveby: 'Be there', fuel: w.detect.fuel === 'ev' ? 'Charging' : 'Fuel', weatherahead: 'Weather', town: 'Towns' }[kind] || 'Lookahead'} to ${w.to.name.split(',')[0]}`;
+        if (w.to && typeof w.to === 'object') w.name = `${{ faster: 'Faster way', leaveby: 'Be there', fuel: w.detect.fuel === 'ev' ? 'Charging' : 'Fuel', weatherahead: 'Weather', town: 'Towns', food: 'Food', parking: 'Parking at', arrive: 'Arriving at', cameras: 'Cameras', tolls: 'Tolls', tomorrow: 'Tomorrow:' }[kind] || 'Lookahead'} ${/^(parking|arrive|tomorrow)$/.test(kind) ? '' : 'to '}${w.to.name.split(',')[0]}`;
         await Watch.saveChecked(w); }], ['Back', () => Watch.templates()]]);
   },
   /* ---------- Places: home, work and your own ---------- */
@@ -364,6 +383,18 @@ WATCH_TEMPLATES.push(
     make: () => ({ name: 'Weather ahead', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'weatherahead' }, every: '15m', tell: { card: true, toast: true, speak: 'important', digest: false, phone: true } }) },
   { id: 'map.town', group: 'On the road', map: true, name: 'Next town', about: 'While you drive, tells you the next town about 15 minutes ahead: a line about it (Wikipedia), the weather there and a local headline.', inputs: [],
     make: () => ({ name: 'Next town', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'town' }, every: '5m', tell: { card: true, toast: true, speak: 'always', digest: false, phone: true } }) },
+  { id: 'map.food', group: 'On the road', map: true, name: 'Food at meal times on the way', about: 'At breakfast, lunch or dinner time, finds well-rated places to eat near where you’ll be on the route (Google Maps): “Lunch on the way: Udupi Grand, 4.4★, 12 km ahead (about 15 min).”', inputs: [],
+    make: () => ({ name: 'Food on the way', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'food', rating: 4, what: 'restaurants' }, every: '15m', tell: { card: true, toast: true, speak: 'always', digest: false, phone: true } }) },
+  { id: 'map.parking', group: 'On the road', map: true, name: 'Parking near where I’m going', about: 'About 15 minutes before you arrive, finds parking near your destination (Google Maps: open now, how far from it).', inputs: [],
+    make: () => ({ name: 'Parking', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'parking', within: 15 }, every: '5m', tell: { card: true, toast: true, speak: 'always', digest: false, phone: true } }) },
+  { id: 'map.near', group: 'On the road', map: true, name: '10 minutes away (tell someone)', about: 'Tells you when you’re 10 minutes from where you’re going, with a button to send “I’m about 10 minutes away” on WhatsApp or as a message (you press send).', inputs: [],
+    make: () => ({ name: '10 minutes away', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'arrive', min: 10, who: '' }, every: '5m', tell: { card: true, toast: true, speak: 'always', digest: false, phone: true } }) },
+  { id: 'map.cameras', group: 'On the road', map: true, name: 'Speed cameras ahead', about: 'Speed cameras on the next 20 km of your route (OpenStreetMap, any country), with the limit when it’s known.', inputs: [],
+    make: () => ({ name: 'Speed cameras', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'cameras' }, every: '5m', tell: { card: true, toast: true, speak: 'always', digest: false, phone: true } }) },
+  { id: 'map.tolls', group: 'On the road', map: true, name: 'Toll plazas ahead', about: 'Toll plazas on the next 60 km of your route (OpenStreetMap). Google Maps doesn’t give toll prices, so it names them and how far.', inputs: [],
+    make: () => ({ name: 'Tolls ahead', source: 'gmaps', from: 'here', to: 'nav', detect: { kind: 'tolls' }, every: '15m', tell: { card: true, toast: true, speak: 'important', digest: false, phone: true } }) },
+  { id: 'map.tomorrow', group: 'On the road', map: true, name: 'Tomorrow’s drive, the evening before', about: 'In the evening (18:00–22:00), for a drive you make tomorrow: how long it takes at today’s traffic, when to leave, the weather there at that time, and news of strikes, closures or events on the way.', inputs: [],
+    make: () => ({ name: 'Tomorrow’s drive', source: 'gmaps', from: 'home', to: '', arrive: '09:00', detect: { kind: 'tomorrow', buffer: 15 }, every: '30m', tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
   { id: 'map.leaveby', group: 'On the road', map: true, name: 'Leave by (my next meeting)', about: 'Reads your next meeting with a place from your calendar, checks the drive on Google Maps, and tells you when to leave (10 minutes to spare), then when to go.', inputs: [['from', 'Leaving from (home, work or here)', 'home']],
     make: v => ({ name: 'Leave by', source: 'gmaps', from: /^(home|work|here)$/i.test(v.from) ? v.from.toLowerCase() : 'home', detect: { kind: 'leaveby', buffer: 10 }, every: '15m', tell: { card: true, toast: true, speak: 'always', digest: true, phone: true } }) },
 );

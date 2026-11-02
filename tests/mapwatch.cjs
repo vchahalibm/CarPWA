@@ -20,6 +20,12 @@ const M = ctx.M; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   const lb = { detect: { kind: 'leaveby', buffer: 10 }, state: {} }, start = Date.now() + 55 * 60000, ev = { ...R([[30, 'ORR']]), event: { title: 'Acme review', when: '3:00 PM', place: 'Whitefield', start } };
   const a1 = M.detect(lb, ev)?.headline, a2 = M.detect(lb, ev)?.headline; ok(/^Leave by/.test(a1) && !a2, 'leave by, once: ' + a1);
   lb.state.leave[`Acme review@${start}`] = 1; const late = { ...ev, event: { ...ev.event } }; late.routes[0].min = 50; ok(/^Leave now/.test(M.detect(lb, late)?.headline || ''), 'then leave now');
+  /* avoid/prefer roads: loose names in a route's via or turns; a place by distance from the path between its turns */
+  const rr = () => [{ via: 'Outer Ring Rd', notes: [], warn: [], steps: 'Turn left onto M G Road' }, { via: 'Hosur Rd', notes: [], warn: [], steps: '' }];
+  const ru = M.rules({ avoidRoads: 'mg road, silkboard' }, Object.assign(rr(), {})); ok(ru.length === 1 && ru[0].via === 'Hosur Rd', 'avoid by turns, loosely: ' + JSON.stringify(ru.map(r => r.via)));
+  const silk = { lat: 12.9168, lon: 77.6236 }, path = [[12.9266, 77.62175], [12.92112, 77.61868], [12.91974, 77.61953], [12.84656, 77.67014]];
+  const near = M.offPath(silk, path), far = M.offPath(silk, [[12.9266, 77.62175], [12.9098, 77.64566], [12.84656, 77.67014]]);
+  ok(near.near && near.km < 0.3 && !far.near, `a place near the path: ${near.km.toFixed(3)} km, away: ${far.km.toFixed(3)} km`);
   ok(M.when('3:05 PM') && new Date(M.when('3:05 PM')).getHours() === 15, '3:05 PM');
   await M.share(); ok(sent.length === 0, 'parked: nothing sent');
   ctx.loc.speed = 14; ctx.nav = { dest: { name: 'Whitefield', lat: 12.9698, lon: 77.75 } }; await M.share(); ok(sent.length === 1 && sent[0].dest.name === 'Whitefield', 'driving: sent with the destination');

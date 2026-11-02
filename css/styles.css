@@ -1227,6 +1227,11 @@ table.bench small{color:var(--text-2)}
 .st-dots i.on{background:var(--acc);transform:scale(1.35)}
 .stage:has(.st-beats:not([hidden])) .st-cap{padding-bottom:76px}
 .link-btn{color:var(--accent);font-weight:600;font-size:inherit;padding:10px 0;min-height:44px}
+/* a row's actions (Edit | Check now | Pause | Delete): a thin bar between them, none at the start of a wrapped line (the
+   first in each line sits 1.5px outside the box, where its bar is cut off) */
+.acts{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;overflow:hidden;flex:0 1 auto;max-width:60%}
+.acts>.link-btn{position:relative;margin-left:-1.5px;padding:10px 12px}
+.acts>.link-btn::before{content:'';position:absolute;left:0;top:50%;height:1.1em;transform:translateY(-50%);border-left:1.5px solid color-mix(in srgb,var(--text-2) 55%,transparent)}
 .group .link-btn{display:block;margin:0 20px 8px}
 .sui-btns{display:flex;gap:8px;align-items:center;flex:none}
 .sui-btns .big-btn{flex:none;padding:0 14px;min-width:56px}

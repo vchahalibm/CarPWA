@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Map watchers: Avoid roads looks at every turn of each route, and places such as Silk Board by where they are on the map; watcher buttons have a | between them',
   'Fixed: map watchers couldn’t read the real Google Maps (the hidden agent browser wasn’t drawing its pages, so Google never listed the routes); Diagnose and Show me now work for map watchers',
   'Map watchers take any start and destination (search, or your places in 👁 Watchers › Places), avoid tolls, highways, roadworks or roads you name, prefer your roads, run only on days and hours you pick, and “Be there by 9:30” trips',
   'Map watchers: traffic on your route, a faster way (5+ minutes), and when to leave for your next meeting, from Google Maps',

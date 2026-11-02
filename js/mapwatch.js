@@ -65,11 +65,13 @@ const MapWatch = {
   /** This app's own route rules (Google Maps has none of them): skip routes with construction or closures, routes along
       roads you avoid; prefer roads you like. Each route gets skip (why) or prefer. */
   rules(w, routes) {
-    const names = x => String(x || '').toLowerCase().split('||').map(t => t.trim()).filter(Boolean), avoid = names(w.avoidRoads), prefer = names(w.preferRoads);
+    /* loose: case, spaces and Road/Rd don't matter (“silkboard”, “Silk Board Junction”; “MG Road”, “M G Rd”) */
+    const norm = x => String(x || '').toLowerCase().replace(/\broad\b/g, 'rd').replace(/[^a-z0-9]+/g, '');
+    const names = x => String(x || '').split(/\|\||,/).map(t => t.trim()).filter(Boolean), avoid = names(w.avoidRoads), prefer = names(w.preferRoads);
     for (const r of routes) {
-      const t = `${r.via} ${r.notes.join(' ')}`.toLowerCase();
-      r.skip = w.avoid?.work && r.warn.length ? r.warn[0] : avoid.find(a => t.includes(a)) ? `along ${avoid.find(a => t.includes(a))}` : '';
-      r.prefer = prefer.some(p => t.includes(p));
+      const t = norm(`${r.via} ${r.notes.join(' ')} ${r.steps || ''}`), hit = avoid.find(a => t.includes(norm(a)));
+      r.skip = w.avoid?.work && r.warn.length ? r.warn[0] : hit ? `along ${hit}` : '';
+      r.prefer = prefer.some(p => t.includes(norm(p)));
     }
     const ok = routes.filter(r => !r.skip); return ok.length ? ok.sort((a, b) => (b.prefer - a.prefer) || 0) : routes;
   },
@@ -97,9 +99,70 @@ const MapWatch = {
     const text = String(await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }) ?? '');
     const routes = text.split('\n').map(l => this.route(l)).filter(Boolean).slice(0, 4);
     if (!routes.length) { trace?.push('  routes: none read'); throw new Error(`NOTFOUND:${rows}`); }
+    if (w.avoidRoads || w.preferRoads) await this.steps(w, url, routes, trace, from, to).catch(e => trace?.push(`  turns: couldn’t read them (${e.message})`));
     const pool = this.rules(w, routes);
     trace?.push(`  routes: ${routes.map(r => `${r.min} min${r.via ? ` via ${r.via}` : ''}${r.warn.length ? ` (${r.warn[0]})` : ''}${r.skip ? ` [skipped: ${r.skip}]` : r.prefer ? ' [preferred]' : ''}`).join(' · ')}`);
+    if (routes.every(r => r.skip)) trace?.push('  every route has something you avoid: it tells you about them all');
     return { from, to, routes: pool, all: routes, url };
+  },
+  /** Each route's turn-by-turn steps (Google's Details: every road and landmark on the way, not just its “via”), for avoid
+      and prefer roads; and, when a name isn't in them (a junction such as Silk Board: Google names roads, not what they
+      cross), where each turn is (a click on a turn moves the map there), so a place can be checked against the route's
+      path. Kept 12 hours per route (its via and length), so most checks don't open them again. */
+  async steps(w, url, routes, trace, from, to) {
+    const keep = w.state.steps ||= {}, now = Date.now(), sleep = ms => new Promise(r => setTimeout(r, ms)), ctx = { quiet: true };
+    const norm = x => String(x || '').toLowerCase().replace(/\broad\b/g, 'rd').replace(/[^a-z0-9]+/g, '');
+    const names = String(`${w.avoidRoads || ''},${w.preferRoads || ''}`).split(/\|\||,/).map(x => x.trim()).filter(Boolean);
+    for (const k in keep) if (now - keep[k].at > 12 * 3600e3) delete keep[k];
+    let opened = 0, pts = 0;
+    for (const [i, r] of routes.entries()) {
+      const key = `${r.via}|${r.km}`; if (keep[key]) { r.steps = keep[key].t; r.path = keep[key].p; continue; }
+      if (opened++) { await AgentWeb.go(url, w.container, ctx); await AgentWeb.call('waitFor', [{ sel: this.ROWS }, 15000], 16000, ctx); }
+      const view = { view: AgentWeb.views.get(Watch.viewKey(w)) };
+      /* the selected route has Details already (and a click on it opens them); another is selected first. exists before
+         clickOn: clickOn looks for the words anywhere when the selector has none, which would be another route's Details */
+      const det = { sel: `[data-trip-index="${i}"] button`, text: 'Details' }, has = async (ms = 0) => { for (const t0 = Date.now(); ; await sleep(300)) { if ((await AgentWeb.call('exists', [det], 4000, view))?.ok) return true; if (Date.now() - t0 >= ms) return false; } };
+      let d = await has() ? await AgentWeb.call('clickOn', [det], 8000, view) : null;
+      if (!d?.ok) { await AgentWeb.call('clickOn', [{ sel: `[data-trip-index="${i}"]` }], 8000, view); await sleep(700);
+        const open = (await AgentWeb.call('exists', [{ sel: '[data-trip-index]' }], 4000, view))?.ok === false; /* it opened its details */
+        d = open ? { ok: true } : await has(3000) ? await AgentWeb.call('clickOn', [det], 8000, view) : null; }
+      if (!d?.ok) { trace?.push(`  turns: no Details for route ${i + 1}`); continue; }
+      await sleep(2500);
+      const t = (await AgentWeb.call('words', ['[role="main"]||#pane||body', 40000], 10000, view))?.text || '';
+      r.steps = [...new Set(t.split('\n').filter(x => x.length > 2 && !/^\d+(\.\d+)?\s*(m|km|min)$/.test(x)))].join(' · ').slice(0, 6000);
+      r.path = [];
+      if (names.some(n => !norm(`${r.via} ${r.steps}`).includes(norm(n)))) for (let j = 0; j < 40; j++) {
+        const m = await AgentWeb.call('mapAt', ['[data-stepindex]', j, 1500], 3000, view); if (!m?.ok) break;
+        const [la, lo, z] = String(m.at || '').split(',').map(Number); if (z >= 15) r.path.push([Math.round(la * 1e5) / 1e5, Math.round(lo * 1e5) / 1e5]); /* zoomed in on a turn, not the whole route */
+      }
+      pts += r.path.length; keep[key] = { at: now, t: r.steps, p: r.path };
+    }
+    trace?.push(`  turns read for ${routes.filter(r => r.steps).length} of ${routes.length} routes${opened ? (pts ? ` (${pts} turns placed on the map)` : '') : ' (kept from earlier)'}`);
+    /* a name the turns don't have: the place on the map, near a route's path (from turn to turn) */
+    for (const name of names) {
+      if (!from || !to || routes.every(r => norm(`${r.via} ${r.steps || ''}`).includes(norm(name)))) continue;
+      const p = await this.place(w, name).catch(() => null); if (!p) { trace?.push(`  ${name}: not found on the map`); continue; }
+      const near = [];
+      for (const r of routes) {
+        if (norm(`${r.via} ${r.steps || ''}`).includes(norm(name)) || !r.path?.length) continue;
+        const d = this.offPath(p, [[from.lat, from.lon], ...r.path, [to.lat, to.lon]]);
+        if (d.near) { r.steps = `${r.steps || ''} · ${name}`; near.push(`${r.via || 'a route'} (${Math.round(d.km * 1000)} m)`); }
+      }
+      trace?.push(`  ${name}: ${near.length ? `on the way of ${near.join(', ')}` : 'not on any route'}`);
+    }
+    if (opened) await AgentWeb.go(url, w.container, ctx); /* the routes list again, for Show me */
+  },
+  /** How far p is from a path (points [lat, lon], straight between them): { km, near }. Near: within 300 m, or a little more
+      along long stretches between turns (roads bend: up to 800 m). */
+  offPath(p, path) {
+    const kx = 111.32 * Math.cos(p.lat * Math.PI / 180), ky = 110.57, xy = ([la, lo]) => [(lo - p.lon) * kx, (la - p.lat) * ky];
+    let min = Infinity, near = false;
+    for (let i = 1; i < path.length; i++) {
+      const [ax, ay] = xy(path[i - 1]), [bx, by] = xy(path[i]), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0, km = Math.hypot(ax + t * dx, ay + t * dy), tol = Math.min(0.8, Math.max(0.3, 0.06 * Math.sqrt(L2)));
+      min = Math.min(min, km); if (km < tol) near = true;
+    }
+    return { km: min, near };
   },
   /** The source 'gmaps' (js/watch.js read): traffic and faster ways between two places, or the next meeting's leave-by. */
   async read(w, trace) {
@@ -139,19 +202,19 @@ const MapWatch = {
     const trip = `${got.to.lat.toFixed(3)},${got.to.lon.toFixed(3)}`, best = got.routes.reduce((a, b) => b.min < a.min ? b : a), now = Date.now();
     if (s.trip !== trip || now - (s.tripAt || 0) > 3 * 3600e3) { s.trip = trip; s.base = best.min; s.told = best.min; s.via = best.via; s.suggested = ''; s.leave = {}; } /* a new trip: what's there now is the starting point */
     s.tripAt = now;
-    const link = this.gmapsLink(got.to), arrive = m => this.clock(now + m * 60000);
+    const link = this.gmapsLink(got.to), arrive = m => this.clock(now + m * 60000), where = String(got.to.name || 'there').split(',')[0]; /* “DoubleTree by Hilton Bengaluru Whitefield”, not its whole address */
     if (d.kind === 'traffic') {
       const mine = got.routes.find(r => r.via && r.via === s.via) || got.routes[0], step = +d.min || 5;
       if (mine.min - s.told >= step) { const more = mine.min - s.base; s.told = mine.min;
-        return { headline: `Traffic adds ${more} min to ${got.to.name}: arriving about ${arrive(mine.min)}`, items: [{ title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''}`, detail: [`${more} min more than when you set off`, ...mine.notes].join(' · ') }], value: mine.min, important: true, link }; }
-      if (s.told - mine.min >= step) { s.told = mine.min; return { headline: `Traffic easing to ${got.to.name}: ${mine.min} min, arriving about ${arrive(mine.min)}`, items: [], value: mine.min, link }; }
-      if (mine.warn.length && s.warned !== mine.warn[0]) { s.warned = mine.warn[0]; return { headline: `${mine.warn[0]} on your route to ${got.to.name}`, items: [{ title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''}` }], important: true, link }; }
+        return { headline: `Traffic adds ${more} min to ${where}: arriving about ${arrive(mine.min)}`, items: [{ title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''}`, detail: [`${more} min more than when you set off`, ...mine.notes].join(' · ') }], value: mine.min, important: true, link }; }
+      if (s.told - mine.min >= step) { s.told = mine.min; return { headline: `Traffic easing to ${where}: ${mine.min} min, arriving about ${arrive(mine.min)}`, items: [], value: mine.min, link }; }
+      if (mine.warn.length && s.warned !== mine.warn[0]) { s.warned = mine.warn[0]; return { headline: `${mine.warn[0]} on your route to ${where}`, items: [{ title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''}` }], important: true, link }; }
       return null;
     }
     if (d.kind === 'faster') {
       const mine = got.routes.find(r => r.via && r.via === s.via) || got.routes[0], save = mine.min - best.min;
       if (best !== mine && save >= (+d.save || 5) && s.suggested !== best.via) { s.suggested = best.via;
-        return { headline: `A faster way to ${got.to.name}${best.via ? ` via ${best.via}` : ''} saves ${save} min`, items: [{ title: `${best.min} min${best.via ? ` via ${best.via}` : ''}`, detail: best.notes.join(' · ') }, { title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''} (your way)` }], value: save, important: true, link }; }
+        return { headline: `A faster way to ${where}${best.via ? ` via ${best.via}` : ''} saves ${save} min`, items: [{ title: `${best.min} min${best.via ? ` via ${best.via}` : ''}`, detail: best.notes.join(' · ') }, { title: `${mine.min} min${mine.via ? ` via ${mine.via}` : ''} (your way)` }], value: save, important: true, link }; }
       if (s.suggested && s.suggested !== best.via) s.suggested = ''; /* that one's gone: a new one may be told */
       return null;
     }
@@ -182,8 +245,8 @@ const MapWatch = {
       <label class="se-check"><input type="checkbox" id="mpTolls" ${a.tolls ? 'checked' : ''}> Avoid tolls</label>
       <label class="se-check"><input type="checkbox" id="mpHighways" ${a.highways ? 'checked' : ''}> Avoid highways</label>
       <label class="se-check"><input type="checkbox" id="mpWork" ${a.work ? 'checked' : ''}> Avoid routes with construction or closures</label>
-      <label class="se-field"><span>Avoid these roads or areas (|| between)</span><input id="mpAvoid" value="${esc(w.avoidRoads || '')}" placeholder="Silk Board||MG Road"></label>
-      <label class="se-field"><span>Prefer these roads (|| between)</span><input id="mpPrefer" value="${esc(w.preferRoads || '')}" placeholder="NH44"></label>
+      <label class="se-field"><span>Avoid these roads or places on the way (commas between)</span><input id="mpAvoid" value="${esc(w.avoidRoads || '')}" placeholder="Silk Board, MG Road"></label>
+      <label class="se-field"><span>Prefer these roads (commas between)</span><input id="mpPrefer" value="${esc(w.preferRoads || '')}" placeholder="NH44"></label>
       <p class="se-note"><b>When to watch</b> (empty: always)</p><div>${[[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']].map(([d, n]) => day(d, n)).join('')}</div>
       <div class="chip-row"><label class="se-row"><span>From</span><input id="mpFrom" type="time" value="${esc(act.from || '')}"></label><label class="se-row"><span>to</span><input id="mpTo" type="time" value="${esc(act.to || '')}"></label></div>`;
   },
@@ -210,7 +273,7 @@ const MapWatch = {
   },
   /* ---------- Places: home, work and your own ---------- */
   placesSheet() {
-    const P = places(), row = (k, n, p) => `<div class="mem-row"><span><b>${esc(n)}</b><br><span class="se-note">${esc(p?.name || 'not set')}</span></span><span style="display:flex;gap:18px;flex:none"><button class="link-btn" data-mpset="${esc(k)}">${p ? 'Change' : 'Set'}</button>${p ? `<button class="link-btn" data-mpdel="${esc(k)}">Forget</button>` : ''}</span></div>`;
+    const P = places(), row = (k, n, p) => `<div class="mem-row"><span><b>${esc(n)}</b><br><span class="se-note">${esc(p?.name || 'not set')}</span></span><span class="acts"><button class="link-btn" data-mpset="${esc(k)}">${p ? 'Change' : 'Set'}</button>${p ? `<button class="link-btn" data-mpdel="${esc(k)}">Forget</button>` : ''}</span></div>`;
     sheet('Places', `<p class="se-note">For map watchers (from, to, leave by). On this device and your own devices only.</p>${row('home', 'Home', P.home)}${row('work', 'Work', P.work)}${(P.others || []).map(p => row(`o:${p.name}`, p.label || p.name, p)).join('')}
       <div class="chip-row"><button class="chip accent" data-mpset="new">+ Add a place</button></div>`, [['Back', () => Watch.sheet()], ['Close']]);
   },

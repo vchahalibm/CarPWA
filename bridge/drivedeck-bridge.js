@@ -219,6 +219,24 @@
       },
       /** For agent tasks: the text of the first selector (comma list, tried in order) that has some; each matching element
           is one line (its aria-label when it has one, as list rows often do). The whole page as a last resort. */
+      /** All the words in the first match of sel, folded parts too (a route's turn-by-turn steps that Google Maps keeps
+          collapsed): text pieces, a repeat of the one before left out. */
+      words(sel, max = 20000) {
+        let el = null; for (const s of String(sel || '').split('||')) { try { el = doc.querySelector(s.trim()); } catch {} if (el) break; }
+        if (!el) return { ok: false, error: 'not found' };
+        const out = [], w = doc.createTreeWalker(el, 4);
+        for (let n; (n = w.nextNode());) { const v = n.nodeValue.replace(/\s+/g, ' ').trim(); if (v && v !== out[out.length - 1] && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.parentElement?.tagName || '') && !n.parentElement?.closest('svg')) out.push(v); }
+        return { ok: true, text: out.join('\n').slice(0, max) };
+      },
+      /** Map pages: click the i-th of sel (a route's turn in Google Maps' details) and give where the map moved to (the
+          address's @lat,lon,zoom), or '' when it didn't move. */
+      async mapAt(sel, i, ms = 1500) {
+        const els = doc.querySelectorAll(sel), e = els[i]; if (!e) return { ok: false, n: els.length };
+        const at = () => (win.location.href.match(/@(-?[\d.]+),(-?[\d.]+),([\d.]+)z/) || []).slice(1, 4).join(','), was = at();
+        (e.querySelector('[jsaction]') || e).click();
+        for (const t0 = Date.now(); Date.now() - t0 < ms && at() === was;) await new Promise(r => setTimeout(r, 100));
+        const now = at(); return { ok: true, n: els.length, at: now !== was ? now : '' };
+      },
       read(sels, max = 6000) {
         const tried = [];
         for (const s0 of [].concat(sels || []).flatMap(x => String(x).split('||'))) {

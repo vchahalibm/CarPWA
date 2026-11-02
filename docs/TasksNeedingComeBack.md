@@ -63,7 +63,8 @@ Kept as each phase lands; try them together when the phases are done. Tested par
   - [ ] Set Home and Work (Settings › Location), make the three On the road watchers on the Mac, then Check now on Traffic on my route with a destination typed in: does Last check list the routes (“routes: 35 min via …”)? If not, Diagnose from Edit: Google Maps' real page is read for the first time.
   - [ ] A real drive with DriveGen navigating: news on the phone, spoken; Open in Google Maps on the card.
   - [ ] Leave by with a real meeting that has an address.
-  - [ ] On real Google Maps: Avoid tolls / Avoid highways (the older address form with dirflg): does Google show the “avoiding” routes? And a watcher From a searched address To another, with Avoid roads: does Last check show “[skipped: …]”?
+  - [x] Real Google Maps read (2 Nov, after the hidden-window fix): 3 routes Koramangala → Attibele; Avoid tolls (dirflg) drops the toll route.
+  - [ ] Your own: a watcher From a searched address To another, with Avoid roads: does Last check show “[skipped: …]”?
   - [ ] Be there by (work by a time on weekdays): Leave by at the right time on a real morning.
 - [ ] **Map watchers phase 2** next: accidents ahead (beyond the route's warnings), fuel/charging on the way, weather ahead, next town.
 

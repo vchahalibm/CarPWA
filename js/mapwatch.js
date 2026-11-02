@@ -53,6 +53,8 @@ const MapWatch = {
     const r = (await Routing.search(v, this.fresh() || places().home || loc).catch(() => []))[0]; if (!r) throw new Error(`Couldn’t find “${v}” on the map`);
     return (w.found[v] = { name: r.name, lat: r.lat, lon: r.lon });
   },
+  /** Where a directions page lists its routes. */
+  ROWS: '[data-trip-index]||[id^="section-directions-trip-"]||rows-in:#pane||rows-in:[role="main"]',
   /** Google Maps' directions address (or the practice copy's). */
   dirUrl(from, to, avoid = {}) {
     const ll = p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`, flg = `${avoid.tolls ? 't' : ''}${avoid.highways ? 'h' : ''}`;
@@ -89,7 +91,7 @@ const MapWatch = {
   },
   /** Read Google Maps' directions from → to in the agent browser: { from, to, routes: [{ min, km, via, notes }] }. */
   async directions(w, from, to, trace) {
-    const url = this.dirUrl(from, to, w.avoid), rows = '[data-trip-index]||[id^="section-directions-trip-"]||rows-in:#pane||rows-in:[role="main"]';
+    const url = this.dirUrl(from, to, w.avoid), rows = this.ROWS;
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', result: 'read', steps: [{ do: 'agent.open', value: url, args: ['site=Google Maps', 'wait=body', 'ms=30000'] },
       { do: 'agent.wait', value: rows, args: ['ms=20000'] }, { do: 'agent.read', value: rows, args: ['max=8000', 'strict'], as: 'read' }] };
     const text = String(await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }) ?? '');
@@ -208,7 +210,7 @@ const MapWatch = {
   },
   /* ---------- Places: home, work and your own ---------- */
   placesSheet() {
-    const P = places(), row = (k, n, p) => `<div class="mem-row"><span><b>${esc(n)}</b><br><span class="se-note">${esc(p?.name || 'not set')}</span></span><span><button class="link-btn" data-mpset="${esc(k)}">${p ? 'Change' : 'Set'}</button>${p ? ` <button class="link-btn" data-mpdel="${esc(k)}">Forget</button>` : ''}</span></div>`;
+    const P = places(), row = (k, n, p) => `<div class="mem-row"><span><b>${esc(n)}</b><br><span class="se-note">${esc(p?.name || 'not set')}</span></span><span style="display:flex;gap:18px;flex:none"><button class="link-btn" data-mpset="${esc(k)}">${p ? 'Change' : 'Set'}</button>${p ? `<button class="link-btn" data-mpdel="${esc(k)}">Forget</button>` : ''}</span></div>`;
     sheet('Places', `<p class="se-note">For map watchers (from, to, leave by). On this device and your own devices only.</p>${row('home', 'Home', P.home)}${row('work', 'Work', P.work)}${(P.others || []).map(p => row(`o:${p.name}`, p.label || p.name, p)).join('')}
       <div class="chip-row"><button class="chip accent" data-mpset="new">+ Add a place</button></div>`, [['Back', () => Watch.sheet()], ['Close']]);
   },

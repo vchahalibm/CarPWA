@@ -145,7 +145,7 @@ const Watch = {
   /** Whether a watcher's template keeps its page open (watchers made before a template said so learn it here). */
   tplStay(w) { const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template); if (!T) return false; try { return !!T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || 'x']))).stay; } catch { return false; } },
   /** The browser a page watcher uses ('container|site', as Agent.containersOf): a live one stays open there. */
-  viewKey(w) { const url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); try { return `${Containers.for(url, w.container).id}|${AgentWeb.siteKey(url)}`; } catch { return ''; } },
+  viewKey(w) { const url = w.source === 'gmaps' ? MapWatch.dirUrl({ lat: 0, lon: 0 }, { lat: 0, lon: 0 }) : String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); try { return `${Containers.for(url, w.container).id}|${AgentWeb.siteKey(url)}`; } catch { return ''; } },
   /** Self-healing: the part's selector found nothing on the page just read; its other finders are tried on the same page,
       and the first that finds it is kept (noted in the log and the list). None: GONE (it asks you to pick it again). */
   async heal(w, url) {
@@ -500,7 +500,7 @@ const Watch = {
     const v = w ? AgentWeb.views.get(this.viewKey(w)) : AgentWeb.views.get(AgentWeb.cur), url = v ? AgentWeb.url({ view: v }) : '';
     if (!v || !url || url === 'about:blank') return toast(w ? 'The watcher hasn’t opened its page yet: Check now first' : 'Open a page in the agent browser first');
     const host = (() => { try { return new URL(url).host; } catch { return ''; } })(), mine = w ? [w] : this.list().filter(x => { try { return new URL(String(x.url || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host === host; } catch { return false; } });
-    const selectors = mine.flatMap(x => [x.ready && { for: `${x.name}: ready`, sel: x.ready }, (x.rows || x.read) && { for: `${x.name}: ${x.rows ? 'rows' : 'part'}`, sel: x.rows || x.read }, ...(x.finders || []).map(f => ({ for: `${x.name}: another finder`, sel: f }))]).filter(Boolean);
+    const selectors = mine.flatMap(x => [x.ready && { for: `${x.name}: ready`, sel: x.ready }, (x.rows || x.read) && { for: `${x.name}: ${x.rows ? 'rows' : 'part'}`, sel: x.rows || x.read }, x.source === 'gmaps' && { for: `${x.name}: routes`, sel: MapWatch.ROWS }, ...(x.finders || []).map(f => ({ for: `${x.name}: another finder`, sel: f }))]).filter(Boolean);
     // the templates for this site as they are now: the watcher's own, or (no watchers here yet) every one that opens this site
     const hostOf = u => { try { return new URL(String(u || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host; } catch { return ''; } };
     for (const T of WATCH_TEMPLATES) {

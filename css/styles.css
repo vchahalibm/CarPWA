@@ -1785,7 +1785,8 @@ table.bench small{color:var(--text-2)}
 .ag-watching .ag-root.ag-has-av{grid-template-columns:clamp(180px,17vw,340px) minmax(260px,1fr) var(--ag-ws,560px);max-width:none}.ag-watching .ag-has-av .ag-list{grid-template-columns:1fr}
 /* The agent browser's browsers (js/agent.js AgentWeb.use): one shown, the others under it, still laid out at full size (tasks
    run in them side by side, and a page with no size has nothing “visible” to wait for or click); the bar names the container */
-.ag-web-view webview[hidden]{display:flex!important;visibility:hidden;pointer-events:none;z-index:-1}
+/* opacity, not visibility: a visibility:hidden webview isn't drawn, and pages that build themselves as they draw (Google Maps' routes, WhatsApp's rows) then stay empty */
+.ag-web-view webview[hidden]{display:flex!important;opacity:0;pointer-events:none;z-index:-1}
 .ag-web-box{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--c,#8e8e93) 22%,transparent);color:var(--text);white-space:nowrap}
 .ag-web-box::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--c,#8e8e93)}.ag-web-box[hidden]{display:none}
 .ct-row{background:var(--surface);border-radius:14px;padding:10px 12px;margin:8px 0;display:grid;gap:8px}

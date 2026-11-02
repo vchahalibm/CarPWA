@@ -25,6 +25,8 @@ jobs:
         run: node tests/watch.cjs
       - name: Map watchers decide well (js/mapwatch.js)
         run: node tests/mapwatch.cjs
+      - name: Lookahead finds what's on the way (js/lookahead.js)
+        run: node tests/lookahead.cjs
       - name: Every desktop file is packaged (desktop/package.json build.files)
         run: node tests/desktop/packaged.cjs
       - name: The built-in model reports its model (desktop/llm.js)

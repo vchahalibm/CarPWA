@@ -422,6 +422,13 @@ const Working = {
 const SIGNIN_WORDS = /\b(scan the qr( code)?|use whatsapp on your computer|link with phone|log into whatsapp|sign in to (continue|your account)|sign in with|log in to (continue|your account)|enter your (email|password)|continue with (google|email|microsoft|apple)|forgot (your )?password)\b/i;
 const SIGNIN = /login\.(microsoftonline|live|microsoft)\.com|accounts\.google\.com|signin|\/login|slack\.com\/(signin|get-started)/i;
 const Agent = {
+  /** A card's picture (a map watcher's map): kept apart from the feed, the newest 8. img(data) keeps one and gives its id;
+      img(id) gives it back. */
+  img(x) {
+    const all = store.get('cardImgs', {}); if (!/^data:image\//.test(x || '')) return all[x] || '';
+    const id = `im${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; all[id] = x; const k = Object.keys(all); for (const o of k.slice(0, Math.max(0, k.length - 8))) delete all[o];
+    try { store.set('cardImgs', all); } catch { store.set('cardImgs', { [id]: x }); } return id;
+  },
   ctx: null, pend: null, // ctx: only a check run's (js/taskllm.js); tasks carry their own (run.ctx, reached by steps through ev.runner)
   cfg: () => ({ outlook: 'https://outlook.office.com', remote: true, ...store.get('agentCfg', {}) }),
   /** The sites tasks use, as {outlook} {slack} {whatsapp} {teams} ({teamschat}: a new chat, with ?users=email&message=text): the real ones, or the practice copies (labs/practice). */
@@ -919,17 +926,18 @@ const AgentHome = {
   cardHtml(c, big) {
     const max = this.moving() ? 3 : big ? 6 : 3, icon = { running: '⏳', waiting: '🕓', ask: '❓', signin: '🔑', failed: '⚠️' }[c.status] || { place: '📍', number: '⏱', status: '✓' }[c.type] || '';
     const items = (c.items || []).slice(0, max).map(i => `<li><b>${esc(i.title || '')}</b>${i.when ? ` <span class="ag-when">${esc(i.when)}</span>` : ''}${i.detail && !this.moving() ? `<div class="ag-detail">${esc(i.detail)}</div>` : ''}</li>`).join('');
-    const btns = c.watch && typeof Watch !== 'undefined' ? `<div class="ag-btns">${c.status === 'signin' ? `<button class="big-btn accent" data-wt="${Watch.where(Watch.get(c.watch) || {}) === 'here' ? 'signin' : 'rsignin'}|${esc(c.watch)}">Sign in${Watch.where(Watch.get(c.watch) || {}) === 'here' ? '' : ' from here'}</button>` : ''}${c.gone ? `<button class="big-btn accent" data-wt="repick|${esc(c.watch)}">Pick it again</button>` : ''}${c.confirm ? `<button class="big-btn accent" data-wt="healyes|${esc(c.watch)}">Yes, that’s it</button><button class="big-btn" data-wt="repick|${esc(c.watch)}">No, I’ll pick it</button>` : ''}<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button>${c.link ? `<button class="big-btn accent" data-ag="link:${esc(c.id)}">Open in Google Maps</button>` : '<button class="big-btn" data-wt="list">Watchers</button>'}</div>` /* js/watch.js */
+    const btns = c.watch && typeof Watch !== 'undefined' ? `<div class="ag-btns">${c.status === 'signin' ? `<button class="big-btn accent" data-wt="${Watch.where(Watch.get(c.watch) || {}) === 'here' ? 'signin' : 'rsignin'}|${esc(c.watch)}">Sign in${Watch.where(Watch.get(c.watch) || {}) === 'here' ? '' : ' from here'}</button>` : ''}${c.gone ? `<button class="big-btn accent" data-wt="repick|${esc(c.watch)}">Pick it again</button>` : ''}${c.confirm ? `<button class="big-btn accent" data-wt="healyes|${esc(c.watch)}">Yes, that’s it</button><button class="big-btn" data-wt="repick|${esc(c.watch)}">No, I’ll pick it</button>` : ''}${c.take ? `<button class="big-btn accent" data-ag="take:${esc(c.id)}">Take ${esc(c.take.name ? `via ${c.take.name.split(/ and |,/)[0]}` : 'it')}</button>` : `<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button>`}${c.link ? `<button class="big-btn${c.take ? '' : ' accent'}" data-ag="link:${esc(c.id)}">${c.take ? 'Google Maps' : 'Open in Google Maps'}</button>` : '<button class="big-btn" data-wt="list">Watchers</button>'}</div>` /* js/watch.js; Take it: the other way (js/lookahead.js) */
       : c.status === 'ask' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="yes:${c.id}">Yes</button><button class="big-btn" data-ag="always:${c.id}">Yes, always</button><button class="big-btn" data-ag="no:${c.id}">No</button></div>`
       : c.status === 'signin' && Agent.where(Agent.get(c.task) || {}) === 'mac' ? `<div class="ag-btns"><button class="big-btn accent" data-ag="remote:${c.id}">Sign in from here</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'signin' && AgentWeb.can() ? `<div class="ag-btns"><button class="big-btn accent" data-ag="signin:${c.id}">Open the agent browser</button><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
       : c.status === 'failed' ? `<div class="ag-btns"><button class="big-btn" data-ag="retry:${c.id}">Try again</button></div>`
-      : c.link && /^https:\/\/(www\.)?google\.[a-z.]+\/maps\//.test(c.link) ? `<div class="ag-btns">${c.watch && typeof Watch !== 'undefined' && Watch.get(c.watch) ? `<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button>` : ''}<button class="big-btn accent" data-ag="link:${esc(c.id)}">Open in Google Maps</button></div>`
+      : c.link && /^https:\/\/(www\.)?google\.[a-z.]+\/maps\//.test(c.link) ? `<div class="ag-btns">${c.watch && typeof Watch !== 'undefined' && Watch.get(c.watch) ? `<button class="big-btn" data-wt="now|${esc(c.watch)}">Check now</button>` : ''}${c.take ? `<button class="big-btn accent" data-ag="take:${esc(c.id)}">Take ${esc(c.take.name ? `via ${c.take.name.split(/ and |,/)[0]}` : 'it')}</button><button class="big-btn" data-ag="link:${esc(c.id)}">Google Maps</button>` : `<button class="big-btn accent" data-ag="link:${esc(c.id)}">Open in Google Maps</button>`}</div>`
       : c.status === 'done' && !c.watch && Agent.get(c.task) && typeof Watch !== 'undefined' && Watch.can() && !Agent.acts(Agent.get(c.task)) ? `<div class="ag-btns ag-btns-quiet"><button class="chip" data-wt="card|${esc(c.id)}">👁 Watch this</button></div>`
       : c.place?.lat || (/^(cal|car)\./.test(c.task || '') && (c.items || []).some(i => i.place && !/online|teams|zoom/i.test(i.place))) ? `<div class="ag-btns"><button class="big-btn accent" data-ag="go:${c.id}">${svg('maps')} Go there</button></div>` : '';
     return `<article class="ag-card ${big ? 'big' : ''} ${c.status || ''}" data-ag="say:${c.id}">
       <div class="ag-top"><span class="ag-task">${icon} ${esc(c.title || '')}${c.where === 'mac' ? ' · Mac' : ''}</span><span class="ag-at">${esc(new Date(c.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>
         <button class="ag-x" data-ag="drop:${c.id}" aria-label="Remove">${svg('close')}</button></div>
+      ${c.shot && !this.moving() && Agent.img(c.shot) ? `<img class="ag-shot" src="${Agent.img(c.shot)}" alt="Map of the other way">` : ''}
       ${c.type === 'number' && c.value ? `<div class="ag-value">${esc(c.value)}<small>${esc(c.unit || '')}</small></div>` : ''}
       <h3 class="ag-head">${esc(c.headline || '')}</h3>${items ? `<ul class="ag-items">${items}</ul>` : ''}${btns}</article>`;
   },
@@ -1070,6 +1078,7 @@ document.addEventListener('click', e => {
   if ((k === 'yes' || k === 'always') && p?.card === v) { Agent.pend = null; Commands.pending = null; return p.yes(k === 'always'); }
   if (k === 'no') { if (p?.card === v) { Agent.pend = null; Commands.pending = null; } return Agent.drop(v); }
   if (k === 'drop') return Agent.drop(v);
+  if (k === 'take' && c?.take && typeof Lookahead !== 'undefined') return Lookahead.take(c); /* the other way (js/lookahead.js) */
   if (k === 'link' && c?.link) { const u = new URL(c.link), d = u.searchParams.get('destination'); return openExternal(d && /iPhone|iPad|Android/i.test(navigator.userAgent) ? `comgooglemaps://?daddr=${encodeURIComponent(d)}&directionsmode=driving` : null, c.link); } /* a map watcher's card: the Google Maps app on a phone, else the page */
   if (k === 'tl' || k === 'tlrun') { const h = Agent.history().find(x => x.id === v); if (!h) return;
     if (k === 'tlrun') return h.script ? (Scripts.get(h.script) ? Script.start(Scripts.get(h.script).json) : toast('That script isn’t here any more')) : Agent.start(h.task);

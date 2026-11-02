@@ -49,7 +49,15 @@ pane.innerHTML = `<header><div class="fld">${from.lat ? `${from.lat.toFixed(4)},
     <h1 class="via">via ${r.via}</h1><div class="note">${r.min === fastest ? 'Fastest route now due to traffic conditions' : r.min - fastest > 5 ? 'Heavier traffic than usual' : 'Typical traffic'}</div>
     ${r.warn ? `<div class="warn">${r.warn}</div>` : ''}${r.tolls ? '<div class="note">This route has tolls.</div>' : ''}${i === sel ? '<button class="det">Details</button>' : ''}</div>`).join('')}`;
 pane.querySelectorAll('.trip').forEach((el, i) => el.onclick = e => { if (e.target.closest('.det')) return details(i); sel = i; draw(); });
+map();
 }
+/* The map: each route a line from start to end, bent its own way; the selected one blue and on top (a card's map picture) */
+function map() { const W = 600, H = 500, pts = k => { const b = (k - 1) * 120; return `60,440 ${200 + b},${300 - b / 2} ${380 + b / 2},${160 - b / 3} 540,60`; };
+  document.getElementById('map').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="max-height:100vh"><rect width="${W}" height="${H}" fill="var(--map)"/>
+    ${shown.map((r, k) => k === sel ? '' : `<polyline points="${pts(k)}" fill="none" stroke="#9aa0a6" stroke-width="8" stroke-linejoin="round"/>`).join('')}
+    <polyline points="${pts(sel)}" fill="none" stroke="#1a73e8" stroke-width="10" stroke-linejoin="round"/>
+    ${shown.map((r, k) => `<text x="${(200 + (k - 1) * 120) + 14}" y="${300 - (k - 1) * 60}" font-size="20" fill="${k === sel ? '#1a73e8' : '#5f6368'}" font-family="sans-serif">${r.min} min · ${r.via}</text>`).join('')}
+    <circle cx="60" cy="440" r="10" fill="#fff" stroke="#202124" stroke-width="4"/><circle cx="540" cy="60" r="12" fill="#ea4335"/></svg>`; }
 /* Details, as Google's: the route's turns in groups, each group's single turns folded away (in the page, not shown); a
    turn is [words, lat, lon] or words (placed along the way). Outer Ring Rd passes Silk Board junction without naming it. */
 const TURNS = { 'Outer Ring Rd': [['Take 80 Feet Rd to Outer Ring Rd', ['Head south on 100 Feet Rd', 'Turn left onto 80 Feet Rd']], ['Follow Outer Ring Rd to Hosur Rd', ['Continue onto Outer Ring Rd', ['Keep right to take the flyover', 12.9172, 77.6229], 'Keep right at the fork']]],

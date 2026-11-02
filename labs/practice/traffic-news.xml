@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Practice news for lookahead map watchers (js/lookahead.js, Agent settings › Use the practice sites): some items on the
+     practice drive's roads (labs/practice/gmaps.html: Outer Ring Rd, NH44, Old Madras Rd), some elsewhere. -->
+<rss version="2.0"><channel><title>Practice traffic news</title>
+<item><title>Protest on Outer Ring Road near Marathahalli: traffic diverted - City Times</title><link>https://example.com/orr-protest</link><description>A protest march on Outer Ring Road near Marathahalli has slowed traffic; police have diverted vehicles towards service roads until about 6 pm.</description><source>City Times</source></item>
+<item><title>Waterlogging on Old Madras Road after overnight rain</title><link>https://example.com/omr-water</link><description>Commuters report knee-deep water near the KR Puram stretch of Old Madras Road.</description><source>Metro Daily</source></item>
+<item><title>VIP movement near Raj Bhavan Road this evening, expect restrictions in Bengaluru</title><link>https://example.com/vip</link><description>Traffic restrictions around Raj Bhavan Road and Cubbon Road between 5 and 7 pm.</description><source>City Times</source></item>
+<item><title>Old Delhi 3.3 km stretch set for makeover; heritage park planned</title><link>https://example.com/delhi</link><description>Plans for a heritage park.</description><source>Infra News</source></item>
+<item><title>Mumbai: accident on Western Express Highway slows traffic</title><link>https://example.com/mumbai</link><description>A truck overturned near Andheri.</description><source>Mumbai Mirror</source></item>
+</channel></rss>

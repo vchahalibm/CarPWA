@@ -296,12 +296,12 @@ const Watch = {
   tell(w, hit, verdict) {
     if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], value: hit.value, important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another StudioGen of yours: it tells */
     const t = w.tell || {}, quiet = this.quiet(w), presenting = typeof Script !== 'undefined' && Script.running;
-    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}) };
+    const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}), ...(hit.shot ? { shot: Agent.img(hit.shot) } : {}), ...(hit.take ? { take: hit.take } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
     if (t.toast !== false && !quiet) toast(`👁 ${hit.headline}`);
     if (!quiet && !presenting && (t.speak === 'always' || (t.speak === 'important' && (verdict?.important || hit.important)))) Voice.announce(hit.headline); /* the assistant's voice, with its gestures */
     if (t.digest !== false) store.set('watchDigest', [...store.get('watchDigest', []), { at: Date.now(), w: w.name, h: hit.headline, items: (hit.items || []).slice(0, 3) }].slice(-200));
-    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important || !!hit.important, ...(hit.link ? { link: hit.link } : {}) });
+    if (t.phone !== false) this.phones({ name: w.name, headline: hit.headline, items: (hit.items || []).slice(0, 5), important: !!verdict?.important || !!hit.important, ...(hit.link ? { link: hit.link } : {}), ...(hit.shot && hit.shot.length < 160000 ? { shot: hit.shot } : {}), ...(hit.take ? { take: hit.take, alt: hit.alt } : {}), ...(hit.severity ? { severity: hit.severity } : {}), ...(w.source === 'gmaps' ? { map: true } : {}) });
     this.record(w, hit); this.chainOut(w, hit); this.act(w, hit);
     Log.i('watch', `Told: ${hit.headline}`, { quiet, important: !!verdict?.important });
   },
@@ -355,8 +355,8 @@ const Watch = {
   event(p, who) {
     const from = who.meshId || who.id;
     if (p.phone) { /* on a phone: a card and a quiet note; the Mac keeps the watcher */
-      Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac', ...(p.link ? { link: p.link } : {}) });
-      if (!this.quiet({})) { toast(`👁 ${p.headline}`); if (p.important && typeof Voice !== 'undefined') Voice.announce?.(p.headline); } /* in the car: important news said (traffic, a faster way, leave now) */ return { ok: true };
+      const c = Agent.post({ task: 'watch.phone', title: `👁 ${p.name || 'Watcher'}`, type: 'list', headline: p.headline, items: p.items || [], status: 'done', where: 'mac', ...(p.link ? { link: p.link } : {}), ...(p.shot ? { shot: Agent.img(p.shot) } : {}), ...(p.take ? { take: p.take } : {}) });
+      if (!this.quiet({})) { toast(`👁 ${p.headline}`); if (p.map && typeof RoadVoice !== 'undefined') RoadVoice.say(p, c); else if (p.important && typeof Voice !== 'undefined') Voice.announce?.(p.headline); } /* in the car: important news said (traffic, a faster way, leave now), spaced (js/lookahead.js) */ return { ok: true };
     }
     const w = this.list().find(x => x.id === p.id && x.runOn === from); if (!w) return { ok: false, error: 'No such watcher here' };
     w.state = { ...w.state, ...(p.state || {}) };
@@ -374,6 +374,7 @@ const Watch = {
       trace.push(`read ${Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'}` : typeof got === 'string' ? `${got.length} characters` : got?.routes ? `${got.routes.length} route${got.routes.length === 1 ? '' : 's'}${got.event ? ` to ${got.event.title}` : ''}` : got?.idle ? 'nothing yet (waiting)' : JSON.stringify(got).slice(0, 80)}`);
       if (o.preview) { w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) }; return { got }; }
       const before = (w.state.seen || []).length, hit = this.detect(w, got);
+      if (hit?.shotOf != null && typeof Lookahead !== 'undefined') hit.shot = await Lookahead.shot(w, got, hit.shotOf, trace).catch(e => { trace.push(`  no map picture: ${e.message.slice(0, 60)}`); return ''; }); /* the other way, as Google draws it */
       trace.push(hit ? `news: ${hit.headline.slice(0, 140)}` : `nothing new${w.detect?.kind === 'new' ? ` (${before} seen before)` : ''}`);
       w.state.at = Date.now(); w.state.fails = 0; w.state.paused = ''; w.state.lastMs = Date.now() - t0; w.state.count = Array.isArray(got) ? got.length : null;
       if (hit) { const v = await this.judge(w, hit);
@@ -728,7 +729,7 @@ const Watch = {
     this.condShow();
   },
   formEdit(w) {
-    const v = id => $(id)?.value.trim() ?? '', before = JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive]);
+    const v = id => $(id)?.value.trim() ?? '', before = JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive, w.look]);
     if (w.source === 'gmaps' && typeof MapWatch !== 'undefined') MapWatch.formRead(w);
     w.name = v('#weName') || w.name; if ($('#weUrl')) w.url = v('#weUrl'); if ($('#weWin')) w.window = v('#weWin'); if ($('#wePath')) w.path = v('#wePath');
     if ($('#weSel')) { if (w.rows) w.rows = v('#weSel'); else w.read = v('#weSel'); } if ($('#weKeep')) { if (v('#weKeep')) w.keep = v('#weKeep'); else delete w.keep; }
@@ -736,7 +737,7 @@ const Watch = {
     if ($('#weFields')) w.extract = { ...(typeof w.extract === 'object' && !Array.isArray(w.extract) ? w.extract : {}), fields: v('#weFields').split(/\s*,\s*/).filter(Boolean) };
     w.filter = { ignore: v('#weIgnore'), from: v('#weFrom'), notFrom: v('#weNot'), cooldown: +v('#weCool') || 0, hold: Math.max(1, +v('#weHold') || 1), presenting: !!$('#wePres')?.checked };
     w.share = !!$('#weShare')?.checked; this.formRead(w);
-    return before !== JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive]);
+    return before !== JSON.stringify([w.url, w.rows, w.read, w.keep, w.detect, w.path, w.window, w.extract, w.from, w.to, w.avoid, w.avoidRoads, w.preferRoads, w.arrive, w.look]);
   },
   async saveEdit(w) {
     const changed = this.formEdit(w);

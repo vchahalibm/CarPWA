@@ -67,7 +67,12 @@ Kept as each phase lands; try them together when the phases are done. Tested par
   - [x] Avoid roads by turns and by place (2 Nov): Silk Board found 170–210 m from every route Koramangala → Attibele except the one through HSR Layout.
   - [ ] Your own: Avoid roads with a road and a junction on your usual drive: does Last check name the right routes?
   - [ ] Be there by (work by a time on weekdays): Leave by at the right time on a real morning.
-- [ ] **Map watchers phase 2** next: accidents ahead (beyond the route's warnings), fuel/charging on the way, weather ahead, next town.
+- [x] **Map watchers phase 2: Lookahead** built 3 Nov (tested on the practice news and on the real Google Maps with a planted report). To try:
+  - [ ] Sign in to X in StudioGen's agent browser, then Check now on a lookahead watcher: does Last check say “X 10” (not “sign in”)?
+  - [ ] A real morning: does it find something real on your way (news or posts), and is it really on your route?
+  - [ ] Take it on the phone while DriveGen navigates: does it re-route through the other way? Without navigating: does Google Maps open through it?
+  - [ ] Your city's traffic police feed in “Your own feeds”, if it has one.
+- [ ] **Map watchers phase 3** next: fuel/charging on the way, weather ahead along the route, next town, the phone's fallback with no Mac.
 
 ## To perform (with you)
 

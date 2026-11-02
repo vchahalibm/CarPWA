@@ -689,7 +689,7 @@ function startDemoOnRoute(route) {
   const speeds = route.cum.slice(1).map((d, i) => { const dt = route.tcum[i + 1] - route.tcum[i]; return dt > 0 ? (d - route.cum[i]) / dt : null; });
   startDemo(route.coords, speeds);
 }
-async function startNav(dest) {
+async function startNav(dest, o = {}) {
   if (!dest) return;
   const token = ++navToken;
   nav = null;
@@ -697,7 +697,7 @@ async function startNav(dest) {
   toast('Finding the best route…');
   const from = { lat: loc.lat, lon: loc.lon };
   let route;
-  try { route = await Routing.route(from, dest, routeOpts()); }
+  try { route = await Routing.route(from, dest, { ...routeOpts(), ...(o.via ? { via: o.via } : {}) }); }
   catch (e) {
     console.warn('Routing failed', e);
     if (token !== navToken) return;
@@ -707,7 +707,7 @@ async function startNav(dest) {
   }
   if (token !== navToken) return;
   if (loc.source === 'demo') startDemoOnRoute(route);
-  nav = { dest, route, idx: 0, said: {}, offSince: 0, lastReroute: Date.now(), view: null };
+  nav = { dest, route, idx: 0, said: {}, offSince: 0, lastReroute: Date.now(), view: null, via: o.via || null }; /* via: stops on the way (Take it, js/lookahead.js) */
   rememberPlace(dest);
   $('#view-maps').classList.add('navigating'); $('#view-dashboard').classList.add('navigating');
   if (current !== 'maps' && !modeOverlayOpen()) openView('maps');
@@ -725,7 +725,8 @@ async function reroute() {
   const quiet = cur.route.provider === 'approx'; // background retries for a real road route stay silent
   if (!quiet) { toast('Rerouting…'); if (settings.voice) speak('Rerouting.'); }
   try {
-    const route = await Routing.route({ lat: loc.lat, lon: loc.lon }, cur.dest, routeOpts());
+    if (cur.via) cur.via = cur.via.filter(p => Math.hypot((p.lat - loc.lat) * 111, (p.lon - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180)) > 0.3); /* a stop passed is done */
+    const route = await Routing.route({ lat: loc.lat, lon: loc.lon }, cur.dest, { ...routeOpts(), ...(cur.via?.length ? { via: cur.via } : {}) });
     if (nav === cur) { Object.assign(cur, { route, idx: 0, said: {}, offSince: 0 }); if (quiet) toast('Road route loaded'); }
   } catch (e) { console.warn('Reroute failed', e); }
   cur.rerouting = false;

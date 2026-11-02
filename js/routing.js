@@ -70,12 +70,14 @@ const Routing = (() => {
   }
 
   /* ---------- OSRM (free, no key, no live traffic) ---------- */
-  async function osrm(from, to, base = OSRM_URLS[0]) {
-    const url = `${base}${from.lon},${from.lat};${to.lon},${to.lat}` +
-      '?overview=full&geometries=geojson&steps=true&annotations=duration,maxspeed&alternatives=false';
+  async function osrm(from, to, base = OSRM_URLS[0], via = []) {
+    const url = `${base}${[from, ...via, to].map(p => `${p.lon},${p.lat}`).join(';')}` +
+      `?overview=full&geometries=geojson&steps=true&annotations=${via.length ? 'duration' : 'duration,maxspeed'}&alternatives=false`; /* with stops, OSRM refuses maxspeed */
     const j = await getJSON(url);
     if (j.code !== 'Ok' || !j.routes?.length) throw new Error(j.message || 'No route');
-    const rt = j.routes[0], leg = rt.legs[0];
+    const rt = j.routes[0], legs = rt.legs, leg = legs.length === 1 ? legs[0] : { /* through stops: the legs as one */
+      steps: legs.flatMap((l, k) => k < legs.length - 1 ? l.steps.filter(s => s.maneuver?.type !== 'arrive') : l.steps),
+      annotation: { duration: legs.flatMap(l => l.annotation?.duration || []), maxspeed: legs.flatMap(l => l.annotation?.maxspeed || []) } };
     const coords = rt.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
     const cum = cumulative(coords);
     // Per-segment travel time gives an accurate "time left" at any point along the route.
@@ -182,6 +184,9 @@ const Routing = (() => {
   /** Best available route. TomTom (live traffic) when a key is set, then Valhalla, then two OSRM servers. Throws when all fail. */
   async function route(from, to, opts = {}) {
     const tries = [];
+    if (opts.via?.length) { /* through a stop (another way a map watcher found, js/lookahead.js): OSRM takes stops */
+      for (const u of OSRM_URLS) try { return await osrm(from, to, u, opts.via); } catch (e) { console.warn('OSRM via failed', e); }
+    }
     if (opts.provider === 'tomtom' && opts.tomtomKey) tries.push(['TomTom', () => tomtom(from, to, opts.tomtomKey)]);
     tries.push(['Valhalla', () => valhalla(from, to)], ...OSRM_URLS.map((u, i) => [`OSRM ${i + 1}`, () => osrm(from, to, u)]));
     let last;

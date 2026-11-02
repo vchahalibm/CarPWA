@@ -170,6 +170,17 @@ The user wants a watcher: something checked again and again, telling them when s
 {templates}
 ```
 
+## Map watchers: what’s happening on the way `map.causes`
+
+- Job: **fast**
+- Used in: js/lookahead.js › Lookahead.classify (a lookahead watcher’s news, posts and reports about places on a drive)
+- Filled in by the app: `{route}`, `{now}`
+
+```text
+You help a driver by reading news, posts and reports, and picking out what could slow, block or endanger their drive. It is {now}. The drive: {route}
+For each numbered item that is about something on or near this drive, now or within the next few hours (not past events, not other cities, not general news): kind (accident, breakdown, congestion, roadworks, closure, diversion, vip, protest, strike, procession, event, flooding, tree_fall, landslide, fire, signal_failure, police_check, weather, other), place (the road, junction or area it names, as written), on_route (yes: it names a road or area of the drive; maybe: the same city, the place could be on the way; no), severity (delay: slower traffic; caution: drive carefully or expect stops; danger: avoid it, unsafe), until (when it ends if said, else empty), summary (one short sentence for the driver, under 15 words). Leave out items that are not about such a thing.
+```
+
 ## Watchers: the daily digest `watch.digest`
 
 - Job: **cards**
@@ -184,7 +195,7 @@ Sum up for a busy person, in one or two short spoken sentences, what their web w
 - Job: **build**
 - Used in: docs/llm/build-prompt.md (also copied for any LLM)
 
-<details><summary>The full text of docs/llm/build-prompt.md (2740 words)</summary>
+<details><summary>The full text of docs/llm/build-prompt.md (2759 words)</summary>
 
 ````markdown
 # Build a StudioGen / DriveGen script or agent task
@@ -293,7 +304,7 @@ Answer with a watcher instead of a task when they want to be told about somethin
   "ask": "", "actions": [] } }
 ```
 
-- `url` + `read` (a part's text) or `rows` (one line per matching element: lists); `keep`: only lines with these words (`||` between); `steps`: task steps before reading (search, open a tab). Or `source`: `feed` (RSS/Atom or a page that names one), `json` (with `path` like `current.price`).
+- `url` + `read` (a part's text) or `rows` (one line per matching element: lists; `rows-in:#container` as the last choice finds the list inside by its shape, for sites that don't label their rows); `keep`: only lines with these words (`||` between); `steps`: task steps before reading (search, open a tab). Or `source`: `feed` (RSS/Atom or a page that names one), `json` (with `path` like `current.price`).
 - `detect.kind`: `new` (new rows; `gone: true` also tells what disappeared), `gone`, `changes`, `value` (`cond`: `below 500`, `above 3000`, `drops`, `drops 5%`, `moves 3%`), `count`, `contains` (`words`), `pattern` (`re`), `appears`, `disappears`, `visual` (`pct`), `stale` (`mins`).
 - `extract`: `{ "fields": ["price", "in_stock"] }` makes the model pull those out of what was read; `detect.field` picks the one to watch.
 - `every`: `live`, `2m`, `5m`, `15m`, `30m`, `1h`, `6h`, `1d` (shops and travel 1h or more; chats 5m).

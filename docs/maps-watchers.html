@@ -37,6 +37,7 @@
   <li><a href="#when">When they check: by distance and time</a></li>
   <li><a href="#voice">Telling you while you drive</a></li>
   <li><a href="#privacy">Privacy, manners and limits</a></li>
+  <li><a href="#lookahead">Lookahead</a></li>
   <li><a href="#later">Later watchers</a></li>
   <li><a href="#phases">Decisions and phases</a></li>
 </ol>
@@ -109,6 +110,18 @@
   <li>Limits: the phone needs data and the Mac (or a Worker) must be reachable for Google's data; StudioGBee keeps news while the phone is briefly out of coverage.</li>
 </ul>
 
+<h2 id="lookahead">Lookahead (phase 2, built 3 November)</h2>
+<p>The traffic watcher became a <b>lookahead</b> watcher (template map.traffic, “Lookahead: traffic and what's on the way”; js/lookahead.js). It works in any city: nothing in it is tied to one place.</p>
+<ul>
+  <li><b>Where it looks from.</b> Before you start: from the start you chose, and against your <b>usual time</b> for that trip at that hour on that weekday (from earlier days): “Today 55 min to Attibele: usually 35 at this time”. Once your phone's position is between the start and the end, from <b>where you are</b>, so only the road still ahead counts.</li>
+  <li><b>What it reads.</b> Google Maps (times, alternatives, its own warnings, each route's turns and where they are). <b>News</b>: Google News (RSS, in your country and language, about the city and the roads and areas of the drive) and GDELT (world news). <b>Posts</b>: Reddit (its search feed) and X (in the agent browser, with your sign-in there; without it, X is skipped and Last check says so). <b>Weather</b> at the start, the middle and the end (Open-Meteo: heavy rain, thunderstorms, dense fog, strong wind, snow). <b>Your own feeds</b> (a city traffic police RSS, say).</li>
+  <li><b>What counts.</b> Each item is sorted by the language model (prompt <code>map.causes</code>: kind, place, on the route yes/maybe/no, severity delay/caution/danger, until, one line), or by words without one. Kinds: accident, breakdown, heavy traffic, road works, closure, diversion, VIP movement, protest, strike, procession, event crowd, flooding, fallen tree, landslide, fire, signals down, police checks, weather, other. It counts when it names a road or area of the drive, or when its place, found on the map, lies within about 1 km of a route's path (from its turns). Each is told once.</li>
+  <li><b>What it says.</b> “Protest: Hosur Road near Bommanahalli, on your way to Attibele”, the line and its source, and <b>the other way</b>: the fastest route without it (up to 15 minutes longer when it avoids something, else only when faster): “Or via Sarjapur Rd: 60 min · 14 min longer · avoids it”. Also when traffic adds 5+ minutes, when it eases, and Google's own warnings, each with the other way when there is one.</li>
+  <li><b>The map in the card.</b> Your route (grey), the other way (blue), what was found (orange), drawn on OpenStreetMap's tiles: each route follows the roads through its own turns (OSRM with stops). A picture of Google's own map isn't possible: the agent browser isn't drawn while it's hidden, and StudioGen keeps watching with its window closed.</li>
+  <li><b>Take it.</b> On the card, or by saying yes when the phone asks “Take Sarjapur Rd?”: DriveGen re-routes through the other way while it navigates (OSRM, a stop on that road), else Google Maps navigates through it (comgooglemaps:// on phones).</li>
+  <li><b>Cost.</b> The first check of a drive reads each route's turns and places them on the map (about a minute); they're kept 12 hours. The sources are read at most every 10 minutes, X every 15, GDELT once per 5 seconds at most.</li>
+</ul>
+
 <h2 id="later">8. Later watchers</h2>
 <p>Food at meal times (ratings, near where you'll be at lunch) · tolls and toll costs ahead · speed cameras · parking near the destination · “10 minutes away” (tell someone) · the weekday commute (usual 35 minutes, today 55) · tomorrow's long drive, the evening before (weather, closures, events on the route) · a place opening or getting less busy · EV charger availability · air quality ahead · sunset during the drive · border or state crossings (permits, tax).</p>
 
@@ -124,8 +137,8 @@
 <div class="wrap"><table>
 <tr><th>Phase</th><th>What</th></tr>
 <tr><td>1</td><td>Home and work places (Settings › Location); position and route from the phone to your Mac (sealed, own devices); a Google Maps reader in the agent browser (directions with traffic and alternatives, places with ratings) with a practice Google Maps page; <b>traffic on my route</b>, <b>a faster way</b> (5+ minutes), <b>leave-by</b>; cards and voice in DriveGen · <b>built 1 Nov</b></td></tr>
-<tr><td>2</td><td><b>Accidents and closures ahead</b>, <b>fuel/charging on the way</b> (ratings, open now, distance ahead), <b>weather ahead</b> (Open-Meteo along the route), <b>next town</b> (Google, Wikipedia, local news)</td></tr>
-<tr><td>3</td><td>Speaking well while driving (spacing, never over turns or calls, “Take it?” → re-route), the phone's open-data fallback with no Mac, Workers, the guide with pictures</td></tr>
+<tr><td>2</td><td><b>Lookahead</b> (section above): from where you are once on the way, your usual time before you start; news, posts, the weather and your feeds sorted by the language model; the other way with its map in the card; Take it · built 3 Nov</td></tr>
+<tr><td>3</td><td><b>Fuel/charging on the way</b> (ratings, open now, distance ahead), <b>weather ahead</b> (along the route at the time you reach each part), <b>next town</b> (Wikipedia, the weather, local news); speaking well while driving (spaced, never over turns or calls, “Take it?” by voice); the phone's open-data fallback with no Mac</td></tr>
 <tr><td>4</td><td>The later watchers (section 8), as chosen</td></tr>
 </table></div>
 </main>

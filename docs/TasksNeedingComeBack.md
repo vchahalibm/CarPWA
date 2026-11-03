@@ -57,28 +57,35 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 
 **From before these phases** (still open, details below): permissions asked again on the real app · the built-in model for a day · what's my day on another day on your Outlook · Teams on the real site · Workers on your setup · StudioGBee with your devices · sign in from your iPhone · pooling (on hold).
 
+**Map watchers: lookahead, along the way, more on the road** (2–3 Nov; tested on the practice pages and real Google Maps, news and weather)
+- [ ] Set Home and Work (Settings › Location), make the three On the road watchers on the Mac, then Check now on Traffic on my route with a destination typed in: does Last check list the routes (“routes: 35 min via …”)? If not, Diagnose from Edit: Google Maps' real page is read for the first time.
+- [ ] A real drive with DriveGen navigating: news on the phone, spoken; Open in Google Maps on the card.
+- [ ] Leave by with a real meeting that has an address.
+- [ ] Your own: Avoid roads with a road and a junction on your usual drive: does Last check name the right routes?
+- [ ] Be there by (work by a time on weekdays): Leave by at the right time on a real morning.
+- [ ] Sign in to X in StudioGen's agent browser, then Check now on a lookahead watcher: does Last check say “X 10” (not “sign in”)?
+- [ ] A real morning: does it find something real on your way (news or posts), and is it really on your route?
+- [ ] Take it on the phone while DriveGen navigates: does it re-route through the other way? Without navigating: does Google Maps open through it?
+- [ ] Your city's traffic police feed in “Your own feeds”, if it has one.
+- [ ] A drive out of town with Fuel on the way, Weather ahead and Next town: are they said between turns, and not too often?
+- [ ] DriveGen navigating with the Mac off (or away from the link): does the phone tell the next town and the last fuel by itself?
+- [ ] Speed cameras and Toll plazas on a highway drive (OpenStreetMap's servers were busy while testing: Last check says when they don't answer).
+- [ ] Food at lunch time on a drive; Parking 15 min before arriving; 10 minutes away: does Send open WhatsApp with the message (you press send)?
+- [ ] Tomorrow's drive: a watcher for a morning trip; does the evening card come between 18:00 and 22:00?
+
+**Slack and Outlook watchers** (3 Nov: Slack’s new Activity layout fixed from your diagnosis and tested on a practice copy of it; Outlook made sturdier)
+- [ ] Slack: Check now on New Slack mentions (your existing watcher heals itself to the new layout): does Last check read the Activity rows, and does a new mention come as a card with the sender and the message?
+- [ ] Slack: New messages in a channel / from someone (it presses Home first, then the channel): do they read?
+- [ ] Outlook: make New mail (and New mail from someone), Check now; if it says it couldn’t read the page, Diagnose the page from Edit and send me the path.
+
 ## Next up
 
-- [x] **Map watchers phase 1** built 1 Nov (tested on the practice Google Maps). To try:
-  - [ ] Set Home and Work (Settings › Location), make the three On the road watchers on the Mac, then Check now on Traffic on my route with a destination typed in: does Last check list the routes (“routes: 35 min via …”)? If not, Diagnose from Edit: Google Maps' real page is read for the first time.
-  - [ ] A real drive with DriveGen navigating: news on the phone, spoken; Open in Google Maps on the card.
-  - [ ] Leave by with a real meeting that has an address.
+- [x] **Map watchers phase 1** built 1 Nov (tested on the practice Google Maps). Tried:
   - [x] Real Google Maps read (2 Nov, after the hidden-window fix): 3 routes Koramangala → Attibele; Avoid tolls (dirflg) drops the toll route.
   - [x] Avoid roads by turns and by place (2 Nov): Silk Board found 170–210 m from every route Koramangala → Attibele except the one through HSR Layout.
-  - [ ] Your own: Avoid roads with a road and a junction on your usual drive: does Last check name the right routes?
-  - [ ] Be there by (work by a time on weekdays): Leave by at the right time on a real morning.
-- [x] **Map watchers phase 2: Lookahead** built 3 Nov (tested on the practice news and on the real Google Maps with a planted report). To try:
-  - [ ] Sign in to X in StudioGen's agent browser, then Check now on a lookahead watcher: does Last check say “X 10” (not “sign in”)?
-  - [ ] A real morning: does it find something real on your way (news or posts), and is it really on your route?
-  - [ ] Take it on the phone while DriveGen navigates: does it re-route through the other way? Without navigating: does Google Maps open through it?
-  - [ ] Your city's traffic police feed in “Your own feeds”, if it has one.
-- [x] **Map watchers phase 3** built 3 Nov (fuel, weather ahead, next town tested on a real highway, Electronic City → Krishnagiri). To try:
-  - [ ] A drive out of town with Fuel on the way, Weather ahead and Next town: are they said between turns, and not too often?
-  - [ ] DriveGen navigating with the Mac off (or away from the link): does the phone tell the next town and the last fuel by itself?
-- [x] **Map watchers phase 4** built 3 Nov (food, parking, 10 minutes away, speed cameras, tolls, tomorrow's drive; air, sunset, state crossings, free EV chargers). To try:
-  - [ ] Speed cameras and Toll plazas on a highway drive (OpenStreetMap's servers were busy while testing: Last check says when they don't answer).
-  - [ ] Food at lunch time on a drive; Parking 15 min before arriving; 10 minutes away: does Send open WhatsApp with the message (you press send)?
-  - [ ] Tomorrow's drive: a watcher for a morning trip; does the evening card come between 18:00 and 22:00?
+- [x] **Map watchers phase 2: Lookahead** built 3 Nov (tested on the practice news and on the real Google Maps with a planted report) (to try: in the list above).
+- [x] **Map watchers phase 3** built 3 Nov (fuel, weather ahead, next town tested on a real highway, Electronic City → Krishnagiri) (to try: in the list above).
+- [x] **Map watchers phase 4** built 3 Nov (food, parking, 10 minutes away, speed cameras, tolls, tomorrow's drive; air, sunset, state crossings, free EV chargers) (to try: in the list above).
 
 ## To perform (with you)
 

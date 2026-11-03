@@ -25,8 +25,10 @@ const WATCH_KINDS = [['new', 'new items appear in a list'], ['gone', 'items disa
 const WATCH_MS = { live: 30e3, '2m': 12e4, '5m': 3e5, '15m': 9e5, '30m': 18e5, '1h': 36e5, '6h': 216e5, '1d': 864e5 };
 /** Where things are, for the templates (the same selectors as the tasks, js/agent.js). */
 const WSEL = {
-  mailRows: '[role="listbox"] [role="option"]', waRows: '#pane-side [role="listitem"]||#pane-side [role="row"]||rows-in:#pane-side', teamsRows: '[data-tid="chat-list-item"]||[role="treeitem"]',
-  teamsMsgs: '[data-tid="chat-pane-message"]', slackActivity: '[data-qa="activity-item"]', slackMsgs: '[data-qa="message_container"]||[data-qa="virtual-list-item"]', xPosts: 'article[data-testid="tweet"]',
+  slackReady: '.p-ia4_client||[data-qa="tab_rail_desktop"]||.p-channel_sidebar||[role="tree"]', slackItem: '.p-channel_sidebar__channel||[role="treeitem"]||[data-qa^="channel_sidebar_name_"]',
+  slackHome: { do: 'agent.click', args: ['sel=[data-qa="tab_rail_home_button"]||button[aria-label="Home"]', 'optional'] }, mailReady: '[role="listbox"]||[aria-label*="Message list"]||[role="main"]',
+  mailRows: '[role="listbox"] [role="option"]||[aria-label*="Message list"] [role="option"]||[data-convid]||rows-in:[role="listbox"]', waRows: '#pane-side [role="listitem"]||#pane-side [role="row"]||rows-in:#pane-side', teamsRows: '[data-tid="chat-list-item"]||[role="treeitem"]',
+  teamsMsgs: '[data-tid="chat-pane-message"]', slackActivity: '[data-qa="activity-item-container"]||[data-qa="activity-item"]||rows-in:.p-view_sidebar--list--activity_inbox' /* Slack's new layout (Nov 2026): activity-item-container */, slackMsgs: '[data-qa="message_container"]||[data-qa="virtual-list-item"]', xPosts: 'article[data-testid="tweet"]',
 };
 /** X's addresses: the real site, or the practice copy (labs/practice/x.html). */
 const xUrl = (kind, v = '') => { const base = Agent.sites().x, practice = /x\.html/.test(base);
@@ -35,14 +37,15 @@ const xUrl = (kind, v = '') => { const base = Agent.sites().x, practice = /x\.ht
     : kind === 'mentions' ? (practice ? `${base}?view=mentions` : 'https://x.com/notifications/mentions') : base; };
 /** The templates: name, what to ask, and the watcher they make. */
 const WATCH_TEMPLATES = [
-  { id: 'slack.mentions', group: 'Slack', name: 'New Slack mentions', inputs: [], make: () => ({ url: '{slack}', site: 'Slack', ready: '[role="tree"]', steps: [{ do: 'agent.click', args: ['sel=[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]', 'optional'] }, { do: 'wait', value: '1' }], rows: WSEL.slackActivity, detect: { kind: 'new' } }) },
-  { id: 'slack.channel', group: 'Slack', name: 'New messages in a Slack channel', inputs: [['channel', 'Which channel?', 'sales']], make: v => ({ name: `Slack #${v.channel.replace(/^#/, '')}`, url: '{slack}', site: 'Slack', ready: '[role="tree"]', steps: [{ do: 'agent.click', value: v.channel.replace(/^#/, ''), args: ['sel=.p-channel_sidebar__channel||[role="treeitem"]'] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, detect: { kind: 'new' } }) },
-  { id: 'slack.person', group: 'Slack', name: 'New Slack messages from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Slack from ${v.person}`, url: '{slack}', site: 'Slack', ready: '[role="tree"]', steps: [{ do: 'agent.click', value: v.person, args: ['sel=.p-channel_sidebar__channel||[role="treeitem"]'] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, keep: v.person, detect: { kind: 'new' } }) },
+  { id: 'slack.mentions', group: 'Slack', name: 'New Slack mentions', inputs: [], make: () => ({ url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [{ do: 'agent.click', args: ['sel=[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]', 'optional'] }, { do: 'wait', value: '1' },
+    { do: 'agent.click', value: 'Mentions', args: ['sel=.p-view_sidebar [role="tab"]||.p-view_sidebar [role="radio"]||.p-view_sidebar button[aria-pressed]', 'optional'] }, { do: 'wait', value: '1' }], rows: WSEL.slackActivity, detect: { kind: 'new' } }) }, /* Activity, its Mentions filter when it has one */
+  { id: 'slack.channel', group: 'Slack', name: 'New messages in a Slack channel', inputs: [['channel', 'Which channel?', 'sales']], make: v => ({ name: `Slack #${v.channel.replace(/^#/, '')}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [WSEL.slackHome, { do: 'agent.click', value: v.channel.replace(/^#/, ''), args: [`sel=${WSEL.slackItem}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, detect: { kind: 'new' } }) },
+  { id: 'slack.person', group: 'Slack', name: 'New Slack messages from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Slack from ${v.person}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [WSEL.slackHome, { do: 'agent.click', value: v.person, args: [`sel=${WSEL.slackItem}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, keep: v.person, detect: { kind: 'new' } }) },
   { id: 'teams.chats', group: 'Teams', name: 'New Teams chats', inputs: [], make: () => ({ url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', rows: WSEL.teamsRows, keep: 'Unread', detect: { kind: 'new' } }) },
   { id: 'teams.chat', group: 'Teams', name: 'New messages in a Teams chat', inputs: [['person', 'Which chat?', 'Priya Nair']], make: v => ({ name: `Teams: ${v.person}`, url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', steps: [{ do: 'agent.click', value: v.person, args: [`sel=${WSEL.teamsRows}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.teamsMsgs, detect: { kind: 'new' } }) },
-  { id: 'mail.new', group: 'Outlook', name: 'New mail', inputs: [], make: () => ({ url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, detect: { kind: 'new' } }) },
-  { id: 'mail.from', group: 'Outlook', name: 'New mail from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Mail from ${v.person}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, keep: v.person, detect: { kind: 'new' } }) },
-  { id: 'mail.words', group: 'Outlook', name: 'New mail about something', inputs: [['words', 'Which words? (|| between choices)', 'invoice||contract']], make: v => ({ name: `Mail about ${v.words.split('||')[0]}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: '[role="listbox"]', rows: WSEL.mailRows, keep: v.words, detect: { kind: 'new' } }) },
+  { id: 'mail.new', group: 'Outlook', name: 'New mail', inputs: [], make: () => ({ url: '{outlook}/mail/inbox', site: 'Outlook', ready: WSEL.mailReady, rows: WSEL.mailRows, detect: { kind: 'new' } }) },
+  { id: 'mail.from', group: 'Outlook', name: 'New mail from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Mail from ${v.person}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: WSEL.mailReady, rows: WSEL.mailRows, keep: v.person, detect: { kind: 'new' } }) },
+  { id: 'mail.words', group: 'Outlook', name: 'New mail about something', inputs: [['words', 'Which words? (|| between choices)', 'invoice||contract']], make: v => ({ name: `Mail about ${v.words.split('||')[0]}`, url: '{outlook}/mail/inbox', site: 'Outlook', ready: WSEL.mailReady, rows: WSEL.mailRows, keep: v.words, detect: { kind: 'new' } }) },
   { id: 'wa.new', group: 'WhatsApp', name: 'New WhatsApp messages', inputs: [], make: () => ({ url: '{whatsapp}', site: 'WhatsApp', stay: true, ready: '#pane-side', rows: WSEL.waRows, keep: 'unread message', detect: { kind: 'new' } }) },
   { id: 'wa.from', group: 'WhatsApp', name: 'New WhatsApp messages from someone', inputs: [['person', 'From whom?', 'Mom']], make: v => ({ name: `WhatsApp from ${v.person}`, url: '{whatsapp}', site: 'WhatsApp', stay: true, ready: '#pane-side', rows: WSEL.waRows, keep: v.person, detect: { kind: 'new' } }) },
   { id: 'x.timeline', group: 'X', name: 'New posts on my X timeline', inputs: [], make: () => ({ url: xUrl('home'), site: 'X', ready: '[data-testid="primaryColumn"]', rows: WSEL.xPosts, detect: { kind: 'new' }, every: '30m' }) },
@@ -153,11 +156,12 @@ const Watch = {
     // a watcher from a template also tries the template's selectors as they are now (templates get fixed when sites change;
     // older watchers made from them pick that up here)
     const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template);
-    let fresh = ''; try { const d = T && T.make({ ...Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || ''])), ...(w.templateInputs || {}) }); fresh = d && (w.rows ? d.rows : d.read) || ''; } catch {}
+    let fresh = '', made = null; try { made = T && T.make({ ...Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || ''])), ...(w.templateInputs || {}) }); fresh = made && (w.rows ? made.rows : made.read) || ''; } catch {}
     for (const f of [...(w.finders || []), fresh].filter(f => f && f !== was)) {
       const r = await AgentWeb.call('read', [f, w.rows ? 12000 : 20000], 20000, { view: v });
       if (!r?.ok || r.sel === 'body') continue;
       if (w.rows) w.rows = f; else w.read = f;
+      if (f === fresh && made) { if (made.ready) w.ready = made.ready; if (made.steps) w.steps = made.steps; } /* the template's way there, as it is now */
       w.finders = [f, ...(w.finders || []).filter(x => x !== f), was].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 8);
       w.state.healed = { at: Date.now(), from: was, to: f }; if (w.state.count == null && !(w.state.seen || []).length && w.state.last == null && w.state.value == null) w.state.rebase = true; /* it never read anything: what's there now is the starting point, not news */ Log.i('watch', `Found it again another way: ${w.name}`, { from: was, to: f });
       if (!w.keep) return r.text;
@@ -278,7 +282,9 @@ const Watch = {
     let t = String(r).trim(); const n = +(t.match(/\((\d+) unread[^)]*\)/i) || [])[1] || 0; t = t.replace(/\s*\(\d+ unread[^)]*\)/gi, '');
     let p = t.split(' ¦ ').map(x => x.trim()).filter(Boolean).filter(x => !/^\d{1,3}$/.test(x) && !/^(unread|unread chat|chat)$/i.test(x)); /* badge digits, state words */
     const isWhen = x => /^(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?|now|today|yesterday|(mon|tues|wednes|thurs|fri|satur|sun)day|mon|tue|wed|thu|fri|sat|sun|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})$/i.test(x);
-    const when = p.find(isWhen); p = p.filter(x => x !== when);
+    let when = p.find(isWhen); p = p.filter(x => x !== when);
+    if (!when && p[0]) { const m = p[0].match(/^(.+?)\s+(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?)$/i); if (m) { p[0] = m[1]; when = m[2]; } } /* “Priya Nair 9:41 AM”: a name and its time on one line (Slack) */
+    if (p[0]) { p[0] = p[0].replace(/^((unread|read|flagged|pinned)[,\s]+)+/i, '').trim(); if (!p[0] || /^(unread|read|flagged|pinned)$/i.test(p[0])) p.shift(); } /* “Unread 9:12” (Outlook): the first piece is its state, not its name */
     const short = x => x.replace(/https?:\/\/(www\.)?([^/\s]+)(\/\S*)?/g, (m, w, host, path) => path && path.length > 1 ? `${host}/…` : host).replace(/^~\s*/, '').replace(/\s+:\s+/, ': ');
     const title = short(p[0] || ''), detail = short(p.slice(1).join(' · ').replace(/\s*·\s*:\s*(·\s*)?/g, ': ')); /* “~Rai Singh Gill ¦ : ¦ link” → “Rai Singh Gill: link” */
     return { title: title.slice(0, 80), ...(n ? { unread: n } : {}), ...(when ? { when } : {}), ...(detail ? { detail: detail.slice(0, 140) } : {}) };

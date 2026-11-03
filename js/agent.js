@@ -25,9 +25,9 @@ const CAL_VIEW = '[role="main"]';
 const SEND_BTN = 'button[aria-label="Send"]||button[title="Send"]||button[aria-label^="Send"]';
 // Where things are on Slack, WhatsApp Web and Teams (the practice copies in labs/practice follow the same structure); choices
 // with || are tried in order. Also listed for LLMs in docs/llm/build-prompt.md: keep the two in step.
-const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]', item: '.p-channel_sidebar__channel||[role="treeitem"]',
+const SLACK = { sidebar: '.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]', item: '.p-channel_sidebar__channel||[role="treeitem"]||[data-qa^="channel_sidebar_name_"]',
   unread: '.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]', activity: '[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]',
-  activityList: '[data-qa="activity_list"]||[data-qa="activity-item"]', messages: '[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]',
+  activityList: '[data-qa="activity-item-container"]||[data-qa="activity_list"]||[data-qa="activity-item"]', messages: '[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]',
   input: '[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]' };
 const WA = { list: '#pane-side', rows: '#pane-side [role="listitem"]||#pane-side [role="row"]||rows-in:#pane-side' /* rows-in: the list there by shape, when WhatsApp drops its row roles */, search: '[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]',
   msgs: '#main [data-pre-plain-text]||#main [role="row"]', input: 'footer [contenteditable="true"]||[aria-label="Type a message"]' };

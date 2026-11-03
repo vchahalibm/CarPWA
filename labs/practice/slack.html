@@ -64,7 +64,10 @@ const S = JSON.parse(localStorage.getItem(KEY) || 'null') || structuredClone(DEF
 if (q.get('incoming')) { const p = q.get('incoming').split('|'), ch = p[0].startsWith('#') ? S.channels.find(c => c.name === p[0].slice(1)) : S.dms.find(c => c.name.toLowerCase() === p[0].toLowerCase()); if (ch) { const who = p[0].startsWith('#') ? p[1] : ch.name, text = (p[0].startsWith('#') ? p.slice(2) : p.slice(1)).join('|'); ch.msgs.push([who, new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), text, 0]); ch.unread = (ch.unread || 0) + 1; save(); } history.replaceState(null, '', location.pathname); }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const all = () => [...S.channels, ...S.dms], label = c => S.channels.includes(c) ? `#${c.name}` : c.name;
-let cur = null, view = 'home', filter = 'all'; /* filter: Activity's All or Mentions */
+let cur = null, view = 'home', filter = 'all';
+/* Jump to (Cmd/Ctrl+K), as Slack's: type a name, Enter opens the first channel or person that matches; the address gets ?ch=<id>
+   (Slack's own: /client/<team>/<channel>), and ?ch= opens that one */
+const opened = new URLSearchParams(location.search).get('ch'); /* filter: Activity's All or Mentions */
 function signin() {
   history.replaceState(null, '', location.pathname + '#signin');
   root.innerHTML = `<div class="signin"><b style="font-size:22px">slack</b><h1>Sign in to Bobworks</h1><p>bobworks.slack.com (practice)</p>
@@ -98,6 +101,13 @@ function search(v) {
   const s = v.toLowerCase(), hits = all().flatMap(c => c.msgs.filter(m => m[2].toLowerCase().includes(s) || m[0].toLowerCase().includes(s)).map(m => [c, m]));
   document.querySelector('main').innerHTML = `<div class="p-view_header">Search: ${esc(v)}</div><div class="p-activity" role="list" data-qa="search_results">${hits.map(([c, m]) => `<div class="c-virtual_list__item" role="listitem" data-qa="search_message_result"><span class="c-message_kit__sender">${esc(m[0])}</span> in <b>${esc(label(c))}</b> <span class="c-timestamp">${esc(m[1])}</span><div data-qa="message-text">${esc(m[2])}</div></div>`).join('') || '<p>No results.</p>'}</div>`;
 }
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('jumper')?.remove();
+    document.body.insertAdjacentHTML('beforeend', '<div id="jumper" role="dialog" aria-label="Jump to" style="position:fixed;top:60px;left:50%;transform:translateX(-50%);width:420px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px;z-index:9"><input data-qa="jumper_input" placeholder="Jump to…" style="width:100%;font-size:16px;padding:6px"></div>');
+    const i = document.querySelector('#jumper input'); i.focus();
+    i.addEventListener('keydown', ev => { if (ev.key === 'Escape') document.getElementById('jumper').remove(); if (ev.key !== 'Enter') return; const q = i.value.trim().toLowerCase().replace(/^#/, ''), c = all().find(x => x.name.toLowerCase() === q) || all().find(x => x.name.toLowerCase().includes(q));
+      document.getElementById('jumper').remove(); if (!c) return; cur = c; view = 'home'; const u = new URL(location.href); u.searchParams.set('ch', c.id); history.replaceState(null, '', u); draw(); }); }
+});
 document.addEventListener('click', e => {
   const ch = e.target.closest('.p-channel_sidebar__channel'); if (ch) { cur = all().find(c => c.id === ch.dataset.id); view = 'home'; return draw(); }
   if (e.target.closest('[data-qa="tab_rail_activity_button"]')) { view = 'activity'; return draw(); }
@@ -111,7 +121,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('[data-qa="search_input"]')) search(e.target.value);
 });
 const root = document.getElementById('root');
-if (!localStorage.getItem(KEY + 'Auth')) signin(); else { const want = q.get('channel'); cur = want ? all().find(c => label(c).replace('#', '') === want.replace('#', '')) : null; draw(); }
+if (!localStorage.getItem(KEY + 'Auth')) signin(); else { const want = q.get('channel'); cur = opened ? all().find(c => c.id === opened) || null : want ? all().find(c => label(c).replace('#', '') === want.replace('#', '')) : null; draw(); }
 </script>
 </body>
 </html>

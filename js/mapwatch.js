@@ -115,8 +115,9 @@ const MapWatch = {
       path. Kept 12 hours per route (its via and length), so most checks don't open them again. */
   async steps(w, url, routes, trace, from, to) {
     /* kept for every map watcher to the same place (12 hours): one reads the turns, the others use them */
-    const shared = store.get('mapTurns', {}), dest = `${to.lat.toFixed(3)},${to.lon.toFixed(3)}`, keep = shared[dest] ||= {}, now = Date.now(), sleep = ms => new Promise(r => setTimeout(r, ms)), ctx = { quiet: true };
-    for (const d in shared) if (!Object.values(shared[d]).some(x => now - x.at < 12 * 3600e3)) delete shared[d];
+    const shared = store.get('mapTurns', {}), dest = `${to.lat.toFixed(3)},${to.lon.toFixed(3)}`, now = Date.now(), sleep = ms => new Promise(r => setTimeout(r, ms)), ctx = { quiet: true };
+    for (const d in shared) if (!Object.values(shared[d]).some(x => now - x.at < 12 * 3600e3)) delete shared[d]; /* old drives out first (a new one starts empty) */
+    const keep = shared[dest] ||= {};
     const norm = x => String(x || '').toLowerCase().replace(/\broad\b/g, 'rd').replace(/[^a-z0-9]+/g, '');
     const names = String(`${w.avoidRoads || ''},${w.preferRoads || ''}`).split(/\|\||,/).map(x => x.trim()).filter(Boolean);
     for (const k in keep) if (now - keep[k].at > 12 * 3600e3) delete keep[k];

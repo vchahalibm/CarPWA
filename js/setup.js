@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Fixed: StudioGen could hang with a live Outlook watcher (it reloaded Outlook every few seconds) and crash when quitting with the built-in model loaded; Slack channel and person watchers find their channel with Jump to, whichever tab Slack is on',
   'Slack watchers work with Slack’s new Activity layout (an existing watcher fixes itself on its next check); Outlook watchers find the mail list more ways; cards show the sender and time apart',
   'More on the road: food at meal times on the way, parking near where you’re going, “10 minutes away” with a message to send, speed cameras and toll plazas ahead, tomorrow’s drive the evening before; poor air, sunset and state crossings',
   'On the road: fuel or charging on the way (the last one for a while, with ratings), the weather where you’ll be, and the next town; your phone says them between turns, and looks ahead itself when no Mac is reachable',

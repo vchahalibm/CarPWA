@@ -405,12 +405,13 @@ app.whenReady().then(async () => {
   app.on('activate', showMain);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-// Quitting (also for an update): the browsers' session cookies saved first, at most 3 s (desktop/browse.js)
+// Quitting (also for an update): the browsers' session cookies saved and the built-in model let go first, at most 5 s
+// (desktop/browse.js, desktop/llm.js quit: a model still working when Node closes aborts the app)
 let browseSaved = false;
 app.on('before-quit', e => {
   quitting = true;
   if (browseSaved) return; e.preventDefault();
-  Promise.race([Browse.save(), new Promise(r => setTimeout(r, 3000))]).catch(err => console.warn('browse save', err.message)).finally(() => { browseSaved = true; app.quit(); });
+  Promise.race([Promise.all([Browse.save().catch(err => console.warn('browse save', err.message)), Builtin.quit?.().catch(err => console.warn('model quit', err.message))]), new Promise(r => setTimeout(r, 5000))]).finally(() => { browseSaved = true; app.quit(); });
 });
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
 app.on('will-quit', () => { Speech.quit(); AI.quit(); Builtin.unload(); LightWorkers.stopAll(); Updates.installShell(false); });

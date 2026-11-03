@@ -151,7 +151,13 @@ module.exports = ({ app, send }) => {
     for (const t of texts.slice(0, 64)) out.push(Array.from((await embCtx.getEmbeddingFor(pre + String(t).slice(0, 2000))).vector).map(x => +x.toFixed(5)));
     return out;
   }
+  /** Before the app quits: everything let go, waited for. Work still running in llama.cpp when Node shuts down ends with an
+      error thrown into a closing Node, which aborts the app (a crash report on every quit while a model was loaded). */
+  async function quit() {
+    cancel(); await unload(); const e = embCtx, m = embModel; embCtx = embModel = null; embLoading = null;
+    try { await e?.dispose(); } catch {} try { await m?.dispose(); } catch {} try { await llama?.dispose(); } catch {} llama = null;
+  }
   /** Stop the download (what's there is kept: the next one carries on from it). */
   function cancel() { if (!downloading) return false; cancelled = true; try { current?.destroy(); } catch {} return true; }
-  return { status, chat, download, use, remove, unload, cancel, embed };
+  return { status, chat, download, use, remove, unload, cancel, embed, quit };
 };

@@ -75,7 +75,9 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 
 **Slack and Outlook watchers** (3 Nov: Slack’s new Activity layout fixed from your diagnosis and tested on a practice copy of it; Outlook made sturdier)
 - [ ] Slack: Check now on New Slack mentions (your existing watcher heals itself to the new layout): does Last check read the Activity rows, and does a new mention come as a card with the sender and the message?
-- [ ] Slack: New messages in a channel / from someone (it presses Home first, then the channel): do they read?
+- [ ] Slack: New messages in a channel / from someone (Jump to, whichever tab Slack is on; your older channel watcher switches to it): does Last check say “found … with Jump to” and read the channel?
+- [ ] A live Outlook New mail watcher for an hour: StudioGen stays responsive (it was reloading Outlook every 13 s and hung)
+- [ ] Quit StudioGen 0.18.4 after using the assistant (model loaded): no crash report
 - [ ] Outlook: make New mail (and New mail from someone), Check now; if it says it couldn’t read the page, Diagnose the page from Edit and send me the path.
 
 ## Next up

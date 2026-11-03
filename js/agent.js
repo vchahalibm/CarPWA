@@ -326,7 +326,12 @@ const AgentWeb = {
     });
   },
   async insert(text, ctx) { await this.view(ctx).wv.insertText(text); },
-  key(k = 'Enter', ctx) { const wv = this.view(ctx).wv; wv.sendInputEvent({ type: 'keyDown', keyCode: k }); if (k === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r' }); wv.sendInputEvent({ type: 'keyUp', keyCode: k }); },
+  /** A key into the page: 'Enter', 'Escape', or with modifiers: 'Meta+K', 'Ctrl+K' (Slack's Jump to). */
+  key(k = 'Enter', ctx) {
+    const wv = this.view(ctx).wv, parts = String(k).split('+'), code = parts.pop(), modifiers = parts.map(m => ({ ctrl: 'control', cmd: 'meta', meta: 'meta', alt: 'alt', shift: 'shift' })[m.toLowerCase()] || m.toLowerCase());
+    wv.sendInputEvent({ type: 'keyDown', keyCode: code, modifiers }); if (code === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r', modifiers }); else if (modifiers.length && code.length === 1) wv.sendInputEvent({ type: 'char', keyCode: code.toLowerCase(), modifiers });
+    wv.sendInputEvent({ type: 'keyUp', keyCode: code, modifiers });
+  },
   /** Shown to sign in (full size, interactive). */
   show(on = true, ctx) { this.el(); if (ctx) this.display(ctx); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); document.documentElement.classList.remove('ag-watching'); },
   /** Shown to watch a task: a side panel, the page at its usual size (1280×860) drawn smaller, with the steps below. */
@@ -763,7 +768,9 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   for (const [k, x] of a.q) if (x !== '') u.searchParams.set(k, x);
   /* stay: the page is already open there (a live watcher, js/watch.js): read it as it is, without loading it again */
   const stayV = a.flags.includes('stay') && c ? AgentWeb.make(`${Containers.for(u.href, a.container || c?.task?.container).id}|${AgentWeb.siteKey(u.href)}`) : null;
-  let stayed = false; try { stayed = !!stayV && new URL(stayV.wv.getURL()).pathname === u.pathname && new URL(stayV.wv.getURL()).search === u.search; } catch {}
+  /* the same site, and one address carries on the other (Outlook's /mail/inbox becomes /mail/ or /mail/inbox/id/…, Slack's
+     /client becomes /client/T…/activity-inbox): reloading it each time would make a live page change, and so check, forever */
+  let stayed = false; try { const o = new URL(stayV.wv.getURL()), a2 = o.pathname.replace(/\/$/, ''), b2 = u.pathname.replace(/\/$/, ''); stayed = !!stayV && o.host === u.host && (a2 === b2 || (a2.length > 1 && b2.length > 1 && (a2.startsWith(`${b2}/`) || b2.startsWith(`${a2}/`)))) && (!u.search || o.search === u.search); } catch {}
   if (stayed) c.view = stayV; else await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
   const site = a.site || u.hostname, here = () => W.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); }

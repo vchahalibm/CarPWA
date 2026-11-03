@@ -39,8 +39,8 @@ const xUrl = (kind, v = '') => { const base = Agent.sites().x, practice = /x\.ht
 const WATCH_TEMPLATES = [
   { id: 'slack.mentions', group: 'Slack', name: 'New Slack mentions', inputs: [], make: () => ({ url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [{ do: 'agent.click', args: ['sel=[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]', 'optional'] }, { do: 'wait', value: '1' },
     { do: 'agent.click', value: 'Mentions', args: ['sel=.p-view_sidebar [role="tab"]||.p-view_sidebar [role="radio"]||.p-view_sidebar button[aria-pressed]', 'optional'] }, { do: 'wait', value: '1' }], rows: WSEL.slackActivity, detect: { kind: 'new' } }) }, /* Activity, its Mentions filter when it has one */
-  { id: 'slack.channel', group: 'Slack', name: 'New messages in a Slack channel', inputs: [['channel', 'Which channel?', 'sales']], make: v => ({ name: `Slack #${v.channel.replace(/^#/, '')}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [WSEL.slackHome, { do: 'agent.click', value: v.channel.replace(/^#/, ''), args: [`sel=${WSEL.slackItem}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, detect: { kind: 'new' } }) },
-  { id: 'slack.person', group: 'Slack', name: 'New Slack messages from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Slack from ${v.person}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, steps: [WSEL.slackHome, { do: 'agent.click', value: v.person, args: [`sel=${WSEL.slackItem}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.slackMsgs, keep: v.person, detect: { kind: 'new' } }) },
+  { id: 'slack.channel', group: 'Slack', name: 'New messages in a Slack channel', inputs: [['channel', 'Which channel?', 'sales']], make: v => ({ name: `Slack #${v.channel.replace(/^#/, '')}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, jump: v.channel.replace(/^#/, ''), steps: [], rows: WSEL.slackMsgs, detect: { kind: 'new' } }) },
+  { id: 'slack.person', group: 'Slack', name: 'New Slack messages from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Slack from ${v.person}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, jump: v.person, steps: [], rows: WSEL.slackMsgs, keep: v.person, detect: { kind: 'new' } }) },
   { id: 'teams.chats', group: 'Teams', name: 'New Teams chats', inputs: [], make: () => ({ url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', rows: WSEL.teamsRows, keep: 'Unread', detect: { kind: 'new' } }) },
   { id: 'teams.chat', group: 'Teams', name: 'New messages in a Teams chat', inputs: [['person', 'Which chat?', 'Priya Nair']], make: v => ({ name: `Teams: ${v.person}`, url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', steps: [{ do: 'agent.click', value: v.person, args: [`sel=${WSEL.teamsRows}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.teamsMsgs, detect: { kind: 'new' } }) },
   { id: 'mail.new', group: 'Outlook', name: 'New mail', inputs: [], make: () => ({ url: '{outlook}/mail/inbox', site: 'Outlook', ready: WSEL.mailReady, rows: WSEL.mailRows, detect: { kind: 'new' } }) },
@@ -101,6 +101,8 @@ const Watch = {
     }
     if (k === 'task') { const t = Agent.get(w.task); if (!t) throw new Error('That task isn’t here any more'); const c = Agent.asCard(await Agent.exec(t, w.inputs || {}, { confirmed: true, quiet: true })); return [c.headline, ...(c.items || []).map(i => [i.title, i.detail].filter(Boolean).join(' · '))].filter(Boolean); }
     // a page, opened (or kept open: live) in the agent browser, its steps, then the part read
+    if (!w.jump && /^slack\.(channel|person)$/.test(w.template || '')) { w.jump = String(w.templateInputs?.channel || w.templateInputs?.person || '').replace(/^#/, ''); if (w.jump) w.steps = []; } /* made before Jump to: it clicked the sidebar, which isn't on every tab */
+    if (w.jump && !w.jumped) await this.jumpTo(w, trace); /* a Slack channel or person: found once with Jump to, then its own address */
     const sel = w.rows || w.read || 'body', url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', container: w.container || '', result: 'read',
       // the page opens waiting for its frame only (a part that's gone mustn't look like a page that didn't open: self-healing
@@ -146,6 +148,20 @@ const Watch = {
     return w.detect?.kind === 'new' || w.detect?.kind === 'gone' ? lines : lines.join('\n');
   },
   /** Whether a watcher's template keeps its page open (watchers made before a template said so learn it here). */
+  /** Slack: go to a channel or person with Jump to (Cmd/Ctrl+K, the name, Enter), whichever tab Slack opened on, and keep the
+      address it lands on (…/client/<team>/<channel>): later checks open that directly. */
+  async jumpTo(w, trace) {
+    const ctx = { quiet: true }, sleep = ms => new Promise(r => setTimeout(r, ms)), home = String(w.url || '{slack}').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
+    await AgentWeb.go(home, w.container, ctx); await AgentWeb.call('waitFor', [{ sel: WSEL.slackReady }, 20000], 22000, ctx);
+    const was = AgentWeb.url(ctx), mac = /Mac/i.test(navigator.platform || navigator.userAgent), at = u => u.match(/^(.*\/client\/[^/]+\/[CDG][A-Z0-9]+)/)?.[1] || (/[?&]ch=/.test(u) ? u : '');
+    let id = ''; /* a hidden page has no focus (so :focus never matches): whether it worked shows in the address */
+    for (const k of mac ? ['Meta+K', 'Ctrl+K'] : ['Ctrl+K']) {
+      AgentWeb.key(k, ctx); await sleep(900); await AgentWeb.insert(w.jump, ctx); await sleep(1800); AgentWeb.key('Enter', ctx); await sleep(2500);
+      const now = AgentWeb.url(ctx); if (now !== was && at(now)) { id = at(now); break; } AgentWeb.key('Escape', ctx); await sleep(400);
+    }
+    if (!id) throw new Error(`Slack’s Jump to didn’t find “${w.jump}”`);
+    w.url = id; w.jumped = true; w.steps = []; trace?.push(`  found “${w.jump}” with Jump to: ${w.url.replace(/^https?:\/\//, '').slice(0, 70)}`); this.put(w);
+  },
   tplStay(w) { const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template); if (!T) return false; try { return !!T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || 'x']))).stay; } catch { return false; } },
   /** The browser a page watcher uses ('container|site', as Agent.containersOf): a live one stays open there. */
   viewKey(w) { const url = w.source === 'gmaps' ? MapWatch.dirUrl({ lat: 0, lon: 0 }, { lat: 0, lon: 0 }) : String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m); try { return `${Containers.for(url, w.container).id}|${AgentWeb.siteKey(url)}`; } catch { return ''; } },
@@ -184,8 +200,12 @@ const Watch = {
   /** “Is this it?”: yes keeps what the words or the screen model found. */
   healYes(w) { const p = w.state.proposal; if (!p) return; if (w.rows) w.rows = p.sel; else w.read = p.sel; w.finders = [p.sel, ...(w.finders || [])].slice(0, 8); w.state.healed = { at: Date.now(), to: p.sel, how: p.how }; w.state.proposal = null; w.state.paused = ''; w.state.at = 0; w.state.next = Date.now(); this.put(w); toast(`${w.name}: watching it again`); },
   /** A live watcher's part changed (the bridge's observer, via AgentWeb): check it now, at most every 10 s. */
+  /** How long between checks: its every; a map watcher on live still every 5 minutes (it reopens Google Maps each time). */
+  gap(w) { return w.source === 'gmaps' && w.every === 'live' ? WATCH_MS['5m'] : WATCH_MS[w.every] || 9e5; },
+  /** A live page changed: check it, at least 30 s apart, longer (to 8 min) while the changes bring nothing new (a page that
+      keeps redrawing itself, like Outlook's list, mustn't keep the agent browser busy). */
   poke(key) {
-    for (const w of this.list()) if (w.on && w.every === 'live' && (!w.runOn || w.runOn === 'here') && !w.state?.paused && !this.running.has(w.id) && Date.now() - (w.state?.at || 0) > 10000 && this.viewKey(w) === key) { Log.d('watch', `Changed: ${w.name}`); this.check(w); }
+    for (const w of this.list()) if (w.on && w.every === 'live' && w.source !== 'gmaps' && (!w.runOn || w.runOn === 'here') && !w.state?.paused && !this.running.has(w.id) && Date.now() - (w.state?.at || 0) > 30000 * 2 ** Math.min(4, w.state?.pokeQuiet || 0) && this.viewKey(w) === key) { Log.d('watch', `Changed: ${w.name}`); this.check(w, { poked: true }); }
   },
   /** Filters before deciding: ignore lines (ads, clocks: words, || between), only from / not from people (rows). */
   filter(w, got) {
@@ -283,7 +303,7 @@ const Watch = {
     let p = t.split(' ¦ ').map(x => x.trim()).filter(Boolean).filter(x => !/^\d{1,3}$/.test(x) && !/^(unread|unread chat|chat)$/i.test(x)); /* badge digits, state words */
     const isWhen = x => /^(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?|now|today|yesterday|(mon|tues|wednes|thurs|fri|satur|sun)day|mon|tue|wed|thu|fri|sat|sun|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})$/i.test(x);
     let when = p.find(isWhen); p = p.filter(x => x !== when);
-    if (!when && p[0]) { const m = p[0].match(/^(.+?)\s+(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?)$/i); if (m) { p[0] = m[1]; when = m[2]; } } /* “Priya Nair 9:41 AM”: a name and its time on one line (Slack) */
+    if (!when && p[0]) { const m = p[0].match(/^(.*?[^\d\s:])\s*(\d{1,2}:\d{2}(\s*[ap]\.?m\.?)?)$/i); if (m) { p[0] = m[1]; when = m[2]; } } /* “Priya Nair 9:41 AM”: a name and its time on one line (Slack) */
     if (p[0]) { p[0] = p[0].replace(/^((unread|read|flagged|pinned)[,\s]+)+/i, '').trim(); if (!p[0] || /^(unread|read|flagged|pinned)$/i.test(p[0])) p.shift(); } /* “Unread 9:12” (Outlook): the first piece is its state, not its name */
     const short = x => x.replace(/https?:\/\/(www\.)?([^/\s]+)(\/\S*)?/g, (m, w, host, path) => path && path.length > 1 ? `${host}/…` : host).replace(/^~\s*/, '').replace(/\s+:\s+/, ': ');
     const title = short(p[0] || ''), detail = short(p.slice(1).join(' · ').replace(/\s*·\s*:\s*(·\s*)?/g, ': ')); /* “~Rai Singh Gill ¦ : ¦ link” → “Rai Singh Gill: link” */
@@ -347,7 +367,7 @@ const Watch = {
       if (!this.can()) throw new Error('This device can’t run watchers');
       const d = p.w || {}, old = find(), w = { ...d, id: old?.id || 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), originId: d.id, origin: from, originName: who.name || '', runOn: 'here', state: { seen: [], fails: 0 } };
       const r = await this.check(w, { preview: true }); this.detect(w, r.got);
-      w.state.at = Date.now(); w.state.count = Array.isArray(r.got) ? r.got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
+      w.state.at = Date.now(); w.state.count = Array.isArray(r.got) ? r.got.length : null; w.state.next = Date.now() + this.gap(w); this.put(w);
       return { got: Array.isArray(r.got) ? r.got.slice(0, 3) : typeof r.got === 'boolean' ? r.got : String(r.got).slice(0, 300), count: w.state.count, state: this.brief(w) };
     }
     const w = find(); if (!w) throw new Error('That watcher isn’t on this device');
@@ -380,6 +400,7 @@ const Watch = {
       trace.push(`read ${Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'}` : typeof got === 'string' ? `${got.length} characters` : got?.routes ? `${got.routes.length} route${got.routes.length === 1 ? '' : 's'}${got.event ? ` to ${got.event.title}` : ''}` : got?.idle ? 'nothing yet (waiting)' : JSON.stringify(got).slice(0, 80)}`);
       if (o.preview) { w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) }; return { got }; }
       const before = (w.state.seen || []).length, hit = this.detect(w, got);
+      if (o.poked || hit) w.state.pokeQuiet = hit ? 0 : (w.state.pokeQuiet || 0) + 1; /* changes that bring nothing new: wait longer for the next */
       if (hit?.shotOf != null && typeof Lookahead !== 'undefined') hit.shot = await Lookahead.shot(w, got, hit.shotOf, trace).catch(e => { trace.push(`  no map picture: ${e.message.slice(0, 60)}`); return ''; }); /* the other way, as Google draws it */
       trace.push(hit ? `news: ${hit.headline.slice(0, 140)}` : `nothing new${w.detect?.kind === 'new' ? ` (${before} seen before)` : ''}`);
       w.state.at = Date.now(); w.state.fails = 0; w.state.paused = ''; w.state.lastMs = Date.now() - t0; w.state.count = Array.isArray(got) ? got.length : null;
@@ -414,7 +435,7 @@ const Watch = {
     } finally {
       this.running.delete(w.id);
       w.state.trace = { at: Date.now(), ms: Date.now() - t0, lines: trace.slice(-40) };
-      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(WATCH_MS[w.every] || 9e5, back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */
+      if (!o.preview) { const back = [0, 3e5, 9e5, 36e5][Math.min(3, w.state.fails || 0)]; w.state.next = Date.now() + Math.max(this.gap(w), back) * (0.9 + Math.random() * 0.2); /* a little randomness: not robotic */
         if (w.state.nextAt) { if (!w.state.fails && w.state.nextAt < w.state.next) w.state.next = w.state.nextAt; delete w.state.nextAt; } /* leave-by: in time for the next step */ if (this.get(w.id)) this.put(w); /* deleted while it was checking: it stays deleted */ if (current === 'settings' && $('#sheet .wt-list')) this.sheet(); }
     }
   },
@@ -489,7 +510,7 @@ const Watch = {
     } catch (e) { return sheet('Couldn’t read it there', `<p>${esc(e.message.replace(/^SIGNIN:(.+)$/, `Sign in to $1 on ${this.where(w)} first (Sign in from here), then try again.`))}</p>`, [['Cancel']]); }
     try {
       const r = await this.check(w, { preview: true }), got = r.got;
-      this.detect(w, got); w.state.at = Date.now(); w.state.count = Array.isArray(got) ? got.length : null; w.state.next = Date.now() + (WATCH_MS[w.every] || 9e5); this.put(w);
+      this.detect(w, got); w.state.at = Date.now(); w.state.count = Array.isArray(got) ? got.length : null; w.state.next = Date.now() + this.gap(w); this.put(w);
       const now = got?.routes ? `Now: ${got.routes[0].min} min${got.routes[0].via ? ` via ${esc(got.routes[0].via)}` : ''}${got.routes.length > 1 ? ` (${got.routes.length - 1} other way${got.routes.length > 2 ? 's' : ''})` : ''}${got.event ? ` to ${esc(got.event.title)} at ${esc(got.event.when)}` : ''}` : got?.idle ? 'Nothing to read yet: it starts when there is (you drive, or the time comes)' : Array.isArray(got) ? `${got.length} item${got.length === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
       sheet('Watching', `<p><b>${esc(w.name)}</b> · ${esc((WATCH_EVERY.find(e => e[0] === w.every) || [])[1] || w.every)}</p><p class="se-note">${now}. It tells you when that changes.</p>`, [['Watchers', () => this.sheet()], ['Done']]);
     } catch (e) { sheet('Couldn’t read it', `<p>${esc(this.why(e.message))}</p>${w.state?.trace?.lines?.length ? `<pre style="white-space:pre-wrap;font-size:12px;max-height:12em;overflow:auto;background:rgba(127,127,127,.12);padding:8px;border-radius:8px">${esc(w.state.trace.lines.join('\n'))}</pre>` : ''}`, [['Show me', () => this.showPage(w)], ...(window.DriveDeckDesktop?.diag ? [['Diagnose the page', () => this.diagnose(w)]] : []), ...(this.where(w) === 'here' && (w.url || '').length ? [['Pick it again', () => { closeSheet(); this.put(w); this.here(String(w.url).replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m), w.id); }]] : []), ['Save anyway', () => { this.put(w); this.sheet(); }], ['Cancel']]); }

@@ -1,0 +1,14 @@
+{
+  "id": "dashboard-bundles-tasks", "title": "The dashboard's widgets, a script bundle out and back in, and an agent task imported from JSON", "tags": ["dashboard", "scripts", "tasks"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "openView('dashboard'); await new Promise(r => setTimeout(r, 1000)); const where = Object.keys(store.get('lists', {}))[0] || 'left'; return document.querySelectorAll('[data-wid]').length", "as": "w0", "why": "The dashboard draws its widgets" },
+    { "do": "expect", "var": "w0", "gte": 1 },
+    { "do": "eval", "js": "const s = Scripts.add({ name: 'Bundle me', beats: [ { id: 'a', title: 'Hi', say: 'Hello from a bundle.' } ] }); const b = Bundles.make([Scripts.get(s.id)]); const n0 = Scripts.all().length; Scripts.del(s.id); await Bundles.import(b); return Scripts.all().some(x => x.name === 'Bundle me')", "as": "bundled", "why": "Export a script as a bundle, delete it, import it back" },
+    { "do": "expect", "var": "bundled", "equals": true },
+    { "do": "fixture", "name": "titled", "html": "<h1>MuseTester page</h1>" },
+    { "do": "eval", "js": "const t = { id: 'muse.title', name: 'MuseTester page title', runs: 'mac', examples: ['the muse page title'], steps: [ { do: 'agent.open', value: '${base}/muse/fx/titled', args: ['site=Muse'] }, { do: 'agent.read', value: 'h1', as: 'read' }, { do: 'ai.card', value: '{read}' } ] }; let errs = null; await TaskLLM.import(JSON.stringify(t), { auto: true, onError: e => { errs = e; }, onReport: r => { if ((r.results || []).every(x => x.state === 'ok')) Agent.put(r.task); else errs = r.results; } }); for (let i = 0; i < 60 && !Agent.get('my.muse.title') && !errs; i++) await new Promise(r => setTimeout(r, 1000)); return Agent.get('my.muse.title') ? true : JSON.stringify(errs || TaskLLM.last?.results || 'not saved')", "as": "imported", "timeout": 120, "why": "Import an agent task from JSON (as an LLM would write it): checked on its page, then saved" },
+    { "do": "expect", "var": "imported", "equals": true },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

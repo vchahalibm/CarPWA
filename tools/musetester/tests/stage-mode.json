@@ -1,0 +1,21 @@
+{
+  "id": "stage-mode", "title": "Stage mode: the mode switch, a script on Stage moved on by “next”, a command's card, and back to Drive", "tags": ["stage", "scripts", "cards"],
+  "tryitout": ["On Stage with a real script running"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "settings.appMode = 'stage'; store.set('settings', settings); applySettings?.(); openView('dashboard'); await new Promise(r => setTimeout(r, 1500)); return Stage.on", "as": "on", "why": "Switch to Stage" },
+    { "do": "expect", "var": "on", "equals": true },
+    { "do": "eval", "js": "Voice.respond = async (m, then) => { (window.__said ||= []).push(String(m)); then?.(); }; await Script.start({ name: 'Stage test', beats: [ { id: 'a', title: 'Welcome', say: 'Welcome everyone.', next: { on: ['next'] } }, { id: 'b', title: 'Second', say: 'Here is the second part.', next: { on: ['next'] } }, { id: 'c', title: 'Thanks', say: 'Thank you.' } ] }); await new Promise(r => setTimeout(r, 1000)); return Script.i", "as": "i0", "why": "Start a script on Stage" },
+    { "do": "expect", "var": "i0", "equals": 0 },
+    { "do": "say", "text": "next", "wait": 1.5, "why": "Say “next”" },
+    { "do": "expect", "js": "Script.i", "equals": 1, "why": "It moved on" },
+    { "do": "say", "text": "what's the weather", "wait": 5, "why": "A command while presenting" },
+    { "do": "expect", "js": "Script.running", "equals": true, "why": "The presentation carries on" },
+    { "do": "screenshot", "name": "stage" },
+    { "do": "say", "text": "stop the demo", "wait": 1.5 },
+    { "do": "expect", "js": "Script.running", "equals": false, "why": "Stopped by voice" },
+    { "do": "eval", "js": "settings.appMode = 'drive'; store.set('settings', settings); applySettings?.(); return Stage.on", "as": "off", "why": "Back to Drive" },
+    { "do": "expect", "var": "off", "equals": false },
+    { "do": "errors.none", "ignore": ["ResizeObserver", "WebGL", "webgl"] }
+  ]
+}

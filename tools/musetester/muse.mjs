@@ -13,7 +13,7 @@ import fs from 'fs'; import path from 'path'; import os from 'os'; import http f
 
 const HERE = path.dirname(new URL(import.meta.url).pathname), ROOT = path.resolve(HERE, '../..');
 const argv = process.argv.slice(2), flag = k => argv.includes('--' + k), opt = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
-const VALUED = ['profile', 'app', 'config'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
+const VALUED = ['profile', 'app', 'config', 'port', 'skip'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
 const PROFILE = opt('profile', 'scratch'), APP = opt('app', fs.existsSync('/Applications/StudioGen.app') ? 'installed' : 'dev'), SILENT = flag('silent'), PANEL = !SILENT && !flag('list');
 const AUTO = flag('auto') || SILENT, HIDDEN = SILENT || flag('hidden'), HEADFUL = flag('headful') || (PANEL && !HIDDEN); /* --hidden: the panel, but the apps' windows hidden */
 const INSTALLED = '/Applications/StudioGen.app/Contents/MacOS/StudioGen', ELECTRON = path.join(ROOT, 'desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron');
@@ -27,7 +27,7 @@ const readJSON = f => JSON.parse(fs.readFileSync(f, 'utf8')), CFG_FILE = opt('co
 const CONFIG = { ...readJSON(path.join(HERE, 'muse.config.example.json')), ...(fs.existsSync(CFG_FILE) ? readJSON(CFG_FILE) : {}) };
 const TESTS = fs.readdirSync(path.join(HERE, 'tests')).filter(f => f.endsWith('.json')).sort().map(f => ({ file: f, ...readJSON(path.join(HERE, 'tests', f)) }));
 if (flag('list')) { for (const t of TESTS) console.log(`${t.id.padEnd(30)} ${(t.profile || 'scratch').padEnd(8)} ${(t.tags || []).join(',').padEnd(30)} ${t.title}`); process.exit(0); }
-const chosen = TESTS.filter(t => (!want.length || want.some(w => t.id === w || (t.tags || []).includes(w))) && (t.profile || 'scratch') === PROFILE);
+const SKIP = String(opt('skip', '')).split(',').filter(Boolean), chosen = TESTS.filter(t => (!want.length || want.some(w => t.id === w || (t.tags || []).includes(w))) && (t.profile || 'scratch') === PROFILE && !SKIP.some(k => t.id === k || (t.tags || []).includes(k))); /* --skip docker,llm */
 if (!chosen.length) { console.log(`No tests for --profile ${PROFILE}${want.length ? ` matching ${want.join(', ')}` : ''}. --list shows them.`); process.exit(1); }
 
 /* ---------- the run log: everything needed to diagnose a run, or to see how the app grows (sent to Claude as it is) ---------- */
@@ -88,6 +88,7 @@ class Page {
   }
   send(method, params = {}, ms = 120000) { return new Promise((ok, no) => { const id = ++this.id, t = setTimeout(() => { this.wait.delete(id); no(new Error(`${method} took over ${ms / 1000} s`)); }, ms); this.wait.set(id, d => { clearTimeout(t); d.error ? no(new Error(d.error.message)) : ok(d.result); }); this.ws.send(J({ id, method, params })); }); }
   async eval(js, ms) { const r = await this.send('Runtime.evaluate', { expression: `(async () => { ${/\breturn\b/.test(js) ? js : `return (${js});`} })()`, awaitPromise: true, returnByValue: true }, ms); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split('\n')[0] || r.exceptionDetails.text); return r.result?.value; }
+  async raw(js, ms) { const r = await this.send('Runtime.evaluate', { expression: js, awaitPromise: true, returnByValue: true }, ms); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split('\n')[0] || r.exceptionDetails.text); return r.result?.value; } /* an expression as it is (the tandem journeys') */
   async shot(file) { const r = await this.send('Page.captureScreenshot', { format: 'jpeg', quality: 70 }, 15000); fs.writeFileSync(file, Buffer.from(r.data, 'base64')); return file; }
   close() { try { this.ws.close(); } catch {} }
 }
@@ -120,7 +121,7 @@ async function launch(s) {
     if (!flag('restart-mine')) throw new Error('StudioGen is open with your profile: quit it first, or run with --restart-mine (it’s opened again afterwards)');
     mineWasRunning = true; execFileSync('osascript', ['-e', 'tell application "StudioGen" to quit']); for (let i = 0; i < 40 && running(); i++) await sleep(500);
   }
-  const dir = profile === 'mine' ? null : path.join(TMP, as), bin = (s.app || APP) === 'dev' ? ELECTRON : INSTALLED;
+  const dir = profile === 'mine' ? null : path.join(TMP, cur?.id || 'run', as), /* a profile per test (kept across a restart within it) */ bin = (s.app || APP) === 'dev' ? ELECTRON : INSTALLED;
   if (dir && s.folders) { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'watch-paths.json'), J(s.folders.map(p => path.resolve(String(p).replace(/^~/, os.homedir()))))); } /* folders a file watcher may read (as if picked in the dialog) */
   const args = [...((s.app || APP) === 'dev' ? [path.join(ROOT, 'desktop')] : []), ...(dir ? [`--user-data-dir=${dir}`] : []), `--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'];
   const env = { ...process.env, ...(HIDDEN ? { SG_HIDDEN: '1' } : {}), ...(s.env || {}) }; delete env.ELECTRON_RUN_AS_NODE;
@@ -142,7 +143,7 @@ async function ready(page) {
 const DEVICES = { iphone: [390, 844, 3, 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'], ipad: [1180, 820, 2, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'], 'ipad-portrait': [820, 1180, 2, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'] };
 async function drivegen(s) {
   const as = s.as || 'phone', port = s.port || 9433 + Object.keys(apps).length, [w, h, dpr, ua] = DEVICES[s.device || 'iphone'];
-  const k = spawn(CHROME, [...(HEADFUL ? [`--app=data:text/html,DriveGen`] : ['--headless=new']), `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(TMP, as)}`, `--window-size=${w},${h + 80}`, '--no-first-run'], { stdio: 'ignore' }); kids.push(k);
+  const k = spawn(CHROME, [...(HEADFUL ? [`--app=data:text/html,DriveGen`] : ['--headless=new']), `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(TMP, cur?.id || 'run', as)}`, `--window-size=${w},${h + 80}`, '--no-first-run'], { stdio: 'ignore' }); kids.push(k);
   const page = await Page.open(port, t => t.type === 'page');
   await page.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: dpr, mobile: true }); await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }); await page.send('Network.setUserAgentOverride', { userAgent: ua });
   const url = !s.url || s.url === 'local' ? `${BASE}/index.html` : s.url;
@@ -237,11 +238,52 @@ const STEPS = {
     return `${n} pings, slowest ${worst} ms`; },
   'crash.none': async () => { const d = path.join(os.homedir(), 'Library/Logs/DiagnosticReports'), l = fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^(StudioGen|Electron)/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > started) : []; if (l.length) throw new Error(`crash report: ${l.join(', ')}`); return 'no crash report'; },
   log: async s => { const t = fs.existsSync(DEBUG_LOG) ? fs.readFileSync(DEBUG_LOG, 'utf8').slice(-2e6) : ''; const e = check(t, s); if (e) throw new Error(e.slice(0, 200)); return 'ok'; },
+  /* a tandem journey: its devices, then each step (done by its auto, then its check until true or its wait) */
+  'journey.start': async s => { const l = JSTEPS.get(s.key); for (const d of l) await d.start(); return l.map(d => d.label).join(', ') + ' ready'; },
+  'journey.step': async s => { const st = JSTEPS.get(s.key), t0 = Date.now();
+    await st.before?.();
+    if (st.always || st.auto) { try { await st.auto?.(); } catch (e) { progress(`the step: ${e.message.slice(0, 120)}`); } }
+    else if (st.you) { const you = (typeof st.you === 'function' ? await st.you() : st.you).replace(/<[^>]+>/g, ''); if (AUTO) throw Object.assign(new Error(`needs you: ${you}`), { skip: true }); progress(`You: ${you}`); }
+    let again = !!st.words; /* a command said too early (the others not online yet): said once more, a third of the way in (only said steps: a join done twice makes two members) */
+    for (;;) { let ok; try { ok = await st.check(); } catch (e) { ok = e.message; } if (ok === true) return `after ${Math.round((Date.now() - t0) / 1000)} s`;
+      if (again && Date.now() - t0 > (st.wait || 60) * 333) { again = false; progress('doing it once more'); try { await st.auto(); } catch {} }
+      progress(`waiting: ${String(ok).slice(0, 160)}`); if (Date.now() - t0 > (st.wait || 60) * 1000 * (st.you && !st.auto ? 5 : 1)) { /* what each device saw, for the run log */
+        const seen = await Promise.all((JSTEPS.get(s.key.split('#')[0]) || []).map(async d => { const x = await d.state().catch(() => null); return `${d.label}: ${x ? `mesh ${x.mesh ? `${Object.values(x.mesh.names || {}).join(', ')} (online ${x.mesh.online?.length})` : 'none'}; paired ${(x.paired || []).map(p => `${p.name}${p.online ? ' online' : ''}`).join(', ') || 'none'}; direct ${x.direct}; last said “${(x.said || []).slice(-1)[0] || ''}”` : 'not answering'}`; }));
+        throw new Error(`${ok}\n${seen.join('\n')}`); } if (ctl.stop) throw new Error('stopped'); await sleep(1000); } },
   /* a person: what can't be done for you (a real drive, your phone) */
   human: async s => { if (AUTO) throw Object.assign(new Error('needs you (run it interactively)'), { skip: true });
     if (PANEL) { ctl.human = { say: s.say, answer: null }; while (!ctl.human.answer && !ctl.stop) await sleep(200); const a = ctl.human?.answer; ctl.human = null; if (a !== 'done') throw new Error('you said it didn\'t work'); return 'done'; }
     const a = await ask(`\n  👤 ${s.say}\n     Enter when done, n if it didn't work: `); if (/^n/i.test(a)) throw new Error('you said it didn\'t work'); return 'done'; },
 };
+
+/* ---------- the tandem journeys (tests/tandem/journeys.mjs): mesh, pairing, shows, remote view, Workers… ----------
+   A test with "journey" runs that journey's acts here: its devices are MuseTester's apps (StudioGens with throwaway
+   profiles, DriveGen in Chrome), each journey step is a row; it does the step (its auto), then waits for its check. */
+const { journeys } = await import(path.join(ROOT, 'tests/tandem/journeys.mjs')), JSTEPS = new Map();
+const prep = label => `(()=>{ store.set('onboarded',true); store.set('setupDone','skip'); store.set('meshName',${J(label)}); document.getElementById('setup')?.remove();
+  if(typeof Voice!=='undefined') Voice.respond=async(m,then)=>{ VoiceLog.app(String(m)); then?.(); };
+  const o=Relay.newPairing.bind(Relay); Relay.newPairing=async(...a)=>(Relay._tandemCode=await o(...a)); closeSheet(); if (LINK_HOST) { const l = Dash.list('stage.side'); if (!l.includes('chat')) Dash.setList('stage.side', ['chat', ...l]); } openView('mesh'); return 1 })()`;
+function device(key, d) {
+  return { id: key, label: d.label, kind: d.kind === 'phone' ? 'DriveGen (Chrome)' : 'StudioGen', as: `dev${key}`,
+    get app() { return apps[this.as]; },
+    async start() { if (d.kind === 'phone') await drivegen({ as: this.as, device: d.device || 'iphone' }); else await launch({ as: this.as, practice: d.practice ?? true, ...(d.env ? { env: d.env } : {}) });
+      for (let i = 0; i < 60 && !(await this.app.page.raw('typeof Tandem !== "undefined" && typeof Mesh !== "undefined" && typeof MeshView !== "undefined"').catch(() => false)); i++) await sleep(500);
+      await this.app.page.raw(prep(d.label)); for (let i = 0; i < 10 && (await this.state().catch(() => ({})))?.name !== d.label; i++) { await sleep(1000); await this.step('name', d.label); } },
+    eval(js, ms) { if (!this.app) return Promise.reject(new Error(`${d.label} isn't running`)); return this.app.page.raw(js, ms); },
+    async until(c, n = 60) { for (let i = 0; i < n; i++) { try { if (await this.eval(`!!(${c})`, 5000)) return true; } catch {} await sleep(500); } throw new Error(`${d.label}: not ready`); },
+    state() { return this.app ? this.app.page.raw('Tandem.state()', 5000) : Promise.reject(new Error('stopped')); },
+    async stop() { await quitApp(this.as); }, async restart() { await this.stop(); await this.start(); },
+    step(name, a) { return this.eval(`Promise.resolve(Tandem.STEPS[${J(name)}](${J(a)}))`); },
+    async clip(text) { execFileSync('pbcopy', { input: text }); return 'the Mac clipboard'; },
+    async shot(f) { return this.app?.page.shot(f); } };
+}
+for (const t of TESTS) if (t.journey) { /* the journey's acts become the test's steps */
+  const ds = t.devices || { A: { label: 'Studio A' }, B: { label: 'Studio B' }, P: { label: 'Test iPhone', kind: 'phone' } }, dev = Object.fromEntries(Object.entries(ds).map(([k, d]) => [k, device(k, d)]));
+  const J0 = journeys({ ...dev, devs: Object.values(dev), AUTO: true, sleep })[t.journey]; if (!J0) throw new Error(`${t.id}: no journey ${t.journey}`);
+  const acts = Object.entries(J0).filter(([a]) => !t.acts || t.acts.includes(a));
+  t.steps = [{ do: 'journey.start', key: t.id, why: `Start ${Object.values(ds).map(d => d.label).join(', ')}` }, ...acts.flatMap(([a, l]) => l.map((s, i) => { const k = `${t.id}#${a}#${i}`; JSTEPS.set(k, s); return { do: 'journey.step', key: k, why: `${a}: ${s.title}` }; })), ...(t.then || [])]; /* then: more steps after the journey, on: devA, devB, devP… */
+  JSTEPS.set(t.id, Object.values(dev));
+}
 
 /* ---------- the board (what the panel shows) and control ---------- */
 const label = s => s.why || ({ launch: 'Open StudioGen', drivegen: `Open DriveGen (${s.device || 'iphone'})`, 'watch.make': `Make “${s.name || s.template}”`, 'watch.check': `Check “${s.name}”`, expect: `Expect ${s.var || s.sel || s.text || 'it'}`, say: `Say “${s.text}”`, click: `Click “${s.text || s.sel}”`, view: `Open ${s.name}`, wait: `Wait ${s.s || 1} s`, human: `You: ${s.say}`, 'practice.signin': 'Sign in to the practice sites', 'practice.incoming': `Practice ${s.site}: ${s.text || s.query}`, fixture: `Fixture “${s.name}”`, 'errors.none': 'No errors in the page', 'crash.none': 'No crash report', responsive: `Stays responsive for ${s.seconds || 60} s`, quit: 'Quit', screenshot: `Picture${s.name ? ` “${s.name}”` : ''}` }[s.do] || s.do);

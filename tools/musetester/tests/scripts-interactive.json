@@ -1,0 +1,17 @@
+{
+  "id": "scripts-interactive", "title": "An interactive script: an intent by its phrase, a slot, a question for a missing slot, the end phrase", "tags": ["scripts", "voice"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "window.__said = []; const r0 = Voice.respond; Voice.respond = async (m, then, o) => { __said.push(String(m)); then?.(); }; await Script.start({ name: 'Desk helper', mode: 'interactive', listen: false, setup: [ { say: 'Hi! What can I do?' } ], intents: [ { id: 'sales', title: 'Show sales', on: ['show sales for {month}', 'sales'], ask: { month: 'Which month?' }, say: 'Here are the sales for {month}.' } ], fallback: [ { say: 'Sorry, I can show sales.' } ], end: { on: ['that is all', 'goodbye'], steps: [ { say: 'Talk soon!' } ] } }); await new Promise(r => setTimeout(r, 800)); return __said.join(' | ')", "as": "said", "why": "Start it (its greeting)" },
+    { "do": "expect", "var": "said", "contains": "What can I do", "why": "The greeting" },
+    { "do": "say", "text": "show sales for march", "wait": 1.5, "why": "An intent with its slot" },
+    { "do": "expect", "js": "__said.join(' | ')", "match": "sales for march", "why": "It answered with the slot" },
+    { "do": "say", "text": "sales", "wait": 1.5, "why": "The intent without the slot" },
+    { "do": "expect", "js": "__said.join(' | ')", "contains": "Which month", "why": "It asked for the month" },
+    { "do": "say", "text": "april", "wait": 1.5, "why": "The answer" },
+    { "do": "expect", "js": "__said.join(' | ')", "match": "sales for april", "why": "…used" },
+    { "do": "say", "text": "goodbye", "wait": 1.5, "why": "The end phrase" },
+    { "do": "expect", "js": "__said.join(' | ')", "contains": "Talk soon", "why": "It said goodbye" },
+    { "do": "until", "js": "!Script.running", "timeout": 10, "why": "…and ended" }
+  ]
+}

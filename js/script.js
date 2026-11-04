@@ -179,7 +179,7 @@ const Script = {
       if (x.repeat != null || x.until != null || x.each != null) { await this.loop(x, { quiet, tok, depth }); continue; }
       if (x.await != null) { if (!quiet) await this.awaitJobs(x.await); continue; }
       if (x.stop) { if (!quiet) { await this.steps(this.cur.end?.steps, { tok }); this.stop(); } return; }
-      if (x.goto != null) { if (!quiet) { this.jump(String(this.fill(x.goto))); } return; }
+      if (x.goto != null) { if (!quiet) { this.jump(String(this.fill(x.goto)), { keep: true }); } return; }
       if (x.intent != null) { if (!quiet) { const it = this.cur.intents.find(i => i.id === x.intent || plain(i.title) === plain(x.intent)); if (it) await this.runIntent(it, {}, tok); } continue; }
       if (x.do) {
         if (x.background) { if (!quiet) this.job(x); continue; } // the script carries on; the job reports when it's done
@@ -312,7 +312,10 @@ const Script = {
   back(n = 1) { if (!this.running || this.cur.mode === 'interactive') return false; this.restore(this.i - n); return true; },
   restart() { if (!this.running || this.cur.mode === 'interactive') return false; Log.i('script', 'Start over'); this.restore(0); return true; },
   repeat() { if (!this.running || this.cur.mode === 'interactive') return false; this.go(this.i); return true; },
-  jump(id) { const k = typeof id === 'number' ? id : this.index(id); if (k < 0) return false; this.restore(k); return true; },
+  /** To a beat: by voice or the editor (“go to step 3”) the beats before it are replayed quietly (restore); a script's own
+      goto step carries on there with its variables as they are (a forward jump doesn't run what it skips, a loop back keeps
+      its counter). */
+  jump(id, o = {}) { const k = typeof id === 'number' ? id : this.index(id); if (k < 0) return false; if (o.keep) this.go(k); else this.restore(k); return true; },
   finish() {
     clearTimeout(this.timer); this.ask = null;
     Log.i('script', `Script finished: ${this.cur?.name}`);

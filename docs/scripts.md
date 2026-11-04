@@ -89,7 +89,7 @@ Any text in a step can use `{name}` (dots reach into objects: `{result.rows}`; `
   `{x} contains Paris`, `{x} is empty`, joined with `and` / `or`.
 - `{ "repeat": "3", "steps": [ … ] }`, `{ "until": "{done} is yes", "steps": [ … ] }`, `{ "each": "{rows}", "as": "row", "steps": [ … ] }`
   (a list variable or comma-separated text; `{index}` counts the rounds; at most 1000).
-- `{ "goto": "beatId" }` jumps (also backwards: a loop over steps); `{ "stop": true }` ends the script.
+- `{ "goto": "beatId" }` jumps (also backwards: a loop over steps), keeping the variables as they are (a forward jump doesn't run the beats it skips); `{ "stop": true }` ends the script.
 - **Background**: `"background": true` on an action step runs it as a job: the script carries on (the assistant keeps
   talking or listening), `"then": [ … ]` runs when it's done (after the current sentence), `"else": [ … ]` if it fails,
   `"name"` names it; `{ "await": "name" }` (or `"all"`) waits for it; the event `script.job` fires; the Stage bar shows

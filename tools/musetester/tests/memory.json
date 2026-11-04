@@ -1,0 +1,12 @@
+{
+  "id": "memory", "title": "Memory: remember, recall, forget (downloads EmbeddingGemma, 318 MB, the first time)", "tags": ["memory", "slow"],
+  "tryitout": ["A day of use: does it learn the right things?"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "await Memory.remember('My car is a blue Tata Nexon'); return true", "timeout": 900, "why": "Remember a fact (downloads the embedding model once)" },
+    { "do": "eval", "js": "const r = await Memory.about('what car do I drive'); return typeof r === 'string' ? r : JSON.stringify(r)", "timeout": 120, "as": "about", "why": "Recall it" },
+    { "do": "expect", "var": "about", "contains": "Nexon" },
+    { "do": "eval", "js": "await Memory.forget('car'); const r = await Memory.about('what car do I drive'); return typeof r === 'string' ? r : JSON.stringify(r)", "as": "after", "why": "Forget it" },
+    { "do": "expect", "var": "after", "lacks": "Nexon" }
+  ]
+}

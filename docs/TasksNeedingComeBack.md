@@ -4,7 +4,7 @@ Things started or decided but not finished, and things to perform together later
 
 ## To try after all the phases (chat, cards, memory, watchers: started 31 Oct)
 
-**MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs` opens its panel (watch each step go grey → blue → green or red, in one go or step by step); `--silent` runs on its own; `--profile mine --restart-mine --mark` uses your accounts and ticks what passed here. Each run's `muse-log.md` is the one file to send to Claude.
+**MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs` opens its panel (watch each step go grey → blue → green or red, in one go or step by step); `--silent` runs on its own; `--profile mine --restart-mine --mark` uses your accounts and ticks what passed here. Each run's `muse-log.md` is the one file to send to Claude. It is the apps' main tester now: watchers, maps, tasks, scripts, Stage, the voice, memory, DriveGen, and the mesh journeys (pairing, shows, remote view, Workers, StudioGBee); all 31 scratch tests passed on 4 Nov.
 
 Kept as each phase lands; try them together when the phases are done. Tested parts are in each phase's commit; these weren't (they need your devices, accounts or time).
 

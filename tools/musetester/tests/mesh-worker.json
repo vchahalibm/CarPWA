@@ -1,0 +1,2 @@
+{ "id": "mesh-worker", "journey": "demo", "acts": ["setup", "pair", "mesh", "worker"], "title": "A StudioGen Worker in Docker joins as yours and runs tasks for your phone", "tags": ["mesh", "worker", "docker", "slow"],
+  "cleanup": [{ "do": "native", "applescript": "do shell script \"/usr/local/bin/docker rm -f sg-worker-t >/dev/null 2>&1 || true\"", "why": "Remove the Worker's container" }] }

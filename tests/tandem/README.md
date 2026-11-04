@@ -1,5 +1,7 @@
 # Tandem tests
 
+**MuseTester (tools/musetester) now runs these journeys** as tests (mesh-basic, mesh-core, mesh-trouble, mesh-worker, mesh-bee, mesh-meaning), in its panel or silently, with the rest of the apps' tests. Journeys are still written in journeys.mjs; run.mjs remains for runs with the iOS Simulator as the phone.
+
 Tests that need several devices: pairing, the mesh (create, invite, auto-join, everyone online), a request from the phone run on another StudioGen, a show across screens, changing the secret, removing a member. The runner starts the devices on this Mac, does what it can, asks **you** to do the marked steps in the real apps, and checks every step by watching the apps.
 
 ```

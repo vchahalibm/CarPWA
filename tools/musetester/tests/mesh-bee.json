@@ -1,0 +1,2 @@
+{ "id": "mesh-bee", "journey": "demo", "acts": ["setup", "pair", "mesh", "own", "bee"], "title": "StudioGBee: requests wait at the bee for an offline member, sealed; another team's bee can't read them", "tags": ["mesh", "bee", "docker", "slow"],
+  "cleanup": [{ "do": "native", "applescript": "do shell script \"/usr/local/bin/docker rm -f sg-bee-1 sg-bee-2 >/dev/null 2>&1 || true\"", "why": "Remove the bees' containers" }] }

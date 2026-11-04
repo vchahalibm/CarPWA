@@ -1,0 +1,2 @@
+{ "id": "mesh-core", "journey": "demo", "acts": ["setup", "pair", "mesh", "shared", "road", "agent", "ask", "own", "remote", "parallel", "show", "housekeeping", "review"],
+  "title": "The mesh, in full: pairing with a phrase, the direct link, sharing, relays only, tasks through the Mac, permissions, own devices, remote view, tasks side by side, shows", "tags": ["mesh", "pairing", "show", "remote", "agent", "slow"] }

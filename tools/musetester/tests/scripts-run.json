@@ -1,0 +1,16 @@
+{
+  "id": "scripts-run", "title": "Scripts: beats, variables, conditions, a loop, a jump, and stopping", "tags": ["scripts"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "const s = Scripts.add({ name: 'MuseTester flow', beats: [ { id: 'a', title: 'Start', do: [ { set: 'n', value: '2' }, { set: 'log', value: 'start' } ], next: { after: 0.2 } }, { id: 'b', title: 'Loop', do: [ { repeat: '3', steps: [ { set: 'n', value: '{n} + 1' } ] }, { if: '{n} > 4', then: [ { set: 'big', value: 'yes' } ], else: [ { set: 'big', value: 'no' } ] } ], next: { after: 0.2 } }, { id: 'c', title: 'Jump', do: [ { goto: 'e' } ], next: { after: 0.2 } }, { id: 'd', title: 'Skipped', do: [ { set: 'skipped', value: 'yes' } ], next: { after: 0.2 } }, { id: 'e', title: 'End', do: [ { set: 'done', value: 'yes' } ] } ] }); return s.id", "as": "sid", "why": "Make a script with variables, a loop, a condition and a jump" },
+    { "do": "eval", "js": "window.__beats = []; Bus.on('script.beat', d => __beats.push(d.value)); await Script.start(Scripts.get('${sid}').json); return Script.running", "why": "Start it" },
+    { "do": "until", "js": "Script.vars.done === 'yes'", "timeout": 30, "why": "It reaches the end" },
+    { "do": "expect", "js": "Script.vars.n", "equals": 5, "why": "2 + three rounds of + 1" },
+    { "do": "expect", "js": "Script.vars.big", "equals": "yes", "why": "The condition (5 > 4)" },
+    { "do": "expect", "js": "Script.vars.skipped ?? 'no'", "equals": "no", "why": "The jump skipped a beat" },
+    { "do": "expect", "js": "__beats.join(',')", "contains": "Start,Loop,Jump,End", "why": "The beats in order" },
+    { "do": "eval", "js": "Script.stop(); return Script.running", "as": "after", "why": "Stop it" },
+    { "do": "expect", "var": "after", "equals": false },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

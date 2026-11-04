@@ -183,7 +183,7 @@ ol li,ul li{margin:5px 0}
 <tr><td>Keep what a step gives back</td><td><code>"as"</code> on any action keeps its result; a failure goes into <code>{name_error}</code></td><td><code>{ "do": "brain.ask", "value": "…", "as": "answer" }</code></td><td>Using a result in the next steps</td></tr>
 <tr><td>If</td><td>Runs <code>then</code> or <code>else</code>: <code>== != &gt; &lt; is</code>, <code>contains</code>, <code>is empty</code>, joined with <code>and</code>/<code>or</code></td><td><code>{ "if": "{n} &gt; 3", "then": [ … ], "else": [ … ] }</code></td><td>Different paths</td></tr>
 <tr><td>Repeat / until / for each</td><td>A number of times; until a condition; over a list (<code>{index}</code> counts, at most 1000)</td><td><code>{ "each": "1, 2, 3", "as": "n", "steps": [ … ] }</code></td><td>Lists, retries, slideshows</td></tr>
-<tr><td>Go to / stop</td><td>Jump to a step (also backwards); end the script</td><td><code>{ "goto": "intro" }</code></td><td>Loops over steps</td></tr>
+<tr><td>Go to / stop</td><td>Jump to a step (also backwards), with the variables as they are; end the script</td><td><code>{ "goto": "intro" }</code></td><td>Loops over steps</td></tr>
 <tr><td>In the background</td><td><code>"background": true</code> runs an action as a job while the script carries on; <code>"then"</code> when it's done; <code>{ "await": "name" }</code> waits</td><td>An export while the assistant keeps talking</td><td>Long jobs</td></tr>
 </table>
 

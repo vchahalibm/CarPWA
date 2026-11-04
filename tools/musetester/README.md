@@ -1,5 +1,7 @@
 # MuseTester
 
+**The apps' main tester.** It covers StudioGen, DriveGen, Workers and the mesh: watchers, map watchers, tasks, scripts, Stage, the voice, the dashboard, memory, and the tandem journeys (pairing, the mesh, shows, remote view, Workers, StudioGBee) from tests/tandem/journeys.mjs, run as MuseTester tests.
+
 MuseTester runs the try-it-out list (docs/TasksNeedingComeBack.md) for you. It drives StudioGen, its Workers and
 DriveGen the way you would: it opens the app, makes watchers, presses buttons, types, waits for cards, and takes
 pictures. Then it writes a report and, if you ask, ticks the items that passed.
@@ -51,6 +53,7 @@ Options:
 - `--auto`: steps that need you are skipped instead of asked.
 - `--headful`: shows DriveGen's Chrome window.
 - `--keep`: leaves StudioGen open after the tests.
+- `--skip docker,llm`: leaves out tests with those tags or ids.
 
 Reports are in `tools/musetester/reports/<time>/report.html` (the newest 10 runs, not committed).
 
@@ -150,6 +153,7 @@ A test is one JSON file in `tests/`:
 |---|---|---|
 | app-health | scratch | Several live watchers for two minutes: StudioGen keeps answering, no errors, a clean quit |
 | commands-cards | scratch | Commands: the weather and the time give answers; on Stage a screen opens as a card |
+| dashboard-bundles-tasks | scratch | The dashboard's widgets, a script bundle out and back in, and an agent task imported from JSON |
 | drive-real | mine | A real drive: news on the phone, Take it, the next town (you drive, it watches) |
 | drivegen-ipad-settings | scratch | DriveGen on an iPad (landscape, Agent screen as home): Settings opens from the app grid |
 | drivegen-iphone | scratch | DriveGen on an iPhone: the app grid, the map, a demo drive, a command's card |
@@ -159,6 +163,13 @@ A test is one JSON file in `tests/`:
 | fx-page-kinds | scratch | Every kind of page watcher on fixture pages: new, gone, changes, words, a number, a count, a pattern |
 | mac-folder | scratch | A folder on this Mac: new files are told |
 | map-along | scratch | Along the way: fuel on the practice Google Maps, the weather, the next town, 10 minutes away |
+| memory | scratch | Memory: remember, recall, forget (downloads EmbeddingGemma, 318 MB, the first time) |
+| mesh-basic | scratch | The mesh, basic: two StudioGens and a phone pair, form a mesh, and run a show on every screen |
+| mesh-bee | scratch | StudioGBee: requests wait at the bee for an offline member, sealed; another team's bee can't read them |
+| mesh-core | scratch | The mesh, in full: pairing with a phrase, the direct link, sharing, relays only, tasks through the Mac, permissions, own devices, remote view, tasks side by side, shows |
+| mesh-meaning | scratch | Understood by meaning through the Mac's language model (on the phone and on the Mac) |
+| mesh-trouble | scratch | The mesh in trouble: a dead relay first, a member quitting and coming back, a changed secret, a removed member |
+| mesh-worker | scratch | A StudioGen Worker in Docker joins as yours and runs tasks for your phone |
 | mine-outlook-live | mine | Your Outlook: New mail reads, and a live New mail watcher keeps StudioGen responsive |
 | mine-quit-clean | mine | Quitting with the built-in model loaded leaves no crash report |
 | mine-slack | mine | Your Slack: mentions, a channel, DMs, threads and a search |
@@ -170,11 +181,37 @@ A test is one JSON file in `tests/`:
 | practice-slack | scratch | Slack watchers on the practice Slack: mentions, a channel by Jump to, DMs, threads, a search |
 | practice-tasks | scratch | Agent tasks on the practice sites give cards: mail, calendar, Slack, WhatsApp, Teams |
 | real-route | scratch | The real Google Maps: routes, turns and avoid roads by place (no sign-in needed) |
+| scripts-interactive | scratch | An interactive script: an intent by its phrase, a slot, a question for a missing slot, the end phrase |
+| scripts-run | scratch | Scripts: beats, variables, conditions, a loop, a jump, and stopping |
 | settings-tabs | scratch | Every Settings tab opens without errors |
+| stage-mode | scratch | Stage mode: the mode switch, a script on Stage moved on by “next”, a command's card, and back to Drive |
 | voice-phonon | scratch | The natural voice (Phonon) downloads, loads and speaks |
 | watcher-lifecycle | scratch | Watchers: pause, resume, export and import, the counter, and they carry on after a restart |
 
-The scratch ones run anywhere (the practice sites, fixture pages, the public Google Maps and weather); the mine ones need your accounts. Tags (`--list`) pick groups: practice, watchers, kinds, slack, maps, drivegen, health, real.
+The scratch ones run anywhere (the practice sites, fixture pages, the public Google Maps and weather); the mine ones need your accounts. Tags (`--list`) pick groups: practice, watchers, kinds, slack, maps, mesh, scripts, stage, drivegen, health, real, slow (long or big downloads), docker (needs Docker: the Worker and StudioGBee images), llm (needs a language model). On 4 Nov all 31 scratch tests passed (`--skip` nothing), the mesh ones included.
+
+## The mesh: tandem journeys
+
+A test with `"journey"` runs acts of a journey from `tests/tandem/journeys.mjs` (where journeys are written: the same
+file the old tandem runner used):
+
+```json
+{ "id": "mesh-core", "journey": "demo", "acts": ["setup", "pair", "mesh", "shared", "show"], "title": "…",
+  "devices": { "A": { "label": "Studio A" }, "B": { "label": "Studio B" }, "P": { "label": "Test iPhone", "kind": "phone" } },
+  "then": [ { "do": "eval", "on": "devA", "js": "Tandem.state()" } ] }
+```
+
+- The devices are MuseTester's apps: StudioGens with throwaway profiles (the practice sites on), and DriveGen in
+  Chrome as a phone. `devices` is optional (the three above). Each is prepared as the tandem runner did: named, the
+  voice's replies kept in the log instead of spoken, the Mesh screen open.
+- Each journey step is a row: its action runs (said through the command matcher, as if spoken), then its check is
+  asked every second until true or its wait runs out. A said step (a command) whose check isn't true a third of the way in
+  is said once more (the others weren't online yet); other actions are done once. Steps only a person can do show “Your turn” (skipped when
+  silent).
+- `then` adds steps after the journey, on a device by `on`: `devA`, `devB`, `devP`.
+- The acts: setup, pair, mesh, shared, road, meaning (a language model), agent, ask, own, remote, parallel, worker
+  (Docker), bee (Docker), show, trouble, housekeeping, review. `tests/tandem/run.mjs` still runs them on its own (with the
+  iOS Simulator's Safari as the phone), but MuseTester is where they're kept and run.
 
 ## Adding tests
 

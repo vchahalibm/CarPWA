@@ -1,0 +1,1 @@
+{ "id": "mesh-trouble", "journey": "demo", "acts": ["setup", "pair", "mesh", "trouble"], "title": "The mesh in trouble: a dead relay first, a member quitting and coming back, a changed secret, a removed member", "tags": ["mesh", "slow"] }

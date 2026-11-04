@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MuseTester</title>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--line:#d2d2d7;--todo:#8e8e93;--run:#0a84ff;--pass:#30d158;--fail:#ff453a;--skip:#c7c7cc}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--card:#2c2c2e;--ink:#f5f5f7;--ink2:#98989d;--line:#3a3a3c;--skip:#48484a}}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{position:sticky;top:0;background:var(--bg);padding:12px 14px 10px;border-bottom:1px solid var(--line);z-index:2}
+h1{font-size:17px;margin:0 0 2px}.sub{color:var(--ink2);font-size:12px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 11px;cursor:pointer;min-height:34px}
+button.primary{background:var(--run);border-color:var(--run);color:#fff}button.warn{color:var(--fail)}button:disabled{opacity:.4;cursor:default}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{border:0;border-radius:0}.seg button.on{background:var(--run);color:#fff}
+main{padding:10px 14px 40px}
+.test{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+.test>.head{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer}.test .title{flex:1;font-weight:600}.test .tags{color:var(--ink2);font-size:12px}
+.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;background:var(--todo);text-transform:uppercase}
+.pill.run{background:var(--run)}.pill.pass{background:var(--pass)}.pill.fail{background:var(--fail)}.pill.skip{background:var(--skip);color:var(--ink)}
+ol{margin:0;padding:0 12px 10px 12px;list-style:none;counter-reset:s}
+li{counter-increment:s;display:grid;grid-template-columns:22px 1fr auto;gap:6px;padding:6px 8px;border-radius:8px;margin:2px 0;border-left:4px solid var(--todo);background:color-mix(in srgb,var(--todo) 10%,transparent)}
+li::before{content:counter(s);color:var(--ink2);font-size:12px;padding-top:1px}
+li.run{border-color:var(--run);background:color-mix(in srgb,var(--run) 18%,transparent)}li.pass{border-color:var(--pass);background:color-mix(in srgb,var(--pass) 14%,transparent)}
+li.fail{border-color:var(--fail);background:color-mix(in srgb,var(--fail) 16%,transparent)}li.skip{border-color:var(--skip);opacity:.6;text-decoration:line-through}
+li .note{grid-column:2/4;color:var(--ink2);font-size:12px;white-space:pre-wrap;word-break:break-word}li .ms{color:var(--ink2);font-size:12px}
+li.cleanup{opacity:.75}
+.human{background:color-mix(in srgb,var(--run) 14%,var(--card));border:1px solid var(--run);border-radius:12px;padding:12px;margin:10px 0}
+.shots img{max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:6px}
+.legend{display:flex;gap:10px;color:var(--ink2);font-size:12px;margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>MuseTester</h1><div class="sub" id="sub">…</div>
+  <div class="bar">
+    <button class="primary" id="runAll">Run all</button>
+    <span class="seg"><button id="mAll" class="on">In one go</button><button id="mStep">Step by step</button></span>
+    <button id="next">Next step</button><button id="pause">Pause</button>
+  </div>
+  <div class="bar" id="failBar" hidden><b style="align-self:center;color:var(--fail)">A step failed:</b><button id="retry">Try it again</button><button id="skip">Skip it</button><button class="warn" id="stopT">Stop this test</button></div>
+  <div class="bar"><button class="warn" id="stop">Stop all</button><button id="quit">End MuseTester</button></div>
+  <div class="legend"><span><i style="background:var(--todo)"></i>to run</span><span><i style="background:var(--run)"></i>running</span><span><i style="background:var(--pass)"></i>passed</span><span><i style="background:var(--fail)"></i>failed</span></div>
+</header>
+<main><div id="human"></div><div id="tests"></div></main>
+<script>
+/* MuseTester's control panel (tools/musetester/muse.mjs serves it): the tests and their steps, in colour as they run;
+   one go, or a step at a time (Next); after a failure: try it again, skip it, or stop the test. */
+const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const cmd = o => fetch('/muse/cmd', { method: 'POST', body: JSON.stringify(o) });
+let open = new Set(), last = '';
+$('#runAll').onclick = () => cmd({ cmd: 'run' }); $('#mAll').onclick = () => cmd({ cmd: 'mode', mode: 'all' }); $('#mStep').onclick = () => cmd({ cmd: 'mode', mode: 'step' });
+$('#next').onclick = () => cmd({ cmd: 'next' }); $('#pause').onclick = () => cmd({ cmd: 'pause' }); $('#retry').onclick = () => cmd({ cmd: 'retry' }); $('#skip').onclick = () => cmd({ cmd: 'skip' });
+$('#stopT').onclick = () => cmd({ cmd: 'stoptest' }); $('#stop').onclick = () => cmd({ cmd: 'stop' }); $('#quit').onclick = () => { cmd({ cmd: 'quit' }); setTimeout(() => window.close(), 400); };
+document.addEventListener('click', e => { const r = e.target.closest('[data-run]'); if (r) { e.stopPropagation(); return cmd({ cmd: 'run', ids: [r.dataset.run] }); }
+  const h = e.target.closest('[data-human]'); if (h) return cmd({ cmd: 'human', answer: h.dataset.human });
+  const t = e.target.closest('.test>.head'); if (t) { const id = t.parentElement.dataset.id; open.has(id) ? open.delete(id) : open.add(id); last = ''; } });
+async function tick() {
+  let s; try { s = await (await fetch('/muse/state')).json(); } catch { $('#sub').textContent = 'MuseTester has ended'; return; }
+  $('#sub').textContent = `${s.profile} profile · ${s.app === 'dev' ? 'desktop/' : 'installed app'} · run ${s.run}`;
+  $('#mAll').classList.toggle('on', s.mode === 'all'); $('#mStep').classList.toggle('on', s.mode === 'step');
+  $('#next').disabled = !s.waiting || (s.mode === 'all' && !s.paused); $('#pause').textContent = s.paused ? 'Continue' : 'Pause'; $('#failBar').hidden = !s.failedAt;
+  $('#human').innerHTML = s.human ? `<div class="human"><b>Your turn</b><p>${esc(s.human.say)}</p><button class="primary" data-human="done">Done, it worked</button> <button class="warn" data-human="no">It didn't work</button></div>` : '';
+  if (s.current) open.add(s.current);
+  const html = s.tests.map(t => `<div class="test" data-id="${esc(t.id)}"><div class="head"><span class="pill ${t.status}">${t.status === 'todo' ? 'to run' : t.status}</span><span class="title">${esc(t.title)}</span><span class="tags">${esc(t.tags.join(' · '))}${t.ms ? ` · ${Math.round(t.ms / 1000)} s` : ''}</span>${t.status !== 'run' ? `<button data-run="${esc(t.id)}">${t.status === 'todo' ? 'Run' : 'Again'}</button>` : ''}</div>
+    ${open.has(t.id) ? `<ol>${t.steps.map((x, i) => `<li class="${x.status}${x.cleanup ? ' cleanup' : ''}${s.waiting?.test === t.id && s.waiting.i === i ? ' run' : ''}"><span>${esc(x.label)}</span><span class="ms">${x.ms ? `${Math.round(x.ms / 100) / 10} s` : ''}</span>${x.note ? `<span class="note">${esc(x.note)}</span>` : ''}</li>`).join('')}</ol>
+    ${t.shots?.length ? `<div class="shots" style="padding:0 12px 12px">${t.shots.map(f => `<img src="/muse/shot/${encodeURIComponent(f)}" loading="lazy">`).join('')}</div>` : ''}` : ''}</div>`).join('');
+  if (html !== last) { last = html; $('#tests').innerHTML = html; const r = document.querySelector('li.run'); if (r && !r.dataset.seen) r.scrollIntoView({ block: 'nearest' }); }
+  setTimeout(tick, 400);
+}
+tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "id": "fx-filters-chain", "title": "Filters (ignore, only from), the change history, and one watcher's news feeding another", "tags": ["watchers", "filters", "fixtures"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "fixture", "name": "msgs", "items": ["Priya: hello", "Ad: buy now"] },
+    { "do": "watch.make", "name": "fx filtered", "set": { "url": "${fx.msgs}", "rows": "#list .row", "detect": { "kind": "new" }, "filter": { "ignore": "Ad:", "from": "Priya||Rahul" }, "record": true } },
+    { "do": "watch.check", "name": "fx filtered" },
+    { "do": "fixture", "name": "msgs", "items": ["Ad: 50% off", "Asha: lunch?", "Rahul: report is in", "Priya: hello", "Ad: buy now"] },
+    { "do": "watch.check", "name": "fx filtered" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "Rahul", "why": "Only Rahul's (from Priya or Rahul, ads left out)" },
+    { "do": "expect", "var": "check.hit.headline", "lacks": "Asha" },
+    { "do": "eval", "js": "const w = Watch.list().find(x => x.name === 'fx filtered'); return (await DriveDeckDesktop.watchlog('read', { id: w.id })) || ''", "as": "csv", "why": "The change history (CSV)" },
+    { "do": "expect", "var": "csv", "contains": "Rahul", "why": "It was recorded" },
+    { "do": "watch.make", "template": "mac.chain", "name": "fx chained", "set": { "chain": "${watcher.id}" }, "optional": true, "why": "A watcher fed by another's news" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

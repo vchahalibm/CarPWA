@@ -1,0 +1,19 @@
+{
+  "id": "watcher-lifecycle", "title": "Watchers: pause, resume, export and import, the counter, and they carry on after a restart", "tags": ["watchers", "lifecycle"],
+  "steps": [
+    { "do": "launch", "practice": true }, { "do": "practice.signin" },
+    { "do": "watch.make", "template": "mail.new", "name": "Lifecycle mail" },
+    { "do": "watch.check", "name": "Lifecycle mail" },
+    { "do": "view", "name": "agent" }, { "do": "wait", "s": 1 },
+    { "do": "expect", "text": "Watchers", "why": "The Agent screen shows the watchers button" },
+    { "do": "watch.set", "name": "Lifecycle mail", "set": { "on": false }, "why": "Pause it" },
+    { "do": "expect", "js": "Watch.list().find(w => w.name === 'Lifecycle mail').on", "equals": false },
+    { "do": "watch.set", "name": "Lifecycle mail", "set": { "on": true }, "why": "Resume it" },
+    { "do": "eval", "js": "const w = Watch.list().find(x => x.name === 'Lifecycle mail'); const d = Watch.exportDef(w), def = d.watcher || d; Watch.import({ ...def, name: 'Lifecycle copy' }, { auto: true, quiet: true }); return Watch.list().some(x => x.name === 'Lifecycle copy')", "as": "imported", "why": "Export it and import the copy" },
+    { "do": "expect", "var": "imported", "equals": true },
+    { "do": "quit", "why": "Quit StudioGen" },
+    { "do": "launch", "why": "Open it again (the same profile)" },
+    { "do": "expect", "js": "Watch.list().filter(w => /^Lifecycle/.test(w.name)).length", "gte": 2, "why": "The watchers are still there" },
+    { "do": "until", "js": "(Watch.list().find(w => w.name === 'Lifecycle mail')?.state?.at || 0) > Date.now() - 120000 || Watch.list().find(w => w.name === 'Lifecycle mail')?.state?.next > 0", "timeout": 60, "why": "…and carry on by themselves" }
+  ]
+}

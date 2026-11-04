@@ -1,0 +1,15 @@
+{
+  "id": "commands-cards", "title": "Commands: the weather and the time give answers; on Stage a screen opens as a card", "tags": ["commands", "cards", "stage"],
+  "tryitout": ["On Stage with a real script running: “what's the weather” shows a card"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "view", "name": "agent" },
+    { "do": "say", "text": "what's the weather", "wait": 6, "why": "Say “what's the weather”" },
+    { "do": "expect", "js": "(store.get('agentFeed', []) || []).some(c => /weather/i.test(c.task + ' ' + c.title))", "why": "A weather card on the Agent screen" },
+    { "do": "say", "text": "what time is it", "wait": 2 },
+    { "do": "eval", "js": "settings.appMode = 'stage'; store.set('settings', settings); openView('dashboard'); await new Promise(r => setTimeout(r, 800)); handleCommand('open settings'); await new Promise(r => setTimeout(r, 1500)); return { current, card: !!document.querySelector('#peekCard:not([hidden]), .peek') }", "as": "stage", "why": "On Stage: “open settings”" },
+    { "do": "expect", "var": "stage.card", "equals": true, "why": "It shows a card, the screen stays" },
+    { "do": "screenshot", "name": "stage" },
+    { "do": "errors.none", "ignore": ["ResizeObserver", "WebGL", "webgl"] }
+  ]
+}

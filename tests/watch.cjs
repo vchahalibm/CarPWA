@@ -27,6 +27,9 @@ assert.deepStrictEqual({ ...W.item('Kochi RTO Abdul Rehman ¦ 6:34 pm ¦ God ble
 assert.deepStrictEqual({ ...W.item('Aditya Birla Capital Digital Limited ¦ Yesterday ¦ Important Update on Your Personal Loan ¦ 2 (2 unread messages)') }, { title: 'Aditya Birla Capital Digital Limited', unread: 2, when: 'Yesterday', detail: 'Important Update on Your Personal Loan' }); n++;
 assert.deepStrictEqual({ ...W.item('Priya Nair 9:41 AM ¦ @You can you share the Q3 deck? ¦ #general') }, { title: 'Priya Nair', when: '9:41 AM', detail: '@You can you share the Q3 deck? · #general' }); n++; /* Slack's activity row: name and time on one line */
 assert.deepStrictEqual({ ...W.item('Asha Rao9:41 ¦ Q4 review moved') }, { title: 'Asha Rao', when: '9:41', detail: 'Q4 review moved' }); n++; /* no space between them */
+assert.strictEqual(W.changeKey('Returns within 30 days. Updated 1 Nov 2026 10:00.'), W.changeKey('Returns within 30 days. Updated 2 Nov 2026 11:30.')); n++; /* a date and a clock moving: not a change */
+assert.notStrictEqual(W.changeKey('Returns within 30 days.'), W.changeKey('Returns within 14 days.')); n++; /* “30 days” is content */
+assert.strictEqual(W.changeKey('Posted 5 min ago: hello'), W.changeKey('Posted 2 hours ago: hello')); n++;
 assert.deepStrictEqual({ ...W.item('Unread 9:12 ¦ Priya Nair ¦ Revised contract for Acme') }, { title: 'Priya Nair', when: '9:12', detail: 'Revised contract for Acme' }); n++; /* Outlook: “Unread” and the time first */
 { const w = W.make({ name: 'New WhatsApp messages', detect: { kind: 'new' } }); W.detect(w, ['Old ¦ 1:00 ¦ x']); w.state.at = 1;
   const h = W.detect(w, ['Alpha Rai 94 ¦ 9:33 pm ¦ ~Rai Singh Gill ¦ : ¦ https://youtu.be/x ¦ 6 (6 unread messages)', 'Kochi RTO Abdul Rehman ¦ 6:34 pm ¦ God bless u sir', 'Satish ¦ 6:00 pm ¦ hi', 'Old ¦ 1:00 ¦ x']);

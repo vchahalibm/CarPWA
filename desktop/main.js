@@ -17,7 +17,7 @@ const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the
 // environment (SG_NAME, SG_MESH_INVITE, the model), then seen and used from your devices (js/remoteview.js).
 // A light Worker (SG_LIGHT=1) is the same on a Mac: a second, hidden StudioGen with its own profile, started by StudioGen
 // itself (Workers in js/workers.js, LightWorkers below); SIGUSR2 shows or hides its window.
-const WORKER = process.env.SG_WORKER === '1', LIGHT = WORKER && process.env.SG_LIGHT === '1';
+const WORKER = process.env.SG_WORKER === '1', LIGHT = WORKER && process.env.SG_LIGHT === '1', HIDDEN = process.env.SG_HIDDEN === '1'; /* HIDDEN: started without its window (MuseTester's silent runs; SIGUSR2 shows it) */
 if (WORKER) {
   if (process.platform === 'linux') { for (const sw of ['no-sandbox', 'disable-gpu', 'disable-dev-shm-usage']) app.commandLine.appendSwitch(sw); app.commandLine.appendSwitch('password-store', 'basic'); }
   if (process.env.SG_DATA) app.setPath('userData', process.env.SG_DATA);
@@ -396,10 +396,10 @@ app.whenReady().then(async () => {
     { role: 'windowMenu' },
   ]));
   if (!WORKER) makeTray(); else if (LIGHT) app.dock?.hide();
-  if (LIGHT) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // StudioGen › Workers › Show its window
+  if (LIGHT || HIDDEN) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // StudioGen › Workers › Show its window
   if (!WORKER) LightWorkers.resume();
   // Started at login: just the menu bar until you open it.
-  createWindow({ show: WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin }); trace('window');
+  createWindow({ show: HIDDEN ? false : WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin }); trace('window');
   mainWin.webContents.once('did-finish-load', () => { trace('page loaded'); setTimeout(unlock, 200); });
   setTimeout(unlock, 15000); /* the page never loaded: unlock anyway */
   app.on('activate', showMain);

@@ -1,0 +1,12 @@
+{
+  "id": "mac-folder", "title": "A folder on this Mac: new files are told", "tags": ["watchers", "mac", "files"],
+  "steps": [
+    { "do": "file", "path": "${tmp}/watched/a.txt", "text": "first", "why": "A folder with a file" },
+    { "do": "launch", "folders": ["${tmp}/watched"], "why": "Open StudioGen (the folder approved, as if picked)" },
+    { "do": "watch.make", "template": "mac.folder", "inputs": { "path": "${tmp}/watched" }, "name": "Folder test" },
+    { "do": "watch.check", "name": "Folder test" },
+    { "do": "file", "path": "${tmp}/watched/b.txt", "text": "second", "why": "A new file" },
+    { "do": "watch.check", "name": "Folder test" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "b.txt", "why": "It told the new file" }
+  ]
+}

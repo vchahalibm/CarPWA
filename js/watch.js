@@ -81,6 +81,14 @@ const Watch = {
   /* ---------- One check ---------- */
   /** The row as an identity: without times, counts and “now”, so a row isn't new just because its clock moved. */
   ident(line) { return plain(String(line).replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ').replace(/(\s\d{1,3})?\s*\(\d+ unread[^)]*\)|\b\d+ unread\b/gi, ' ').replace(/^((unread|read|flagged|pinned|important|unread chat|chat)[,\s]+)+/i, ' ') /* a row read since, with its count badge */.replace(/\b(\d+\s*(s|m|h|d|min|mins|minutes|hours?|days?)( ago)?|now|yesterday|today)\b/gi, ' ')).slice(0, 300); },
+  /** A page's text without what moves by itself: dates, clock times, “5 min ago” (not “30 days”: that's content). */
+  changeKey(t) { return plain(this.undate(t).replace(/\b\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?\b/gi, ' ').replace(/\b\d+\s*(s|m|h|d)\b(?!\w)/g, ' ').replace(/\b\d+\s*(sec|secs|seconds?|mins?|minutes?|hours?|hrs?|days?|weeks?)\s+ago\b/gi, ' ').replace(/\b(just now|yesterday|today)\b/gi, ' ')).slice(0, 300); },
+  /** Dates out of a page's text, for “it changes” (not for list rows: two mails may differ only by their date). */
+  undate(t) {
+    const M = '(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
+    return String(t).replace(new RegExp(`\\b\\d{1,2}(st|nd|rd|th)?\\s+${M},?(\\s+\\d{4})?\\b`, 'gi'), ' ').replace(new RegExp(`\\b${M}\\s+\\d{1,2}(st|nd|rd|th)?,?(\\s+\\d{4})?\\b`, 'gi'), ' ')
+      .replace(/\b\d{4}-\d{2}-\d{2}(t[\d:.]+z?)?\b/gi, ' ').replace(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g, ' ');
+  },
   hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
   /** What the source gives: lines (rows) or one text. */
   async read(w, trace) {
@@ -98,7 +106,7 @@ const Watch = {
     if (k === 'feed' || k === 'json') {
       if (!window.DriveDeckDesktop?.fetch) throw new Error('Feeds are read by StudioGen on a Mac');
       let r = await DriveDeckDesktop.fetch(w.feedUrl || w.url); if (r?.error || r.status >= 400) throw new Error(r?.error || `The address answered ${r.status}`);
-      if (k === 'feed' && !w.feedUrl && /<html[\s>]/i.test(r.text.slice(0, 3000))) { /* a web page: its own feed, if it names one (blogs, YouTube channels, status pages) */
+      if (k === 'feed' && !w.feedUrl && /<html[\s>]|<!doctype html/i.test(r.text.slice(0, 3000))) { /* a web page: its own feed, if it names one (blogs, YouTube channels, status pages) */
         const l = r.text.match(/<link[^>]+type=["']application\/(rss|atom)\+xml["'][^>]*>/i), h = l?.[0].match(/href=["']([^"']+)["']/i)?.[1];
         if (!h) throw new Error('That page doesn’t name a feed (RSS or Atom)');
         w.feedUrl = new URL(h.replace(/&amp;/g, '&'), w.url).href; r = await DriveDeckDesktop.fetch(w.feedUrl); if (r?.error || r.status >= 400) throw new Error(r?.error || `Its feed answered ${r.status}`);
@@ -258,14 +266,14 @@ const Watch = {
       return { headline: one ? `${w.name}: ${said.slice(0, 120)}` : many ? `${w.name}: ${names.slice(0, 2).map(x => x.replace(/ · (\d+) unread$/, ' ($1)')).join(', ')}${fresh.length > 2 ? ` and ${fresh.length - 2} more` : ''}` : `${w.name}: ${parts.join(', ')}`, items, count: rows.length };
     }
     if (d.kind === 'changes' || d.kind === 'stale') {
-      const text = Array.isArray(got) ? got.join('\n') : String(got), norm = this.ident(text.replace(/\n/g, ' ')), was = s.last;
+      const text = Array.isArray(got) ? got.join('\n') : String(got), norm = this.changeKey(text.replace(/\n/g, ' ')), was = s.last; /* a date or a clock moving (“Updated 2 Nov 2026 11:30”) isn't a change */
       s.last = text.slice(0, 20000); s.lastNorm = norm;
       if (first || norm !== s.prevNorm) s.sameSince = Date.now();
       if (d.kind === 'stale') { s.prevNorm = norm; const mins = +d.mins || 1440, want = Date.now() - (s.sameSince || Date.now()) > mins * 60000; return first ? (this.cross(w, want), null) : this.cross(w, want) ? { headline: `${w.name}: nothing has changed for ${mins >= 1440 ? `${Math.round(mins / 1440)} day${mins >= 2880 ? 's' : ''}` : mins >= 60 ? `${Math.round(mins / 60)} h` : `${mins} min`}`, items: [] } : null; }
       if (first || norm === s.prevNorm || !was) { s.prevNorm = norm; return null; }
       s.prevNorm = norm;
       const bits = x => x.split(/\n|(?<=[.!?])\s+(?=[A-Z0-9“"])/).map(l => l.trim()).filter(Boolean); /* lines, else sentences (a part is read as one line) */
-      const a = new Set(bits(was)), b = bits(text), moved = l => this.ident(l), a0 = b.filter(l => !a.has(l)), g0 = [...a].filter(l => !b.includes(l)), ai = new Set(a0.map(moved)), gi = new Set(g0.map(moved));
+      const a = new Set(bits(was)), b = bits(text), moved = l => this.changeKey(l), a0 = b.filter(l => !a.has(l)), g0 = [...a].filter(l => !b.includes(l)), ai = new Set(a0.map(moved)), gi = new Set(g0.map(moved));
       const added = a0.filter(l => !gi.has(moved(l))), gone = g0.filter(l => !ai.has(moved(l))); /* not lines where only a time or count moved */
       if (!added.length && !gone.length) return null;
       return { headline: `${w.name}: changed`, items: [...added.slice(0, 4).map(l => ({ title: 'Now', detail: l.slice(0, 160) })), ...gone.slice(0, 2).map(l => ({ title: 'Was', detail: l.slice(0, 160) }))] };

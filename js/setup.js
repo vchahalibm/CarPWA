@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Fixed: the natural voice couldn’t download (its files moved on Hugging Face on 2 November): it downloads again once',
   'Slack watchers for a search, your DMs and thread replies; all the watchers of a site share one window and read it as it is (no reloading each time)',
   'Fixed: StudioGen could hang with a live Outlook watcher (it reloaded Outlook every few seconds) and crash when quitting with the built-in model loaded; Slack channel and person watchers find their channel with Jump to, whichever tab Slack is on',
   'Slack watchers work with Slack’s new Activity layout (an existing watcher fixes itself on its next check); Outlook watchers find the mail list more ways; cards show the sender and time apart',

@@ -1,0 +1,12 @@
+{
+  "id": "settings-tabs", "title": "Every Settings tab opens without errors", "tags": ["settings", "ui"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "view", "name": "settings" },
+    { "do": "eval", "js": "const tabs = [...document.querySelectorAll('#settingsBody [data-tab], #settingsBody .tabs button, #settingsBody [role=\"tab\"]')].filter(b => b.getClientRects().length); const seen = []; for (const t of tabs) { t.click(); await new Promise(r => setTimeout(r, 400)); seen.push(t.textContent.trim() + ':' + document.querySelector('#settingsBody').innerText.length); } return seen", "as": "tabs", "why": "Click each tab" },
+    { "do": "expect", "var": "tabs.length", "gte": 4, "why": "Several tabs" },
+    { "do": "expect", "var": "tabs", "lacks": ":0\"", "why": "Each shows something" },
+    { "do": "screenshot", "name": "settings" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "practice-calendar-x", "title": "The practice calendar (added, moved, cancelled) and practice X (a search, an account)", "tags": ["practice", "calendar", "x", "watchers"],
+  "steps": [
+    { "do": "launch", "practice": true }, { "do": "practice.signin" },
+    { "do": "watch.make", "template": "cal.changes", "name": "Cal changes" },
+    { "do": "watch.check", "name": "Cal changes" },
+    { "do": "eval", "js": "const d = new Date().toLocaleDateString('en', { weekday: 'long' }), base = new URL('labs/practice/inbox.html', location.href).href; await AgentWeb.go(base + '?event=' + encodeURIComponent('MuseTester sync|' + d + '|16:00|Room 2') + '#/calendar/view/week', undefined, { quiet: true }); await new Promise(r => setTimeout(r, 1200)); return d", "why": "A meeting is added" },
+    { "do": "watch.check", "name": "Cal changes" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "MuseTester sync", "why": "The new meeting told" },
+    { "do": "practice.incoming", "site": "x", "text": "@early|Early Bird|First look at studiogen", "why": "A post that matches" },
+    { "do": "watch.make", "template": "x.search", "inputs": { "words": "studiogen" }, "name": "X search" },
+    { "do": "watch.check", "name": "X search" },
+    { "do": "practice.incoming", "site": "x", "text": "@musefan|Muse Fan|Trying studiogen watchers today", "why": "A new post" },
+    { "do": "watch.check", "name": "X search" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "studiogen", "why": "The post told" }
+  ]
+}

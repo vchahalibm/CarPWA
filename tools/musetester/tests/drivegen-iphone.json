@@ -1,0 +1,17 @@
+{
+  "id": "drivegen-iphone", "title": "DriveGen on an iPhone: the app grid, the map, a demo drive, a command's card", "tags": ["drivegen", "iphone"],
+  "tryitout": ["On DriveGen (iPhone): a command's screen pops up as a card"],
+  "steps": [
+    { "do": "drivegen", "device": "iphone", "settings": { "appMode": "drive", "startScreen": "agent" }, "why": "DriveGen in Chrome as an iPhone" },
+    { "do": "eval", "on": "phone", "js": "openView('home'); await new Promise(r => setTimeout(r, 600)); return document.querySelectorAll('.app-tile').length", "as": "tiles", "why": "The app grid" },
+    { "do": "expect", "var": "tiles", "gte": 6 },
+    { "do": "eval", "on": "phone", "js": "Peek.tapAt = Date.now(); openView('maps'); await new Promise(r => setTimeout(r, 2500)); return current", "as": "v", "why": "Open the map" },
+    { "do": "expect", "var": "v", "equals": "maps" },
+    { "do": "eval", "on": "phone", "js": "startNav({ name: 'Cubbon Park', lat: 12.9763, lon: 77.5929 }); await new Promise(r => setTimeout(r, 8000)); return !!nav && !!nav.route", "as": "nav", "timeout": 60, "why": "Start a demo drive to Cubbon Park" },
+    { "do": "expect", "var": "nav", "equals": true },
+    { "do": "screenshot", "on": "phone", "name": "nav" },
+    { "do": "eval", "on": "phone", "js": "openView('agent'); await new Promise(r => setTimeout(r, 500)); handleCommand('open weather'); await new Promise(r => setTimeout(r, 4000)); return { current, peek: !!document.querySelector('.peek, #peekCard:not([hidden])') }", "as": "card", "why": "“open weather” on the Agent screen" },
+    { "do": "expect", "var": "card.current", "equals": "agent", "why": "The screen stays (a card instead)" },
+    { "do": "errors.none", "on": "phone", "ignore": ["ResizeObserver", "WebGL", "geolocation", "Geolocation"] }
+  ]
+}

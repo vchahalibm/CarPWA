@@ -12,7 +12,7 @@
    - In a worker (so the CPU build doesn't stall the page); on the main thread if the worker can't load it.
    Loaded after voice.js.
    ============================================================ */
-const PHONON_MODEL = 'onnx-community/phonon-31m-en-ONNX';
+const PHONON_MODEL = 'onnx-community/phonon-31m-en-ONNX', PHONON_REV = '4f0cda7c60dddb4862d0e68ff9ff60c32ffdc9f4'; /* pinned: the 2 Nov 2026 update renamed the files (flow_lm_* → model_*) and the vendored build loads the earlier layout */
 const PHONON_URL = new URL('vendor/transformers-phonon/transformers.min.js', location.href).href;
 const PHONON_RATE = 24000;
 // Defaults for Settings › Voice › female / male (Phonon's voices/voices.jsonl); any English voice can be chosen by name.
@@ -29,8 +29,8 @@ self.onmessage = ({ data: m }) => {
         T = await import(m.url); T.env.allowLocalModels = false;
         const files = {};
         const progress_callback = p => { if (p.status === 'progress' && p.file) { files[p.file] = [p.loaded || 0, p.total || 0]; let a = 0, b = 0; for (const [x, y] of Object.values(files)) { a += x; b += y; } send({ type: 'progress', id: m.id, loaded: a, total: b }); } };
-        proc = await T.AutoProcessor.from_pretrained(m.model);
-        model = await T.GradiumPhononTTSForConditionalGeneration.from_pretrained(m.model, { dtype: m.dtype, device: m.device, progress_callback });
+        proc = await T.AutoProcessor.from_pretrained(m.model, { revision: m.rev });
+        model = await T.GradiumPhononTTSForConditionalGeneration.from_pretrained(m.model, { revision: m.rev, dtype: m.dtype, device: m.device, progress_callback });
         send({ type: 'loaded', id: m.id });
       } else if (m.type === 'speak') {
         if (cancelled.has(m.id)) { send({ type: 'done', id: m.id }); return; }
@@ -66,7 +66,7 @@ const Phonon = {
   async voices() {
     if (this.list) return this.list;
     const cached = store.get('phononVoices', null); if (cached?.length) return (this.list = cached);
-    const t = await (await fetch(`https://huggingface.co/${PHONON_MODEL}/resolve/main/voices/voices.jsonl`)).text();
+    const t = await (await fetch(`https://huggingface.co/${PHONON_MODEL}/resolve/${PHONON_REV}/voices/voices.jsonl`)).text();
     this.list = t.split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(v => v.language === 'en' && v.gender)
       .map(v => ({ id: v.voice_id, name: v.name, gender: v.gender, locale: v.locale, about: v.description }));
     store.set('phononVoices', this.list); return this.list;
@@ -108,7 +108,7 @@ const Phonon = {
     w.onmessage = ({ data: m }) => handlers.get(m.id)?.(m);
     w.onerror = e => { e.preventDefault?.(); for (const h of [...handlers.values()]) h({ type: 'error', message: e.message || 'The voice worker stopped' }); };
     const call = (msg, h) => { const id = ++seq; handlers.set(id, h); w.postMessage({ ...msg, id }); return id; };
-    return new Promise((res, rej) => call({ type: 'load', url: PHONON_URL, model: PHONON_MODEL, device: b.device, dtype: b.dtype }, m => {
+    return new Promise((res, rej) => call({ type: 'load', url: PHONON_URL, model: PHONON_MODEL, rev: PHONON_REV, device: b.device, dtype: b.dtype }, m => {
       if (m.type === 'progress') return onProgress?.(m.loaded, m.total);
       handlers.delete(m.id);
       if (m.type !== 'loaded') { w.terminate(); return rej(new Error(m.message)); }
@@ -128,8 +128,8 @@ const Phonon = {
   /** The same on the main thread (where a worker can't use WebGPU). */
   async main(b, onProgress) {
     const T = await import(PHONON_URL); T.env.allowLocalModels = false; const files = {};
-    const proc = await T.AutoProcessor.from_pretrained(PHONON_MODEL);
-    const model = await T.GradiumPhononTTSForConditionalGeneration.from_pretrained(PHONON_MODEL, { dtype: b.dtype, device: b.device,
+    const proc = await T.AutoProcessor.from_pretrained(PHONON_MODEL, { revision: PHONON_REV });
+    const model = await T.GradiumPhononTTSForConditionalGeneration.from_pretrained(PHONON_MODEL, { revision: PHONON_REV, dtype: b.dtype, device: b.device,
       progress_callback: p => { if (p.status === 'progress' && p.file) { files[p.file] = [p.loaded || 0, p.total || 0]; let x = 0, y = 0; for (const [a, c] of Object.values(files)) { x += a; y += c; } onProgress?.(x, y); } } });
     const voices = new Map();
     return { kind: 'main thread', build: b,

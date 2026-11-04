@@ -1,0 +1,12 @@
+{
+  "id": "drivegen-roadlocal", "title": "DriveGen with no Mac: it looks ahead itself while navigating", "tags": ["drivegen", "maps"],
+  "tryitout": ["DriveGen navigating with the Mac off"],
+  "steps": [
+    { "do": "drivegen", "device": "iphone" },
+    { "do": "eval", "on": "phone", "js": "startNav({ name: 'Hosur', lat: 12.7409, lon: 77.8253 }); for (let i = 0; i < 40 && !(nav && nav.route && nav.route.coords?.length > 2); i++) await new Promise(r => setTimeout(r, 500)); return nav?.route?.coords?.length || 0", "as": "pts", "timeout": 60, "why": "Navigate to Hosur (a demo drive)" },
+    { "do": "expect", "var": "pts", "gte": 3 },
+    { "do": "eval", "on": "phone", "js": "RoadLocal.at = 0; await RoadLocal.tick(); return { mac: RoadLocal.mac(), told: RoadLocal.state }", "timeout": 180, "as": "rl", "why": "Look ahead (no Mac reachable)" },
+    { "do": "expect", "var": "rl.mac", "equals": false, "why": "No Mac" },
+    { "do": "errors.none", "on": "phone", "ignore": ["ResizeObserver", "WebGL", "geolocation", "Geolocation"] }
+  ]
+}

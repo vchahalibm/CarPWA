@@ -1,0 +1,16 @@
+{
+  "id": "app-health", "title": "Several live watchers for two minutes: StudioGen keeps answering, no errors, a clean quit", "tags": ["health", "practice"],
+  "tryitout": ["A live Outlook New mail watcher for an hour"],
+  "steps": [
+    { "do": "launch", "practice": true }, { "do": "practice.signin" },
+    { "do": "watch.make", "template": "mail.new", "name": "Live mail", "set": { "every": "live" } },
+    { "do": "watch.make", "template": "slack.mentions", "name": "Live Slack", "set": { "every": "live" } },
+    { "do": "watch.make", "template": "wa.new", "name": "Live WhatsApp", "set": { "every": "live" } },
+    { "do": "watch.check", "name": "Live mail" }, { "do": "watch.check", "name": "Live Slack" }, { "do": "watch.check", "name": "Live WhatsApp" },
+    { "do": "responsive", "seconds": 120, "every": 5, "maxMs": 2500, "why": "Two minutes live" },
+    { "do": "eval", "js": "Watch.list().filter(w => /^Live/.test(w.name)).map(w => `${w.name}: ${w.state?.fails || 0} fails`).join(', ')", "as": "fails" },
+    { "do": "expect", "var": "fails", "lacks": "1 fails", "why": "None failing" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] },
+    { "do": "quit" }, { "do": "wait", "s": 3 }, { "do": "crash.none" }
+  ]
+}

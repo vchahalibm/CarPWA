@@ -4,7 +4,7 @@ Things started or decided but not finished, and things to perform together later
 
 ## To try after all the phases (chat, cards, memory, watchers: started 31 Oct)
 
-**MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs practice` (no accounts needed) and `node tools/musetester/muse.mjs --profile mine --restart-mine --mark` (your accounts; ticks what passed here).
+**MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs` opens its panel (watch each step go grey → blue → green or red, in one go or step by step); `--silent` runs on its own; `--profile mine --restart-mine --mark` uses your accounts and ticks what passed here. Each run's `muse-log.md` is the one file to send to Claude.
 
 Kept as each phase lands; try them together when the phases are done. Tested parts are in each phase's commit; these weren't (they need your devices, accounts or time).
 
@@ -95,6 +95,7 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 ## To perform (with you)
 
 - [ ] **Phonon in the apps, on your iPhone and iPad** (built 24 Oct): after the update the setup screen appears (what's new, the voice downloading, the speed check). Then a few replies, a long one (“summarise my unread mail”), interrupting one, a conversation, and the assistant's lips. Measured here: Chrome on this Mac 8–9× faster than speech, StudioGen ~6.7× (7.1 s of speech in 1.3 s), first sound ~0.4 s for the first reply and ~30 ms after.
+- [ ] **Phonon's model is pinned** (4 Nov: the Hugging Face repo's 2 Nov update renamed flow_lm_* to model_*; `PHONON_REV` in js/phonon.js): when moving to the released Transformers.js, check the new layout loads and drop the pin.
 - [ ] **Transformers.js release with Phonon**: when PR #1811 ships, drop vendor/transformers-phonon and load the release from jsDelivr (pinned).
 
 - [x] **Several CPU threads for the natural voice** (tested 23 Oct, removed): iPhone 15 Pro Max 2.4× → 1.4× (2 threads) and 1.6× (4 threads) slower than real time, never keeping up; the iPad keeps up anyway (its GPU voice). The isolation it needs also blocks YouTube, web-page widgets and some radio, so the code was taken out: iPhones use the device voice (Automatic), iPads the natural voice where it measures fast enough. Measured on the simulator: 1 thread 1.58×, 2: 1.11×, 3: 0.98×, 4: 0.92×.

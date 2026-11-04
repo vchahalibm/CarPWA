@@ -1,0 +1,12 @@
+{
+  "id": "voice-phonon", "title": "The natural voice (Phonon) downloads, loads and speaks", "tags": ["voice", "health"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "const t0 = Date.now(); const e = await Phonon.load(); return { ok: !!e, s: Math.round((Date.now() - t0) / 1000), build: Phonon.buildKey() }", "timeout": 900, "as": "load", "why": "Download and load the natural voice" },
+    { "do": "expect", "var": "load.ok", "equals": true, "why": "It loaded" },
+    { "do": "eval", "js": "const eng = await Phonon.load(), t0 = performance.now(); let n = 0, first = 0; await eng.speak('MuseTester is checking the natural voice.', Phonon.voiceId(), pcm => { first ||= performance.now() - t0; n += pcm.length; }).done; return { seconds: +(n / 24000).toFixed(2), firstMs: Math.round(first), speed: +((performance.now() - t0) / 1000 / (n / 24000)).toFixed(2) }", "timeout": 120, "as": "spoke", "why": "Make a line of speech (as Settings › Voice › Test does)" },
+    { "do": "expect", "var": "spoke.seconds", "gte": 1, "why": "It made over a second of speech" },
+    { "do": "expect", "var": "spoke.speed", "lte": 1.5, "why": "…fast enough to keep up (under 1.5× the time it takes to say)" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"], "why": "No errors in the page" }
+  ]
+}

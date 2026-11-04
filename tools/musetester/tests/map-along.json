@@ -1,0 +1,16 @@
+{
+  "id": "map-along", "title": "Along the way: fuel on the practice Google Maps, the weather, the next town, 10 minutes away", "tags": ["maps", "practice"],
+  "steps": [
+    { "do": "launch", "practice": true },
+    { "do": "eval", "js": "MapWatch.got({ lat: 12.79, lon: 77.74, speed: 15 }, { name: 'MuseTester' }); return !!MapWatch.fresh()", "why": "A phone position, on the way" },
+    { "do": "watch.make", "template": "map.fuel", "name": "Fuel test", "set": { "from": "12.84520,77.66020", "to": { "name": "Krishnagiri", "lat": 12.5186, "lon": 78.2137 }, "detect": { "kind": "fuel", "fuel": "petrol", "gap": 30, "always": true } } },
+    { "do": "watch.check", "name": "Fuel test", "timeout": 400 },
+    { "do": "expect", "var": "check.trace", "match": "petrol pump: \\d+ on the way", "why": "It looked for fuel on the way" },
+    { "do": "watch.make", "template": "map.weather", "name": "Weather test", "set": { "from": "12.84520,77.66020", "to": { "name": "Krishnagiri", "lat": 12.5186, "lon": 78.2137 } } },
+    { "do": "watch.check", "name": "Weather test", "timeout": 300 },
+    { "do": "expect", "var": "check.trace", "contains": "weather ahead", "why": "It checked the weather ahead" },
+    { "do": "watch.make", "template": "map.near", "name": "Near test", "set": { "from": "12.84520,77.66020", "to": { "name": "Krishnagiri", "lat": 12.5186, "lon": 78.2137 }, "detect": { "kind": "arrive", "min": 600, "who": "" } } },
+    { "do": "watch.check", "name": "Near test", "timeout": 300 },
+    { "do": "expect", "var": "check.hit.share.text", "contains": "minutes away", "why": "A message to send, ready" }
+  ]
+}

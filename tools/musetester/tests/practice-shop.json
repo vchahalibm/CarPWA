@@ -1,0 +1,19 @@
+{
+  "id": "practice-shop", "title": "Shopping on the practice shop: a price below a line, back in stock, and a redesigned page healed", "tags": ["practice", "shopping", "watchers"],
+  "steps": [
+    { "do": "launch", "practice": true },
+    { "do": "practice.incoming", "site": "shop", "query": "reset&price=12999&stock=0", "why": "The shop: ₹12,999, out of stock" },
+    { "do": "watch.make", "template": "amazon.price", "inputs": { "cond": "below 12000" }, "name": "Shop price" },
+    { "do": "watch.check", "name": "Shop price" },
+    { "do": "watch.make", "template": "amazon.stock", "name": "Shop stock" },
+    { "do": "watch.check", "name": "Shop stock" },
+    { "do": "practice.incoming", "site": "shop", "query": "price=11499&stock=5", "why": "The price drops and it's back" },
+    { "do": "watch.check", "name": "Shop price" },
+    { "do": "expect", "var": "check.hit", "why": "Below 12000 told" },
+    { "do": "watch.check", "name": "Shop stock" },
+    { "do": "expect", "var": "check.hit", "why": "Back in stock told" },
+    { "do": "practice.incoming", "site": "shop", "query": "layout=2&price=10999", "why": "The shop redesigns its page" },
+    { "do": "watch.check", "name": "Shop price", "ok": false },
+    { "do": "expect", "var": "check.error", "equals": "", "why": "It found the price again (healed or read by the model)" }
+  ]
+}

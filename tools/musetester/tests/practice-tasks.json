@@ -1,0 +1,12 @@
+{
+  "id": "practice-tasks", "title": "Agent tasks on the practice sites give cards: mail, calendar, Slack, WhatsApp, Teams", "tags": ["practice", "tasks", "agent"],
+  "steps": [
+    { "do": "launch", "practice": true }, { "do": "practice.signin" },
+    { "do": "task", "id": "mail.unread", "as": "mail", "why": "Unread mail" }, { "do": "expect", "var": "mail.items.length", "gte": 1 },
+    { "do": "task", "id": "cal.today", "as": "cal", "why": "Today's meetings" }, { "do": "expect", "var": "cal.headline", "match": "." },
+    { "do": "task", "id": "slack.mentions", "as": "sl", "why": "Slack mentions" }, { "do": "expect", "var": "sl.headline", "match": "." },
+    { "do": "task", "id": "whatsapp.read", "as": "wa", "why": "Unread WhatsApp" }, { "do": "expect", "var": "wa.headline", "match": "." },
+    { "do": "task", "id": "teams.read", "as": "tm", "why": "Teams chats" }, { "do": "expect", "var": "tm.headline", "match": "." },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

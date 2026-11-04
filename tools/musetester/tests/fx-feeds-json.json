@@ -1,0 +1,22 @@
+{
+  "id": "fx-feeds-json", "title": "Feeds, a page's own feed, and JSON numbers", "tags": ["watchers", "feeds", "fixtures"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "fixture", "name": "feed", "rss": true, "items": [{ "title": "Release 1.0" }] },
+    { "do": "watch.make", "name": "fx feed", "set": { "source": "feed", "url": "${fx.feed}", "detect": { "kind": "new" } } },
+    { "do": "watch.check", "name": "fx feed", "why": "Read the feed" },
+    { "do": "fixture", "name": "feed", "rss": true, "items": [{ "title": "Release 1.1" }, { "title": "Release 1.0" }] },
+    { "do": "watch.check", "name": "fx feed" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "1.1", "why": "The new post told" },
+    { "do": "fixture", "name": "blog", "html": "<h1>My blog</h1>", "feed": "feed", "why": "A page that names its feed" },
+    { "do": "watch.make", "name": "fx blog", "set": { "source": "feed", "url": "${fx.blog}", "detect": { "kind": "new" } } },
+    { "do": "watch.check", "name": "fx blog" },
+    { "do": "expect", "var": "check.count", "gte": 2, "why": "It found and read the feed" },
+    { "do": "fixture", "name": "quote", "json": { "chart": { "price": 101.5 } } },
+    { "do": "watch.make", "name": "fx json", "set": { "source": "json", "url": "${fx.quote}", "path": "chart.price", "detect": { "kind": "value", "cond": "above 110" } } },
+    { "do": "watch.check", "name": "fx json" },
+    { "do": "fixture", "name": "quote", "json": { "chart": { "price": 112.25 } } },
+    { "do": "watch.check", "name": "fx json" },
+    { "do": "expect", "var": "check.hit", "why": "Above 110 told" }
+  ]
+}

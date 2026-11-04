@@ -1,0 +1,11 @@
+{
+  "id": "mine-quit-clean", "profile": "mine", "title": "Quitting with the built-in model loaded leaves no crash report", "tags": ["health", "real"],
+  "tryitout": ["Quit StudioGen 0.18.4 after using the assistant"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "(await LLM.ask('fast', { prompt: 'Say OK.' })).text", "timeout": 300, "as": "said", "why": "Use the language model" },
+    { "do": "quit", "why": "Quit StudioGen" },
+    { "do": "wait", "s": 5 },
+    { "do": "crash.none", "why": "No crash report" }
+  ]
+}

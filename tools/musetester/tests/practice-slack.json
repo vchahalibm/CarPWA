@@ -1,0 +1,29 @@
+{
+  "id": "practice-slack", "title": "Slack watchers on the practice Slack: mentions, a channel by Jump to, DMs, threads, a search", "tags": ["practice", "slack", "watchers"],
+  "steps": [
+    { "do": "launch", "practice": true, "why": "Open StudioGen (a throwaway profile, the practice sites)" },
+    { "do": "practice.signin" },
+    { "do": "watch.make", "template": "slack.mentions", "why": "Make “New Slack mentions”" },
+    { "do": "watch.check", "name": "New Slack mentions", "why": "First check: what's there now" },
+    { "do": "expect", "var": "check.count", "gte": 1, "why": "It read the Activity rows" },
+    { "do": "practice.incoming", "site": "slack", "text": "#general|Priya Nair|@You can you look at the MuseTester report?", "why": "A new mention arrives" },
+    { "do": "watch.check", "name": "New Slack mentions", "why": "Check again" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "MuseTester report", "why": "It told the new mention" },
+    { "do": "watch.make", "template": "slack.channel", "inputs": { "channel": "sales" }, "why": "Make “New messages in #sales”" },
+    { "do": "watch.check", "name": "Slack #sales", "why": "First check: Jump to finds #sales" },
+    { "do": "expect", "var": "check.trace", "contains": "with Jump to", "why": "It went there with Jump to" },
+    { "do": "practice.incoming", "site": "slack", "text": "#sales|Asha Rao|North region figures are in", "why": "A message in #sales" },
+    { "do": "watch.check", "name": "Slack #sales", "why": "Check #sales again" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "North region", "why": "It told the new message" },
+    { "do": "watch.make", "template": "slack.dms", "why": "Make “Slack DMs”" },
+    { "do": "watch.check", "name": "Slack DMs", "why": "Read the DMs tab" },
+    { "do": "expect", "var": "check.count", "gte": 1, "why": "It read the conversations" },
+    { "do": "watch.make", "template": "slack.search", "inputs": { "words": "contract" }, "why": "Make “Slack search: contract”" },
+    { "do": "watch.check", "name": "Slack search: contract", "why": "Search" },
+    { "do": "expect", "var": "check.count", "gte": 1, "why": "It read search results" },
+    { "do": "watch.make", "template": "slack.threads", "why": "Make “Slack threads”" },
+    { "do": "watch.check", "name": "Slack threads", "ok": false, "why": "Open Threads" },
+    { "do": "expect", "var": "check.error", "equals": "", "why": "It opened Threads without an error" },
+    { "do": "view", "name": "agent" }, { "do": "wait", "s": 1 }, { "do": "screenshot", "name": "cards" }
+  ]
+}

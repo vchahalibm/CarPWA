@@ -1,0 +1,12 @@
+{
+  "id": "mine-x-lookahead", "profile": "mine", "title": "Lookahead reads X with your sign-in", "tags": ["maps", "lookahead", "real"],
+  "tryitout": ["Sign in to X in StudioGen's agent browser"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "watch.make", "template": "map.traffic", "name": "MuseTester lookahead", "set": { "from": "${routeFrom}", "to": "${routeTo}", "look": { "on": true, "news": true, "posts": true, "x": true, "weather": true } } },
+    { "do": "watch.check", "name": "MuseTester lookahead", "timeout": 500 },
+    { "do": "expect", "var": "check.trace", "match": "X \\d+", "why": "It read posts on X" },
+    { "do": "expect", "var": "check.trace", "lacks": "sign in to X", "why": "…signed in" }
+  ],
+  "cleanup": [{ "do": "watch.delete", "name": "MuseTester lookahead" }]
+}

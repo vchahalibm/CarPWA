@@ -1,0 +1,11 @@
+{
+  "id": "real-route", "title": "The real Google Maps: routes, turns and avoid roads by place (no sign-in needed)", "tags": ["maps", "real"],
+  "tryitout": ["Your own: Avoid roads with a road and a junction on your usual drive"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "watch.make", "template": "map.traffic", "name": "MuseTester route", "set": { "from": "${routeFrom}", "to": "${routeTo}", "avoidRoads": "Silk Board", "look": { "on": false } }, "why": "A traffic watcher avoiding Silk Board" },
+    { "do": "watch.check", "name": "MuseTester route", "timeout": 400 },
+    { "do": "expect", "var": "check.trace", "match": "routes: \\d+ min", "why": "It read Google's routes" },
+    { "do": "expect", "var": "check.trace", "match": "Silk Board: (on the way of|not on any route)", "why": "It placed Silk Board against the routes" }
+  ]
+}

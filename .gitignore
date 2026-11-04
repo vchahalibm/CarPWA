@@ -8,3 +8,7 @@ tests/net/out/
 tests/tandem/out/
 desktop/speech/bin/
 desktop/ai/bin/
+
+# MuseTester: your own names, and the run reports
+tools/musetester/muse.config.json
+tools/musetester/reports/

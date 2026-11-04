@@ -4,6 +4,8 @@ Things started or decided but not finished, and things to perform together later
 
 ## To try after all the phases (chat, cards, memory, watchers: started 31 Oct)
 
+**MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs practice` (no accounts needed) and `node tools/musetester/muse.mjs --profile mine --restart-mine --mark` (your accounts; ticks what passed here).
+
 Kept as each phase lands; try them together when the phases are done. Tested parts are in each phase's commit; these weren't (they need your devices, accounts or time).
 
 **Phase 1: cards everywhere, the camera switch**
@@ -78,6 +80,7 @@ Kept as each phase lands; try them together when the phases are done. Tested par
 - [ ] Slack: New messages in a channel / from someone (Jump to, whichever tab Slack is on; your older channel watcher switches to it): does Last check say “found … with Jump to” and read the channel?
 - [ ] A live Outlook New mail watcher for an hour: StudioGen stays responsive (it was reloading Outlook every 13 s and hung)
 - [ ] Quit StudioGen 0.18.4 after using the assistant (model loaded): no crash report
+- [ ] Slack: a search, your DMs and thread replies (new templates, built without seeing your Slack's pages: Diagnose if one doesn't read)
 - [ ] Outlook: make New mail (and New mail from someone), Check now; if it says it couldn’t read the page, Diagnose the page from Edit and send me the path.
 
 ## Next up

@@ -1,0 +1,16 @@
+{
+  "id": "practice-mail-chat", "title": "Outlook, WhatsApp and Teams watchers on the practice sites", "tags": ["practice", "outlook", "whatsapp", "teams", "watchers"],
+  "steps": [
+    { "do": "launch", "practice": true },
+    { "do": "practice.signin" },
+    { "do": "watch.make", "template": "mail.new", "why": "Make “New mail”" },
+    { "do": "watch.check", "name": "New mail", "why": "Read the inbox" },
+    { "do": "expect", "var": "check.count", "gte": 1 },
+    { "do": "watch.make", "template": "wa.new", "why": "Make “New WhatsApp messages”" },
+    { "do": "watch.check", "name": "New WhatsApp messages", "why": "Read the chats" },
+    { "do": "expect", "var": "check.error", "equals": "" },
+    { "do": "watch.make", "template": "teams.chats", "why": "Make “New Teams chats”" },
+    { "do": "watch.check", "name": "New Teams chats", "ok": false, "why": "Read the chat list" },
+    { "do": "expect", "var": "check.error", "equals": "" }
+  ]
+}

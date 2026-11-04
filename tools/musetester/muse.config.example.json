@@ -1,0 +1,13 @@
+{
+  "about": "Copy to muse.config.json (not committed) and put your own names in: the tests fill ${vars.name} from here.",
+  "vars": {
+    "slackChannel": "general",
+    "slackPerson": "Priya Nair",
+    "slackSearch": "invoice",
+    "outlookFrom": "Priya Nair",
+    "whatsappPerson": "Varun",
+    "routeFrom": "12.95676,77.64888",
+    "routeTo": { "name": "Attibele", "lat": 12.77826, "lon": 77.77128 },
+    "liveMinutes": 10
+  }
+}

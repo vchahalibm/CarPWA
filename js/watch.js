@@ -41,6 +41,15 @@ const WATCH_TEMPLATES = [
     { do: 'agent.click', value: 'Mentions', args: ['sel=.p-view_sidebar [role="tab"]||.p-view_sidebar [role="radio"]||.p-view_sidebar button[aria-pressed]', 'optional'] }, { do: 'wait', value: '1' }], rows: WSEL.slackActivity, detect: { kind: 'new' } }) }, /* Activity, its Mentions filter when it has one */
   { id: 'slack.channel', group: 'Slack', name: 'New messages in a Slack channel', inputs: [['channel', 'Which channel?', 'sales']], make: v => ({ name: `Slack #${v.channel.replace(/^#/, '')}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, jump: v.channel.replace(/^#/, ''), steps: [], rows: WSEL.slackMsgs, detect: { kind: 'new' } }) },
   { id: 'slack.person', group: 'Slack', name: 'New Slack messages from someone', inputs: [['person', 'From whom?', 'Priya Nair']], make: v => ({ name: `Slack from ${v.person}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady, jump: v.person, steps: [], rows: WSEL.slackMsgs, keep: v.person, detect: { kind: 'new' } }) },
+  { id: 'slack.search', group: 'Slack', name: 'New Slack messages matching a search', inputs: [['words', 'Search for', 'invoice']], make: v => ({ name: `Slack search: ${v.words}`, url: '{slack}', site: 'Slack', ready: WSEL.slackReady,
+    steps: [{ do: 'agent.click', args: ['sel=[data-qa="top_nav_search"]||button[aria-label^="Search"]'] }, { do: 'wait', value: '0.8' }, { do: 'agent.type', value: 'Search', args: [v.words, 'enter', 'sel=[data-qa="search_input"]||[data-qa="focusable_search_input"] [contenteditable="true"]||[role="combobox"]||input[type="search"]'] }, { do: 'wait', value: '2.5' }],
+    rows: '[data-qa="search_message_result"]||[data-qa="search_message_group"]||[data-qa="search_result"]||rows-in:[role="main"]', detect: { kind: 'new' } }) }, /* searched again in the open Slack each check */
+  { id: 'slack.dms', group: 'Slack', name: 'New Slack direct messages (the DMs tab)', inputs: [], make: () => ({ name: 'Slack DMs', url: '{slack}', site: 'Slack', ready: WSEL.slackReady,
+    steps: [{ do: 'agent.click', args: ['sel=[data-qa="tab_rail_dms_button"]||button[aria-label="DMs"]||button[aria-label="Direct messages"]'] }, { do: 'wait', value: '1.5' }],
+    rows: '[data-qa="dms_list_item"]||.p-view_sidebar--list--dms [role="listitem"]||rows-in:.p-view_sidebar||rows-in:[role="main"]', detect: { kind: 'new' } }) },
+  { id: 'slack.threads', group: 'Slack', name: 'New replies in Slack threads (Threads)', inputs: [], make: () => ({ name: 'Slack threads', url: '{slack}', site: 'Slack', ready: WSEL.slackReady,
+    steps: [WSEL.slackHome, { do: 'wait', value: '0.8' }, { do: 'agent.click', value: 'Threads', args: ['sel=[data-qa="threads_view_link"]||.p-channel_sidebar__link||[role="treeitem"]||a||button'] }, { do: 'wait', value: '2' }],
+    rows: '[data-qa="threads_view"] [role="listitem"]||[data-qa="thread_message"]||[data-qa="message_container"]||rows-in:[role="main"]', detect: { kind: 'new' } }) },
   { id: 'teams.chats', group: 'Teams', name: 'New Teams chats', inputs: [], make: () => ({ url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', rows: WSEL.teamsRows, keep: 'Unread', detect: { kind: 'new' } }) },
   { id: 'teams.chat', group: 'Teams', name: 'New messages in a Teams chat', inputs: [['person', 'Which chat?', 'Priya Nair']], make: v => ({ name: `Teams: ${v.person}`, url: '{teams}', site: 'Teams', ready: '[data-tid="chat-list"]||[role="tree"]', steps: [{ do: 'agent.click', value: v.person, args: [`sel=${WSEL.teamsRows}`] }, { do: 'wait', value: '1.5' }], rows: WSEL.teamsMsgs, detect: { kind: 'new' } }) },
   { id: 'mail.new', group: 'Outlook', name: 'New mail', inputs: [], make: () => ({ url: '{outlook}/mail/inbox', site: 'Outlook', ready: WSEL.mailReady, rows: WSEL.mailRows, detect: { kind: 'new' } }) },
@@ -102,12 +111,12 @@ const Watch = {
     if (k === 'task') { const t = Agent.get(w.task); if (!t) throw new Error('That task isn’t here any more'); const c = Agent.asCard(await Agent.exec(t, w.inputs || {}, { confirmed: true, quiet: true })); return [c.headline, ...(c.items || []).map(i => [i.title, i.detail].filter(Boolean).join(' · '))].filter(Boolean); }
     // a page, opened (or kept open: live) in the agent browser, its steps, then the part read
     if (!w.jump && /^slack\.(channel|person)$/.test(w.template || '')) { w.jump = String(w.templateInputs?.channel || w.templateInputs?.person || '').replace(/^#/, ''); if (w.jump) w.steps = []; } /* made before Jump to: it clicked the sidebar, which isn't on every tab */
-    if (w.jump && !w.jumped) await this.jumpTo(w, trace); /* a Slack channel or person: found once with Jump to, then its own address */
+    if (w.jump && (!w.jumped || this.elsewhere(w))) await this.jumpTo(w, trace); /* a Slack channel or person: found with Jump to, then its own address; inside the open Slack, moved there with Jump to (no reload) */
     const sel = w.rows || w.read || 'body', url = String(w.url || '').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
     const t = { id: `watch.${w.id}`, name: w.name, runs: 'mac', container: w.container || '', result: 'read',
       // the page opens waiting for its frame only (a part that's gone mustn't look like a page that didn't open: self-healing
       // needs the page), then up to 15 s for the part itself (pages that fill in late)
-      steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready && !sel.split('||').includes(w.ready) ? w.ready : 'body'}`, 'ms=30000', ...(w.every === 'live' || w.stay || this.tplStay(w) ? ['stay'] : [])] }, /* stay: a page that updates itself (WhatsApp) is read where it is, not reloaded each check */
+      steps: [{ do: 'agent.open', value: url, args: [`site=${w.site || new URL(url).hostname}`, `wait=${w.ready && !sel.split('||').includes(w.ready) ? w.ready : 'body'}`, 'ms=30000', ...(w.every === 'live' || w.stay || this.tplStay(w) || this.appSite(url) ? ['stay'] : [])] }, /* stay: a page that updates itself (WhatsApp, Slack, Outlook…) is read where it is, not reloaded each check */
         ...(w.steps || []), ...(w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? [] : [{ do: 'agent.wait', value: sel, args: ['ms=15000'] }]), w.detect?.kind === 'appears' || w.detect?.kind === 'disappears' ? { do: 'agent.wait', value: sel, args: ['ms=3000'], as: 'read' } : { do: 'agent.read', value: sel, args: [`max=${w.rows ? 12000 : 20000}`, 'strict', ...(w.keep ? [`keep=${w.keep}`] : [])], as: 'read' }] };
     let out, byModel = false; try { out = await Agent.exec(t, {}, { confirmed: true, quiet: true, trace }); }
     catch (e) { if (!/^NOTFOUND:/.test(e.message)) throw e;
@@ -150,9 +159,18 @@ const Watch = {
   /** Whether a watcher's template keeps its page open (watchers made before a template said so learn it here). */
   /** Slack: go to a channel or person with Jump to (Cmd/Ctrl+K, the name, Enter), whichever tab Slack opened on, and keep the
       address it lands on (…/client/<team>/<channel>): later checks open that directly. */
+  /** Sites that are apps (they update themselves): a watcher reads the open window where it is instead of loading it again,
+      so all the Slack watchers share one Slack, all the Outlook ones one Outlook (each loaded again after 45 minutes). */
+  appSite(url) { try { const u = new URL(url, location.href); return /(^|\.)(slack\.com|outlook\.(office|live)\.com|outlook\.cloud\.microsoft|teams\.microsoft\.com|teams\.live\.com|web\.whatsapp\.com|x\.com|twitter\.com)$/.test(u.hostname) || /\/labs\/practice\/(slack|inbox|teams|whatsapp|x)\.html$/.test(u.pathname); } catch { return false; } },
+  /** The open, fresh Slack shows another channel than this watcher's: moving there inside it beats loading Slack again. */
+  elsewhere(w) {
+    const v = AgentWeb.views.get(this.viewKey(w)); let cur = ''; try { cur = v?.wv.getURL() || ''; } catch {}
+    return !!cur && Date.now() - (v.loadedAt || 0) < 45 * 60000 && /^https?:|^app:/.test(w.url || '') && (() => { try { return new URL(cur).host === new URL(w.url).host && !cur.startsWith(w.url); } catch { return false; } })();
+  },
   async jumpTo(w, trace) {
-    const ctx = { quiet: true }, sleep = ms => new Promise(r => setTimeout(r, ms)), home = String(w.url || '{slack}').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
-    await AgentWeb.go(home, w.container, ctx); await AgentWeb.call('waitFor', [{ sel: WSEL.slackReady }, 20000], 22000, ctx);
+    const ctx = { quiet: true }, sleep = ms => new Promise(r => setTimeout(r, ms)), home = String(w.jumped ? w.url : w.url || '{slack}').replace(/\{(\w+)\}/g, (m, x) => Agent.sites()[x] ?? m);
+    if (w.jumped && this.elsewhere(w)) ctx.view = AgentWeb.views.get(this.viewKey(w)); /* Slack is open: Jump to inside it */
+    else { await AgentWeb.go(home, w.container, ctx); await AgentWeb.call('waitFor', [{ sel: WSEL.slackReady }, 20000], 22000, ctx); }
     const was = AgentWeb.url(ctx), mac = /Mac/i.test(navigator.platform || navigator.userAgent), at = u => u.match(/^(.*\/client\/[^/]+\/[CDG][A-Z0-9]+)/)?.[1] || (/[?&]ch=/.test(u) ? u : '');
     let id = ''; /* a hidden page has no focus (so :focus never matches): whether it worked shows in the address */
     for (const k of mac ? ['Meta+K', 'Ctrl+K'] : ['Ctrl+K']) {
@@ -160,7 +178,7 @@ const Watch = {
       const now = AgentWeb.url(ctx); if (now !== was && at(now)) { id = at(now); break; } AgentWeb.key('Escape', ctx); await sleep(400);
     }
     if (!id) throw new Error(`Slack’s Jump to didn’t find “${w.jump}”`);
-    w.url = id; w.jumped = true; w.steps = []; trace?.push(`  found “${w.jump}” with Jump to: ${w.url.replace(/^https?:\/\//, '').slice(0, 70)}`); this.put(w);
+    const moved = w.jumped; w.url = id; w.jumped = true; w.steps = []; trace?.push(moved ? `  moved to “${w.jump}” inside the open Slack (Jump to)` : `  found “${w.jump}” with Jump to: ${w.url.replace(/^https?:\/\//, '').slice(0, 70)}`); this.put(w);
   },
   tplStay(w) { const T = w.template && WATCH_TEMPLATES.find(t => t.id === w.template); if (!T) return false; try { return !!T.make(Object.fromEntries(T.inputs.map(([k, , ph]) => [k, ph || 'x']))).stay; } catch { return false; } },
   /** The browser a page watcher uses ('container|site', as Agent.containersOf): a live one stays open there. */

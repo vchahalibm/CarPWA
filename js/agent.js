@@ -304,6 +304,7 @@ const AgentWeb = {
     try { await wv.executeJavaScript('window.__ddOld = 1'); } catch {} /* the page before: “loaded” must mean the new one (a reload of a busy page can report stopping at once) */
     await new Promise(res => { let t; const done = () => { clearTimeout(t); wv.removeEventListener('did-stop-loading', done); res(); }; wv.addEventListener('did-stop-loading', done); t = setTimeout(done, 30000); wv.loadURL(url).catch(() => {}); });
     for (let i = 0; i < 16; i++) { let old = false; try { old = await wv.executeJavaScript('window.__ddOld === 1'); } catch {} if (!old) break; await new Promise(r => setTimeout(r, 250)); } /* up to 4 s (an address that only moves within the page keeps it) */
+    v.loadedAt = Date.now(); /* stay (agent.open): read in place while it's fresh, loaded again after 45 minutes */
     await this.useHere(ctx);
   },
   /** WhatsApp Web runs in one window at a time: when this browser says “open in another window”, the other window is
@@ -770,7 +771,7 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   const stayV = a.flags.includes('stay') && c ? AgentWeb.make(`${Containers.for(u.href, a.container || c?.task?.container).id}|${AgentWeb.siteKey(u.href)}`) : null;
   /* the same site, and one address carries on the other (Outlook's /mail/inbox becomes /mail/ or /mail/inbox/id/…, Slack's
      /client becomes /client/T…/activity-inbox): reloading it each time would make a live page change, and so check, forever */
-  let stayed = false; try { const o = new URL(stayV.wv.getURL()), a2 = o.pathname.replace(/\/$/, ''), b2 = u.pathname.replace(/\/$/, ''); stayed = !!stayV && o.host === u.host && (a2 === b2 || (a2.length > 1 && b2.length > 1 && (a2.startsWith(`${b2}/`) || b2.startsWith(`${a2}/`)))) && (!u.search || o.search === u.search); } catch {}
+  let stayed = false; try { const o = new URL(stayV.wv.getURL()), a2 = o.pathname.replace(/\/$/, ''), b2 = u.pathname.replace(/\/$/, ''); stayed = !!stayV && Date.now() - (stayV.loadedAt || 0) < 45 * 60000 && o.host === u.host && (a2 === b2 || (a2.length > 1 && b2.length > 1 && (a2.startsWith(`${b2}/`) || b2.startsWith(`${a2}/`)))) && (!u.search || o.search === u.search); } catch {}
   if (stayed) c.view = stayV; else await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
   const site = a.site || u.hostname, here = () => W.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); }

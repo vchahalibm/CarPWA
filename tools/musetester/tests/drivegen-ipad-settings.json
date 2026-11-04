@@ -1,0 +1,10 @@
+{
+  "id": "drivegen-ipad-settings", "title": "DriveGen on an iPad (landscape, Agent screen as home): Settings opens from the app grid", "tags": ["drivegen", "ipad"],
+  "steps": [
+    { "do": "drivegen", "device": "ipad", "settings": { "appMode": "drive", "startScreen": "agent" }, "as": "phone", "why": "DriveGen in Chrome as an iPad" },
+    { "do": "eval", "on": "phone", "js": "openView('home'); await new Promise(r => setTimeout(r, 800)); const t = [...document.querySelectorAll('.app-tile')].find(e => /^settings$/i.test(e.textContent.trim())); t.scrollIntoView(); Peek.tapAt = Date.now(); t.click(); await new Promise(r => setTimeout(r, 1200)); return current", "as": "view", "why": "Tap Settings on the app grid" },
+    { "do": "expect", "var": "view", "equals": "settings" },
+    { "do": "expect", "on": "phone", "sel": "#view-settings.active", "why": "Settings is on screen" },
+    { "do": "screenshot", "on": "phone", "name": "settings" }
+  ]
+}

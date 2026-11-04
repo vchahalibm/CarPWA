@@ -1,0 +1,13 @@
+{
+  "id": "practice-lookahead", "title": "Lookahead on the practice Google Maps and news: finds the protest, offers the other way with its map", "tags": ["practice", "maps", "lookahead"],
+  "steps": [
+    { "do": "launch", "practice": true },
+    { "do": "eval", "js": "await AgentWeb.go(MapWatch.dirUrl({ lat: 12.95676, lon: 77.64888 }, { name: 'Whitefield', lat: 12.9698, lon: 77.75 }) + '&reset', undefined, { quiet: true }); return true", "why": "Fresh practice routes" },
+    { "do": "watch.make", "template": "map.traffic", "name": "Lookahead to Whitefield", "set": { "from": "12.95676,77.64888", "to": { "name": "Whitefield", "lat": 12.9698, "lon": 77.75 }, "look": { "on": true, "news": true, "posts": false, "x": false, "weather": false } }, "why": "Make the lookahead watcher" },
+    { "do": "watch.check", "name": "Lookahead to Whitefield", "timeout": 400, "why": "Check: Google Maps, the turns, the news" },
+    { "do": "expect", "var": "check.hit.headline", "contains": "Protest", "why": "It found the protest on the way" },
+    { "do": "expect", "var": "check.hit.take.name", "contains": "NH44", "why": "It offers the other way" },
+    { "do": "expect", "var": "check.hit.shot", "equals": true, "why": "…with a map" },
+    { "do": "view", "name": "agent" }, { "do": "wait", "s": 1 }, { "do": "screenshot", "name": "card" }
+  ]
+}

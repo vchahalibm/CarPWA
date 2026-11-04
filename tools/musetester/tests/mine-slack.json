@@ -1,0 +1,24 @@
+{
+  "id": "mine-slack", "profile": "mine", "title": "Your Slack: mentions, a channel, DMs, threads and a search", "tags": ["slack", "watchers", "real"],
+  "tryitout": ["Slack: Check now on New Slack mentions", "Slack: New messages in a channel"],
+  "steps": [
+    { "do": "launch", "practice": false, "why": "Open your StudioGen (your sign-ins)" },
+    { "do": "watch.make", "template": "slack.mentions", "name": "MuseTester Slack mentions" },
+    { "do": "watch.check", "name": "MuseTester Slack mentions" },
+    { "do": "expect", "var": "check.count", "gte": 1, "why": "It read your Activity" },
+    { "do": "watch.make", "template": "slack.channel", "inputs": { "channel": "${slackChannel}" }, "name": "MuseTester Slack channel" },
+    { "do": "watch.check", "name": "MuseTester Slack channel" },
+    { "do": "expect", "var": "check.trace", "match": "Jump to", "why": "It found the channel with Jump to" },
+    { "do": "watch.make", "template": "slack.dms", "name": "MuseTester Slack DMs" },
+    { "do": "watch.check", "name": "MuseTester Slack DMs", "optional": true },
+    { "do": "watch.make", "template": "slack.threads", "name": "MuseTester Slack threads" },
+    { "do": "watch.check", "name": "MuseTester Slack threads", "optional": true },
+    { "do": "watch.make", "template": "slack.search", "inputs": { "words": "${slackSearch}" }, "name": "MuseTester Slack search" },
+    { "do": "watch.check", "name": "MuseTester Slack search", "optional": true },
+    { "do": "screenshot", "name": "agent" }
+  ],
+  "cleanup": [
+    { "do": "watch.delete", "name": "MuseTester Slack mentions" }, { "do": "watch.delete", "name": "MuseTester Slack channel" }, { "do": "watch.delete", "name": "MuseTester Slack DMs" },
+    { "do": "watch.delete", "name": "MuseTester Slack threads" }, { "do": "watch.delete", "name": "MuseTester Slack search" }
+  ]
+}

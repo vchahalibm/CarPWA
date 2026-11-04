@@ -1,0 +1,13 @@
+{
+  "id": "mine-outlook-live", "profile": "mine", "title": "Your Outlook: New mail reads, and a live New mail watcher keeps StudioGen responsive", "tags": ["outlook", "watchers", "real", "health"],
+  "tryitout": ["Outlook: make New mail", "A live Outlook New mail watcher for an hour"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "watch.make", "template": "mail.new", "name": "MuseTester mail", "set": { "every": "live" } },
+    { "do": "watch.check", "name": "MuseTester mail" },
+    { "do": "expect", "var": "check.count", "gte": 1, "why": "It read your inbox" },
+    { "do": "responsive", "seconds": 600, "every": 10, "maxMs": 3000, "why": "Ten minutes live: the app keeps answering" },
+    { "do": "eval", "js": "(Watch.list().find(w => w.name === 'MuseTester mail')?.state?.pokeQuiet ?? 0)", "as": "quiet", "why": "How the live checks backed off" }
+  ],
+  "cleanup": [{ "do": "watch.delete", "name": "MuseTester mail" }]
+}

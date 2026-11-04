@@ -1,0 +1,11 @@
+{
+  "id": "drive-real", "profile": "mine", "title": "A real drive: news on the phone, Take it, the next town (you drive, it watches)", "tags": ["maps", "drive", "real", "human"],
+  "tryitout": ["A real drive with DriveGen navigating", "Take it on the phone while DriveGen navigates", "A drive out of town with Fuel on the way"],
+  "steps": [
+    { "do": "launch", "practice": false },
+    { "do": "human", "say": "Start navigating in DriveGen on your phone (Settings › Location › Tell my Mac where I am while driving is on), then press Enter" },
+    { "do": "until", "js": "!!MapWatch.fresh()", "timeout": 120, "why": "Your phone's position reaches the Mac" },
+    { "do": "human", "say": "Drive. When a card comes with Take via …, tap it: does DriveGen re-route that way? (Enter = yes)" },
+    { "do": "human", "say": "Out of town: did the next town, fuel or weather come, between turns and not too often? (Enter = yes)" }
+  ]
+}

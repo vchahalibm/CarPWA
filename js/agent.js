@@ -296,7 +296,7 @@ const AgentWeb = {
   /** Open a page in the container its site belongs to (or the one asked for); a task's own browser when ctx is given. */
   async go(url, container, ctx) {
     this.el(); const c = Containers.for(url, container), v = this.make(`${c.id}|${ctx ? this.siteKey(url) : ''}`);
-    if (ctx) { ctx.view = v; if (!ctx.quiet && (ctx === AgentWatch.shown || !AgentWatch.shown)) this.display(ctx); } /* a watcher's check never takes the panel */ else if (v.id !== this.cur) this.use(v.id);
+    if (ctx) { ctx.view = v; if (!ctx.quiet && (ctx === AgentWatch.shown || !AgentWatch.shown)) this.display(ctx); else if (this.follow) this.showing(v); } /* a watcher's check never takes the panel (unless following: MuseTester's show mode) */ else if (v.id !== this.cur) this.use(v.id);
     const wv = v.wv; await v.up;
     if (!this.unlocked && window.DriveDeckDesktop?.browseReady) { /* the kept sign-ins are unlocked after the window opens (macOS may ask for your password) */
       const t = setTimeout(() => toast('Unlocking your sign-ins… (macOS may ask for your password)'), 1500); await DriveDeckDesktop.browseReady().catch(() => {}); clearTimeout(t); this.unlocked = true; }
@@ -333,6 +333,9 @@ const AgentWeb = {
     wv.sendInputEvent({ type: 'keyDown', keyCode: code, modifiers }); if (code === 'Enter') wv.sendInputEvent({ type: 'char', keyCode: '\r', modifiers }); else if (modifiers.length && code.length === 1) wv.sendInputEvent({ type: 'char', keyCode: code.toLowerCase(), modifiers });
     wv.sendInputEvent({ type: 'keyUp', keyCode: code, modifiers });
   },
+  /** follow (set by MuseTester's show mode): quiet work (watchers' checks) is shown in the side panel as it happens. */
+  follow: false,
+  showing(v) { if (!this.follow || !v) return; if (v.id !== this.cur) this.use(v.id); const b = $('#agentWeb'); if (!b?.classList.contains('watch')) this.watch(true); },
   /** Shown to sign in (full size, interactive). */
   show(on = true, ctx) { this.el(); if (ctx) this.display(ctx); const b = $('#agentWeb'); b.classList.remove('watch'); b.style.removeProperty('--s'); b.classList.toggle('show', on); document.documentElement.classList.remove('ag-watching'); },
   /** Shown to watch a task: a side panel, the page at its usual size (1280×860) drawn smaller, with the steps below. */
@@ -772,7 +775,7 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
   /* the same site, and one address carries on the other (Outlook's /mail/inbox becomes /mail/ or /mail/inbox/id/…, Slack's
      /client becomes /client/T…/activity-inbox): reloading it each time would make a live page change, and so check, forever */
   let stayed = false; try { const o = new URL(stayV.wv.getURL()), a2 = o.pathname.replace(/\/$/, ''), b2 = u.pathname.replace(/\/$/, ''); stayed = !!stayV && Date.now() - (stayV.loadedAt || 0) < 45 * 60000 && o.host === u.host && (a2 === b2 || (a2.length > 1 && b2.length > 1 && (a2.startsWith(`${b2}/`) || b2.startsWith(`${a2}/`)))) && (!u.search || o.search === u.search); } catch {}
-  if (stayed) c.view = stayV; else await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
+  if (stayed) { c.view = stayV; AgentWeb.showing(stayV); } else await W.go(u.href, a.container || c?.task?.container); // container=Work, or the task's own
   const site = a.site || u.hostname, here = () => W.url();
   if (SIGNIN.test(here()) && !SIGNIN.test(u.href)) { W.show(true); throw new Error(`SIGNIN:${site}`); }
   if (a.wait) {

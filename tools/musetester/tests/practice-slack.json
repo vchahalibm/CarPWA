@@ -11,7 +11,7 @@
     { "do": "expect", "var": "check.hit.headline", "contains": "MuseTester report", "why": "It told the new mention" },
     { "do": "watch.make", "template": "slack.channel", "inputs": { "channel": "sales" }, "why": "Make “New messages in #sales”" },
     { "do": "watch.check", "name": "Slack #sales", "why": "First check: Jump to finds #sales" },
-    { "do": "expect", "var": "check.trace", "contains": "with Jump to", "why": "It went there with Jump to" },
+    { "do": "expect", "var": "check.url", "match": "ch=|/client/", "why": "It went there with Jump to (and keeps the channel’s address)" },
     { "do": "practice.incoming", "site": "slack", "text": "#sales|Asha Rao|North region figures are in", "why": "A message in #sales" },
     { "do": "watch.check", "name": "Slack #sales", "why": "Check #sales again" },
     { "do": "expect", "var": "check.hit.headline", "contains": "North region", "why": "It told the new message" },

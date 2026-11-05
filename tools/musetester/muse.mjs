@@ -13,9 +13,12 @@ import fs from 'fs'; import path from 'path'; import os from 'os'; import http f
 
 const HERE = path.dirname(new URL(import.meta.url).pathname), ROOT = path.resolve(HERE, '../..');
 const argv = process.argv.slice(2), flag = k => argv.includes('--' + k), opt = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
-const VALUED = ['profile', 'app', 'config', 'port', 'skip'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
+const VALUED = ['profile', 'app', 'config', 'port', 'skip', 'speed'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
 const PROFILE = opt('profile', 'scratch'), APP = opt('app', fs.existsSync('/Applications/StudioGen.app') ? 'installed' : 'dev'), SILENT = flag('silent'), PANEL = !SILENT && !flag('list');
 const AUTO = flag('auto') || SILENT, HIDDEN = SILENT || flag('hidden'), HEADFUL = flag('headful') || (PANEL && !HIDDEN); /* --hidden: the panel, but the apps' windows hidden */
+/* show mode (interactive with the windows in view): a pointer moves to each button and clicks it (real input), typing
+   appears letter by letter, a caption says the step, the agent browser shows what watchers read; --speed 2 is quicker */
+const SHOW = PANEL && !HIDDEN && !flag('no-show'), SPEED = Math.max(0.2, +opt('speed', 1)), PAUSE = 700 / SPEED;
 const INSTALLED = '/Applications/StudioGen.app/Contents/MacOS/StudioGen', ELECTRON = path.join(ROOT, 'desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', DEBUG_LOG = path.join(os.homedir(), 'Library/Logs/StudioGen/debug.log');
 const RUN = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19), OUT = path.join(HERE, 'reports', RUN), TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'musetester-'));
@@ -111,6 +114,61 @@ const server = http.createServer(async (q, r) => {
 });
 await new Promise(r => server.listen(+opt('port', 0), '127.0.0.1', r)); const PORT = server.address().port, BASE = `http://127.0.0.1:${PORT}`;
 
+/* ---------- show mode: a pointer, a highlight, a caption, real clicks and typing ---------- */
+const OVERLAY = `if (!window.Muse) { const css = document.createElement('style'); css.textContent = '#museCur{position:fixed;z-index:2147483647;left:0;top:0;width:28px;height:28px;pointer-events:none;transition:transform .55s cubic-bezier(.3,.7,.2,1);transform:translate(-60px,-60px)}#museCur svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}#museRing{position:fixed;z-index:2147483646;pointer-events:none;border:3px solid #0a84ff;border-radius:10px;box-shadow:0 0 0 5px rgba(10,132,255,.25);transition:all .3s;opacity:0}#updateBar{display:none!important}#museCap{position:fixed;z-index:2147483647;left:50%;top:10px;transform:translateX(-50%);max-width:86vw;background:rgba(10,132,255,.96);color:#fff;font:600 14px/1.35 -apple-system,system-ui,sans-serif;padding:9px 16px;border-radius:12px;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.35)}#museCap[hidden]{display:none}.museTap{position:fixed;z-index:2147483646;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(10,132,255,.5);pointer-events:none;animation:museTap .55s ease-out forwards}@keyframes museTap{from{transform:scale(.3);opacity:1}to{transform:scale(1.7);opacity:0}}';
+  document.head.appendChild(css); document.body.insertAdjacentHTML('beforeend', '<div id="museCur"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div id="museRing"></div><div id="museCap" hidden></div>');
+  window.Muse = { move(x, y) { document.getElementById('museCur').style.transform = 'translate(' + (x - 4) + 'px,' + (y - 3) + 'px)'; },
+    ring(r) { const e = document.getElementById('museRing'); if (!r) { e.style.opacity = 0; return; } Object.assign(e.style, { left: r.x - 5 + 'px', top: r.y - 5 + 'px', width: r.w + 10 + 'px', height: r.h + 10 + 'px', opacity: 1 }); },
+    tap(x, y) { const t = document.createElement('div'); t.className = 'museTap'; t.style.left = x + 'px'; t.style.top = y + 'px'; document.body.appendChild(t); setTimeout(() => t.remove(), 650); },
+    say(text) { const c = document.getElementById('museCap'); c.hidden = !text; c.textContent = text ? 'MuseTester · ' + text : ''; } }; } true`;
+const CLICKABLE = 'button,[role="button"],a,.app-tile,.chip,.big-btn,.link-btn,[data-wt],[data-ag],input,select,textarea';
+/** Finds what to click (by its words or a selector), scrolls to it, rings it and moves the pointer there; click: real mouse input. */
+async function uiClick(a, t, click = true) {
+  const r = await a.page.eval(`if (window.AgentWeb?.follow && document.querySelector('#agentWeb.watch')) { AgentWeb.watch(false); await new Promise(r => setTimeout(r, 300)); } /* the agent browser's panel steps aside for clicks in the app */
+    const want = ${J(String(t.text || '').toLowerCase())}, l = [...document.querySelectorAll(${J(t.sel || CLICKABLE)})].filter(e => e.getClientRects().length);
+    const el = want ? l.find(e => e.textContent.trim().toLowerCase() === want) || l.find(e => (e.textContent + ' ' + (e.getAttribute('aria-label') || '')).toLowerCase().includes(want)) : l[0];
+    if (!el) throw new Error('nothing to click: ' + (want || ${J(t.sel || '')})); el.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 250));
+    const b = el.getBoundingClientRect(), top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    if (top && !el.contains(top) && !top.contains(el)) throw new Error('covered by ' + top.tagName.toLowerCase() + (top.id ? '#' + top.id : '') + '.' + String(top.className).split(' ').join('.') + ' in ' + (top.closest('[id]')?.id || '?') + ' [' + (document.querySelector('#agentWeb')?.className || '') + '] (meant: ' + (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40) + ')');
+    Muse.ring({ x: b.left, y: b.top, w: b.width, h: b.height }); Muse.move(b.left + b.width / 2, b.top + b.height / 2);
+    return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), label: (el.textContent || el.getAttribute('aria-label') || el.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 60) }`);
+  await sleep(PAUSE);
+  if (click) for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await a.page.send('Input.dispatchMouseEvent', { type, x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  await a.page.eval(`Muse.tap(${r.x}, ${r.y}); setTimeout(() => Muse.ring(null), 450); return 1`); await sleep(PAUSE / 2); return r.label;
+}
+/** Clicks into a field and types into it, letter by letter (real key input); enter: presses Enter. */
+async function uiType(a, sel, text, enter) {
+  await uiClick(a, { sel }); await a.page.eval(`const e = document.querySelector(${J(sel)}); if (e && 'value' in e) e.value = ''; return 1`);
+  for (const ch of String(text)) { await a.page.send('Input.dispatchKeyEvent', { type: 'char', text: ch }); await sleep(45 / SPEED); }
+  if (enter) for (const type of ['keyDown', 'keyUp']) await a.page.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+  await sleep(PAUSE / 2); return `typed “${String(text).slice(0, 60)}”`;
+}
+/** Can this template be made through the screens (no file picker, page tap or map form)? */
+/** The agent browser's side panel shows what a watcher reads while it checks, then steps aside for the clicks. */
+const follow = (a, on) => SHOW ? a.page.eval(`AgentWeb.follow = ${on}; if (!${on}) AgentWeb.watch(false); return 1`).catch(() => {}) : null;
+const uiFit = (a, s) => a.page.eval(`const T = WATCH_TEMPLATES.find(t => t.id === ${J(s.template)}); return !!T && !T.pick && !T.map && !T.inputs.some(x => /folder|file|window|watcher/.test(x[3] || ''))`);
+/** Makes a watcher as a person would: 👁 Watchers › + New watcher › the template › its fields › Check and save. */
+async function uiMake(a, s) {
+  await a.page.eval(`closeSheet(); openView('agent'); return 1`); await sleep(700);
+  const before = await a.page.eval('Watch.list().map(w => w.id)');
+  await uiClick(a, { sel: '[data-wt="list"]' }); await uiClick(a, { sel: '[data-wt="new"]' }); await uiClick(a, { sel: `[data-wt="tpl|${s.template}"]` });
+  for (const [k, v] of Object.entries(s.inputs || {})) if (await a.page.eval(`!!document.querySelector('[data-wti="${k}"]')`)) await uiType(a, `[data-wti="${k}"]`, v);
+  await uiClick(a, { sel: '#sheet button', text: 'Check and save' }); await follow(a, true);
+  let id = null; for (let i = 0; i < 240 && !id; i++) { await sleep(500);
+    id = await a.page.eval(`Watch.list().find(w => !${J(before)}.includes(w.id))?.id || null`);
+    if (!id && await a.page.eval(`/Couldn.t read it/.test(document.querySelector('#sheet')?.innerText || '')`)) await uiClick(a, { sel: '#sheet button', text: 'Save anyway' }); }
+  await follow(a, false); if (!id) throw new Error('the watcher wasn’t saved');
+  const r = await a.page.eval(`const w = Watch.get(${J(id)}); Object.assign(w, ${J(s.set || {})}); if (${J(s.name || '')}) w.name = ${J(s.name || '')}; for (const x of Watch.list().filter(x => x.name === w.name && x.id !== w.id)) Watch.del(x.id); Watch.put(w); closeSheet(); return { id: w.id, name: w.name }`);
+  vars[s.as || 'watcher'] = r; return `${r.name} (made through 👁 Watchers › + New watcher)`;
+}
+/** Points at a watcher's Check now in the Watchers list. */
+async function uiPointCheck(a, name) {
+  const id = await a.page.eval(`(Watch.list().find(x => x.name === ${J(name)} || x.id === ${J(name)}) || {}).id || ''`); if (!id) return;
+  await a.page.eval(`if (!document.querySelector('[data-wt="now|${id}"]')) { closeSheet(); Watch.sheet(); } return 1`); await sleep(500);
+  await uiClick(a, { sel: `[data-wt="now|${id}"]` }, false); await a.page.eval('closeSheet(); 1');
+}
+async function caption(text) { if (SHOW) for (const a of Object.values(apps)) await a.page.eval(`(window.Muse?.say(${J(text)}), 1)`).catch(() => {}); }
+
 /* ---------- the apps ---------- */
 const apps = {}, kids = []; let mineWasRunning = false;
 const running = () => { try { return execFileSync('pgrep', ['-fl', 'StudioGen.app/Contents/MacOS/StudioGen'], { encoding: 'utf8' }).split('\n').filter(l => l && !/remote-debugging-port/.test(l)).length > 0; } catch { return false; } };
@@ -129,13 +187,14 @@ async function launch(s) {
   const page = await Page.open(port, t => t.type === 'page' && /index\.html/.test(t.url));
   await ready(page);
   apps[as] = { page, port, kind: 'studio', proc: k, profile, practiceWas: await page.eval(`(store.get('agentCfg') || {}).practice ?? false`) };
+  if (SHOW) await page.eval(`${OVERLAY}; return 1`); /* show mode: the pointer and caption (watchers' pages are shown while they check: follow) */
   if (s.practice != null) await page.eval(`store.set('agentCfg', { ...(store.get('agentCfg') || {}), practice: ${!!s.practice} }); return true`);
   return `${as} on port ${port} (${profile} profile, ${bin === INSTALLED ? 'installed app' : 'desktop/'}${HIDDEN ? ', hidden' : ''})`;
 }
 /** The app's page is up and settled (a first start reloads itself once: the steps wait through that); its errors are kept. */
 async function ready(page) {
   for (let k = 0; k < 6; k++) try {
-    await page.eval(`for (let i = 0; i < 120 && !(document.readyState === 'complete' && typeof Watch !== 'undefined' && typeof Agent !== 'undefined'); i++) await new Promise(r => setTimeout(r, 250)); try { Setup.close?.(false); } catch {} document.getElementById('setup')?.remove();
+    await page.eval(`for (let i = 0; i < 120 && !(document.readyState === 'complete' && typeof Watch !== 'undefined' && typeof Agent !== 'undefined'); i++) await new Promise(r => setTimeout(r, 250)); try { Setup.close?.(false); } catch {} document.getElementById('setup')?.remove(); if (store.get('setupDone') !== 'skip' && ${J(PROFILE)} !== 'mine') store.set('setupDone', 'skip'); /* a throwaway profile: the welcome screen never comes back over the steps */
       if (!window.__museErrors) { window.__museErrors = []; addEventListener('error', e => __museErrors.push(String(e.message || e.error).slice(0, 300))); addEventListener('unhandledrejection', e => __museErrors.push(String(e.reason?.message || e.reason).slice(0, 300))); } return true`, 60000);
     await sleep(1500); await page.eval('1'); return;
   } catch (e) { if (!/context was destroyed|Cannot find context|Inspected target navigated/i.test(e.message) || k === 5) throw e; await sleep(1500); }
@@ -152,7 +211,8 @@ async function drivegen(s) {
   await page.send('Page.navigate', { url }); await sleep(4000);
   await page.eval(`for (let i = 0; i < 80 && typeof openView === 'undefined'; i++) await new Promise(r => setTimeout(r, 250)); document.getElementById('setup')?.remove(); [...document.querySelectorAll('#sheet button')].find(b => /not now/i.test(b.textContent))?.click();
     if (!window.__museErrors) { window.__museErrors = []; addEventListener('error', e => __museErrors.push(String(e.message).slice(0, 300))); } return true`);
-  apps[as] = { page, port, kind: 'phone', proc: k }; return `${as}: DriveGen as ${s.device || 'iphone'} (${url})`;
+  apps[as] = { page, port, kind: 'phone', proc: k }; if (SHOW) await page.eval(OVERLAY).catch(() => {});
+  return `${as}: DriveGen as ${s.device || 'iphone'} (${url})`;
 }
 async function quitApp(as = 'studio') {
   const a = apps[as]; if (!a) return 'not open'; delete apps[as];
@@ -194,11 +254,13 @@ const STEPS = {
     const e = check(v, rule); if (e) throw new Error(e); return 'ok'; },
   'errors.none': async s => { const l = await pageOf(s).page.eval('window.__museErrors || []'); const bad = l.filter(e => !(s.ignore || []).some(i => e.includes(i))); if (bad.length) throw new Error(`errors in the page: ${bad.slice(0, 3).join(' | ')}`); return 'no errors'; },
   view: s => pageOf(s).page.eval(`openView(${J(s.name)}); return ${J(s.name)}`),
-  say: s => pageOf(s).page.eval(`handleCommand(${J(s.text)}); await new Promise(r => setTimeout(r, ${(s.wait || 1.5) * 1000})); return 'said'`),
-  click: s => pageOf(s).page.eval(`const want = ${J(s.text || '')}.toLowerCase(), sel = ${J(s.sel || (s.sheet ? '#sheet button' : 'button,[role="button"],a,.app-tile,.chip,.big-btn,.link-btn,[data-wt],[data-ag]'))};
+  say: async s => { const a = pageOf(s); /* show mode: typed into the Agent screen's Ask box when it's there */
+    if (SHOW && await a.page.eval(`!!document.querySelector('#agAsk')?.getClientRects().length`)) { await uiType(a, '#agAsk', s.text, true); await sleep((s.wait || 1.5) * 1000); return `typed “${s.text}” and Enter`; }
+    return a.page.eval(`handleCommand(${J(s.text)}); await new Promise(r => setTimeout(r, ${(s.wait || 1.5) * 1000})); return 'said'`); },
+  click: s => SHOW ? uiClick(pageOf(s), s) : pageOf(s).page.eval(`const want = ${J(s.text || '')}.toLowerCase(), sel = ${J(s.sel || (s.sheet ? '#sheet button' : 'button,[role="button"],a,.app-tile,.chip,.big-btn,.link-btn,[data-wt],[data-ag]'))};
     const l = [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length), el = want ? l.find(e => e.textContent.trim().toLowerCase() === want) || l.find(e => (e.textContent + ' ' + (e.getAttribute('aria-label') || '')).toLowerCase().includes(want)) : l[0];
     if (!el) throw new Error('nothing to click: ' + (want || sel)); el.scrollIntoView({ block: 'center' }); if (typeof Peek !== 'undefined') Peek.tapAt = Date.now(); el.click(); await new Promise(r => setTimeout(r, 500)); return (el.textContent || el.getAttribute('aria-label') || sel).trim().slice(0, 60)`),
-  type: s => pageOf(s).page.eval(`const el = document.querySelector(${J(s.sel)}); if (!el) throw new Error('no field ' + ${J(s.sel)}); el.focus(); el.value = ${J(s.text)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); ${s.enter ? `el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));` : ''} return 'typed'`),
+  type: s => SHOW ? uiType(pageOf(s), s.sel, s.text, s.enter) : pageOf(s).page.eval(`const el = document.querySelector(${J(s.sel)}); if (!el) throw new Error('no field ' + ${J(s.sel)}); el.focus(); el.value = ${J(s.text)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); ${s.enter ? `el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));` : ''} return 'typed'`),
   key: async s => { const p = pageOf(s).page; for (const type of ['keyDown', 'keyUp']) await p.send('Input.dispatchKeyEvent', { type, key: s.key, code: s.code || s.key }); return s.key; },
   practice: s => pageOf(s).page.eval(`store.set('agentCfg', { ...(store.get('agentCfg') || {}), practice: ${s.value !== false} }); return Agent.cfg().practice`),
   /* the practice sites have a pretend sign-in: signed in for a throwaway profile, in the agent browser's own storage */
@@ -213,12 +275,15 @@ const STEPS = {
       : { type: 'text/html', body: `<!doctype html><html><meta charset="utf-8"><title>${s.title || s.name}</title>${s.feed ? `<link rel="alternate" type="application/rss+xml" href="${BASE}/muse/fx/${s.feed}">` : ''}<body>${s.html || ''}${items.length ? `<ul id="list">${items.map(x => `<li class="row">${x}</li>`).join('')}</ul>` : ''}</body>` };
     return `${s.name}: ${fx[s.name].type}`; },
   /* watchers, through the app's own code (js/watch.js) */
-  'watch.make': async s => { const r = await pageOf(s).page.eval(`const inputs = ${J(s.inputs || {})}; let made = {}, tid = ${J(s.template || '')}, tname = '';
+  'watch.make': async s => { if (SHOW && s.template && await uiFit(pageOf(s), s)) return uiMake(pageOf(s), s);
+    const r = await pageOf(s).page.eval(`const inputs = ${J(s.inputs || {})}; let made = {}, tid = ${J(s.template || '')}, tname = '';
     if (tid) { const T = WATCH_TEMPLATES.find(t => t.id === tid); if (!T) throw new Error('no template ' + tid); made = T.make(inputs); tname = T.name; }
     const w = Watch.make({ ...(tid ? { template: tid, templateInputs: inputs } : {}), ...made, ...${J(s.set || {})}, name: ${J(s.name || '')} || made.name || tname || 'MuseTester watcher' });
     for (const x of Watch.list().filter(x => x.name === w.name)) Watch.del(x.id); Watch.put(w); return { id: w.id, name: w.name }`); vars[s.as || 'watcher'] = r; return r.name; },
-  'watch.check': async s => { const r = await pageOf(s).page.eval(`const w = ${W(s.name)}; const r = await Watch.check(w); const g = Watch.get(w.id) || w;
+  'watch.check': async s => { if (SHOW) { await uiPointCheck(pageOf(s), s.name).catch(() => {}); await follow(pageOf(s), true); } /* the pointer at its Check now; the check itself through the app's code, for its full result; its page in view */
+    const r = await pageOf(s).page.eval(`const w = ${W(s.name)}; const r = await Watch.check(w); const g = Watch.get(w.id) || w;
     return { hit: r?.hit ? { headline: r.hit.headline, items: r.hit.items, shot: !!r.hit.shot, take: r.hit.take || null, share: r.hit.share || null } : null, error: g.state?.error || '', count: g.state?.count ?? null, trace: (g.state?.trace?.lines || []).join('\\n'), url: g.url || '', state: { healed: g.state?.healed || null, paused: g.state?.paused || '' } }`, (s.timeout || 300) * 1000);
+    if (SHOW) { await sleep(PAUSE); await follow(pageOf(s), false); }
     vars[s.as || 'check'] = r; if (r.error && s.ok !== false) throw new Error(r.error + '\n' + r.trace.split('\n').slice(-4).join('\n')); return r.hit ? `news: ${r.hit.headline}` : `${r.count ?? '-'} read, nothing new`; },
   'watch.set': s => pageOf(s).page.eval(`const w = ${W(s.name)}; Object.assign(w, ${J(s.set || {})}); Watch.put(w); return Object.keys(${J(s.set || {})}).join(', ')`),
   'watch.delete': s => pageOf(s).page.eval(`const l = Watch.list().filter(x => x.name === ${J(s.name)} || (${J(!!s.prefix)} && x.name.startsWith(${J(s.name)}))); for (const w of l) Watch.del(w.id); return l.length + ' deleted'`),
@@ -314,7 +379,7 @@ async function run(t) {
     const { s: raw, cleanup } = all[i], row = b.steps[i]; if (!cleanup && cur.status !== 'pass') { row.status = 'skip'; continue; }
     ctl.waiting = { test: t.id, i }; if (!cleanup) { const g = await gate(false); if (g === 'skip') { row.status = 'skip'; continue; } if (g === 'stoptest') { cur.status = 'skip'; row.status = 'skip'; continue; } } ctl.waiting = null;
     for (;;) { /* a failed step can be tried again from the panel */
-      const s = fill(raw), fn = STEPS[s.do], t0 = Date.now(); curStep = row; row.status = 'run'; row.note = '';
+      const s = fill(raw), fn = STEPS[s.do], t0 = Date.now(); curStep = row; row.status = 'run'; row.note = ''; await caption(`${t.title.split(':')[0]} · ${i + 1}. ${row.label}`);
       try { if (!fn) throw new Error(`no step “${s.do}”`); const note = await fn(s); row.status = 'pass'; row.note = String(note ?? '').slice(0, 300); row.ms = Date.now() - t0;
         cur.steps.push({ do: s.do, say: row.label, ok: true, ms: row.ms, note: row.note }); console.log(`  ✓ ${row.label}${note ? ` · ${String(note).slice(0, 120)}` : ''}`); break; }
       catch (e) { row.status = e.skip ? 'skip' : 'fail'; row.note = e.message.slice(0, 600); row.ms = Date.now() - t0; console.log(`  ${e.skip ? '○' : '✗'} ${row.label} · ${e.message.split('\n')[0].slice(0, 200)}`);

@@ -31,6 +31,19 @@ step fails you choose: **Try it again** (after fixing something by hand, say), *
 Steps that need you (“drive to…”, “tap … on your phone”) show **Your turn** with Done or It didn't work. **End
 MuseTester** closes it.
 
+**You see it happen** (show mode, the default when interactive): MuseTester works the app the way you would, like an
+RPA robot you can watch.
+- A **pointer** moves to each button, rings it in blue and clicks it with real mouse input. Typing appears letter by
+  letter (real key input).
+- A **caption** at the top of each app window says the test and the step.
+- Watchers are **made through the screens**: 👁 Watchers › + New watcher › the template › its fields › Check and save.
+  Templates that need a file picker, a tap on a page or the map form are set up directly; the caption says so.
+- Each **check** points at the watcher's Check now, and the **agent browser's panel** shows the page it reads (your
+  Slack, Outlook, WhatsApp, Google Maps…), then steps aside for the next clicks.
+- Commands are typed into the Agent screen's **Ask box** when it's on screen.
+- `--speed 2` goes twice as fast, `--speed 0.5` half as fast; `--no-show` keeps the windows but drives by code.
+- Mesh tests show every device's window with the caption; their steps are commands said through each app.
+
 **Silent** (`--silent`): no panel; StudioGen starts with its window hidden (app 0.18.5 or later; an older app shows it),
 DriveGen runs headless, steps that need you are skipped. For a run on its own; read the report and the run log after.
 

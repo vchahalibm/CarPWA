@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MuseTester Guide</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; --grey:#8e8e93; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --grey:#8e8e93; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --grey:#8e8e93; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  figure { margin:12px 0; } figure img { width:100%; height:auto; border-radius:10px; border:1px solid var(--line); display:block; }
+  figcaption { color:var(--mut); font-size:14px; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:-1px; margin-right:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>MuseTester: using it, and writing tests</h1>
+<p class="mut">MuseTester is the apps' main tester. It works StudioGen, DriveGen, Workers and the mesh the way a person does: it clicks, types, scrolls and waits, and it checks what happens. This guide covers running it and writing new tests. Anyone who adds a feature to the apps also adds a test for it, so this guide is for them too.</p>
+
+<ul class="toc">
+  <li><a href="#need">1. What you need</a></li>
+  <li><a href="#run">2. Running tests</a></li>
+  <li><a href="#panel">3. The control panel</a></li>
+  <li><a href="#engine">4. One engine: RPA</a></li>
+  <li><a href="#first">5. Your first test</a></li>
+  <li><a href="#targets">6. Finding things on the screen</a></li>
+  <li><a href="#steps">7. Every step</a></li>
+  <li><a href="#check">8. Checking results</a></li>
+  <li><a href="#web">9. Pages in the agent browser</a></li>
+  <li><a href="#record">10. Recording a test</a></li>
+  <li><a href="#scripts">11. The same engine in scripts</a></li>
+  <li><a href="#rule">12. The rule: a test for every feature</a></li>
+  <li><a href="#log">13. Results and the run log</a></li>
+  <li><a href="#tips">14. Tips and trouble</a></li>
+</ul>
+
+<h2 id="need">1. What you need</h2>
+<ul>
+  <li><b>Node.js 22</b> or newer (<code>node -v</code>).</li>
+  <li><b>StudioGen</b> installed in /Applications, or the desktop app's files in the project: <code>cd desktop &amp;&amp; npm install</code>. Use <code>--app dev</code> to test today's code from <code>desktop/</code>.</li>
+  <li><b>Google Chrome</b>: it shows the control panel and runs DriveGen as a phone or an iPad.</li>
+  <li>Optional: <b>Docker</b> (OrbStack) for the Worker and StudioGBee tests.</li>
+</ul>
+<p>Tests use a <b>throwaway profile</b> by default. Your own StudioGen, its sign-ins and its watchers are never touched. Only tests marked <code>"profile": "mine"</code> use your profile, and only when you pass <code>--profile mine</code>.</p>
+
+<h2 id="run">2. Running tests</h2>
+<pre>node tools/musetester/muse.mjs                       # the panel, with every test
+node tools/musetester/muse.mjs rpa watchers          # tests by id or tag
+node tools/musetester/muse.mjs rpa-engine --go       # start at once, end when done
+node tools/musetester/muse.mjs --silent              # no panel, windows hidden: for a run on its own
+node tools/musetester/muse.mjs --list                # every test, its profile and tags
+node tools/musetester/muse.mjs --record my-test      # you use the app; it writes the test</pre>
+<div class="wrap"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>--app installed|dev</code></td><td>The installed StudioGen (the default), or the one in <code>desktop/</code> with today's code.</td></tr>
+<tr><td><code>--silent</code></td><td>No panel, StudioGen hidden, DriveGen headless, and steps that need you are skipped. Clicks and typing use page events.</td></tr>
+<tr><td><code>--go</code></td><td>With the panel: the chosen tests start straight away, and MuseTester ends after them.</td></tr>
+<tr><td><code>--speed 2</code></td><td>Show mode twice as fast (<code>0.5</code>: half as fast).</td></tr>
+<tr><td><code>--no-show</code></td><td>The windows are in view, but nothing is shown moving (no pointer and no real input).</td></tr>
+<tr><td><code>--skip docker,slow</code></td><td>Leaves out tests with these tags or ids.</td></tr>
+<tr><td><code>--profile mine</code></td><td>The tests that need your accounts. Add <code>--restart-mine</code> to let MuseTester quit your StudioGen and open it again afterwards.</td></tr>
+<tr><td><code>--keep</code></td><td>Leaves StudioGen open after the tests, so you can look around.</td></tr>
+<tr><td><code>--mark</code></td><td>Ticks the try-it-out items in docs/TasksNeedingComeBack.md that passed.</td></tr>
+</table></div>
+
+<h2 id="panel">3. The control panel</h2>
+<p>The panel opens in its own window beside the app. It lists the tests. Open one to see its steps, coloured as they run:</p>
+<p><span class="dot" style="background:var(--grey)"></span>grey: to run &nbsp; <span class="dot" style="background:var(--acc)"></span>blue: running &nbsp; <span class="dot" style="background:var(--ok)"></span>green: passed &nbsp; <span class="dot" style="background:var(--bad)"></span>red: failed (its note says why, and a picture is taken)</p>
+<ul>
+  <li><b>Run all</b> or <b>Run</b> on one test. <b>In one go</b> runs straight through. <b>Step by step</b> waits for <b>Next step</b> before each step.</li>
+  <li>When a step fails, choose <b>Try it again</b> (after fixing something by hand), <b>Skip it</b>, or <b>Stop this test</b>.</li>
+  <li>Steps only you can do (a drive, a tap on your phone) show <b>Your turn</b>.</li>
+</ul>
+<p><b>Show mode</b> is the default when the panel is open. A pointer glides to each target, rings it in blue and clicks it with real mouse input. Typing appears letter by letter, and a caption at the top names the test and the step. When a watcher checks, the agent browser's panel shows the page it reads.</p>
+<figure><img src="img/musetester/rpa-board.jpg" alt="StudioGen with a board of controls: the pointer has just dragged “Drag me” onto “Drop here”, which is ringed in blue; the caption at the top reads MuseTester, the automation engine, step 26"><figcaption>The rpa-engine test in show mode: the drag has just landed. Above it, the name is typed, Blue is chosen, and the list has been scrolled to Row 35.</figcaption></figure>
+
+<h2 id="engine">4. One engine: RPA</h2>
+<p>Everything MuseTester does on the screen goes through <b>RPA</b> (<code>js/rpa.js</code>), the app's own automation engine. That covers clicking, typing, keys, scrolling, pointing, dragging, dropdowns, checkboxes, waiting and reading. Scripts use the same engine through the <code>rpa.*</code> actions, on Stage or anywhere. So a test that passes shows that the engine your scripts use works too.</p>
+<div class="wrap"><table>
+<tr><th>Where</th><th>Input</th></tr>
+<tr><td>StudioGen, show mode or a script</td><td>Real input: Electron's <code>sendInputEvent</code> through <code>DriveDeckDesktop.input</code>. It is checked: a click on something that is covered fails and names what covers it.</td></tr>
+<tr><td>StudioGen silent, and DriveGen</td><td>Page events (pointer, mouse, click, input, change, keys).</td></tr>
+<tr><td>A page of the agent browser (<code>web</code>)</td><td>The webview's own real input; fields are found and focused through the bridge.</td></tr>
+</table></div>
+<p>RPA never types into or records password, payment or one-time-code fields.</p>
+
+<h2 id="first">5. Your first test</h2>
+<p>A test is one JSON file in <code>tools/musetester/tests/</code>. Its <code>id</code> is the file name.</p>
+<pre>{
+  "id": "settings-theme",
+  "title": "Settings: the light theme is chosen through the screen and kept after a restart",
+  "tags": ["settings", "ui", "rpa"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "view", "name": "settings" },
+    { "do": "click", "role": "tab", "text": "System", "why": "Open the System tab" },
+    { "do": "click", "text": "Light", "within": "Appearance", "why": "Appearance: Light" },
+    { "do": "expect", "js": "document.documentElement.dataset.theme", "equals": "light", "why": "The screen turned light" },
+    { "do": "quit" },
+    { "do": "launch", "why": "Open it again (the same profile)" },
+    { "do": "expect", "js": "document.documentElement.dataset.theme", "equals": "light", "why": "Still light" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}</pre>
+<ul>
+  <li>Each step has <code>do</code> (what to do) and usually <code>why</code>, which the panel and the report show. Write it the way you'd tell a person.</li>
+  <li><code>on</code> picks the app when there are several: <code>studio</code> (the default), <code>phone</code>, or a name given with <code>as</code>.</li>
+  <li><code>optional: true</code>: a failure doesn't stop the test.</li>
+  <li>The steps stop at the first failure. <code>cleanup</code> steps always run.</li>
+  <li><code>${name}</code> in any value is a variable: from an earlier step's <code>as</code>, or from your <code>muse.config.json</code>.</li>
+</ul>
+<p>This is a real test, <code>tests/settings-theme.json</code>. Run it: <code>node tools/musetester/muse.mjs settings-theme --go</code>. Then run it again with <code>--silent</code>. A good test passes both ways.</p>
+
+<h2 id="targets">6. Finding things on the screen</h2>
+<p>Name things the way a person would. Every step that acts on something takes a <b>target</b>:</p>
+<div class="wrap"><table>
+<tr><th>Field</th><th>Finds</th><th>Example</th></tr>
+<tr><td><code>text</code></td><td>The words on it: buttons, links, tiles, chips, tabs, menu items. An exact match wins over a starting one, which wins over “contains”. Of several, the tightest is taken (the button, not the card around it). Words that aren't on a control (a message, a status) are found too.</td><td><code>"text": "+ New watcher"</code></td></tr>
+<tr><td><code>label</code></td><td>A field by its label, placeholder or aria-label.</td><td><code>"label": "Your name"</code></td></tr>
+<tr><td><code>sel</code></td><td>A CSS selector. Use it when there are no words (an icon) or the words change.</td><td><code>"sel": "[data-wt=\"list\"]"</code></td></tr>
+<tr><td><code>role</code></td><td>button, link, textbox, checkbox, combobox, tab… (with <code>text</code> to narrow it down).</td><td><code>"role": "tab", "text": "Logs"</code></td></tr>
+<tr><td><code>nth</code></td><td>The nth of several that match (from 1).</td><td><code>"text": "Delete", "nth": 2</code></td></tr>
+<tr><td><code>within</code></td><td>Only inside something: a selector, or words (the part around them).</td><td><code>"within": "#sheet"</code></td></tr>
+<tr><td><code>sheet: true</code></td><td>Short for <code>within: "#sheet"</code>, the open sheet.</td><td></td></tr>
+</table></div>
+<div class="card tip"><b>Prefer words.</b> <code>"text": "Check and save"</code> keeps working when the layout changes, and it reads well in the report. Use <code>sel</code> for icons, and <code>data-*</code> attributes where the app has them (<code>data-wt</code>, <code>data-ag</code>).</div>
+
+<h2 id="steps">7. Every step</h2>
+<h3>Doing things (RPA)</h3>
+<div class="wrap"><table>
+<tr><th>Step</th><th>Fields</th><th>Does</th></tr>
+<tr><td><code>click</code></td><td>a target; <code>double</code>, <code>right</code></td><td>Clicks it (double-clicks, right-clicks).</td></tr>
+<tr><td><code>type</code></td><td>a target (<code>label</code>, <code>sel</code> or <code>target</code>), <code>text</code>; <code>enter</code>, <code>clear: false</code></td><td>Clicks into the field and types letter by letter. It clears the field first unless <code>clear: false</code>.</td></tr>
+<tr><td><code>key</code></td><td><code>key</code></td><td>A key, with modifiers: <code>Enter</code>, <code>Escape</code>, <code>Tab</code>, <code>Meta+K</code>, <code>Ctrl+Shift+P</code>.</td></tr>
+<tr><td><code>scroll</code></td><td>a target (or none: the screen); <code>dy</code>, <code>dx</code>, <code>to: "top"|"bottom"</code>, <code>until</code></td><td>Scrolls by an amount, to an end, or until <code>until</code> (a target) shows.</td></tr>
+<tr><td><code>hover</code></td><td>a target</td><td>Points at it (menus and tips that open on hover).</td></tr>
+<tr><td><code>drag</code></td><td>a target; <code>onto</code> (words or <code>{ "sel": … }</code>), or <code>dx</code>/<code>dy</code></td><td>Presses, moves in small steps, and lets go.</td></tr>
+<tr><td><code>choose</code></td><td>a target (the dropdown), <code>option</code></td><td>Picks an option by its words or value. A custom dropdown is opened and its option clicked.</td></tr>
+<tr><td><code>tick</code></td><td>a target; <code>on: false</code></td><td>Ticks (or unticks) a checkbox or switch, only if it isn't already.</td></tr>
+<tr><td><code>wait.for</code></td><td>a target; <code>gone</code>, <code>timeout</code> (s)</td><td>Waits until it shows (or goes).</td></tr>
+<tr><td><code>look</code></td><td>a target; <code>as</code>; a check</td><td>Reads what it says; checked when you give <code>equals</code>, <code>contains</code>….</td></tr>
+<tr><td><code>say</code></td><td><code>text</code>, <code>wait</code></td><td>A command, as if spoken. In show mode it is typed into the Agent screen's Ask box.</td></tr>
+<tr><td><code>view</code></td><td><code>name</code></td><td>Opens a screen: <code>agent</code>, <code>settings</code>, <code>dashboard</code>, <code>home</code>….</td></tr>
+</table></div>
+<h3>The apps</h3>
+<div class="wrap"><table>
+<tr><th>Step</th><th>Does</th></tr>
+<tr><td><code>launch</code></td><td>Opens StudioGen: <code>as</code>, <code>practice</code> (the practice sites), <code>profile</code>, <code>app</code>, <code>env</code>, <code>folders</code>.</td></tr>
+<tr><td><code>drivegen</code></td><td>Opens DriveGen in Chrome: <code>device</code> (<code>iphone</code>, <code>ipad</code>, <code>ipad-portrait</code>), <code>settings</code>.</td></tr>
+<tr><td><code>quit</code></td><td>Closes an app. A <code>launch</code> afterwards is a restart with the same profile.</td></tr>
+<tr><td><code>practice</code>, <code>practice.signin</code>, <code>practice.incoming</code></td><td>The practice sites on or off, signed in, and given news (<code>site</code>, <code>text</code>, <code>query</code>).</td></tr>
+<tr><td><code>fixture</code>, <code>file</code></td><td>A page, feed or JSON that MuseTester serves at <code>${fx.name}</code>; a file for folder watchers.</td></tr>
+<tr><td><code>watch.make</code>, <code>watch.check</code>, <code>watch.set</code>, <code>watch.delete</code></td><td>Watchers. In show mode, <code>watch.make</code> goes through the screens.</td></tr>
+<tr><td><code>task</code></td><td>Runs an agent task; its card goes in <code>card</code>.</td></tr>
+<tr><td><code>script</code></td><td>Runs a script (<code>script</code>: its JSON, or <code>name</code>) to its last beat, then stops it; its variables go in <code>as</code>.</td></tr>
+<tr><td><code>journey.start</code>, <code>journey.step</code></td><td>Made for you from a tandem journey (<code>"journey"</code> in a test: the mesh tests).</td></tr>
+<tr><td><code>native</code>, <code>native.keys</code></td><td>AppleScript, and keystrokes into a macOS app.</td></tr>
+<tr><td><code>human</code></td><td>Asks you to do something (<code>say</code>), then waits.</td></tr>
+<tr><td><code>wait</code>, <code>screenshot</code></td><td><code>s</code> seconds; a picture (<code>name</code>).</td></tr>
+</table></div>
+<h3>Code, when you need it</h3>
+<div class="wrap"><table>
+<tr><th>Step</th><th>Does</th></tr>
+<tr><td><code>eval</code></td><td>Runs <code>js</code> in the app's page; the value goes in <code>as</code>. Use it to set up (a board of controls, a setting) or to read state that isn't on screen. Without <code>return</code> the code is one expression; with it, a function body (await allowed).</td></tr>
+<tr><td><code>until</code></td><td>Waits until <code>js</code> is true, or meets a check, up to <code>timeout</code> s.</td></tr>
+</table></div>
+<div class="card tip">Do things the way a person would (<code>click</code>, <code>type</code>, <code>choose</code>), and use <code>eval</code> for setting up and for looking. A test that clicks through the screens also tests the screens; one that calls the code directly tests only the code.</div>
+
+<h2 id="check">8. Checking results</h2>
+<p><code>expect</code> checks one of these:</p>
+<ul>
+  <li><code>var</code>: a variable, with dots for parts (<code>check.hit.headline</code>);</li>
+  <li><code>js</code>: a value in the page;</li>
+  <li><code>sel</code>: something shown on screen;</li>
+  <li><code>text</code>: words anywhere on screen.</li>
+</ul>
+<p>It checks with:</p>
+<ul>
+  <li><code>equals</code>, <code>contains</code>, <code>lacks</code>, <code>match</code> (a regular expression), <code>gte</code>, <code>lte</code>;</li>
+  <li>none of them: the value must be true.</li>
+</ul>
+<p><code>look</code>, <code>web.read</code>, <code>until</code> and <code>web.expect</code> take the same checks. Other checks:</p>
+<ul>
+  <li><code>errors.none</code>: no errors in the page (<code>ignore</code> lets known noise pass);</li>
+  <li><code>responsive</code>: no hangs;</li>
+  <li><code>crash.none</code>: no crash report;</li>
+  <li><code>log</code>: the debug log says (or doesn't say) something.</li>
+</ul>
+<pre>{ "do": "look", "sel": "#status", "contains": "Saved", "as": "status", "why": "It says Saved" },
+{ "do": "expect", "text": "New watcher", "why": "The button is on screen" },
+{ "do": "expect", "var": "check.count", "gte": 1 }</pre>
+
+<h2 id="web">9. Pages in the agent browser</h2>
+<p>Watchers and tasks work in StudioGen's agent browser. To act inside one of its pages, add <code>web</code> (part of the page's address) and use the <code>web.*</code> steps. A practice Slack test, for example:</p>
+<pre>{ "do": "launch", "practice": true },
+{ "do": "practice.signin" },
+{ "do": "web.click", "web": "slack", "text": "sales" },
+{ "do": "web.type",  "web": "slack", "label": "Message", "text": "Hello", "enter": true },
+{ "do": "web.read",  "web": "slack", "sel": "[aria-label^=\"Messages in\"]", "contains": "Hello" },
+{ "do": "web.key",   "web": "slack", "key": "Meta+K" }</pre>
+<p>Use the practice sites (<code>labs/practice/</code>), never real accounts, for anything that sends.</p>
+
+<h2 id="record">10. Recording a test</h2>
+<pre>node tools/musetester/muse.mjs --record watcher-pause --title "Pausing a watcher from its list"</pre>
+<ol>
+  <li>StudioGen opens with a throwaway profile, and a caption says it's recording.</li>
+  <li>Use it as you would. Your clicks, typing (and Enter), dropdown choices and checkboxes are written down as steps, each by the words on what you clicked where they're unique, else its label, else a selector.</li>
+  <li>Press Enter in the terminal. The steps are saved to <code>tests/watcher-pause.json</code>.</li>
+  <li>Open the file and add what should be true: <code>expect</code>, <code>look</code> or <code>wait.for</code> after the steps that change something. Add <code>why</code> to each step. Then run it.</li>
+</ol>
+<p>Password, payment and one-time-code fields are never recorded. Recording starts again from nothing if the page reloads.</p>
+
+<h2 id="scripts">11. The same engine in scripts</h2>
+<p>Scripts (and so Stage) drive the app with the same engine through these actions. The step's <code>value</code> is the target's words (or the text, for <code>rpa.type</code>), and <code>args</code> add the rest:</p>
+<pre>{ "do": "rpa.click", "value": "+ New watcher" }
+{ "do": "rpa.type",  "value": "hello", "args": ["label=Message", "enter"] }
+{ "do": "rpa.key",   "value": "Meta+K" }
+{ "do": "rpa.scroll", "value": "", "args": ["to=bottom"] }
+{ "do": "rpa.choose", "value": "", "args": ["label=Theme", "option=Light"] }
+{ "do": "rpa.wait",  "value": "Saved" }
+{ "do": "rpa.look",  "value": "", "args": ["sel=#status"], "as": "status" }
+{ "do": "rpa.click", "value": "sales", "args": ["web=slack"] }</pre>
+<p>The actions are <code>rpa.click</code>, <code>rpa.type</code>, <code>rpa.key</code>, <code>rpa.scroll</code>, <code>rpa.hover</code>, <code>rpa.drag</code> (<code>onto=</code>), <code>rpa.choose</code> (<code>option=</code>), <code>rpa.tick</code> (<code>off</code>), <code>rpa.wait</code> (<code>gone</code>) and <code>rpa.look</code>. Args: <code>sel=</code>, <code>label=</code>, <code>role=</code>, <code>nth=</code>, <code>within=</code>, <code>web=</code>, and the flags <code>double</code>, <code>right</code>, <code>enter</code>, <code>show</code> (pointer and ring), <code>slow</code>. On Stage the pointer always shows. The test <code>rpa-script</code> runs such a script. More is in the <a href="scripts-and-tasks-guide.html">scripts and tasks guide</a>.</p>
+
+<h2 id="rule">12. The rule: a test for every feature</h2>
+<div class="card ok"><b>Every new feature, or change in behaviour, comes with a MuseTester test in the same change.</b> A fix comes with a test that would have caught the bug.</div>
+<ol>
+  <li>Write the test (or record it, then add checks). Run it with <code>--go</code> and with <code>--silent</code>.</li>
+  <li>Add it to <code>tools/musetester/coverage.json</code> under each part of the app it covers (<code>js/&lt;name&gt;.js</code>).</li>
+  <li>Add its line to the library table in <code>tools/musetester/README.md</code>.</li>
+  <li>If it covers a try-it-out item, put the start of that line in the test's <code>tryitout</code>, so <code>--mark</code> can tick it.</li>
+</ol>
+<p>CI runs <code>node tests/musetester-lint.cjs</code>. It fails when any of these is true:</p>
+<ul>
+  <li>a test doesn't parse, or its id isn't its file name;</li>
+  <li>a test uses a step MuseTester doesn't have, or an <code>rpa.*</code> action <code>js/rpa.js</code> doesn't define;</li>
+  <li>a file in <code>js/</code> isn't in coverage.json;</li>
+  <li>coverage.json names a test that isn't there.</li>
+</ul>
+<p>Parts with no test yet are marked <code>"todo"</code> and printed as gaps on every run. <code>"none"</code> is for parts that can't have a test, such as the camera or a person in front of it, and must say why.</p>
+
+<h2 id="log">13. Results and the run log</h2>
+<p>Each run writes <code>tools/musetester/reports/&lt;time&gt;/</code>:</p>
+<ul>
+  <li><code>report.html</code>: every step, its time, and pictures;</li>
+  <li><code>muse-log.md</code>: the run log, written to be handed to Claude as it is. It has the machine and versions, each test's steps and failures, how long checks take per kind, the app's state after each test (watchers, agent-browser windows, storage, errors, performance metrics), a run book, and the debug log during the run.</li>
+</ul>
+<p>The newest 10 runs are kept.</p>
+
+<h2 id="tips">14. Tips and trouble</h2>
+<ul>
+  <li><b>“is covered by …”</b>: something lies over the target (a sheet, the agent browser's panel, a toast). Close it first, or wait for it with <code>wait.for</code> and <code>gone</code>.</li>
+  <li><b>“Nothing called … on the screen”</b>: check the words (they are matched without regard to case), or narrow the target with <code>within</code> or <code>nth</code>. Run with <code>--keep</code> and look in the app.</li>
+  <li><b>Timing</b>: don't add <code>wait</code> steps for the screen to settle. <code>wait.for</code> or <code>until</code> waits exactly as long as it takes.</li>
+  <li><b>Clean up</b>: whatever a test makes in a real profile (watchers named “MuseTester …”) goes in <code>cleanup</code>.</li>
+  <li><b>Speed</b>: <code>--speed 3</code> while you write a test; <code>--silent</code> to check it holds without the pointer.</li>
+  <li><b>An app without rpa.js</b>: MuseTester brings the engine from this checkout, so older installed apps still run the tests.</li>
+</ul>
+</main>
+</body>
+</html>

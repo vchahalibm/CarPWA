@@ -192,6 +192,10 @@ ol li,ul li{margin:5px 0}
 <li><b>Data</b>: load a CSV/JSON (or a SQLite query on the Mac) into the data widget, change the chart, have the assistant say a summary. Actions <i>Load a CSV…</i>, <i>Change the chart</i>, <i>Summarize the data</i>.</li>
 <li><b>Your Mac</b>: AppleScript, a Shortcut, JavaScript for Automation or a shell command (group <i>This computer</i>). Values go in as arguments, never into the code, and each piece of code asks you once before it runs.</li>
 <li><b>Agent tasks</b>: the action <i>Run another task</i> (group Agent) runs a task and shows its card; keep its result with <code>as</code> to use in the next lines.</li>
+<li><b>Using the app like a person</b> (group <i>Automation</i>): click, type, press keys, scroll, point, drag, choose in a dropdown, tick a box, wait for something, read what something says, in StudioGen's own screens or in a page of the agent browser. Things are found by their words (the step's value), or by <code>label=</code>, <code>sel=</code>, <code>role=</code>, <code>nth=</code>, <code>within=</code> in its args; <code>web=slack</code> works in that page. On Stage a pointer moves to each thing and rings it. It is the same engine MuseTester tests with (<a href="musetester-guide.html#scripts">the MuseTester guide</a>):
+<pre>{ "do": "rpa.click", "value": "+ New watcher" }
+{ "do": "rpa.type", "value": "hello", "args": ["label=Message", "enter"] }
+{ "do": "rpa.look", "value": "", "args": ["sel=#status"], "as": "status" }</pre></li>
 </ul>
 
 <h2 id="s-run">Run, rehearse, share</h2>

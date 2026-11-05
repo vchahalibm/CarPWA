@@ -45,6 +45,10 @@ holds the format check (`scriptCheck`), the runner (`Script`), saved scripts (`S
   `web.click` (by text or data-testid). Recorded in the editor (Record web steps) on the page in a web widget. Same-origin
   pages are driven directly; other pages need `bridge/drivedeck-bridge.js` with `data-allow` listing DriveDeck's origin.
   Shown replays move a pointer and draw a ring; quiet ones (going back) don't. Password-like fields are never recorded.
+- **RPA** (`js/rpa.js`, the automation engine MuseTester tests with): `rpa.click` / `rpa.type` / `rpa.key` / `rpa.scroll` / `rpa.hover` /
+  `rpa.drag` / `rpa.choose` / `rpa.tick` / `rpa.wait` / `rpa.look`. Value: the target's words (`rpa.type`: the text; `rpa.key`: `Meta+K`…);
+  `args`: `label=`, `sel=`, `role=`, `nth=`, `within=`, `web=<site>` (a page of the agent browser), `option=`, `onto=`, `to=`, `until=`, `dy=`,
+  flags `enter`, `double`, `right`, `gone`, `off`, `show`, `slow`. Real input in the desktop app, page events in the PWA; on Stage a pointer shows.
 - **App steps** (`js/appsteps.js`): `app.step` (value: a recorded step, JSON `{ "t": "click"|"drag"|"type"|"select"|"key"|"scroll"|"web"|"wait",
   "loc": { wid, scope, tag, data, id, label, text, name, ph, path, fx, fy, wx, wy, view }, … }`: `drag` has `to` [x, y] window fractions and
   `ms`; `type`/`select` a `value`; `key` a `key`; `scroll` `top`, `left`, `frac`; `web` a widget id `wid` and a Web step `step`),

@@ -27,6 +27,8 @@ jobs:
         run: node tests/mapwatch.cjs
       - name: Lookahead finds what's on the way (js/lookahead.js)
         run: node tests/lookahead.cjs
+      - name: MuseTester's tests are sound and every part of the apps has one (tools/musetester/coverage.json)
+        run: node tests/musetester-lint.cjs
       - name: Every desktop file is packaged (desktop/package.json build.files)
         run: node tests/desktop/packaged.cjs
       - name: The built-in model reports its model (desktop/llm.js)

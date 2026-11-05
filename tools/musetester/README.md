@@ -2,6 +2,8 @@
 
 **The apps' main tester.** It covers StudioGen, DriveGen, Workers and the mesh: watchers, map watchers, tasks, scripts, Stage, the voice, the dashboard, memory, and the tandem journeys (pairing, the mesh, shows, remote view, Workers, StudioGBee) from tests/tandem/journeys.mjs, run as MuseTester tests.
 
+**The full guide (using it, writing tests): [docs/musetester-guide.html](../../docs/musetester-guide.html).**
+
 MuseTester runs the try-it-out list (docs/TasksNeedingComeBack.md) for you. It drives StudioGen, its Workers and
 DriveGen the way you would: it opens the app, makes watchers, presses buttons, types, waits for cards, and takes
 pictures. Then it writes a report and, if you ask, ticks the items that passed.
@@ -13,7 +15,26 @@ node tools/musetester/muse.mjs --silent                        # every test, no 
 node tools/musetester/muse.mjs --list                          # the tests
 node tools/musetester/muse.mjs --profile mine --restart-mine   # the tests that need your accounts (Slack, Outlook, X…)
 node tools/musetester/muse.mjs --profile mine --silent --mark  # …on their own, ticking what passed in the try-it-out list
+node tools/musetester/muse.mjs rpa --go                        # the panel, the rpa tests started at once; ends after them
+node tools/musetester/muse.mjs --record my-new-test            # you use StudioGen; it writes tests/my-new-test.json
 ```
+
+## One engine: RPA
+
+Clicks, typing, keys, scrolling, pointing, dragging, dropdowns and checkboxes all go through **RPA** (`js/rpa.js`),
+the app's own automation engine. Scripts use the same engine as the `rpa.*` actions (on Stage or anywhere), so what a
+test does and what a script does are the same code. RPA finds things the way a person names them: by their words
+(`text`), a field's label (`label`), a role, a CSS selector (`sel`), the nth of several (`nth`), or inside something
+(`within`). In show mode it uses real input (Electron's `sendInputEvent`) and shows a pointer, a ring and a caption;
+silent runs and DriveGen use page events. With `web: "<part of the address>"` the same steps work in a page of the agent
+browser (the webview's own real input). A StudioGen without `js/rpa.js` yet gets it from this checkout.
+
+## Recording a test
+
+`--record <id>` opens StudioGen (a throwaway profile) and writes down what you do: clicks (by the words on the button,
+else its label or a selector), typing (with Enter), dropdown choices and checkboxes. Press Enter in the terminal when
+you're done; `tests/<id>.json` is written. Add `expect`, `look` or `wait.for` steps where something should be true.
+Password, payment and one-time-code fields are never recorded.
 
 ## Two ways to run
 
@@ -67,6 +88,7 @@ Options:
 - `--headful`: shows DriveGen's Chrome window.
 - `--keep`: leaves StudioGen open after the tests.
 - `--skip docker,llm`: leaves out tests with those tags or ids.
+- `--go`: with the panel, the chosen tests start at once and MuseTester ends after them.
 
 Reports are in `tools/musetester/reports/<time>/report.html` (the newest 10 runs, not committed).
 
@@ -132,9 +154,19 @@ A test is one JSON file in `tests/`:
 | `wait` | `s` seconds. |
 | `view` | Opens a screen (`name`: `agent`, `settings`, `home`, `dashboard`…). |
 | `say` | A typed command, as if said (`text`). |
-| `click` | Clicks by `text` (buttons, tiles, chips, links), by `sel` (CSS), or `sheet: true` (the open sheet's buttons). |
-| `type` | Types `text` into `sel`; `enter: true` presses Enter. |
-| `key` | Presses `key` in the page. |
+| `click` | Clicks a target: `text` (its words), `label`, `sel` (CSS), `role`, `nth`, `within` (words or a selector), `sheet: true` (inside the open sheet). `double`, `right`. |
+| `type` | Types `text` into a field found by `label`, `sel` or `target` (its words), letter by letter; `enter: true` presses Enter; `clear: false` adds to what's there. |
+| `key` | Presses `key`, with modifiers: `Enter`, `Escape`, `Meta+K`, `Ctrl+Shift+P`. |
+| `scroll` | Scrolls a target (default: the screen) by `dy`/`dx`, `to: "top"`/`"bottom"`, or `until` a target shows. |
+| `hover` | Points at a target. |
+| `drag` | Drags a target `onto` another (words, or `{ "sel": … }`), or by `dx`/`dy`. |
+| `choose` | Picks `option` (its words or value) in a dropdown (a target). |
+| `tick` | Ticks a checkbox or switch (`on: false` unticks). |
+| `wait.for` | Waits until a target shows (`gone: true`: until it goes), up to `timeout` s. |
+| `look` | What a target says, in `as`; with `equals`/`contains`/… it's checked too. |
+| `web.click`, `web.type`, `web.key`, `web.scroll` | The same in a page of the agent browser: `web` (part of its address, e.g. `slack`) and a target (`text`, `label`, `sel`). |
+| `web.read` | A page's text (`sel`, default the whole page) in `as`, checked with `equals`/`contains`/…. |
+| `script` | Runs a script (`script`: its JSON, or `name`: a saved one) to its last beat, then stops it; its variables go in `as`. |
 | `practice` | Turns the practice sites on or off (`value`). |
 | `practice.signin` | Signs in to the practice Slack, WhatsApp, Teams and X. |
 | `practice.incoming` | Changes a practice site: `site` (`slack`, `whatsapp`, `teams`, `x`, `shop`…), `text` (a new message in the site's `?incoming=` form) and/or `query` (other parameters, e.g. `price=11499&stock=5` for the shop). |
@@ -193,9 +225,13 @@ A test is one JSON file in `tests/`:
 | practice-shop | scratch | Shopping on the practice shop: a price below a line, back in stock, and a redesigned page healed |
 | practice-slack | scratch | Slack watchers on the practice Slack: mentions, a channel by Jump to, DMs, threads, a search |
 | practice-tasks | scratch | Agent tasks on the practice sites give cards: mail, calendar, Slack, WhatsApp, Teams |
+| rpa-engine | scratch | The automation engine: click, double and right click, typing by a label, a dropdown, a checkbox, scrolling to a row, pointing, dragging, keys, waiting for something to go, the recorder |
+| rpa-script | scratch | A script drives the app with rpa.* steps (the engine MuseTester uses), on Stage |
+| rpa-web | scratch | The engine in a page of the agent browser: the practice Slack clicked, typed into and read like a person |
 | real-route | scratch | The real Google Maps: routes, turns and avoid roads by place (no sign-in needed) |
 | scripts-interactive | scratch | An interactive script: an intent by its phrase, a slot, a question for a missing slot, the end phrase |
 | scripts-run | scratch | Scripts: beats, variables, conditions, a loop, a jump, and stopping |
+| settings-theme | scratch | Settings: the light theme is chosen through the screen and kept after a restart |
 | settings-tabs | scratch | Every Settings tab opens without errors |
 | stage-mode | scratch | Stage mode: the mode switch, a script on Stage moved on by “next”, a command's card, and back to Drive |
 | voice-phonon | scratch | The natural voice (Phonon) downloads, loads and speaks |
@@ -227,6 +263,11 @@ file the old tandem runner used):
   iOS Simulator's Safari as the phone), but MuseTester is where they're kept and run.
 
 ## Adding tests
+
+**Every new feature comes with a MuseTester test.** `coverage.json` maps each part of the apps (`js/<name>.js`) to the
+tests that cover it; `tests/musetester-lint.cjs` (CI) fails when a file in `js/` isn't there, when a test uses a step
+MuseTester doesn't have or an `rpa.*` action `js/rpa.js` doesn't define, or when a test file doesn't parse. Parts with no
+test yet are marked `todo` (printed as gaps on every CI run); `none` is for parts that can't have one (say why).
 
 Most try-it-out items are a few `watch.*`, `say`, `click` and `expect` steps. Things that need a phone or a car are
 `human` steps, so a run still records them. For Workers, `launch` a second StudioGen with `as: "worker"` and its `env`,

@@ -1,0 +1,14 @@
+{
+  "id": "rpa-web", "title": "The engine in a page of the agent browser: the practice Slack clicked, typed into and read like a person", "tags": ["rpa", "practice", "slack"],
+  "steps": [
+    { "do": "launch", "practice": true },
+    { "do": "practice.signin" },
+    { "do": "web.click", "web": "slack", "text": "sales", "why": "Click the #sales channel" },
+    { "do": "web.type", "web": "slack", "label": "Message", "text": "Hello from MuseTester", "enter": true, "why": "Type a message and send it with Enter" },
+    { "do": "web.read", "web": "slack", "sel": "[aria-label^=\"Messages in\"]", "contains": "Hello from MuseTester", "why": "It's in the channel" },
+    { "do": "web.key", "web": "slack", "key": "Meta+K", "why": "Jump to (Cmd+K)" },
+    { "do": "web.type", "web": "slack", "label": "Jump to", "text": "general", "enter": true, "why": "…general" },
+    { "do": "web.expect", "host": "slack.html", "js": "document.querySelector('[aria-label^=\"Messages in\"]')?.getAttribute('aria-label') || ''", "contains": "general", "why": "Now in #general" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "rpa-script", "title": "A script drives the app with rpa.* steps (the engine MuseTester uses), on Stage", "tags": ["rpa", "scripts", "stage"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "eval", "js": "settings.appMode = 'stage'; store.set('settings', settings); applySettings?.(); openView('dashboard'); await new Promise(r => setTimeout(r, 1200)); window.__clicks = 0; document.getElementById('rpaS')?.remove(); document.body.insertAdjacentHTML('beforeend', '<div id=\"rpaS\" style=\"position:fixed;left:60px;top:80px;z-index:99999;background:#222;padding:16px\"><button id=\"sGo\">Start the demo</button> <input aria-label=\"Your note\" id=\"sNote\"> <span id=\"sOut\">Ready</span></div>'); document.getElementById('sGo').onclick = () => { __clicks++; document.getElementById('sOut').textContent = 'Demo started'; }; return Stage.on", "as": "on", "why": "Stage, and a small panel of controls" },
+    { "do": "expect", "var": "on", "equals": true },
+    { "do": "script", "why": "Run a script whose steps click, type and read through rpa.*", "as": "sv", "timeout": 60,
+      "script": { "name": "RPA on Stage", "beats": [ { "id": "a", "title": "Drive the app", "do": [
+        { "do": "rpa.click", "value": "Start the demo" },
+        { "do": "rpa.type", "value": "typed by a script", "args": ["label=Your note"] },
+        { "do": "rpa.wait", "value": "Demo started" },
+        { "do": "rpa.look", "value": "", "args": ["sel=#sOut"], "as": "out" },
+        { "set": "done", "value": "yes" } ] } ] } },
+    { "do": "expect", "var": "sv.out", "equals": "Demo started", "why": "The script read what the click did" },
+    { "do": "expect", "js": "__clicks", "equals": 1, "why": "One click" },
+    { "do": "expect", "js": "document.getElementById('sNote').value", "equals": "typed by a script", "why": "The typing landed" },
+    { "do": "eval", "js": "document.getElementById('rpaS').remove(); settings.appMode = 'drive'; store.set('settings', settings); applySettings?.(); return Stage.on", "as": "off", "why": "Back to Drive" },
+    { "do": "errors.none", "ignore": ["ResizeObserver", "WebGL", "webgl"] }
+  ]
+}

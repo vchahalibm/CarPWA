@@ -6,6 +6,11 @@ Things started or decided but not finished, and things to perform together later
 
 **MuseTester runs many of these for you** (tools/musetester/README.md): `node tools/musetester/muse.mjs` opens its panel and works the app in front of you (a pointer clicking, typing, the agent browser showing what watchers read; each step grey → blue → green or red, in one go or step by step); `--silent` runs on its own; `--profile mine --restart-mine --mark` uses your accounts and ticks what passed here. Each run's `muse-log.md` is the one file to send to Claude. It is the apps' main tester now: watchers, maps, tasks, scripts, Stage, the voice, memory, DriveGen, and the mesh journeys (pairing, shows, remote view, Workers, StudioGBee); all 31 scratch tests passed on 4 Nov.
 
+**MuseTester and the rpa steps (5 Nov)**
+- [ ] `node tools/musetester/muse.mjs rpa --go`: watch the pointer click, type, choose, scroll and drag on the practice board, a script on Stage do the same with rpa.* steps, and the practice Slack driven inside the agent browser.
+- [ ] `node tools/musetester/muse.mjs --record my-first-test`: use StudioGen for a minute, press Enter, open tests/my-first-test.json, add an `expect`, run it.
+- [ ] A script of yours on Stage with an `rpa.click` (group Automation in the step picker): the pointer moves to the button and rings it before the click.
+
 Kept as each phase lands; try them together when the phases are done. Tested parts are in each phase's commit; these weren't (they need your devices, accounts or time).
 
 **Phase 1: cards everywhere, the camera switch**

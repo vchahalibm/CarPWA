@@ -10,6 +10,7 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  'Scripts can use the app like a person: click, type, keys, scroll, drag, dropdowns, checkboxes, wait and read (the rpa steps, group Automation), with the engine MuseTester tests with',
   'Fixed: a script’s goto replayed the beats before its target, so a forward jump ran what it skipped and a loop back reset its counter',
   'Fixed: the natural voice couldn’t download (its files moved on Hugging Face on 2 November): it downloads again once',
   'Slack watchers for a search, your DMs and thread replies; all the watchers of a site share one window and read it as it is (no reloading each time)',

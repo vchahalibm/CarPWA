@@ -1,0 +1,14 @@
+{
+  "id": "settings-theme", "title": "Settings: the light theme is chosen through the screen and kept after a restart", "tags": ["settings", "ui", "rpa"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "view", "name": "settings" },
+    { "do": "click", "role": "tab", "text": "System", "why": "Open the System tab" },
+    { "do": "click", "text": "Light", "within": "Appearance", "why": "Appearance: Light" },
+    { "do": "expect", "js": "document.documentElement.dataset.theme", "equals": "light", "why": "The screen turned light" },
+    { "do": "quit" },
+    { "do": "launch", "why": "Open it again (the same profile)" },
+    { "do": "expect", "js": "document.documentElement.dataset.theme", "equals": "light", "why": "Still light" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

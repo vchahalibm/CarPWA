@@ -1,7 +1,8 @@
 // MuseTester: drives StudioGen (the installed app or desktop/), its Workers and DriveGen like a person would, through the
 // try-it-out tests in tools/musetester/tests/*.json, and writes a report. Design, steps and test format: README.md here.
 //   node tools/musetester/muse.mjs [test ids or tags…] [--silent] [--profile scratch|mine] [--app installed|dev]
-//        [--restart-mine] [--auto] [--mark] [--list] [--keep] [--config file] [--headful] [--hidden] [--no-open] [--port n]
+//        [--restart-mine] [--auto] [--mark] [--list] [--keep] [--config file] [--headful] [--hidden] [--no-open] [--port n] [--go]
+//   node tools/musetester/muse.mjs --record <new-test-id> [--title "…"]   (what you do in StudioGen becomes tests/<id>.json)
 // Interactive (the default): a control panel window lists the tests and each one's steps (grey to run, blue running,
 // green passed, red failed); run them in one go or a step at a time (Next), retry or skip a step, with the apps' windows
 // in view. --silent: no panel, StudioGen's window hidden (SG_HIDDEN, 0.18.5+), DriveGen headless; for runs on their own.
@@ -13,7 +14,7 @@ import fs from 'fs'; import path from 'path'; import os from 'os'; import http f
 
 const HERE = path.dirname(new URL(import.meta.url).pathname), ROOT = path.resolve(HERE, '../..');
 const argv = process.argv.slice(2), flag = k => argv.includes('--' + k), opt = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
-const VALUED = ['profile', 'app', 'config', 'port', 'skip', 'speed'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
+const VALUED = ['profile', 'app', 'config', 'port', 'skip', 'speed', 'record', 'title'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
 const PROFILE = opt('profile', 'scratch'), APP = opt('app', fs.existsSync('/Applications/StudioGen.app') ? 'installed' : 'dev'), SILENT = flag('silent'), PANEL = !SILENT && !flag('list');
 const AUTO = flag('auto') || SILENT, HIDDEN = SILENT || flag('hidden'), HEADFUL = flag('headful') || (PANEL && !HIDDEN); /* --hidden: the panel, but the apps' windows hidden */
 /* show mode (interactive with the windows in view): a pointer moves to each button and clicks it (real input), typing
@@ -31,7 +32,7 @@ const CONFIG = { ...readJSON(path.join(HERE, 'muse.config.example.json')), ...(f
 const TESTS = fs.readdirSync(path.join(HERE, 'tests')).filter(f => f.endsWith('.json')).sort().map(f => ({ file: f, ...readJSON(path.join(HERE, 'tests', f)) }));
 if (flag('list')) { for (const t of TESTS) console.log(`${t.id.padEnd(30)} ${(t.profile || 'scratch').padEnd(8)} ${(t.tags || []).join(',').padEnd(30)} ${t.title}`); process.exit(0); }
 const SKIP = String(opt('skip', '')).split(',').filter(Boolean), chosen = TESTS.filter(t => (!want.length || want.some(w => t.id === w || (t.tags || []).includes(w))) && (t.profile || 'scratch') === PROFILE && !SKIP.some(k => t.id === k || (t.tags || []).includes(k))); /* --skip docker,llm */
-if (!chosen.length) { console.log(`No tests for --profile ${PROFILE}${want.length ? ` matching ${want.join(', ')}` : ''}. --list shows them.`); process.exit(1); }
+if (!chosen.length && !opt('record')) { console.log(`No tests for --profile ${PROFILE}${want.length ? ` matching ${want.join(', ')}` : ''}. --list shows them.`); process.exit(1); }
 
 /* ---------- the run log: everything needed to diagnose a run, or to see how the app grows (sent to Claude as it is) ---------- */
 const MACHINE = { mac: sh('sysctl', ['-n', 'hw.model']), chip: sh('sysctl', ['-n', 'machdep.cpu.brand_string']), cores: os.cpus().length, memoryGB: Math.round(os.totalmem() / 2 ** 30), macOS: sh('sw_vers', ['-productVersion']),
@@ -97,7 +98,7 @@ class Page {
 }
 
 /* ---------- the server: the panel, the web files (DriveGen), fixtures ---------- */
-const fx = {}, ctl = { mode: 'all', next: null, stop: false, paused: false, queue: [], human: null, quit: false };
+const fx = {}, ctl = { mode: 'all', next: null, stop: false, paused: false, queue: flag('go') ? chosen.map(t => t.id) : [], human: null, quit: false }; /* --go: the chosen tests start at once, and MuseTester ends after them */
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json', '.xml': 'application/xml', '.vrm': 'application/octet-stream' };
 const body = q => new Promise(r => { let s = ''; q.on('data', c => s += c); q.on('end', () => { try { r(JSON.parse(s || '{}')); } catch { r({}); } }); });
 const server = http.createServer(async (q, r) => {
@@ -115,34 +116,26 @@ const server = http.createServer(async (q, r) => {
 await new Promise(r => server.listen(+opt('port', 0), '127.0.0.1', r)); const PORT = server.address().port, BASE = `http://127.0.0.1:${PORT}`;
 
 /* ---------- show mode: a pointer, a highlight, a caption, real clicks and typing ---------- */
-const OVERLAY = `if (!window.Muse) { const css = document.createElement('style'); css.textContent = '#museCur{position:fixed;z-index:2147483647;left:0;top:0;width:28px;height:28px;pointer-events:none;transition:transform .55s cubic-bezier(.3,.7,.2,1);transform:translate(-60px,-60px)}#museCur svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}#museRing{position:fixed;z-index:2147483646;pointer-events:none;border:3px solid #0a84ff;border-radius:10px;box-shadow:0 0 0 5px rgba(10,132,255,.25);transition:all .3s;opacity:0}#updateBar{display:none!important}#museCap{position:fixed;z-index:2147483647;left:50%;top:10px;transform:translateX(-50%);max-width:86vw;background:rgba(10,132,255,.96);color:#fff;font:600 14px/1.35 -apple-system,system-ui,sans-serif;padding:9px 16px;border-radius:12px;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.35)}#museCap[hidden]{display:none}.museTap{position:fixed;z-index:2147483646;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(10,132,255,.5);pointer-events:none;animation:museTap .55s ease-out forwards}@keyframes museTap{from{transform:scale(.3);opacity:1}to{transform:scale(1.7);opacity:0}}';
-  document.head.appendChild(css); document.body.insertAdjacentHTML('beforeend', '<div id="museCur"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div id="museRing"></div><div id="museCap" hidden></div>');
+const OVERLAY = `if (!window.Muse && window.RPA) { RPA.ui(); const css = document.createElement('style'); css.textContent = '#updateBar{display:none!important}'; document.head.appendChild(css); }
+if (!window.Muse && !document.getElementById('museCur')) { const css = document.createElement('style'); css.textContent = '#museCur{position:fixed;z-index:2147483647;left:0;top:0;width:28px;height:28px;pointer-events:none;transition:transform .55s cubic-bezier(.3,.7,.2,1);transform:translate(-60px,-60px)}#museCur svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}#museRing{position:fixed;z-index:2147483646;pointer-events:none;border:3px solid #0a84ff;border-radius:10px;box-shadow:0 0 0 5px rgba(10,132,255,.25);transition:all .3s;opacity:0}#updateBar{display:none!important}#museCap{position:fixed;z-index:2147483647;left:50%;top:10px;transform:translateX(-50%);max-width:86vw;background:rgba(10,132,255,.96);color:#fff;font:600 14px/1.35 -apple-system,system-ui,sans-serif;padding:9px 16px;border-radius:12px;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.35)}#museCap[hidden]{display:none}.museTap{position:fixed;z-index:2147483646;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(10,132,255,.5);pointer-events:none;animation:museTap .55s ease-out forwards}@keyframes museTap{from{transform:scale(.3);opacity:1}to{transform:scale(1.7);opacity:0}}';
+  document.head.appendChild(css); document.body.insertAdjacentHTML('beforeend', '<div id="museCur"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div id="museRing"></div><div id="museCap" hidden></div>'); }
+if (!window.Muse) {
   window.Muse = { move(x, y) { document.getElementById('museCur').style.transform = 'translate(' + (x - 4) + 'px,' + (y - 3) + 'px)'; },
     ring(r) { const e = document.getElementById('museRing'); if (!r) { e.style.opacity = 0; return; } Object.assign(e.style, { left: r.x - 5 + 'px', top: r.y - 5 + 'px', width: r.w + 10 + 'px', height: r.h + 10 + 'px', opacity: 1 }); },
     tap(x, y) { const t = document.createElement('div'); t.className = 'museTap'; t.style.left = x + 'px'; t.style.top = y + 'px'; document.body.appendChild(t); setTimeout(() => t.remove(), 650); },
     say(text) { const c = document.getElementById('museCap'); c.hidden = !text; c.textContent = text ? 'MuseTester · ' + text : ''; } }; } true`;
-const CLICKABLE = 'button,[role="button"],a,.app-tile,.chip,.big-btn,.link-btn,[data-wt],[data-ag],input,select,textarea';
-/** Finds what to click (by its words or a selector), scrolls to it, rings it and moves the pointer there; click: real mouse input. */
-async function uiClick(a, t, click = true) {
-  const r = await a.page.eval(`if (window.AgentWeb?.follow && document.querySelector('#agentWeb.watch')) { AgentWeb.watch(false); await new Promise(r => setTimeout(r, 300)); } /* the agent browser's panel steps aside for clicks in the app */
-    const want = ${J(String(t.text || '').toLowerCase())}, l = [...document.querySelectorAll(${J(t.sel || CLICKABLE)})].filter(e => e.getClientRects().length);
-    const el = want ? l.find(e => e.textContent.trim().toLowerCase() === want) || l.find(e => (e.textContent + ' ' + (e.getAttribute('aria-label') || '')).toLowerCase().includes(want)) : l[0];
-    if (!el) throw new Error('nothing to click: ' + (want || ${J(t.sel || '')})); el.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 250));
-    const b = el.getBoundingClientRect(), top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    if (top && !el.contains(top) && !top.contains(el)) throw new Error('covered by ' + top.tagName.toLowerCase() + (top.id ? '#' + top.id : '') + '.' + String(top.className).split(' ').join('.') + ' in ' + (top.closest('[id]')?.id || '?') + ' [' + (document.querySelector('#agentWeb')?.className || '') + '] (meant: ' + (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40) + ')');
-    Muse.ring({ x: b.left, y: b.top, w: b.width, h: b.height }); Muse.move(b.left + b.width / 2, b.top + b.height / 2);
-    return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), label: (el.textContent || el.getAttribute('aria-label') || el.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 60) }`);
-  await sleep(PAUSE);
-  if (click) for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await a.page.send('Input.dispatchMouseEvent', { type, x: r.x, y: r.y, button: 'left', clickCount: 1 });
-  await a.page.eval(`Muse.tap(${r.x}, ${r.y}); setTimeout(() => Muse.ring(null), 450); return 1`); await sleep(PAUSE / 2); return r.label;
+/* Clicks, typing, keys, scrolls, drags…: the app's own automation engine, RPA (js/rpa.js), the one scripts use too;
+   a StudioGen without it yet gets it from this checkout. Show mode: real input (Electron's sendInputEvent), the pointer, the ring. */
+const RPA_SRC = fs.readFileSync(path.join(ROOT, 'js/rpa.js'), 'utf8');
+async function rpa(a, step) {
+  if (!await a.page.raw('typeof RPA !== "undefined"')) await a.page.raw(`${RPA_SRC}\n;window.RPA = RPA; true`);
+  return a.page.eval(`if (${!step.web} && window.AgentWeb?.follow && document.querySelector('#agentWeb.watch')) { AgentWeb.watch(false); await new Promise(r => setTimeout(r, 300)); } /* the agent browser's panel steps aside for clicks in the app */
+    return await RPA.run(${J(step)}, ${J({ show: SHOW, real: SHOW, speed: SPEED })})`, (step.timeout || 60) * 1000);
 }
-/** Clicks into a field and types into it, letter by letter (real key input); enter: presses Enter. */
-async function uiType(a, sel, text, enter) {
-  await uiClick(a, { sel }); await a.page.eval(`const e = document.querySelector(${J(sel)}); if (e && 'value' in e) e.value = ''; return 1`);
-  for (const ch of String(text)) { await a.page.send('Input.dispatchKeyEvent', { type: 'char', text: ch }); await sleep(45 / SPEED); }
-  if (enter) for (const type of ['keyDown', 'keyUp']) await a.page.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
-  await sleep(PAUSE / 2); return `typed “${String(text).slice(0, 60)}”`;
-}
+/** A step's target, as RPA finds things: its words (text or target), label, sel, role, nth, within (sheet: inside the open sheet). */
+const tgt = s => ({ target: s.target ?? s.text, label: s.label, sel: s.sel, role: s.role, nth: s.nth, within: s.within || (s.sheet ? '#sheet' : undefined), web: s.web });
+async function uiClick(a, t, click = true) { return click ? rpa(a, { do: 'click', ...tgt(t) }) : rpa(a, { do: 'hover', ...tgt(t) }); }
+async function uiType(a, sel, text, enter) { return rpa(a, { do: 'type', sel, value: text, enter }); }
 /** Can this template be made through the screens (no file picker, page tap or map form)? */
 /** The agent browser's side panel shows what a watcher reads while it checks, then steps aside for the clicks. */
 const follow = (a, on) => SHOW ? a.page.eval(`AgentWeb.follow = ${on}; if (!${on}) AgentWeb.watch(false); return 1`).catch(() => {}) : null;
@@ -257,11 +250,26 @@ const STEPS = {
   say: async s => { const a = pageOf(s); /* show mode: typed into the Agent screen's Ask box when it's there */
     if (SHOW && await a.page.eval(`!!document.querySelector('#agAsk')?.getClientRects().length`)) { await uiType(a, '#agAsk', s.text, true); await sleep((s.wait || 1.5) * 1000); return `typed “${s.text}” and Enter`; }
     return a.page.eval(`handleCommand(${J(s.text)}); await new Promise(r => setTimeout(r, ${(s.wait || 1.5) * 1000})); return 'said'`); },
-  click: s => SHOW ? uiClick(pageOf(s), s) : pageOf(s).page.eval(`const want = ${J(s.text || '')}.toLowerCase(), sel = ${J(s.sel || (s.sheet ? '#sheet button' : 'button,[role="button"],a,.app-tile,.chip,.big-btn,.link-btn,[data-wt],[data-ag]'))};
-    const l = [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length), el = want ? l.find(e => e.textContent.trim().toLowerCase() === want) || l.find(e => (e.textContent + ' ' + (e.getAttribute('aria-label') || '')).toLowerCase().includes(want)) : l[0];
-    if (!el) throw new Error('nothing to click: ' + (want || sel)); el.scrollIntoView({ block: 'center' }); if (typeof Peek !== 'undefined') Peek.tapAt = Date.now(); el.click(); await new Promise(r => setTimeout(r, 500)); return (el.textContent || el.getAttribute('aria-label') || sel).trim().slice(0, 60)`),
-  type: s => SHOW ? uiType(pageOf(s), s.sel, s.text, s.enter) : pageOf(s).page.eval(`const el = document.querySelector(${J(s.sel)}); if (!el) throw new Error('no field ' + ${J(s.sel)}); el.focus(); el.value = ${J(s.text)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); ${s.enter ? `el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));` : ''} return 'typed'`),
-  key: async s => { const p = pageOf(s).page; for (const type of ['keyDown', 'keyUp']) await p.send('Input.dispatchKeyEvent', { type, key: s.key, code: s.code || s.key }); return s.key; },
+  click: s => rpa(pageOf(s), { do: 'click', ...tgt(s), double: s.double, right: s.right }),
+  type: s => rpa(pageOf(s), { do: 'type', ...tgt(s), target: s.target, value: s.value ?? s.text, enter: s.enter, clear: s.clear }),
+  key: s => rpa(pageOf(s), { do: 'key', key: s.key, web: s.web }),
+  scroll: s => rpa(pageOf(s), { do: 'scroll', ...tgt(s), dy: s.dy, dx: s.dx, to: s.to, until: s.until }),
+  hover: s => rpa(pageOf(s), { do: 'hover', ...tgt(s) }),
+  drag: s => rpa(pageOf(s), { do: 'drag', ...tgt(s), onto: typeof s.onto === 'string' ? { text: s.onto } : s.onto, dx: s.dx, dy: s.dy }),
+  choose: s => rpa(pageOf(s), { do: 'choose', ...tgt(s), option: s.option }),
+  tick: s => rpa(pageOf(s), { do: 'tick', ...tgt(s), on: s.on !== false }),
+  'wait.for': s => rpa(pageOf(s), { do: 'wait', ...tgt(s), gone: s.gone, ms: (s.timeout || 15) * 1000, timeout: (s.timeout || 15) + 10 }),
+  look: async s => { const v = await rpa(pageOf(s), { do: 'look', ...tgt(s) }); if (s.as) vars[s.as] = v; const e = check(v, s); if (e) throw new Error(e); return String(v ?? 'not there').slice(0, 160); },
+  'web.click': s => rpa(pageOf(s), { do: 'click', ...tgt(s), double: s.double }),
+  'web.type': s => rpa(pageOf(s), { do: 'type', ...tgt(s), target: s.target, value: s.value ?? s.text, enter: s.enter }),
+  'web.key': s => rpa(pageOf(s), { do: 'key', key: s.key, web: s.web }),
+  'web.scroll': s => rpa(pageOf(s), { do: 'scroll', web: s.web, dy: s.dy, to: s.to }),
+  'web.read': async s => { const v = await rpa(pageOf(s), { do: 'look', web: s.web, sel: s.sel }); if (s.as) vars[s.as] = v; const e = check(v, s); if (e) throw new Error(e); return String(v).slice(0, 160); },
+  script: async s => { /* a script run to its last beat (given inline as `script`, or a saved one by `name`), then stopped: its variables in `as` */
+    const r = await pageOf(s).page.eval(`const sc = ${J(s.script || null)} || Scripts.find(${J(s.name || '')})?.json; if (!sc) throw new Error('no script ' + ${J(s.name || '')});
+      if (!await Script.start(sc)) throw new Error('the script has errors'); const end = Date.now() + ${(s.timeout || 60) * 1000}, last = () => !Script.running || (Script.i === Script.cur.beats.length - 1 && !Script.busy && !Script.jobs.some(j => j.state === 'running'));
+      await new Promise(r => setTimeout(r, 400)); while (!last() && Date.now() < end) await new Promise(r => setTimeout(r, 250)); const done = last(), vars = { ...Script.vars }; if (${s.stop !== false}) Script.stop(); return { done, vars }`, ((s.timeout || 60) + 15) * 1000);
+    if (s.as) vars[s.as] = r.vars; if (!r.done) throw new Error(`the script didn't reach its last beat in ${s.timeout || 60} s`); return `ran; ${J(r.vars).slice(0, 140)}`; },
   practice: s => pageOf(s).page.eval(`store.set('agentCfg', { ...(store.get('agentCfg') || {}), practice: ${s.value !== false} }); return Agent.cfg().practice`),
   /* the practice sites have a pretend sign-in: signed in for a throwaway profile, in the agent browser's own storage */
   'practice.signin': async s => { const a = pageOf(s); await a.page.eval(`await AgentWeb.go(Agent.sites().slack, undefined, { quiet: true }); return true`);
@@ -414,11 +422,24 @@ function finish() {
 const bye = () => { for (const k of kids) try { k.kill(); } catch {} try { server.close(); } catch {} try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} if (mineWasRunning) try { execFileSync('open', ['-a', 'StudioGen']); } catch {} };
 process.on('SIGINT', () => { finish(); bye(); process.exit(130); });
 fs.mkdirSync(path.join(HERE, 'reports'), { recursive: true });
+if (opt('record')) { /* the recorder: StudioGen opens (a scratch profile); your clicks, typing, choices and Enter (RPA.record) become a test */
+  const id = String(opt('record')).replace(/[^\w-]/g, '-'), f = path.join(HERE, 'tests', `${id}.json`); cur = { id: `record-${id}`, shots: [] };
+  if (fs.existsSync(f)) { console.log(`tests/${id}.json is there already: pick another name`); process.exit(1); }
+  try {
+    await launch({}); const a = apps.studio; await rpa(a, { do: 'caption', text: '' }); await a.page.eval('RPA.record.start(); return 1');
+    console.log('Recording: use StudioGen as a person would. Press Enter here when you’re done (password, payment and code fields are never recorded).');
+    await new Promise(r => readline.createInterface({ input: process.stdin }).once('line', r));
+    const steps = await a.page.eval('return RPA.record.stop()');
+    fs.writeFileSync(f, J({ id, title: opt('title') || `Recorded: ${id}`, tags: ['recorded'], steps: [{ do: 'launch' }, ...steps, { do: 'errors.none', ignore: ['ResizeObserver'] }] }, null, 2) + '\n');
+    console.log(`${steps.length} steps written to ${f}\nAdd expectations (expect, look, wait.for) where something should be true, then run it: node tools/musetester/muse.mjs ${id}`);
+  } finally { for (const k of Object.keys(apps)) await quitApp(k).catch(() => {}); bye(); }
+  process.exit(0);
+}
 try {
   if (PANEL) { /* the panel: its own small window; the tests run when you say */
     const url = `${BASE}/muse/`; console.log(`MuseTester panel: ${url}  (Ctrl+C to end)`);
     if (!flag('no-open')) try { if (fs.existsSync(CHROME)) kids.push(spawn(CHROME, [`--app=${url}`, `--user-data-dir=${path.join(TMP, 'panel')}`, '--window-size=560,960', '--window-position=40,40', '--no-first-run'], { stdio: 'ignore' })); else execFileSync('open', [url]); } catch { execFileSync('open', [url]); }
-    while (!ctl.quit) { const id = ctl.queue.shift(); if (id) { const t = chosen.find(x => x.id === id); if (t) await run(t); } else await sleep(300); }
+    while (!ctl.quit) { const id = ctl.queue.shift(); if (id) { const t = chosen.find(x => x.id === id); if (t) await run(t); } else if (flag('go')) break; else await sleep(300); }
   } else for (const t of chosen) await run(t);
 } finally { finish(); bye(); }
 process.exit(results.some(r => r.status === 'fail') ? 1 : 0);

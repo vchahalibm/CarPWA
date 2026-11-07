@@ -182,7 +182,7 @@ A test is one JSON file in `tests/`:
 | `until` | Waits until `js` is true (or meets `equals`, `contains`, `match`, `gte`, `lte`), up to `timeout` s. |
 | `expect` | Checks `var` (a variable, e.g. `check.hit.headline`), `js`, `sel` (shown on screen) or `text` (anywhere on screen) with `equals`, `contains`, `lacks`, `match`, `gte`, `lte` (none of these: it must be true). |
 | `web.expect` | The same on a page of the agent browser (`host`: part of its address; `js`, default its text). |
-| `screenshot` | A picture of the app (`name`). |
+| `screenshot` | A picture of the app (`name`); `to` also saves it into the docs (e.g. `docs/img/start/agent.jpg`, `width` in pixels), without MuseTester's pointer and caption. |
 | `responsive` | For `seconds`, asks the app something every `every` s; fails if an answer takes over `maxMs` (a hang). |
 | `crash.none` | No StudioGen crash report since the run started. |
 | `log` | The debug log (Settings › System › Debug log on) `contains`/`lacks`/`match`. |
@@ -231,6 +231,7 @@ A test is one JSON file in `tests/`:
 | real-route | scratch | The real Google Maps: routes, turns and avoid roads by place (no sign-in needed) |
 | scripts-interactive | scratch | An interactive script: an intent by its phrase, a slot, a question for a missing slot, the end phrase |
 | scripts-run | scratch | Scripts: beats, variables, conditions, a loop, a jump, and stopping |
+| guide-shots | scratch | The Get started guide's pictures, taken from the real screens into docs/img/start (run with the windows in view) |
 | settings-theme | scratch | Settings: the light theme is chosen through the screen and kept after a restart |
 | settings-tabs | scratch | Every Settings tab opens without errors |
 | stage-mode | scratch | Stage mode: the mode switch, a script on Stage moved on by “next”, a command's card, and back to Drive |

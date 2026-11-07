@@ -1,0 +1,112 @@
+// The Handbook: every user guide in one book, in the order you meet things (docs/handbook.html, generated).
+//   node tools/guides/build.cjs            writes docs/handbook.html
+//   node tools/guides/build.cjs --check    fails if it's out of date (CI)
+// Edit the chapters (the guides listed in BOOK), never handbook.html. Each chapter's anchors get its prefix
+// (#install → #u-install), links between guides become links inside the book, and its styles apply only to it.
+const fs = require('fs'), path = require('path'), DOCS = path.resolve(__dirname, '../../docs'), OUT = path.join(DOCS, 'handbook.html');
+
+const BOOK = [
+  { part: 'Start here', chapters: [
+    { p: 'u', file: 'user-guide.html', title: 'The apps, end to end', blurb: 'Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.' } ] },
+  { part: 'Every day', chapters: [
+    { p: 'w', file: 'watchers-guide.html', title: 'Watchers', blurb: 'Be told when something happens: messages, mail, prices, your route, pages, folders.' } ] },
+  { part: 'Make your own', chapters: [
+    { p: 's', file: 'scripts-and-tasks-guide.html', title: 'Scripts and tasks', blurb: 'Presentations the assistant runs, and jobs it does for you on websites; recipes.' } ] },
+  { part: 'Under the hood', chapters: [
+    { p: 'c', file: 'connections-explained.html', title: 'How the apps talk', blurb: 'Relays, locked boxes, pairing, direct links, your secret phrase.' } ] },
+  { part: 'Testing', chapters: [
+    { p: 'm', file: 'musetester-guide.html', title: 'MuseTester', blurb: 'The apps’ tester: running tests, writing them, recording them, one engine with scripts.' },
+    { p: 't', file: 'tandem-guide.html', title: 'Demo Day: the tandem runner', blurb: 'The older multi-device runner (MuseTester runs the same journeys now).' } ] },
+];
+const DESIGN = [ // design notes: linked, not part of the book
+  ['requirements.html', 'Requirements', 'Every feature and its status'], ['../docs/roadmap.md', 'Roadmap', 'What comes next'],
+  ['watchers.html', 'Chat, cards and watchers', 'Design'], ['maps-watchers.html', 'Map watchers', 'Design'], ['mesh.html', 'The mesh', 'Design'],
+  ['studiogbee.html', 'Profiles and StudioGBee', 'Design'], ['connections.html', 'Connections', 'Design'], ['connection-tests.html', 'Connection tests', 'Test plan'],
+  ['scripts.md', 'Script format', 'Reference'], ['agent-tasks.md', 'Agent tasks', 'Design'], ['desktop-updates.md', 'Desktop updates', 'How StudioGen updates'],
+  ['memory-strategy.md', 'Memory', 'Design'], ['duplex-voice.md', 'Conversation mode', 'Design'],
+];
+const PREFIX = Object.fromEntries(BOOK.flatMap(b => b.chapters).map(c => [c.file, c.p]));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const strip = s => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+/** A chapter's styles, made to apply only inside its section (CSS nesting): its tokens on the section, not :root. */
+function scope(css, sel) {
+  css = css.replace(/:root:not\(\[data-theme="light"\]\)\s*\{/g, ':root:not([data-theme="light"]) &{').replace(/:root\[data-theme="dark"\]\s*\{/g, ':root[data-theme="dark"] &{')
+    .replace(/(^|[}\s;])(:root|body|html)\s*\{/g, '$1&{');
+  return `${sel}{\n${css}\n}`;
+}
+function chapter(c, n) {
+  const src = fs.readFileSync(path.join(DOCS, c.file), 'utf8'), css = [...src.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
+  let body = (src.match(/<main[^>]*>([\s\S]*?)<\/main>/) || src.match(/<body[^>]*>([\s\S]*?)<\/body>/))[1];
+  body = body.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, '').replace(/<ul class="toc">[\s\S]*?<\/ul>/, '').replace(/<nav[\s\S]*?<\/nav>/g, '');
+  body = body.replace(/\sid="([^"]+)"/g, (m, id) => ` id="${c.p}-${id}"`)
+    .replace(/href="#([^"]+)"/g, (m, id) => `href="#${c.p}-${id}"`)
+    .replace(/href="([\w-]+\.html)(?:#([^"]*))?"/g, (m, f, id) => PREFIX[f] ? `href="#${PREFIX[f]}${id ? `-${id}` : ''}"` : m);
+  const heads = [...body.matchAll(/<h2[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/h2>/g)].map(m => [m[1], strip(m[2])]);
+  return { c, n, heads, html: `<header class="chap" id="${c.p}"><span>Chapter ${n}</span><h1>${esc(c.title)}</h1><p>${esc(c.blurb)}</p><a class="src" href="${c.file}">Open on its own</a></header>
+<section class="ch" id="ch-${c.p}">${body}</section>`, css: scope(css, `#ch-${c.p}`) };
+}
+let n = 0; const parts = BOOK.map(b => ({ part: b.part, chapters: b.chapters.map(c => chapter(c, ++n)) }));
+const nav = parts.map(pt => `<b>${esc(pt.part)}</b>${pt.chapters.map(ch => `<details><summary><a href="#${ch.c.p}">${ch.n}. ${esc(ch.c.title)}</a></summary>${ch.heads.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</details>`).join('')}`).join('');
+const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handbook</title>
+<!-- Generated by tools/guides/build.cjs from the guides it lists: edit those, then run it. -->
+<style>
+:root{--hb-bg:#fbfbfd;--hb-ink:#1d1d1f;--hb-ink2:#56565c;--hb-line:#e3e3e8;--hb-acc:#0a6cff;--hb-acc2:#b84df0;--hb-soft:#f2f4fa}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hb-bg:#0d0d10;--hb-ink:#f2f2f5;--hb-ink2:#a6a6ad;--hb-line:#2a2a31;--hb-acc:#4f9bff;--hb-acc2:#c77dff;--hb-soft:#1b1d24;color-scheme:dark}}
+:root[data-theme="dark"]{--hb-bg:#0d0d10;--hb-ink:#f2f2f5;--hb-ink2:#a6a6ad;--hb-line:#2a2a31;--hb-acc:#4f9bff;--hb-acc2:#c77dff;--hb-soft:#1b1d24;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--hb-bg);color:var(--hb-ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.hb{display:grid;grid-template-columns:290px minmax(0,1fr);max-width:1320px;margin:0 auto}
+.hb>nav{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 16px;border-right:1px solid var(--hb-line);font-size:14.5px}
+.hb>nav b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--hb-ink2);margin:18px 0 4px}
+.hb>nav a{display:block;color:var(--hb-ink);text-decoration:none;padding:3px 8px;border-radius:7px}
+.hb>nav a:hover{background:var(--hb-soft)}
+.hb>nav details a{padding-left:20px;color:var(--hb-ink2);font-size:13.5px}
+.hb>nav summary{list-style:none;cursor:pointer}.hb>nav summary::-webkit-details-marker{display:none}
+.hb>nav summary a{font-weight:600;padding-left:8px!important;color:var(--hb-ink)!important;font-size:14.5px!important}
+.hb>main{padding:32px clamp(16px,4vw,60px) 80px;min-width:0}
+.cover h1{font-size:clamp(34px,6vw,54px);line-height:1.05;margin:0 0 10px;letter-spacing:-.02em;background:linear-gradient(90deg,var(--hb-acc),var(--hb-acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.cover p{font-size:19px;color:var(--hb-ink2);max-width:62ch}
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:22px 0 10px}
+.map a{display:block;text-decoration:none;color:var(--hb-ink);background:var(--hb-soft);border:1px solid var(--hb-line);border-radius:14px;padding:12px 14px}
+.map a b{display:block;color:var(--hb-acc)}.map a span{font-size:14px;color:var(--hb-ink2)}
+.map a.first{background:linear-gradient(135deg,var(--hb-acc),var(--hb-acc2));color:#fff;border:0}.map a.first b,.map a.first span{color:#fff}
+header.chap{margin:80px 0 0;padding:26px 0 14px;border-top:3px solid var(--hb-acc);scroll-margin-top:0}
+header.chap span{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--hb-ink2)}
+header.chap h1{font-size:clamp(30px,5vw,44px);margin:2px 0 4px;letter-spacing:-.02em}
+header.chap p{margin:0;color:var(--hb-ink2);font-size:17px}
+header.chap .src{font-size:13px;color:var(--hb-acc)}
+section.ch{background:transparent!important;padding:0!important;margin:0!important;max-width:none!important}
+.design{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:0;list-style:none}
+.design a{color:var(--hb-acc);font-weight:600}.design span{display:block;font-size:13.5px;color:var(--hb-ink2)}
+@media (max-width:900px){.hb{grid-template-columns:1fr}.hb>nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--hb-line)}}
+${parts.flatMap(p => p.chapters).map(ch => ch.css).join('\n')}
+</style>
+</head>
+<body>
+<div class="hb">
+<nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a>${nav}<b>Appendix</b><a href="#design">Design notes</a></nav>
+<main id="top">
+<div class="cover">
+<h1>DriveGen &amp; StudioGen Handbook</h1>
+<p>Every guide in one place, in the order you'll meet things: start with the apps, then use them every day, then make your own scripts and tasks, then see how they talk, then test them.</p>
+<div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a>${parts.flatMap(p => p.chapters).map(ch => `<a href="#${ch.c.p}"><b>${ch.n}. ${esc(ch.c.title)}</b><span>${esc(ch.c.blurb)}</span></a>`).join('')}</div>
+</div>
+${parts.flatMap(p => p.chapters).map(ch => ch.html).join('\n')}
+<header class="chap" id="design"><span>Appendix</span><h1>Design notes</h1><p>How things were designed and decided: for building on the apps, not for using them.</p></header>
+<ul class="design">${DESIGN.map(([f, t, d]) => `<li><a href="${f.replace('../docs/', '')}">${esc(t)}</a><span>${esc(d)}</span></li>`).join('')}</ul>
+</main>
+</div>
+</body>
+</html>
+`;
+if (process.argv.includes('--check')) {
+  const now = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (now !== html) { console.error('docs/handbook.html is out of date: run node tools/guides/build.cjs'); process.exit(1); }
+  console.log('handbook up to date');
+} else { fs.writeFileSync(OUT, html); console.log(`docs/handbook.html: ${n} chapters, ${parts.flatMap(p => p.chapters).reduce((a, ch) => a + ch.heads.length, 0)} sections`); }

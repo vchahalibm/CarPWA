@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Started</title>
+<style>
+:root{--bg:#eef0f5;--page:#fff;--ink:#1d1d1f;--ink2:#56565c;--line:#e3e3e8;--acc:#0a6cff;--acc2:#b84df0;--soft:#f3f6ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#08080a;--page:#15151a;--ink:#f2f2f5;--ink2:#a6a6ad;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--soft:#1b2233;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#08080a;--page:#15151a;--ink:#f2f2f5;--ink2:#a6a6ad;--line:#2a2a31;--acc:#4f9bff;--acc2:#c77dff;--soft:#1b2233;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px 16px 60px}
+.top{max-width:1040px;margin:0 auto 18px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.top h1{margin:0;font-size:22px}.top a{color:var(--acc)}
+section.page{max-width:1040px;margin:0 auto 28px;background:var(--page);border:1px solid var(--line);border-radius:22px;padding:clamp(18px,4vw,40px);break-after:page}
+.no{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+h2{font-size:clamp(28px,5vw,42px);line-height:1.1;margin:4px 0 6px;letter-spacing:-.02em;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--ink2);font-size:18px;margin:0 0 22px;max-width:60ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start}
+.step{display:grid;grid-template-columns:44px 1fr;gap:12px;margin:0 0 16px}
+.step i{font-style:normal;width:40px;height:40px;border-radius:50%;background:var(--acc);color:#fff;font-weight:800;font-size:19px;display:grid;place-items:center}
+.step>div>b{display:block;font-size:17px}.step p{margin:2px 0 0;color:var(--ink2)}
+figure{margin:0}figure img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line)}
+figcaption{font-size:13.5px;color:var(--ink2);margin-top:6px}
+.phone img{max-width:240px;margin:0 auto;border-radius:26px}
+.pics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;align-items:end}
+.say{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.say q{quotes:"“" "”";background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-weight:600;font-size:15px}
+.path{font-weight:700;white-space:nowrap}
+code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:14px}
+.next{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px}
+.next a{display:block;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.next a b{display:block;color:var(--acc)}.next a span{font-size:14px;color:var(--ink2)}
+@media print{body{background:#fff;padding:0}.top{display:none}section.page{border:0;margin:0;max-width:none}}
+</style>
+</head>
+<body>
+<div class="top"><h1>Get started in three pages</h1><span>Everything else: <a href="handbook.html">the Handbook</a></span></div>
+
+<section class="page" id="p1">
+  <span class="no">Page 1 of 3</span>
+  <h2>Install, and say hello</h2>
+  <p class="sub">StudioGen runs on your Mac. DriveGen runs on your iPhone or iPad. Each one sets itself up the first time you open it.</p>
+  <div class="grid">
+    <div>
+      <div class="step"><i>1</i><div><b>StudioGen on the Mac</b><p>Download the latest StudioGen DMG and drag it to Applications. The first time, right-click it and choose <b>Open</b>, because Apple hasn't notarised it. After that it updates itself.</p></div></div>
+      <div class="step"><i>2</i><div><b>DriveGen on the iPhone</b><p>In Safari, open <code>vchahalibm.github.io/CarPWA</code>. Tap <span class="path">Share › Add to Home Screen</span>, then open DriveGen from the Home Screen.</p></div></div>
+      <div class="step"><i>3</i><div><b>Let it set up</b><p>A checklist fills in by itself: the voice, listening, the camera and the assistant, and on the Mac the language model, which runs on the Mac itself. Tap <b>Start</b> whenever you like; downloads carry on.</p></div></div>
+    </div>
+    <figure><img src="img/start/start.jpg" alt="StudioGen's start screen: the assistant standing in front of coloured ribbons, with cards for Start presenting, Scripts, Mesh and Connections"><figcaption>StudioGen's start screen: the assistant, and cards to start presenting, open your scripts, join a mesh or connect a phone.</figcaption></figure>
+  </div>
+</section>
+
+<section class="page" id="p2">
+  <span class="no">Page 2 of 3</span>
+  <h2>Ask, and let it watch</h2>
+  <p class="sub">Say it or type it. Tasks run on your Mac, and watchers tell you when something new happens.</p>
+  <div class="grid">
+    <div>
+      <div class="step"><i>1</i><div><b>Ask on the Agent screen</b><p>Tap the mic, or type into the Ask box. Answers come back as cards.</p>
+        <div class="say"><q>what's my day?</q><q>summarise unread mail</q><q>what's the weather</q></div></div></div>
+      <div class="step"><i>2</i><div><b>Make a watcher</b><p><span class="path">👁 Watchers › + New watcher</span>, pick what to watch (Slack, Outlook, WhatsApp, a price, your route), then <b>Check and save</b>. Or just say it: <q>tell me when the price drops below 12000</q>.</p></div></div>
+      <div class="step"><i>3</i><div><b>Pair your phone, once</b><p>On the Mac: <span class="path">Settings › Connections › Pair a phone or iPad</span>. On the phone: <span class="path">Settings › Connections › Pair once</span>, and scan the code. From then on they find each other anywhere, end-to-end encrypted.</p></div></div>
+    </div>
+    <div class="pics">
+      <figure><img src="img/start/agent.jpg" alt="The Agent screen: a greeting, an Ask box with a mic, suggestion chips, and Library and Watchers buttons"><figcaption>The Agent screen on the Mac.</figcaption></figure>
+      <figure><img src="img/start/templates.jpg" alt="The New watcher sheet listing Slack, Teams and Outlook watchers"><figcaption>+ New watcher: pick what to watch.</figcaption></figure>
+      <figure class="phone"><img src="img/start/phone-agent.jpg" alt="DriveGen on an iPhone: the Agent screen with an Ask box and suggestions, and the dock below"><figcaption>DriveGen on the phone asks your Mac.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="p3">
+  <span class="no">Page 3 of 3</span>
+  <h2>Present on Stage</h2>
+  <p class="sub">Stage turns StudioGen into a presenter: your slides, the assistant beside them, and a script it follows when you speak.</p>
+  <div class="grid">
+    <div>
+      <div class="step"><i>1</i><div><b>Switch to Stage</b><p>Tap <b>Start presenting</b> on the start screen, or set <span class="path">Settings › StudioGen is used for › Stage</span>.</p></div></div>
+      <div class="step"><i>2</i><div><b>Run a script</b><p>Scripts are your presentations: what to show, what the assistant says, and when to move on. Start with the sample in <span class="path">Settings › Scripts &amp; tasks</span>, or record one by just using the app.</p></div></div>
+      <div class="step"><i>3</i><div><b>Talk to it while you present</b><p>Say <q>next</q> to move on. Ask anything (<q>what's the weather</q>) and the answer shows as a card while the show carries on. Say <q>stop the demo</q> to finish.</p></div></div>
+    </div>
+    <figure><img src="img/start/stage.jpg" alt="Stage mode: a slide on the left, the assistant on the right above a clock widget"><figcaption>Stage: the slide, the assistant, and your widgets.</figcaption></figure>
+  </div>
+  <div class="next">
+    <a href="handbook.html"><b>The Handbook</b><span>Everything, in the order you'll meet it</span></a>
+    <a href="handbook.html#w"><b>Watchers</b><span>Be told when something happens</span></a>
+    <a href="handbook.html#s"><b>Scripts and tasks</b><span>Presentations, and jobs done for you</span></a>
+    <a href="handbook.html#c"><b>How the apps talk</b><span>Pairing, privacy, the mesh</span></a>
+  </div>
+</section>
+</body>
+</html>

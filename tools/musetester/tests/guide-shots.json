@@ -1,0 +1,33 @@
+{
+  "id": "guide-shots", "title": "The Get started guide's pictures, taken from the real screens (run it with the windows in view to refresh docs/img/start)", "tags": ["docs", "guide"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "view", "name": "start", "why": "The start screen" },
+    { "do": "wait", "s": 3 },
+    { "do": "screenshot", "name": "start", "to": "docs/img/start/start.jpg" },
+    { "do": "view", "name": "agent", "why": "The Agent screen" },
+    { "do": "wait", "s": 2 },
+    { "do": "screenshot", "name": "agent", "to": "docs/img/start/agent.jpg" },
+    { "do": "click", "sel": "[data-wt=\"list\"]", "why": "👁 Watchers" },
+    { "do": "wait.for", "text": "+ New watcher" },
+    { "do": "click", "text": "+ New watcher", "why": "+ New watcher" },
+    { "do": "wait", "s": 2.5 },
+    { "do": "screenshot", "name": "templates", "to": "docs/img/start/templates.jpg" },
+    { "do": "eval", "js": "closeSheet(); return 1" },
+    { "do": "eval", "js": "settings.appMode = 'stage'; store.set('settings', settings); applySettings?.(); openView('dashboard'); await new Promise(r => setTimeout(r, 4000)); return Stage.on", "why": "Stage" },
+    { "do": "screenshot", "name": "stage", "to": "docs/img/start/stage.jpg" },
+    { "do": "eval", "js": "settings.appMode = 'drive'; store.set('settings', settings); applySettings?.(); return Stage.on" },
+    { "do": "view", "name": "settings", "why": "Settings" },
+    { "do": "click", "role": "tab", "text": "Connections", "why": "The Connections tab" },
+    { "do": "wait", "s": 1 },
+    { "do": "screenshot", "name": "connections", "to": "docs/img/start/connections.jpg" },
+    { "do": "click", "role": "tab", "text": "Assistant", "why": "The Assistant tab" },
+    { "do": "wait", "s": 1 },
+    { "do": "screenshot", "name": "assistant", "to": "docs/img/start/assistant.jpg" },
+    { "do": "drivegen", "device": "iphone", "why": "DriveGen on an iPhone" },
+    { "do": "wait", "s": 2 },
+    { "do": "screenshot", "on": "phone", "name": "phone", "to": "docs/img/start/phone.jpg", "width": 900 },
+    { "do": "eval", "on": "phone", "js": "openView('agent'); await new Promise(r => setTimeout(r, 2500)); return 1", "why": "DriveGen's Agent screen" },
+    { "do": "screenshot", "on": "phone", "name": "phone-agent", "to": "docs/img/start/phone-agent.jpg", "width": 900 }
+  ]
+}

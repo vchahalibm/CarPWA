@@ -29,6 +29,8 @@ jobs:
         run: node tests/lookahead.cjs
       - name: MuseTester's tests are sound and every part of the apps has one (tools/musetester/coverage.json)
         run: node tests/musetester-lint.cjs
+      - name: The Handbook is built from the current guides (docs/handbook.html)
+        run: node tools/guides/build.cjs --check
       - name: Every desktop file is packaged (desktop/package.json build.files)
         run: node tests/desktop/packaged.cjs
       - name: The built-in model reports its model (desktop/llm.js)

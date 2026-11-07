@@ -297,7 +297,11 @@ const STEPS = {
   'watch.delete': s => pageOf(s).page.eval(`const l = Watch.list().filter(x => x.name === ${J(s.name)} || (${J(!!s.prefix)} && x.name.startsWith(${J(s.name)}))); for (const w of l) Watch.del(w.id); return l.length + ' deleted'`),
   task: async s => { const r = await pageOf(s).page.eval(`const t = Agent.get(${J(s.id)}); if (!t) throw new Error('no task ' + ${J(s.id)}); return Agent.asCard(await Agent.exec(t, ${J(s.inputs || {})}, { confirmed: true, quiet: true }))`, (s.timeout || 300) * 1000); vars[s.as || 'card'] = r; return (r?.headline || '').slice(0, 160); },
   screenshot: async s => { const f = path.join(OUT, `${cur.id}-${s.name || cur.shots.length + 1}.jpg`); fs.mkdirSync(OUT, { recursive: true });
-    try { await pageOf(s).page.shot(f); cur.shots.push(path.basename(f)); return path.basename(f); } catch (e) { return `no picture (${SILENT ? 'the window is hidden' : e.message.slice(0, 60)})`; } },
+    const p = pageOf(s).page, clean = on => p.eval(`for (const id of ['museRpa', 'museCur', 'museRing', 'museCap']) { const e = document.getElementById(id); if (e) e.style.visibility = ${on ? "'hidden'" : "''"}; } return 1`).catch(() => {});
+    try { if (s.to) { await clean(true); await sleep(300); } await p.shot(f); cur.shots.push(path.basename(f));
+      if (s.to) { const to = path.resolve(ROOT, s.to); if (!to.startsWith(path.join(ROOT, 'docs') + path.sep)) throw new Error('`to` must be under docs/'); fs.mkdirSync(path.dirname(to), { recursive: true }); /* a guide's picture, kept up to date by running the test */
+        try { execFileSync('sips', ['-Z', String(s.width || 1280), '-s', 'formatOptions', '72', f, '--out', to], { stdio: 'ignore' }); } catch { fs.copyFileSync(f, to); } }
+      return s.to || path.basename(f); } catch (e) { return `no picture (${SILENT ? 'the window is hidden' : e.message.slice(0, 60)})`; } finally { if (s.to) await clean(false); } },
   /* in a page of the agent browser (read only: what the watcher sees) */
   'web.expect': async s => { const p = await web(pageOf(s), s.host); try { const e = check(await p.eval(s.js || 'document.body.innerText'), s); if (e) throw new Error(e); return 'ok'; } finally { p.close(); } },
   /* files on this Mac (a folder watcher's) */

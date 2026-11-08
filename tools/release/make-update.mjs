@@ -2,7 +2,9 @@
 /* NaoMuse update feed (run by .github/workflows/desktop.yml, from the repository root).
      node tools/release/make-update.mjs version        writes web-version.json (WEB_VERSION, the vendor hash, COMMIT)
      node tools/release/make-update.mjs pack <outDir>  packs the web files, collects the zipped apps from desktop/dist,
-                                                       writes update.json and signs it (UPDATE_SIGNING_KEY: Ed25519 PEM)
+                                                       writes update.json and signs it (UPDATE_SIGNING_KEY: Ed25519 PEM);
+                                                       with no zipped apps there, PREV_UPDATE (the published update.json)
+                                                       gives the shell entry, so a web-only release needs no Mac build
      node tools/release/make-update.mjs keep <update.json>  the asset names update.json refers to (to prune the rest)
    The app checks the signature with the public key in desktop/updater.js, then each file's size and SHA-256. */
 import fs from 'fs';
@@ -33,9 +35,11 @@ if (cmd === 'version') {
   tar(appTar, APP_FILES.filter(f => fs.existsSync(f)));
   tar(vendorTar, ['--exclude', 'vendor/models/*.vrm', '--exclude', 'vendor/mediapipe/models/*.task', '--exclude', 'vendor/mediapipe/wasm/*.wasm', 'vendor']);
   // The zipped apps electron-builder made (NaoMuse-<v>-arm64-mac.zip, NaoMuse-<v>-mac.zip for Intel).
-  const zips = fs.readdirSync('desktop/dist').filter(f => f.endsWith('.zip') && f.includes(`-${shell}-`));
+  const zips = (fs.existsSync('desktop/dist') ? fs.readdirSync('desktop/dist') : []).filter(f => f.endsWith('.zip') && f.includes(`-${shell}-`));
   const arm = zips.find(f => f.includes('arm64')), x64 = zips.find(f => !f.includes('arm64'));
-  const sh = {}; for (const [k, f] of [['arm64', arm], ['x64', x64]]) if (f) { fs.copyFileSync(path.join('desktop/dist', f), path.join(out, f)); sh[k] = entry(path.join(out, f)); }
+  let sh = {}; for (const [k, f] of [['arm64', arm], ['x64', x64]]) if (f) { fs.copyFileSync(path.join('desktop/dist', f), path.join(out, f)); sh[k] = entry(path.join(out, f)); }
+  const prev = !arm && !x64 && process.env.PREV_UPDATE && fs.existsSync(process.env.PREV_UPDATE) ? JSON.parse(fs.readFileSync(process.env.PREV_UPDATE, 'utf8')) : null;
+  if (prev?.shell) { if (prev.shell.version !== shell) throw new Error(`desktop/package.json is ${shell} but the published shell is ${prev.shell.version}: build the Mac app`); sh = { arm64: prev.shell.arm64, x64: prev.shell.x64 }; console.log(`shell ${shell}: kept from the published feed`); }
   const notes = (() => { try { return execFileSync('git', ['log', '-1', '--format=%s']).toString().trim(); } catch { return ''; } })();
   const manifest = { app: 'StudioGen', date: new Date().toISOString(), commit: info.commit, notes,
     web: { version: info.version, commit: info.commit, minShell: shell, app: entry(appTar), vendor: { hash: info.vendorHash, ...entry(vendorTar) } },

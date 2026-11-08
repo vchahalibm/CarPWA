@@ -2,9 +2,10 @@
 # others (Linux and macOS runners: different networks), pairing through a seed both derive; they meet through the public relays,
 # try a direct link, time requests, and write a summary. Optionally also against your own NaoMuse: put a pairing code made for
 # it (Settings › Connections › Pair a phone or iPad, copy the SG3… text from the QR) in the HOME_PAIR_CODE secret.
-name: Network nightly
+name: Network weekly
 on:
-  schedule: [{ cron: '30 21 * * *' }]
+  # Weekly, Linux only, since the source repo is private (free minutes; a macOS minute counts as ten). By hand: macOS too.
+  schedule: [{ cron: '30 21 * * 0' }]
   workflow_dispatch:
 permissions: { contents: read }
 jobs:
@@ -19,7 +20,7 @@ jobs:
   guest:
     strategy:
       fail-fast: false
-      matrix: { os: [ubuntu-latest, macos-latest] }
+      matrix: { os: "${{ github.event_name == 'workflow_dispatch' && fromJSON('[\"ubuntu-latest\",\"macos-latest\"]') || fromJSON('[\"ubuntu-latest\"]') }}" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

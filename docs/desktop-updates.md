@@ -75,3 +75,24 @@ Most work is web files and arrives as a web update. These need a new shell (a ve
 8. **Native modules** or bundled tools (an ffmpeg for recordings, a local Python for the Trainer).
 
 Everything under `js/`, `css/`, `index.html`, `presenter.html`, `samples/`, `icons/` (in-app), `vendor/` is web layer.
+
+## Publishing: private source, public build
+
+The source repository is private (vchahalibm/NaoMuse). What runs is published to the public repository vchahalibm/CarPWA
+by `.github/workflows/publish.yml`, so DriveGen's address (vchahalibm.github.io/CarPWA/), the update feed
+(github.com/vchahalibm/CarPWA/releases/download/updates/) and the big files' address (raw.githubusercontent.com/vchahalibm/CarPWA/)
+stay exactly what installed apps already use.
+
+- **What's public:** the web app, practice sites, script library, vendor files and guides (`tools/release/dist.mjs public`), with the
+  app's own JavaScript minified (`dist.mjs minify`: js/, bridge/, sw.js; the Mac build and the Worker image also desktop/*.js). Not
+  public: desktop/, tools/, tests/, bee/, worker/, CLAUDE.md, the try-it-out list. Minified code is harder to read, not secret.
+- **Each push to main:** `site` commits the public files to the public repo and tags them `w<version>` (the app fetches avatars and
+  models at that tag); `mac` builds the DMGs only when desktop/package.json's version isn't in the published feed (or a
+  `desktop-v*` tag, or by hand); `feed` signs update.json and publishes it, keeping the published shell when there was no Mac build.
+  Update numbers are 1000 + the run number (the old workflow reached 149; an app never takes a lower number).
+- **The token:** the secret `DIST_TOKEN` in the source repo: a fine-grained personal access token, resource owner vchahalibm,
+  repository access *Only select repositories* › the public repo, permission *Contents: Read and write*. Make it at
+  github.com/settings/personal-access-tokens/new, then `gh secret set DIST_TOKEN -R vchahalibm/NaoMuse`. The repo variable
+  `PUBLISH=on` turns the workflow on; `DIST_REPO` names the public repo.
+- **Free minutes** (private repos: 2,000 a month; a macOS minute counts as ten): a push costs a few Linux minutes; a Mac build about
+  150; the Worker image builds only with a new desktop version, a worker/ change or by hand; the network test runs weekly on Linux.

@@ -1,0 +1,155 @@
+name: Publish
+
+# The source repository is private; what runs is published to the public repository DIST_REPO (minified; see
+# tools/release/dist.mjs): the web app and guides (GitHub Pages: DriveGen's address), the signed update feed NaoMuse
+# updates itself from (release "updates"), and the Mac app's DMGs (desktop-v* tags).
+#  - site:  the public files, committed to DIST_REPO and tagged w<version> (the app fetches avatars and models at that tag)
+#  - mac:   the DMGs and zipped apps, only when desktop/package.json's version isn't in the published feed yet (or a tag, or by hand)
+#  - feed:  update.json signed and published; with no Mac build, the published shell entry is kept
+# Needs the secret DIST_TOKEN: a fine-grained token with Contents read/write on DIST_REPO (docs/desktop-updates.md).
+on:
+  push:
+    branches: [main]
+    tags: ['desktop-v*']
+    paths-ignore: ['tests/**', 'tools/musetester/**', 'tools/trainer/**', 'tools/guides/**', 'bee/**', 'worker/**', 'CLAUDE.md', 'README.md', 'docs/TasksNeedingComeBack.md']
+  workflow_dispatch:
+    inputs:
+      mac: { description: 'Build the Mac app even if its version is published', type: boolean, default: false }
+
+permissions:
+  contents: read
+
+env:
+  DIST_REPO: ${{ vars.DIST_REPO || 'vchahalibm/CarPWA-dist' }}
+  WEB_VERSION_BASE: 1000 # update numbers continue above the old workflow's (it reached 149)
+
+concurrency: { group: publish, cancel-in-progress: false }
+
+jobs:
+  site:
+    if: vars.PUBLISH == 'on' # set once DIST_TOKEN is in place (until then the old Desktop app workflow publishes)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      mac: ${{ steps.m.outputs.mac }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Is the token there?
+        env: { DIST_TOKEN: '${{ secrets.DIST_TOKEN }}' }
+        run: |
+          if [ -z "$DIST_TOKEN" ]; then echo "::error::No DIST_TOKEN secret: see docs/desktop-updates.md › Publishing"; exit 1; fi
+      - id: v
+        run: echo "version=$(( WEB_VERSION_BASE + GITHUB_RUN_NUMBER ))" >> "$GITHUB_OUTPUT"
+      - name: Does the Mac app need building? (its version isn't in the published feed)
+        id: m
+        run: |
+          want=$(node -p "require('./desktop/package.json').version")
+          have=$(curl -fsL "https://github.com/${DIST_REPO}/releases/download/updates/update.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).shell.version||'')}catch{console.log('')}})" || true)
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]] || [ "${{ inputs.mac }}" = "true" ] || [ "$want" != "$have" ]; then echo "mac=true" >> "$GITHUB_OUTPUT"; else echo "mac=false" >> "$GITHUB_OUTPUT"; fi
+          echo "desktop $want, published $have"
+      - name: Minify the app's code
+        run: node tools/release/dist.mjs minify
+      - name: Web version (the update number, and the public tag the app fetches big files at)
+        run: node tools/release/make-update.mjs version
+        env:
+          WEB_VERSION: ${{ steps.v.outputs.version }}
+          COMMIT: w${{ steps.v.outputs.version }}
+      - name: The public site → DIST_REPO (and its tag)
+        env: { DIST_TOKEN: '${{ secrets.DIST_TOKEN }}' }
+        run: |
+          git clone --depth 1 "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" pub || { mkdir pub && git -C pub init -b main && git -C pub remote add origin "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git"; }
+          find pub -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          node tools/release/dist.mjs public pub
+          cd pub && git add -A && git -c user.name="NaoMuse publisher" -c user.email="actions@users.noreply.github.com" commit -q -m "Web ${{ steps.v.outputs.version }} (source ${GITHUB_SHA::7})" --allow-empty
+          git tag "w${{ steps.v.outputs.version }}" && git push -q origin HEAD:main "w${{ steps.v.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with: { name: web-version, path: web-version.json }
+
+  mac:
+    needs: site
+    if: needs.site.outputs.mac == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: desktop/package-lock.json }
+      - uses: actions/download-artifact@v4
+        with: { name: web-version }
+      - name: Minify the app's code and the desktop's
+        run: node tools/release/dist.mjs minify desktop
+      - name: Newest Xcode (Apple's on-device model needs the macOS 26 SDK)
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1); [ -n "$X" ] && sudo xcode-select -s "$X"; xcodebuild -version | head -1
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+      - name: The signing certificate (the same identity for every version, so macOS keeps “Always Allow” across updates)
+        env:
+          MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+        run: bash tools/release/import-cert.sh "$RUNNER_TEMP/naomuse-sign.keychain-db" >> "$GITHUB_ENV"
+      - name: Build the DMGs and zipped apps (signed by desktop/build/sign.js)
+        working-directory: desktop
+        run: npm run dist -- --publish never
+      - name: The model helper has Apple's framework
+        run: desktop/ai/bin/sg-ai --built-with
+      - uses: actions/upload-artifact@v4
+        with: { name: mac-apps, path: "desktop/dist/*.zip\ndesktop/dist/*.dmg", if-no-files-found: error }
+
+  feed:
+    needs: [site, mac]
+    if: always() && needs.site.result == 'success' && (needs.mac.result == 'success' || needs.mac.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { name: web-version }
+      - uses: actions/download-artifact@v4
+        if: needs.mac.result == 'success'
+        with: { name: mac-apps, path: desktop/dist }
+      - name: Minify the app's code (the same files the site has)
+        run: node tools/release/dist.mjs minify
+      - name: Pack and sign the update feed
+        run: |
+          curl -fsL "https://github.com/${DIST_REPO}/releases/download/updates/update.json" -o prev-update.json || rm -f prev-update.json
+          node tools/release/make-update.mjs pack update-out
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          PREV_UPDATE: prev-update.json
+      - name: Publish the update feed to DIST_REPO
+        env:
+          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+        run: |
+          if [ ! -f update-out/update.json.sig ]; then echo "::error::No signing key (secret UPDATE_SIGNING_KEY)"; exit 1; fi
+          R="-R $DIST_REPO"
+          gh release view updates $R >/dev/null 2>&1 || gh release create updates $R --title "NaoMuse updates" --latest=false \
+            --notes "The signed feed NaoMuse updates itself from. To install NaoMuse, download the DMG from a desktop-v* release."
+          have=$(gh release view updates $R --json assets -q '.assets[].name')
+          # Payload first, the manifest last, so an app never sees update.json before its files are there.
+          for f in update-out/*; do n=$(basename "$f")
+            case "$n" in update.json|update.json.sig) continue;; esac
+            if [[ "$n" == web-vendor-* ]] && echo "$have" | grep -qx "$n"; then echo "unchanged: $n"; continue; fi
+            gh release upload updates "$f" $R --clobber
+          done
+          gh release upload updates update-out/update.json update-out/update.json.sig $R --clobber
+          keep=$(node tools/release/make-update.mjs keep update-out/update.json)
+          for n in $have; do echo "$keep" | grep -qx "$n" || gh release delete-asset updates "$n" $R -y; done
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: [mac, feed]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: mac-apps }
+      - name: The DMGs as a release of DIST_REPO
+        env:
+          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" *.dmg -R "$DIST_REPO" --title "NaoMuse ${GITHUB_REF_NAME#desktop-v}" --notes "NaoMuse for Mac. Download the DMG for your Mac: **arm64** for Apple silicon (M1 and later), **x64** for Intel.
+          The app isn't notarised: after dragging it to Applications, run \`xattr -cr /Applications/NaoMuse.app\` once in Terminal (or right-click › Open).
+          After that NaoMuse updates itself (Settings › System › Updates, or the menu bar › Check for updates)."

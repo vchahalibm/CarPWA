@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================
-   Tasks on this computer (StudioGen on a Mac): script steps that run
+   Tasks on this computer (NaoMuse on a Mac): script steps that run
    AppleScript, JavaScript for Automation, a macOS Shortcut or a shell
    command (desktop/tasks.js runs them in the main process).
    - Steps: { "do": "os.applescript" | "os.jxa" | "os.shortcut" | "os.shell",
@@ -13,7 +13,7 @@
    - Output: text, or parsed JSON when the task prints JSON. A failure is
      an error (the step's `as` gets {result_error}).
    - OS_TASKS: ready-made tasks to start from (the editor's picker).
-   - DriveGen (web) can't run them itself: later through a paired StudioGen.
+   - DriveGen (web) can't run them itself: later through a paired NaoMuse.
    Loaded after brain.js.
    ============================================================ */
 const OS_KINDS = { applescript: 'AppleScript', jxa: 'JavaScript for Automation', shortcut: 'Shortcut', shell: 'Shell command' };
@@ -23,7 +23,7 @@ const OS_TASKS = [
   { id: 'front', name: 'What’s in front', kind: 'jxa', args: [], hint: '', about: 'The frontmost app and its window title, as {app, window}', code: 'function run() {\n  const p = Application("System Events").processes.whose({ frontmost: true })[0];\n  let w = ""; try { w = p.windows[0].name(); } catch (e) {}\n  return JSON.stringify({ app: p.name(), window: w });\n}' },
   { id: 'listFolder', name: 'List a folder', kind: 'jxa', args: ['~/Downloads'], hint: 'A folder', about: 'The names of the files in it, as a list', code: 'ObjC.import("Foundation");\nfunction run(argv) {\n  const p = $(argv[0] || "~").stringByExpandingTildeInPath;\n  const a = $.NSFileManager.defaultManager.contentsOfDirectoryAtPathError(p, null);\n  return JSON.stringify((ObjC.deepUnwrap(a) || []).filter(n => !n.startsWith(".")));\n}' },
   { id: 'finderSel', name: 'Files selected in Finder', kind: 'applescript', args: [], hint: '', code: 'set out to ""\ntell application "Finder"\n  repeat with f in (selection as alias list)\n    set out to out & POSIX path of f & linefeed\n  end repeat\nend tell\nreturn out' },
-  { id: 'notify', name: 'Show a notification', kind: 'applescript', args: ['StudioGen', 'The report is ready'], hint: 'Title, then the message', code: 'on run argv\n  display notification (item 2 of argv) with title (item 1 of argv)\nend run' },
+  { id: 'notify', name: 'Show a notification', kind: 'applescript', args: [BRAND.mac, 'The report is ready'], hint: 'Title, then the message', code: 'on run argv\n  display notification (item 2 of argv) with title (item 1 of argv)\nend run' },
   { id: 'mail', name: 'Draft an email', kind: 'applescript', args: ['someone@example.com', 'Subject', 'Message'], hint: 'To, subject, message', code: 'on run argv\n  tell application "Mail"\n    set m to make new outgoing message with properties {subject:(item 2 of argv), content:(item 3 of argv), visible:true}\n    tell m to make new to recipient at end of to recipients with properties {address:(item 1 of argv)}\n    activate\n  end tell\nend run' },
   { id: 'clipboard', name: 'Read the clipboard', kind: 'applescript', args: [], hint: '', code: 'return (the clipboard as text)' },
   { id: 'volume', name: 'Set the volume', kind: 'applescript', args: ['40'], hint: '0 to 100', code: 'on run argv\n  set volume output volume ((item 1 of argv) as integer)\nend run' },
@@ -34,7 +34,7 @@ const OS_TASKS = [
 const OsTasks = {
   can: () => !!window.DriveDeckDesktop?.tasks,
   async run(kind, code, args = [], label = '', timeout = 60) {
-    if (!this.can()) throw new Error(`${OS_KINDS[kind] || 'This'} runs in ${APP_NAME === 'StudioGen' ? 'a newer StudioGen: update it' : 'StudioGen on a Mac'}`);
+    if (!this.can()) throw new Error(`${OS_KINDS[kind] || 'This'} runs in ${APP_ID === 'StudioGen' ? `a newer ${BRAND.mac}: update it` : `${BRAND.mac} on a Mac`}`);
     const id = Math.random().toString(36).slice(2, 8);
     Log.i('os', `Task: ${label || OS_KINDS[kind]}`, { kind, args: args.length });
     const r = await DriveDeckDesktop.tasks.run({ id, kind, code, args, label, timeout });

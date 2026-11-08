@@ -1,4 +1,4 @@
-// node worker-eval.cjs "<js>", run inside a StudioGen Worker container started with --remote-debugging-port=9222 (tests/tandem/journeys.mjs, act “worker”): evaluates in its page
+// node worker-eval.cjs "<js>", run inside a NaoMuse Worker container started with --remote-debugging-port=9222 (tests/tandem/journeys.mjs, act “worker”): evaluates in its page
 const js = process.argv[2];
 (async () => { const l = await (await fetch('http://127.0.0.1:9222/json')).json(); const t = l.find(x => x.type === 'page' && x.url.includes('index.html'));
 const s = new WebSocket(t.webSocketDebuggerUrl);

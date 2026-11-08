@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================
-   The Mesh screen (StudioGen; js/mesh.js has the mesh itself):
+   The Mesh screen (NaoMuse; js/mesh.js has the mesh itself):
    Live (a graph of devices and links, what each does, requests moving),
    Devices (a table, with permissions, details, removal), Activity (a live
    feed), Shows (synchronised multi-screen shows as lanes, with the
@@ -51,7 +51,7 @@ const MeshView = {
   render() {
     const el = $('#meshBody'); if (!el) return; const m = Mesh.m;
     if (!LINK_HOST) { el.innerHTML = `<div class="mv-pad">${this.card()}</div>`; return; }
-    if (!m) { el.innerHTML = `<div class="mv-pad"><h2>Make a mesh</h2><p>A mesh joins your team's StudioGens and DriveGens into one network: this screen shows who is connected to whom, what each is doing, requests and shows as they happen, what's shared, and the history.</p>
+    if (!m) { el.innerHTML = `<div class="mv-pad"><h2>Make a mesh</h2><p>A mesh joins your team's ${BRAND.mac}s and DriveGens into one network: this screen shows who is connected to whom, what each is doing, requests and shows as they happen, what's shared, and the history.</p>
       <div class="chip-row"><button class="chip accent" data-mv="create">Create a mesh</button><button class="chip" data-mv="joincode">Join with an invite</button></div>
       <p class="se-note">Devices already paired with this Mac join automatically once the mesh exists.</p></div>`; return; }
     const md = this.model(), on = md.nodes.filter(n => n.online).length, shows = Object.values(Mesh.shows).filter(s => !s.ended).length;
@@ -99,7 +99,7 @@ const MeshView = {
     const list = Object.values(Mesh.shows).sort((a, b) => b.started - a.started).slice(0, 6);
     return `<div class="mv-pad"><h3>Start a show</h3><p class="se-note">A script runs on this Mac (the conductor) and on the screens you choose, in <b>steps</b> (every screen moves to each step at the same moment) or in <b>tandem</b> (each runs its own script; steps with “move on when: mesh cue” wait for your cues).</p>
       <div class="se-row"><select id="mvScript">${Scripts.all().filter(s => s.json?.mode !== 'interactive').map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select><select id="mvMode"><option value="steps">Steps</option><option value="tandem">Tandem</option></select></div>
-      <div class="chip-row">${screens.map(([id, n]) => `<label class="se-check"><input type="checkbox" data-mvscreen="${esc(id)}" checked> ${esc(n)}</label>`).join('') || '<span class="se-note">No screens online (a StudioGen or an iPad in Stage mode).</span>'}</div>
+      <div class="chip-row">${screens.map(([id, n]) => `<label class="se-check"><input type="checkbox" data-mvscreen="${esc(id)}" checked> ${esc(n)}</label>`).join('') || `<span class="se-note">No screens online (a ${BRAND.mac} or an iPad in Stage mode).</span>`}</div>
       <div class="chip-row"><button class="chip accent" data-mv="showstart">Start the show</button></div>
       ${list.map(sh => `<div class="mv-show"><b>${esc(sh.script)}</b> · ${esc(sh.mode)} · step ${sh.step + 1}${sh.ended ? ' · ended' : ''} <span class="mv-t">conductor ${esc(Mesh.member(sh.conductor)?.name || '')}</span>
         ${sh.screens.map(id => lane(sh, id)).join('')}
@@ -138,10 +138,10 @@ const MeshView = {
   },
   replay(v) { const ev = this.hist || [], t = Date.now() - (+($('#mvSpan')?.value || 86400000)) * (1 - v / 100), near = ev.filter(e => Math.abs(e.ts - t) < 300000);
     $('#mvReplayOut').innerHTML = `<b>${new Date(t).toLocaleString()}</b>: ${near.length} events within 5 minutes${near.slice(-8).map(e => `<div class="mv-ev">${this.line(e)}</div>`).join('')}`; },
-  /** DriveGen: who's around (the StudioGens online and what they're doing). */
+  /** DriveGen: who's around (the NaoMuses online and what they're doing). */
   card() {
-    const m = Mesh.m; if (!m) return '<p class="se-note">Not in a mesh yet: pair with a StudioGen that has one, or join with an invite.</p><div class="chip-row"><button class="chip" data-mv="joincode">Join with an invite</button></div>';
-    const list = Mesh.around(); if (!Mesh.member(Mesh._me?.id)) return `<p class="se-note">Joining the mesh “${esc(m.name)}”: waiting for an owner's StudioGen to sign you in.</p>`;
+    const m = Mesh.m; if (!m) return `<p class="se-note">Not in a mesh yet: pair with a ${BRAND.mac} that has one, or join with an invite.</p><div class="chip-row"><button class="chip" data-mv="joincode">Join with an invite</button></div>`;
+    const list = Mesh.around(); if (!Mesh.member(Mesh._me?.id)) return `<p class="se-note">Joining the mesh “${esc(m.name)}”: waiting for an owner's ${BRAND.mac} to sign you in.</p>`;
     return `<h3>Who's around · ${esc(m.name)}</h3>${list.map(x => `<div class="mv-ev">${x.app === 'StudioGen' ? '💻' : '📱'} <b>${esc(x.name)}</b> · ${x.now?.script ? `▶ ${esc(x.now.script)} ${x.now.step}/${x.now.of || '?'}` : x.show ? `▶ show step ${x.show.step + 1}` : 'idle'}${x.app === 'StudioGen' ? ` <button class="link-btn" data-rvopen="app|${esc(x.id)}">See its screen</button>` : ''}${(x.caps?.scripts || []).length ? `<br>${x.caps.scripts.slice(0, 6).map(sc => `<button class="link-btn" data-mvrun="${esc(x.id)}|${esc(sc)}">▶ ${esc(sc)}</button>`).join(' ')}` : ''}</div>`).join('') || '<p class="se-note">Nobody else online right now.</p>'}`;
   },
   settings() {
@@ -153,9 +153,9 @@ const MeshView = {
       [['Save', () => { store.set('meshName', $('#mvName').value.trim()); store.set('meshAutoJoin', $('#mvAuto').checked); store.set('meshPill', $('#mvPill').checked); Mesh.rebuild(); this.render(); MeshView.pill(); }], ...(m ? [['Share the relay list with the mesh', () => Mesh.updateBrokers().then(() => toast('Relay list sent to the mesh'))], ['Leave the mesh', () => Mesh.leave().then(() => this.render())]] : []), ['Close']]);
   },
   async invite(mine) {
-    if (mine == null && LINK_HOST) return sheet('Invite to the mesh', '<p class="se-note">Who is it for?</p>', [['Someone else’s device', () => this.invite(false)], ['One of my own devices (my StudioGen Worker, my other Mac)', () => this.invite(true)], ['Cancel']]);
+    if (mine == null && LINK_HOST) return sheet('Invite to the mesh', '<p class="se-note">Who is it for?</p>', [['Someone else’s device', () => this.invite(false)], [`One of my own devices (my ${BRAND.worker}, my other Mac)`, () => this.invite(true)], ['Cancel']]);
     const code = await Mesh.invite('member', !!mine);
-    Direct.screen('Invite to the mesh', `<div class="dl-step"><div class="dl-qr" id="dlQr"></div><div><p>On the other device (StudioGen › Mesh › Join with an invite, or DriveGen › Settings › Connections › Join with an invite): scan this, or paste the text below. Good for a day, once.</p><textarea class="se-wide" rows="3" readonly onclick="this.select()">${esc(code)}</textarea><p class="se-note">An owner's StudioGen signs the new device in when it's online.${mine ? ' It’s marked as yours: it may use this Mac’s sign-ins and you may use its (for a Worker in Docker: put this in SG_MESH_INVITE).' : ''}</p></div></div>`);
+    Direct.screen('Invite to the mesh', `<div class="dl-step"><div class="dl-qr" id="dlQr"></div><div><p>On the other device (${BRAND.mac} › Mesh › Join with an invite, or DriveGen › Settings › Connections › Join with an invite): scan this, or paste the text below. Good for a day, once.</p><textarea class="se-wide" rows="3" readonly onclick="this.select()">${esc(code)}</textarea><p class="se-note">An owner's ${BRAND.mac} signs the new device in when it's online.${mine ? ' It’s marked as yours: it may use this Mac’s sign-ins and you may use its (for a Worker in Docker: put this in SG_MESH_INVITE).' : ''}</p></div></div>`);
     LinkHost.qr($('#dlQr'), code, 'L');
   },
   joinSheet() { sheet('Join a mesh', '<label class="se-field"><span>Paste the invite (SGM…), or scan it</span><textarea id="mvCode" class="se-wide" rows="3"></textarea></label>', [['Join', () => Mesh.join($('#mvCode').value.trim()).then(() => { toast('Asked to join: an owner signs you in'); this.render(); Link.settings?.(); }, e => toast(e.message))], ['Scan', async () => { closeSheet(); Direct.screen('Scan the invite', '<div class="dl-step"><div class="dl-cam" id="dlCam"></div></div>'); try { const c = await Direct.scan($('#dlCam'), 'SGM'); Direct.done(); await Mesh.join(c); toast('Asked to join: an owner signs you in'); this.render(); } catch (e) { toast(e.message); } }], ['Cancel']]); },
@@ -230,7 +230,7 @@ document.addEventListener('pointerdown', e => { const n = e.target.closest?.('[d
   const mv = ev => { const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal; MeshView.pos[id] = { x: (ev.clientX - r.left) / r.width * vb.width, y: (ev.clientY - r.top) / r.height * vb.height, fixed: true }; MeshView.dragged = true; n.setAttribute('transform', `translate(${MeshView.pos[id].x},${MeshView.pos[id].y})`); };
   const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); if (MeshView.dragged) { MeshView.render(); setTimeout(() => { MeshView.dragged = false; }, 50); } };
   addEventListener('pointermove', mv); addEventListener('pointerup', up); });
-// Who's around, on the dashboard (DriveGen; also StudioGen).
+// Who's around, on the dashboard (DriveGen; also NaoMuse).
 W.mesh = { name: 'Who’s around (mesh)', html: () => `<div class="mv-widget">${MeshView.card()}</div>` };
 ACTIONS.mesh = () => MeshView.open();
 window.DriveDeckDesktop?.onMenu?.(w => { if (w === 'mesh') MeshView.open(); }); // the menu bar's “Mesh…”

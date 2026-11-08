@@ -214,7 +214,7 @@ const AppSteps = {
     return this.find(L);
   },
   norm: t => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim(),
-  /** Visible text that reads `text` (whole words first, then part of a longer text), in DriveGen/StudioGen and its web widgets. */
+  /** Visible text that reads `text` (whole words first, then part of a longer text), in DriveGen/NaoMuse and its web widgets. */
   async byText(text, L = {}, quick) {
     const q = this.norm(text), hits = []; if (!q) return null;
     const near = h => Math.hypot(h.pt[0] / innerWidth - (L.wx ?? 0.5), h.pt[1] / innerHeight - (L.wy ?? 0.5));
@@ -254,7 +254,7 @@ const AppSteps = {
       const win = await loadImage(await DriveDeckDesktop.capture()), k = win.naturalWidth / innerWidth;
       const c = Object.assign(document.createElement('canvas'), { width: win.naturalWidth, height: win.naturalHeight }), x = c.getContext('2d');
       x.drawImage(win, 0, 0);
-      for (const wv of $$('#dashRoot webview, #agentWeb.show webview:not([hidden])')) { // the agent browser too, when it's shown (seeing StudioGen from afar, js/remoteview.js)
+      for (const wv of $$('#dashRoot webview, #agentWeb.show webview:not([hidden])')) { // the agent browser too, when it's shown (seeing NaoMuse from afar, js/remoteview.js)
         try { const r = wv.getBoundingClientRect(); if (!r.width || !r.height) continue; const img = await loadImage((await wv.capturePage()).toDataURL()); x.drawImage(img, r.left * k, r.top * k, r.width * k, r.height * k); } catch {}
       }
       return { canvas: c, k };

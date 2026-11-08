@@ -33,7 +33,7 @@ const BUILD_ENGINES = [
     async ask(system, msgs) { return (await LLM.via_cloud('build', { system, messages: msgs })).text; } },
   { id: 'cli', name: 'A command-line AI', how: 'Claude Code, Ollama, IBM Bob Shell or your own command, on this Mac', r: { build: 5, ask: 5, speed: 3, offline: 2 },
     note: 'As good as the tool behind it (Claude Code: like Claude, using your subscription, ~15 s a turn). You allow the command once.',
-    can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: 'Command-line tools run in StudioGen on a Mac',
+    can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: `Command-line tools run in ${BRAND.mac} on a Mac`,
     async ask(system, msgs) {
       const c = BUILD_CFG(), cmd = c.cli === 'custom' ? c.cliCmd : BUILD_CLIS[c.cli]?.cmd;
       if (!cmd) throw new Error('Set the command in the builder’s settings');
@@ -42,7 +42,7 @@ const BUILD_ENGINES = [
     } },
   { id: 'bob', name: 'IBM Bob (hand-off)', how: 'Bob’s chat opens with the prompt; you talk to Bob there and paste its JSON back', r: { build: 4, ask: 4, speed: 2, offline: 2 },
     note: 'For people who work in Bob. Not spoken: the conversation happens in Bob’s window.',
-    can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: 'IBM Bob is opened by StudioGen on a Mac', handoff: true },
+    can: () => typeof OsTasks !== 'undefined' && OsTasks.can(), why: `IBM Bob is opened by ${BRAND.mac} on a Mac`, handoff: true },
   { id: 'mac', name: 'Quick builder', how: 'Combines tasks that already exist, with the app’s language model; you correct its plan in a form', r: { build: 2, ask: 1, speed: 4, offline: 5 },
     note: 'Only puts together tasks that already exist (no new steps), and asks nothing back. Fast.',
     can: () => typeof TaskLocal !== 'undefined' && TaskLocal.can(), why: 'Needs a language model (Settings › Assistant › Language model)', local: true },
@@ -81,7 +81,7 @@ const TaskBuild = {
   /** IBM Bob: its chat opens with the prompt file attached (allowed once, like any command). */
   async bob(said) {
     const code = `f="\${TMPDIR:-/tmp}/studiogen-build-prompt.md"; printf '%s' "$1" > "$f"; "${BOB_IDE}" chat -m ask -n --add-file "$f" "$2"`;
-    await OsTasks.run('shell', code, [await this.system(), `Follow the attached StudioGen build prompt. ${said}`], 'Open IBM Bob with the build prompt', 30);
+    await OsTasks.run('shell', code, [await this.system(), `Follow the attached ${BRAND.mac} build prompt. ${said}`], 'Open IBM Bob with the build prompt', 30);
   },
 };
 
@@ -171,7 +171,7 @@ const BuildCard = {
   },
   spoken() {
     const s = this.st, L = s.last, bad = L.results?.find(r => r.state === 'bad'); if (!s.voice) return;
-    if (!L.results) return Voice.respond('I made it, but checking needs StudioGen on a Mac. Say “save it”.', null, { ask: true });
+    if (!L.results) return Voice.respond(`I made it, but checking needs ${BRAND.mac} on a Mac. Say “save it”.`, null, { ask: true });
     if (!bad) return Voice.respond(`Every step works${L.card?.headline ? `. It would answer: ${L.card.headline}` : ''}. Say “run it” to watch it, or “save it”.`, null, { ask: true });
     const step = L.task.steps[bad.i];
     Voice.respond(TaskLLM.fixable(step) ? `Step ${bad.i + 1} didn’t find its target. Say “show me”, then click the right thing on the page.` : `Step ${bad.i + 1} stopped: ${bad.why}. Tell me what to change, or open it in the editor.`, null, { ask: true });

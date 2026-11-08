@@ -1,22 +1,22 @@
 # MuseTester
 
-**The apps' main tester.** It covers StudioGen, DriveGen, Workers and the mesh: watchers, map watchers, tasks, scripts, Stage, the voice, the dashboard, memory, and the tandem journeys (pairing, the mesh, shows, remote view, Workers, StudioGBee) from tests/tandem/journeys.mjs, run as MuseTester tests.
+**The apps' main tester.** It covers NaoMuse, DriveGen, Workers and the mesh: watchers, map watchers, tasks, scripts, Stage, the voice, the dashboard, memory, and the tandem journeys (pairing, the mesh, shows, remote view, Workers, NaoMuseHive) from tests/tandem/journeys.mjs, run as MuseTester tests.
 
 **The full guide (using it, writing tests): [docs/musetester-guide.html](../../docs/musetester-guide.html).**
 
-MuseTester runs the try-it-out list (docs/TasksNeedingComeBack.md) for you. It drives StudioGen, its Workers and
+MuseTester runs the try-it-out list (docs/TasksNeedingComeBack.md) for you. It drives NaoMuse, its Workers and
 DriveGen the way you would: it opens the app, makes watchers, presses buttons, types, waits for cards, and takes
 pictures. Then it writes a report and, if you ask, ticks the items that passed.
 
 ```
 node tools/musetester/muse.mjs                                 # the panel, with every test (a throwaway profile)
 node tools/musetester/muse.mjs practice watchers               # the panel, with the tests tagged practice or watchers
-node tools/musetester/muse.mjs --silent                        # every test, no panel, StudioGen's window hidden
+node tools/musetester/muse.mjs --silent                        # every test, no panel, NaoMuse's window hidden
 node tools/musetester/muse.mjs --list                          # the tests
 node tools/musetester/muse.mjs --profile mine --restart-mine   # the tests that need your accounts (Slack, Outlook, X…)
 node tools/musetester/muse.mjs --profile mine --silent --mark  # …on their own, ticking what passed in the try-it-out list
 node tools/musetester/muse.mjs rpa --go                        # the panel, the rpa tests started at once; ends after them
-node tools/musetester/muse.mjs --record my-new-test            # you use StudioGen; it writes tests/my-new-test.json
+node tools/musetester/muse.mjs --record my-new-test            # you use NaoMuse; it writes tests/my-new-test.json
 ```
 
 ## One engine: RPA
@@ -27,18 +27,18 @@ test does and what a script does are the same code. RPA finds things the way a p
 (`text`), a field's label (`label`), a role, a CSS selector (`sel`), the nth of several (`nth`), or inside something
 (`within`). In show mode it uses real input (Electron's `sendInputEvent`) and shows a pointer, a ring and a caption;
 silent runs and DriveGen use page events. With `web: "<part of the address>"` the same steps work in a page of the agent
-browser (the webview's own real input). A StudioGen without `js/rpa.js` yet gets it from this checkout.
+browser (the webview's own real input). A NaoMuse without `js/rpa.js` yet gets it from this checkout.
 
 ## Recording a test
 
-`--record <id>` opens StudioGen (a throwaway profile) and writes down what you do: clicks (by the words on the button,
+`--record <id>` opens NaoMuse (a throwaway profile) and writes down what you do: clicks (by the words on the button,
 else its label or a selector), typing (with Enter), dropdown choices and checkboxes. Press Enter in the terminal when
 you're done; `tests/<id>.json` is written. Add `expect`, `look` or `wait.for` steps where something should be true.
 Password, payment and one-time-code fields are never recorded.
 
 ## Two ways to run
 
-**Interactive** (the default): a control panel opens in its own window, beside StudioGen's (and DriveGen's, for the
+**Interactive** (the default): a control panel opens in its own window, beside NaoMuse's (and DriveGen's, for the
 DriveGen tests). It lists the tests. Open one to see its steps, coloured as they go:
 
 - **grey**: to run;
@@ -65,7 +65,7 @@ RPA robot you can watch.
 - `--speed 2` goes twice as fast, `--speed 0.5` half as fast; `--no-show` keeps the windows but drives by code.
 - Mesh tests show every device's window with the caption; their steps are commands said through each app.
 
-**Silent** (`--silent`): no panel; StudioGen starts with its window hidden (app 0.18.5 or later; an older app shows it),
+**Silent** (`--silent`): no panel; NaoMuse starts with its window hidden (app 0.18.5 or later; an older app shows it),
 DriveGen runs headless, steps that need you are skipped. For a run on its own; read the report and the run log after.
 
 ## The run log (send it to Claude)
@@ -82,11 +82,11 @@ written to be read without anything else.
 - **The debug log** written during the run (when Settings › System › Debug log is on), and any crash reports.
 
 Options:
-- `--app installed|dev`: the installed StudioGen (the default when it's there) or the one in `desktop/`, which has
+- `--app installed|dev`: the installed NaoMuse (the default when it's there) or the one in `desktop/`, which has
   today's code.
 - `--auto`: steps that need you are skipped instead of asked.
 - `--headful`: shows DriveGen's Chrome window.
-- `--keep`: leaves StudioGen open after the tests.
+- `--keep`: leaves NaoMuse open after the tests.
 - `--skip docker,llm`: leaves out tests with those tags or ids.
 - `--go`: with the panel, the chosen tests start at once and MuseTester ends after them.
 
@@ -96,7 +96,7 @@ Reports are in `tools/musetester/reports/<time>/report.html` (the newest 10 runs
 
 | What | How |
 |---|---|
-| StudioGen's own page | The DevTools protocol. StudioGen is started with `--remote-debugging-port` on 127.0.0.1. The steps call the app's own code (`Watch`, `Agent`, `MapWatch`…), so no test logic is duplicated. |
+| NaoMuse's own page | The DevTools protocol. NaoMuse is started with `--remote-debugging-port` on 127.0.0.1. The steps call the app's own code (`Watch`, `Agent`, `MapWatch`…), so no test logic is duplicated. |
 | The agent browser's pages (what a watcher sees) | Each `<webview>` is a DevTools target of its own: `web.expect` reads it. |
 | DriveGen | Chrome (headless unless `--headful`) with the phone or iPad screen, touch and user agent, and the web files served locally by MuseTester. |
 | macOS itself | AppleScript (`osascript`): menus, keystrokes (`native.keys`), other apps. Keystrokes need System Settings › Privacy & Security › Accessibility for your terminal. |
@@ -104,9 +104,9 @@ Reports are in `tools/musetester/reports/<time>/report.html` (the newest 10 runs
 
 ## Profiles
 
-- **scratch** (the default): a throwaway StudioGen profile, deleted afterwards. With `"practice": true` it uses the
+- **scratch** (the default): a throwaway NaoMuse profile, deleted afterwards. With `"practice": true` it uses the
   practice sites in `labs/practice/`. `practice.signin` signs in to them.
-- **mine**: your own profile, with your sign-ins. These tests run only with `--profile mine`. StudioGen must not be
+- **mine**: your own profile, with your sign-ins. These tests run only with `--profile mine`. NaoMuse must not be
   open with your profile: either quit it, or pass `--restart-mine` and MuseTester quits it and opens it again
   afterwards. Watchers that tests make are named “MuseTester …” and removed in `cleanup`. If a test switches the
   practice sites on, your setting is put back when it ends.
@@ -129,7 +129,7 @@ A test is one JSON file in `tests/`:
   "profile": "scratch",
   "tryitout": ["Slack: Check now on New Slack mentions"],
   "steps": [
-    { "do": "launch", "practice": true, "why": "Open StudioGen" },
+    { "do": "launch", "practice": true, "why": "Open NaoMuse" },
     { "do": "practice.signin" },
     { "do": "watch.make", "template": "slack.mentions" },
     { "do": "watch.check", "name": "New Slack mentions" },
@@ -148,7 +148,7 @@ A test is one JSON file in `tests/`:
 
 | Step | Does |
 |---|---|
-| `launch` | Opens StudioGen. `as` (name, default `studio`), `profile`, `practice` (true/false), `app`, `env` (e.g. a Worker's `SG_NAME`, `SG_LIGHT`), `port`, `folders` (folders a file watcher may read, as if picked). Opening it again after `quit` keeps the same profile (a restart). |
+| `launch` | Opens NaoMuse. `as` (name, default `studio`), `profile`, `practice` (true/false), `app`, `env` (e.g. a Worker's `SG_NAME`, `SG_LIGHT`), `port`, `folders` (folders a file watcher may read, as if picked). Opening it again after `quit` keeps the same profile (a restart). |
 | `drivegen` | Opens DriveGen in Chrome. `device` (`iphone`, `ipad`, `ipad-portrait`), `settings` (DriveGen settings to start with), `url` (default: the local files), `as` (default `phone`). |
 | `quit` | Closes an app (`as`). |
 | `wait` | `s` seconds. |
@@ -184,7 +184,7 @@ A test is one JSON file in `tests/`:
 | `web.expect` | The same on a page of the agent browser (`host`: part of its address; `js`, default its text). |
 | `screenshot` | A picture of the app (`name`); `to` also saves it into the docs (e.g. `docs/img/start/agent.jpg`, `width` in pixels), without MuseTester's pointer and caption. |
 | `responsive` | For `seconds`, asks the app something every `every` s; fails if an answer takes over `maxMs` (a hang). |
-| `crash.none` | No StudioGen crash report since the run started. |
+| `crash.none` | No NaoMuse crash report since the run started. |
 | `log` | The debug log (Settings › System › Debug log on) `contains`/`lacks`/`match`. |
 | `native` | Runs `applescript`. |
 | `native.keys` | Types `text` into an app (`app`, `using`: e.g. `command down`). |
@@ -196,7 +196,8 @@ A test is one JSON file in `tests/`:
 
 | Test | Profile | What it checks |
 |---|---|---|
-| app-health | scratch | Several live watchers for two minutes: StudioGen keeps answering, no errors, a clean quit |
+| app-health | scratch | Several live watchers for two minutes: NaoMuse keeps answering, no errors, a clean quit |
+| brand-names | scratch | The names: NaoMuse on the Mac's screens, DriveGen on the phone, the internal ids unchanged, “Hey NaoMuse” wakes it |
 | commands-cards | scratch | Commands: the weather and the time give answers; on Stage a screen opens as a card |
 | dashboard-bundles-tasks | scratch | The dashboard's widgets, a script bundle out and back in, and an agent task imported from JSON |
 | drive-real | mine | A real drive: news on the phone, Take it, the next town (you drive, it watches) |
@@ -209,13 +210,13 @@ A test is one JSON file in `tests/`:
 | mac-folder | scratch | A folder on this Mac: new files are told |
 | map-along | scratch | Along the way: fuel on the practice Google Maps, the weather, the next town, 10 minutes away |
 | memory | scratch | Memory: remember, recall, forget (downloads EmbeddingGemma, 318 MB, the first time) |
-| mesh-basic | scratch | The mesh, basic: two StudioGens and a phone pair, form a mesh, and run a show on every screen |
-| mesh-bee | scratch | StudioGBee: requests wait at the bee for an offline member, sealed; another team's bee can't read them |
+| mesh-basic | scratch | The mesh, basic: two NaoMuses and a phone pair, form a mesh, and run a show on every screen |
+| mesh-bee | scratch | NaoMuseHive: requests wait at the bee for an offline member, sealed; another team's bee can't read them |
 | mesh-core | scratch | The mesh, in full: pairing with a phrase, the direct link, sharing, relays only, tasks through the Mac, permissions, own devices, remote view, tasks side by side, shows |
 | mesh-meaning | scratch | Understood by meaning through the Mac's language model (on the phone and on the Mac) |
 | mesh-trouble | scratch | The mesh in trouble: a dead relay first, a member quitting and coming back, a changed secret, a removed member |
-| mesh-worker | scratch | A StudioGen Worker in Docker joins as yours and runs tasks for your phone |
-| mine-outlook-live | mine | Your Outlook: New mail reads, and a live New mail watcher keeps StudioGen responsive |
+| mesh-worker | scratch | A NaoMuse Worker in Docker joins as yours and runs tasks for your phone |
+| mine-outlook-live | mine | Your Outlook: New mail reads, and a live New mail watcher keeps NaoMuse responsive |
 | mine-quit-clean | mine | Quitting with the built-in model loaded leaves no crash report |
 | mine-slack | mine | Your Slack: mentions, a channel, DMs, threads and a search |
 | mine-x-lookahead | mine | Lookahead reads X with your sign-in |
@@ -238,7 +239,7 @@ A test is one JSON file in `tests/`:
 | voice-phonon | scratch | The natural voice (Phonon) downloads, loads and speaks |
 | watcher-lifecycle | scratch | Watchers: pause, resume, export and import, the counter, and they carry on after a restart |
 
-The scratch ones run anywhere (the practice sites, fixture pages, the public Google Maps and weather); the mine ones need your accounts. Tags (`--list`) pick groups: practice, watchers, kinds, slack, maps, mesh, scripts, stage, drivegen, health, real, slow (long or big downloads), docker (needs Docker: the Worker and StudioGBee images), llm (needs a language model). On 4 Nov all 31 scratch tests passed (`--skip` nothing), the mesh ones included.
+The scratch ones run anywhere (the practice sites, fixture pages, the public Google Maps and weather); the mine ones need your accounts. Tags (`--list`) pick groups: practice, watchers, kinds, slack, maps, mesh, scripts, stage, drivegen, health, real, slow (long or big downloads), docker (needs Docker: the Worker and NaoMuseHive images), llm (needs a language model). On 4 Nov all 31 scratch tests passed (`--skip` nothing), the mesh ones included.
 
 ## The mesh: tandem journeys
 
@@ -251,7 +252,7 @@ file the old tandem runner used):
   "then": [ { "do": "eval", "on": "devA", "js": "Tandem.state()" } ] }
 ```
 
-- The devices are MuseTester's apps: StudioGens with throwaway profiles (the practice sites on), and DriveGen in
+- The devices are MuseTester's apps: NaoMuses with throwaway profiles (the practice sites on), and DriveGen in
   Chrome as a phone. `devices` is optional (the three above). Each is prepared as the tandem runner did: named, the
   voice's replies kept in the log instead of spoken, the Mesh screen open.
 - Each journey step is a row: its action runs (said through the command matcher, as if spoken), then its check is
@@ -271,5 +272,5 @@ MuseTester doesn't have or an `rpa.*` action `js/rpa.js` doesn't define, or when
 test yet are marked `todo` (printed as gaps on every CI run); `none` is for parts that can't have one (say why).
 
 Most try-it-out items are a few `watch.*`, `say`, `click` and `expect` steps. Things that need a phone or a car are
-`human` steps, so a run still records them. For Workers, `launch` a second StudioGen with `as: "worker"` and its `env`,
+`human` steps, so a run still records them. For Workers, `launch` a second NaoMuse with `as: "worker"` and its `env`,
 and address its steps with `on: "worker"`.

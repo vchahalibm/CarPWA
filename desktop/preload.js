@@ -1,13 +1,13 @@
 'use strict';
-/* What the desktop app (StudioGen) adds for the web page, as window.DriveDeckDesktop. The web files only use it behind a
+/* What the desktop app (NaoMuse) adds for the web page, as window.DriveDeckDesktop. The web files only use it behind a
    feature check (`window.DriveDeckDesktop?.…`), so they stay the same as on the web. Sandboxed: only these calls. */
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   version: 1,
-  /** StudioGen Worker (in a container): { name, invite, practice, llm } from its environment, else null (desktop/main.js). */
+  /** NaoMuse Worker (in a container): { name, invite, practice, llm } from its environment, else null (desktop/main.js). */
   worker: ipcRenderer.sendSync('dd:worker'),
-  /** The language model built into StudioGen (desktop/llm.js): status(); chat({ system, prompt|messages, schema, max, temperature, effort })
+  /** The language model built into NaoMuse (desktop/llm.js): status(); chat({ system, prompt|messages, schema, max, temperature, effort })
       → { text } or { error }; download(id) (progress: onProgress(f) with { id, done, total, ok }); use({ id, ollama }); remove(id). */
   llm: {
     status: () => ipcRenderer.invoke('dd:llm', 'status'),
@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('DriveDeckDesktop', {
   light: (op, a) => ipcRenderer.invoke('dd:light', op, a),
   /** Watchers (js/watch.js): fetch(url) → { status, type, text } or { error }: a feed or JSON address, read-only. */
   fetch: url => ipcRenderer.invoke('dd:fetch', url),
-  files: (op, a) => ipcRenderer.invoke('dd:files', op, a), // watchers: folders and files picked in StudioGen (desktop/watchio.js)
+  files: (op, a) => ipcRenderer.invoke('dd:files', op, a), // watchers: folders and files picked in NaoMuse (desktop/watchio.js)
   windows: (op, a) => ipcRenderer.invoke('dd:windows', op, a), // watchers: app windows (names, a picture)
   watchlog: (op, a) => ipcRenderer.invoke('dd:watchlog', op, a), // watchers: the change history (CSV)
   browseReady: () => ipcRenderer.invoke('dd:browse-ready'),

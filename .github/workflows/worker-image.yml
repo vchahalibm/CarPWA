@@ -1,5 +1,5 @@
-# The StudioGen Worker image (worker/Dockerfile, worker/README.md), published as ghcr.io/vchahalibm/studiogen-worker:
-# :latest and the commit, for Macs with Apple silicon (OrbStack, arm64) and servers (amd64). StudioGen › Workers pulls it.
+# The NaoMuse Worker image (worker/Dockerfile, worker/README.md), published as ghcr.io/vchahalibm/studiogen-worker:
+# :latest and the commit, for Macs with Apple silicon (OrbStack, arm64) and servers (amd64). NaoMuse › Workers pulls it.
 name: Worker image
 on:
   push:
@@ -30,6 +30,6 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/studiogen-worker:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.title=StudioGen Worker
+            org.opencontainers.image.title=NaoMuse Worker
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -2,7 +2,7 @@
   "id": "mine-slack", "profile": "mine", "title": "Your Slack: mentions, a channel, DMs, threads and a search", "tags": ["slack", "watchers", "real"],
   "tryitout": ["Slack: Check now on New Slack mentions", "Slack: New messages in a channel"],
   "steps": [
-    { "do": "launch", "practice": false, "why": "Open your StudioGen (your sign-ins)" },
+    { "do": "launch", "practice": false, "why": "Open your NaoMuse (your sign-ins)" },
     { "do": "watch.make", "template": "slack.mentions", "name": "MuseTester Slack mentions" },
     { "do": "watch.check", "name": "MuseTester Slack mentions" },
     { "do": "expect", "var": "check.count", "gte": 1, "why": "It read your Activity" },

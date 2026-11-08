@@ -1,11 +1,11 @@
-// MuseTester: drives StudioGen (the installed app or desktop/), its Workers and DriveGen like a person would, through the
+// MuseTester: drives NaoMuse (the installed app or desktop/), its Workers and DriveGen like a person would, through the
 // try-it-out tests in tools/musetester/tests/*.json, and writes a report. Design, steps and test format: README.md here.
 //   node tools/musetester/muse.mjs [test ids or tags…] [--silent] [--profile scratch|mine] [--app installed|dev]
 //        [--restart-mine] [--auto] [--mark] [--list] [--keep] [--config file] [--headful] [--hidden] [--no-open] [--port n] [--go]
-//   node tools/musetester/muse.mjs --record <new-test-id> [--title "…"]   (what you do in StudioGen becomes tests/<id>.json)
+//   node tools/musetester/muse.mjs --record <new-test-id> [--title "…"]   (what you do in NaoMuse becomes tests/<id>.json)
 // Interactive (the default): a control panel window lists the tests and each one's steps (grey to run, blue running,
 // green passed, red failed); run them in one go or a step at a time (Next), retry or skip a step, with the apps' windows
-// in view. --silent: no panel, StudioGen's window hidden (SG_HIDDEN, 0.18.5+), DriveGen headless; for runs on their own.
+// in view. --silent: no panel, NaoMuse's window hidden (SG_HIDDEN, 0.18.5+), DriveGen headless; for runs on their own.
 // How it drives: the DevTools protocol (a debugging port on 127.0.0.1) for the app's page, its agent browser's pages and
 // DriveGen in Chrome; AppleScript (osascript) for what only macOS has. Fixture pages (pages, feeds, JSON a test sets)
 // are served here at /muse/fx/<name>.
@@ -15,12 +15,14 @@ import fs from 'fs'; import path from 'path'; import os from 'os'; import http f
 const HERE = path.dirname(new URL(import.meta.url).pathname), ROOT = path.resolve(HERE, '../..');
 const argv = process.argv.slice(2), flag = k => argv.includes('--' + k), opt = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
 const VALUED = ['profile', 'app', 'config', 'port', 'skip', 'speed', 'record', 'title'], want = argv.filter((a, i) => !a.startsWith('--') && !(i && VALUED.includes(argv[i - 1].slice(2))));
-const PROFILE = opt('profile', 'scratch'), APP = opt('app', fs.existsSync('/Applications/StudioGen.app') ? 'installed' : 'dev'), SILENT = flag('silent'), PANEL = !SILENT && !flag('list');
+/* the installed app: NaoMuse.app, or StudioGen.app before it renames itself (its first quit after the rename) */
+const BUNDLE = ['NaoMuse', 'StudioGen'].map(n => [n, `/Applications/${n}.app`]).find(([, p]) => fs.existsSync(p)) || ['NaoMuse', '/Applications/NaoMuse.app'];
+const PROFILE = opt('profile', 'scratch'), APP = opt('app', fs.existsSync(BUNDLE[1]) ? 'installed' : 'dev'), SILENT = flag('silent'), PANEL = !SILENT && !flag('list');
 const AUTO = flag('auto') || SILENT, HIDDEN = SILENT || flag('hidden'), HEADFUL = flag('headful') || (PANEL && !HIDDEN); /* --hidden: the panel, but the apps' windows hidden */
 /* show mode (interactive with the windows in view): a pointer moves to each button and clicks it (real input), typing
    appears letter by letter, a caption says the step, the agent browser shows what watchers read; --speed 2 is quicker */
 const SHOW = PANEL && !HIDDEN && !flag('no-show'), SPEED = Math.max(0.2, +opt('speed', 1)), PAUSE = 700 / SPEED;
-const INSTALLED = '/Applications/StudioGen.app/Contents/MacOS/StudioGen', ELECTRON = path.join(ROOT, 'desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron');
+const INSTALLED = (() => { const d = path.join(BUNDLE[1], 'Contents/MacOS'); try { return path.join(d, fs.readdirSync(d)[0]); } catch { return path.join(d, BUNDLE[0]); } })(), ELECTRON = path.join(ROOT, 'desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', DEBUG_LOG = path.join(os.homedir(), 'Library/Logs/StudioGen/debug.log');
 const RUN = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19), OUT = path.join(HERE, 'reports', RUN), TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'musetester-'));
 const sleep = ms => new Promise(r => setTimeout(r, ms)), started = Date.now(), J = JSON.stringify;
@@ -36,7 +38,7 @@ if (!chosen.length && !opt('record')) { console.log(`No tests for --profile ${PR
 
 /* ---------- the run log: everything needed to diagnose a run, or to see how the app grows (sent to Claude as it is) ---------- */
 const MACHINE = { mac: sh('sysctl', ['-n', 'hw.model']), chip: sh('sysctl', ['-n', 'machdep.cpu.brand_string']), cores: os.cpus().length, memoryGB: Math.round(os.totalmem() / 2 ** 30), macOS: sh('sw_vers', ['-productVersion']),
-  app: sh('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleShortVersionString', '/Applications/StudioGen.app/Contents/Info.plist']), desktop: readJSON(path.join(ROOT, 'desktop/package.json')).version, commit: sh('git', ['-C', ROOT, 'log', '-1', '--format=%h %s']).slice(0, 90), node: process.version };
+  app: sh('/usr/libexec/PlistBuddy', ['-c', 'Print CFBundleShortVersionString', path.join(BUNDLE[1], 'Contents/Info.plist')]), desktop: readJSON(path.join(ROOT, 'desktop/package.json')).version, commit: sh('git', ['-C', ROOT, 'log', '-1', '--format=%h %s']).slice(0, 90), node: process.version };
 const logStart = fs.existsSync(DEBUG_LOG) ? fs.statSync(DEBUG_LOG).size : 0;
 /** The app's state: its watchers, agent-browser windows, storage, errors, and the page's performance (DevTools metrics). */
 async function snapshot(a) {
@@ -55,7 +57,7 @@ async function snapshot(a) {
 function writeLog() {
   const pass = results.filter(r => r.status === 'pass'), fail = results.filter(r => r.status === 'fail'), skip = results.filter(r => r.status === 'skip');
   const debug = fs.existsSync(DEBUG_LOG) ? (() => { const fd = fs.openSync(DEBUG_LOG, 'r'), n = Math.max(0, fs.statSync(DEBUG_LOG).size - logStart), b = Buffer.alloc(Math.min(n, 400000)); fs.readSync(fd, b, 0, b.length, Math.max(logStart, fs.statSync(DEBUG_LOG).size - b.length)); fs.closeSync(fd); return b.toString('utf8').split('\n'); })() : [];
-  const crashes = (() => { const d = path.join(os.homedir(), 'Library/Logs/DiagnosticReports'); return fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^(StudioGen|Electron)/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > started) : []; })();
+  const crashes = (() => { const d = path.join(os.homedir(), 'Library/Logs/DiagnosticReports'); return fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^(NaoMuse|StudioGen|Electron)/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > started) : []; })();
   const kinds = {}; for (const r of results) for (const w of r.snap?.watchers || []) if (w.lastMs != null) (kinds[`${w.source}/${w.kind}`] ||= []).push(w.lastMs);
   const stat = l => { const s = [...l].sort((a, b) => a - b); return `${s.length} checks, median ${Math.round(s[Math.floor(s.length / 2)] / 100) / 10} s, slowest ${Math.round(s.at(-1) / 100) / 10} s`; };
   const L = [];
@@ -125,7 +127,7 @@ if (!window.Muse) {
     tap(x, y) { const t = document.createElement('div'); t.className = 'museTap'; t.style.left = x + 'px'; t.style.top = y + 'px'; document.body.appendChild(t); setTimeout(() => t.remove(), 650); },
     say(text) { const c = document.getElementById('museCap'); c.hidden = !text; c.textContent = text ? 'MuseTester · ' + text : ''; } }; } true`;
 /* Clicks, typing, keys, scrolls, drags…: the app's own automation engine, RPA (js/rpa.js), the one scripts use too;
-   a StudioGen without it yet gets it from this checkout. Show mode: real input (Electron's sendInputEvent), the pointer, the ring. */
+   a NaoMuse without it yet gets it from this checkout. Show mode: real input (Electron's sendInputEvent), the pointer, the ring. */
 const RPA_SRC = fs.readFileSync(path.join(ROOT, 'js/rpa.js'), 'utf8');
 async function rpa(a, step) {
   if (!await a.page.raw('typeof RPA !== "undefined"')) await a.page.raw(`${RPA_SRC}\n;window.RPA = RPA; true`);
@@ -164,13 +166,13 @@ async function caption(text) { if (SHOW) for (const a of Object.values(apps)) aw
 
 /* ---------- the apps ---------- */
 const apps = {}, kids = []; let mineWasRunning = false;
-const running = () => { try { return execFileSync('pgrep', ['-fl', 'StudioGen.app/Contents/MacOS/StudioGen'], { encoding: 'utf8' }).split('\n').filter(l => l && !/remote-debugging-port/.test(l)).length > 0; } catch { return false; } };
+const running = () => { try { return execFileSync('pgrep', ['-fl', INSTALLED], { encoding: 'utf8' }).split('\n').filter(l => l && !/remote-debugging-port/.test(l)).length > 0; } catch { return false; } };
 async function launch(s) {
   const as = s.as || 'studio', port = s.port || 9333 + Object.keys(apps).length, profile = s.profile || PROFILE;
   if (profile === 'mine' && PROFILE !== 'mine') throw new Error('this test needs --profile mine');
   if (profile === 'mine' && running()) {
-    if (!flag('restart-mine')) throw new Error('StudioGen is open with your profile: quit it first, or run with --restart-mine (it’s opened again afterwards)');
-    mineWasRunning = true; execFileSync('osascript', ['-e', 'tell application "StudioGen" to quit']); for (let i = 0; i < 40 && running(); i++) await sleep(500);
+    if (!flag('restart-mine')) throw new Error('NaoMuse is open with your profile: quit it first, or run with --restart-mine (it’s opened again afterwards)');
+    mineWasRunning = true; execFileSync('osascript', ['-e', `tell application "${BUNDLE[1]}" to quit`]); for (let i = 0; i < 40 && running(); i++) await sleep(500);
   }
   const dir = profile === 'mine' ? null : path.join(TMP, cur?.id || 'run', as), /* a profile per test (kept across a restart within it) */ bin = (s.app || APP) === 'dev' ? ELECTRON : INSTALLED;
   if (dir && s.folders) { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'watch-paths.json'), J(s.folders.map(p => path.resolve(String(p).replace(/^~/, os.homedir()))))); } /* folders a file watcher may read (as if picked in the dialog) */
@@ -308,12 +310,12 @@ const STEPS = {
   file: s => { const f = path.resolve(String(s.path).replace(/^~/, os.homedir())); fs.mkdirSync(path.dirname(f), { recursive: true }); if (s.remove) fs.rmSync(f, { force: true }); else fs.writeFileSync(f, s.text ?? ''); return `${s.remove ? 'removed' : 'wrote'} ${path.basename(f)}`; },
   /* macOS itself */
   native: s => execFileSync('osascript', ['-e', s.applescript], { encoding: 'utf8' }).trim(),
-  'native.keys': s => execFileSync('osascript', ['-e', `tell application "${s.app || 'StudioGen'}" to activate`, '-e', 'delay 0.3', '-e', `tell application "System Events" to keystroke ${J(s.text)}${s.using ? ` using {${s.using}}` : ''}`], { encoding: 'utf8' }) || 'typed',
+  'native.keys': s => execFileSync('osascript', ['-e', `tell application "${s.app || BUNDLE[0]}" to activate`, '-e', 'delay 0.3', '-e', `tell application "System Events" to keystroke ${J(s.text)}${s.using ? ` using {${s.using}}` : ''}`], { encoding: 'utf8' }) || 'typed',
   /* health */
   responsive: async s => { const p = pageOf(s).page, secs = s.seconds || 60, end = Date.now() + secs * 1000; let worst = 0, n = 0;
     while (Date.now() < end) { const t0 = Date.now(); await p.eval('1', 30000).catch(() => {}); worst = Math.max(worst, Date.now() - t0); n++; if (worst > (s.maxMs || 2000)) throw new Error(`the app didn't answer for ${worst} ms`); progress(`${Math.round((end - Date.now()) / 1000)} s to go · slowest ${worst} ms`); await sleep((s.every || 5) * 1000); }
     return `${n} pings, slowest ${worst} ms`; },
-  'crash.none': async () => { const d = path.join(os.homedir(), 'Library/Logs/DiagnosticReports'), l = fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^(StudioGen|Electron)/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > started) : []; if (l.length) throw new Error(`crash report: ${l.join(', ')}`); return 'no crash report'; },
+  'crash.none': async () => { const d = path.join(os.homedir(), 'Library/Logs/DiagnosticReports'), l = fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^(NaoMuse|StudioGen|Electron)/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > started) : []; if (l.length) throw new Error(`crash report: ${l.join(', ')}`); return 'no crash report'; },
   log: async s => { const t = fs.existsSync(DEBUG_LOG) ? fs.readFileSync(DEBUG_LOG, 'utf8').slice(-2e6) : ''; const e = check(t, s); if (e) throw new Error(e.slice(0, 200)); return 'ok'; },
   /* a tandem journey: its devices, then each step (done by its auto, then its check until true or its wait) */
   'journey.start': async s => { const l = JSTEPS.get(s.key); for (const d of l) await d.start(); return l.map(d => d.label).join(', ') + ' ready'; },
@@ -334,14 +336,14 @@ const STEPS = {
 };
 
 /* ---------- the tandem journeys (tests/tandem/journeys.mjs): mesh, pairing, shows, remote view, Workers… ----------
-   A test with "journey" runs that journey's acts here: its devices are MuseTester's apps (StudioGens with throwaway
+   A test with "journey" runs that journey's acts here: its devices are MuseTester's apps (NaoMuses with throwaway
    profiles, DriveGen in Chrome), each journey step is a row; it does the step (its auto), then waits for its check. */
 const { journeys } = await import(path.join(ROOT, 'tests/tandem/journeys.mjs')), JSTEPS = new Map();
 const prep = label => `(()=>{ store.set('onboarded',true); store.set('setupDone','skip'); store.set('meshName',${J(label)}); document.getElementById('setup')?.remove();
   if(typeof Voice!=='undefined') Voice.respond=async(m,then)=>{ VoiceLog.app(String(m)); then?.(); };
   const o=Relay.newPairing.bind(Relay); Relay.newPairing=async(...a)=>(Relay._tandemCode=await o(...a)); closeSheet(); if (LINK_HOST) { const l = Dash.list('stage.side'); if (!l.includes('chat')) Dash.setList('stage.side', ['chat', ...l]); } openView('mesh'); return 1 })()`;
 function device(key, d) {
-  return { id: key, label: d.label, kind: d.kind === 'phone' ? 'DriveGen (Chrome)' : 'StudioGen', as: `dev${key}`,
+  return { id: key, label: d.label, kind: d.kind === 'phone' ? 'DriveGen (Chrome)' : 'NaoMuse', as: `dev${key}`,
     get app() { return apps[this.as]; },
     async start() { if (d.kind === 'phone') await drivegen({ as: this.as, device: d.device || 'iphone' }); else await launch({ as: this.as, practice: d.practice ?? true, ...(d.env ? { env: d.env } : {}) });
       for (let i = 0; i < 60 && !(await this.app.page.raw('typeof Tandem !== "undefined" && typeof Mesh !== "undefined" && typeof MeshView !== "undefined"').catch(() => false)); i++) await sleep(500);
@@ -363,7 +365,7 @@ for (const t of TESTS) if (t.journey) { /* the journey's acts become the test's 
 }
 
 /* ---------- the board (what the panel shows) and control ---------- */
-const label = s => s.why || ({ launch: 'Open StudioGen', drivegen: `Open DriveGen (${s.device || 'iphone'})`, 'watch.make': `Make “${s.name || s.template}”`, 'watch.check': `Check “${s.name}”`, expect: `Expect ${s.var || s.sel || s.text || 'it'}`, say: `Say “${s.text}”`, click: `Click “${s.text || s.sel}”`, view: `Open ${s.name}`, wait: `Wait ${s.s || 1} s`, human: `You: ${s.say}`, 'practice.signin': 'Sign in to the practice sites', 'practice.incoming': `Practice ${s.site}: ${s.text || s.query}`, fixture: `Fixture “${s.name}”`, 'errors.none': 'No errors in the page', 'crash.none': 'No crash report', responsive: `Stays responsive for ${s.seconds || 60} s`, quit: 'Quit', screenshot: `Picture${s.name ? ` “${s.name}”` : ''}` }[s.do] || s.do);
+const label = s => s.why || ({ launch: 'Open NaoMuse', drivegen: `Open DriveGen (${s.device || 'iphone'})`, 'watch.make': `Make “${s.name || s.template}”`, 'watch.check': `Check “${s.name}”`, expect: `Expect ${s.var || s.sel || s.text || 'it'}`, say: `Say “${s.text}”`, click: `Click “${s.text || s.sel}”`, view: `Open ${s.name}`, wait: `Wait ${s.s || 1} s`, human: `You: ${s.say}`, 'practice.signin': 'Sign in to the practice sites', 'practice.incoming': `Practice ${s.site}: ${s.text || s.query}`, fixture: `Fixture “${s.name}”`, 'errors.none': 'No errors in the page', 'crash.none': 'No crash report', responsive: `Stays responsive for ${s.seconds || 60} s`, quit: 'Quit', screenshot: `Picture${s.name ? ` “${s.name}”` : ''}` }[s.do] || s.do);
 const board = chosen.map(t => ({ id: t.id, title: t.title, tags: t.tags || [], status: 'todo', ms: 0, shots: [], steps: [...(t.steps || []).map(s => ({ label: label(s), do: s.do, status: 'todo', note: '' })), ...(t.cleanup || []).map(s => ({ label: `Tidy up: ${label(s)}`, do: s.do, status: 'todo', note: '', cleanup: true }))] }));
 let cur = null, curStep = null; const progress = n => { if (curStep) curStep.note = n; };
 function command(c) {
@@ -423,15 +425,15 @@ function finish() {
   }
   const keep = fs.readdirSync(path.join(HERE, 'reports')).sort(); for (const d of keep.slice(0, -10)) fs.rmSync(path.join(HERE, 'reports', d), { recursive: true, force: true }); /* the newest 10 runs */
 }
-const bye = () => { for (const k of kids) try { k.kill(); } catch {} try { server.close(); } catch {} try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} if (mineWasRunning) try { execFileSync('open', ['-a', 'StudioGen']); } catch {} };
+const bye = () => { for (const k of kids) try { k.kill(); } catch {} try { server.close(); } catch {} try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} if (mineWasRunning) try { execFileSync('open', [BUNDLE[1]]); } catch {} };
 process.on('SIGINT', () => { finish(); bye(); process.exit(130); });
 fs.mkdirSync(path.join(HERE, 'reports'), { recursive: true });
-if (opt('record')) { /* the recorder: StudioGen opens (a scratch profile); your clicks, typing, choices and Enter (RPA.record) become a test */
+if (opt('record')) { /* the recorder: NaoMuse opens (a scratch profile); your clicks, typing, choices and Enter (RPA.record) become a test */
   const id = String(opt('record')).replace(/[^\w-]/g, '-'), f = path.join(HERE, 'tests', `${id}.json`); cur = { id: `record-${id}`, shots: [] };
   if (fs.existsSync(f)) { console.log(`tests/${id}.json is there already: pick another name`); process.exit(1); }
   try {
     await launch({}); const a = apps.studio; await rpa(a, { do: 'caption', text: '' }); await a.page.eval('RPA.record.start(); return 1');
-    console.log('Recording: use StudioGen as a person would. Press Enter here when you’re done (password, payment and code fields are never recorded).');
+    console.log('Recording: use NaoMuse as a person would. Press Enter here when you’re done (password, payment and code fields are never recorded).');
     await new Promise(r => readline.createInterface({ input: process.stdin }).once('line', r));
     const steps = await a.page.eval('return RPA.record.stop()');
     fs.writeFileSync(f, J({ id, title: opt('title') || `Recorded: ${id}`, tags: ['recorded'], steps: [{ do: 'launch' }, ...steps, { do: 'errors.none', ignore: ['ResizeObserver'] }] }, null, 2) + '\n');

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* The network lab (docs/connection-tests.html, layer 2): StudioGen's link side and DriveGen, each in headless Chromium in its own
+/* The network lab (docs/connection-tests.html, layer 2): NaoMuse's link side and DriveGen, each in headless Chromium in its own
    network namespace behind its own router namespace (home, restricted, strict, UDP blocked, web-only, brokers blocked), with a
    STUN/TURN server and the app's web server on the lab's "internet" (tests/net/ns.sh, all inside one privileged container, so
    no Docker networking gets in the way); the relays are the real public ones. Each scenario pairs the two, waits for them to see
@@ -16,7 +16,7 @@ const docker = async (...a) => (await run('docker', a, { maxBuffer: 1e7 })).stdo
 const quiet = (...a) => docker(...a).catch(() => '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-/* ---------- Scenarios: router profiles of each side, StudioGen's link settings, and what should happen ---------- */
+/* ---------- Scenarios: router profiles of each side, NaoMuse's link settings, and what should happen ---------- */
 const S = (name, a, b, cfg, expect, more = {}) => ({ name, a, b, cfg: { mode: 'auto', relayData: true, ...cfg }, expect, ...more });
 const SMOKE = [
   S('home ↔ home', 'home', 'home', {}, 'direct'),
@@ -29,7 +29,7 @@ const SMOKE = [
   S('web-only ↔ home (443 relays only)', 'webonly', 'home', {}, 'relay'),
   S('home ↔ home, direct never', 'home', 'home', { mode: 'off' }, 'relay'),
   S('home ↔ home, same network only', 'home', 'home', { mode: 'local' }, 'relay'),
-  S('StudioGen can’t reach EMQX or HiveMQ', 'home', 'home', { mode: 'off' }, 'relay', { blockA: 'broker.emqx.io,broker.hivemq.com' }),
+  S('NaoMuse can’t reach EMQX or HiveMQ', 'home', 'home', { mode: 'off' }, 'relay', { blockA: 'broker.emqx.io,broker.hivemq.com' }),
 ];
 const PROFILES = ['home', 'restricted', 'strict', 'noudp', 'webonly'];
 const FULL = [...SMOKE, ...PROFILES.flatMap(a => PROFILES.map(b => S(`${a} ↔ ${b} (matrix)`, a, b, {}, expectOf(a, b))))];

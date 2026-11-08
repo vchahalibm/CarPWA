@@ -1,5 +1,5 @@
 #!/bin/bash
-# The StudioGen signing certificate for a build (.github/workflows/desktop.yml): MAC_CERT_P12 (base64 of a .p12) and
+# The NaoMuse signing certificate for a build (.github/workflows/desktop.yml): MAC_CERT_P12 (base64 of a .p12) and
 # MAC_CERT_PASSWORD → a temporary keychain; prints MAC_SIGN_ID=… and MAC_SIGN_KEYCHAIN=… lines for $GITHUB_ENV.
 # - macOS reads only the older .p12 encryption, and OpenSSL 3+ makes the newer one by default: the file is re-packed first.
 # - The identity is a certificate WITH its private key; a .p12 without the key can't sign.

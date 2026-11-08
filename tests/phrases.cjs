@@ -6,7 +6,7 @@ const ctx = { console, current: 'dashboard', document: { addEventListener() {} }
   store: { d: {}, get(k, def) { return k in this.d ? this.d[k] : def; }, set(k, v) { this.d[k] = v; } },
   W: { weather: { name: 'Weather' }, chat: { name: 'Assistant' }, clock: { name: 'Clock' }, nowPlaying: { name: 'Now Playing' } },
   CLUSTERS: { twin: {}, arc: {} }, settings: { cluster: 'twin' }, MODES: [], isIOS: true, APP_NAME: 'DriveGen' };
-vm.createContext(ctx);
+ctx.BRAND = require(__dirname + '/../js/brand.js'); ctx.APP_ID = ctx.APP_ID || 'DriveGen'; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('js/commands.js', 'utf8') + ';this.Commands=Commands;this.LOOSE_RUN=LOOSE_RUN;', ctx);
 let bad = 0, n = 0;
 const check = (ok, msg) => { n++; if (!ok) { bad++; console.log('FAIL', msg); } };

@@ -3,7 +3,7 @@
    RPA: the one automation engine for doing what a person does in the apps: used by scripts (the rpa.* actions, on Stage
    or anywhere) and by MuseTester (tools/musetester), which runs its tests' steps through it. Guide: docs/musetester-guide.html.
    - Finding: by the words on it (`text`), a field's label (`label`), a role (`role`: button, link, textbox…), a CSS
-     selector (`sel`), the nth of several (`nth`), inside something (`within`: words or a selector). In StudioGen's own
+     selector (`sel`), the nth of several (`nth`), inside something (`within`: words or a selector). In NaoMuse's own
      screens, or in a page of the agent browser (`web`: part of its address, e.g. "slack").
    - Doing: click (double, right), type (letter by letter; enter; clear), key (with modifiers: "Meta+K"), scroll (by an
      amount, to the top or bottom, or until something shows), hover, drag (onto something, or by dx/dy), choose (an option

@@ -4,7 +4,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const mem = {}, ctx = { console, setInterval() {}, setTimeout, clearTimeout, document: { addEventListener() {} }, ACTIONS: {}, Log: { i() {}, d() {}, w() {} }, navigator: { language: 'en-IN', userAgent: 'test' },
   store: { get: (k, d) => k in mem ? mem[k] : d, set: (k, v) => { mem[k] = v; } }, WATCH_TEMPLATES: [], Agent: { cfg: () => ({}) }, settings: {}, LINK_HOST: false, loc: { lat: 12.97, lon: 77.59, speed: 0, source: 'gps' }, nav: null,
   Link: { ready: () => false }, Mesh: { m: null }, LLM: { ask: async () => { throw new Error('none here'); }, prompt: () => '' }, window: {} };
-vm.createContext(ctx);
+ctx.BRAND = require(__dirname + '/../js/brand.js'); ctx.APP_ID = ctx.APP_ID || 'DriveGen'; vm.createContext(ctx);
 vm.runInContext(['mapwatch', 'lookahead'].map(f => fs.readFileSync(`${__dirname}/../js/${f}.js`, 'utf8')).join('\n') + '\nthis.M = MapWatch; this.L = Lookahead; this.R = Roadside;', ctx);
 const { M, L, R } = ctx; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 (async () => {

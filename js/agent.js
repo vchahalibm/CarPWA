@@ -449,12 +449,12 @@ const Agent = {
   mine: () => store.get('agentTasks', []),
   /** Tasks the paired Mac has made itself (fetched from it; run there by id). */
   macMine: () => store.get('macTasks', []),
-  /** Tasks other StudioGens in the mesh let this device run (fetched from them; run there): their shared ones without
+  /** Tasks other NaoMuses in the mesh let this device run (fetched from them; run there): their shared ones without
       sign-ins, or all of them when this is one of their owner's own devices. */
   meshMine: () => store.get('meshTasks', []),
   all() {
     const own = this.mine(), ids = new Set(own.map(t => t.id)), mesh = this.meshMine();
-    // no Mac of its own: a built-in another StudioGen shares runs there instead
+    // no Mac of its own: a built-in another NaoMuse shares runs there instead
     const noMac = !LINK_HOST && !(typeof Relay !== 'undefined' && Relay.mac()) && !Link.mac()?.token, viaMesh = new Set(noMac ? mesh.map(t => t.origId) : []);
     return [...own, ...this.macMine().filter(t => !ids.has(t.id)).map(t => ({ ...t, runs: 'mac', remoteOnly: true })), ...AGENT_TASKS.filter(t => !ids.has(t.id) && !viaMesh.has(t.id)), ...mesh];
   },
@@ -468,11 +468,11 @@ const Agent = {
   people: () => store.get('agentPeople', []),
   /** Whether a task (or a task it runs) acts for you. */
   acts(t, depth = 0) { if (!t || depth > 4) return false; if (t.acts) return true; return JSON.stringify(t.steps || []).match(/"agent\.task","value":"([\w.-]+)"/g)?.some(m => this.acts(this.get(m.match(/"value":"([\w.-]+)"/)[1]), depth + 1)) || false; },
-  /** Here or on the Mac: 'mac' tasks need the agent browser (StudioGen) or a paired Mac; a mesh task runs on its StudioGen. */
+  /** Here or on the Mac: 'mac' tasks need the agent browser (NaoMuse) or a paired Mac; a mesh task runs on its NaoMuse. */
   where(t) { return t.on ? 'mac' : t.runs !== 'mac' || (AgentWeb.can() && !t.remoteOnly) ? 'here' : 'mac'; },
-  /** Where a 'mac' task goes: the paired Mac, or the StudioGen in the mesh that offers it. */
+  /** Where a 'mac' task goes: the paired Mac, or the NaoMuse in the mesh that offers it. */
   target(t) {
-    if (t?.on) return { meshId: t.on, name: t.onName || 'that StudioGen', ready: () => typeof Mesh !== 'undefined' && Date.now() - (Mesh.presence[t.on]?.at || 0) < 60000, call: o => Mesh.call(t.on, 'task', o, 300000), paired: true };
+    if (t?.on) return { meshId: t.on, name: t.onName || `that ${BRAND.mac}`, ready: () => typeof Mesh !== 'undefined' && Date.now() - (Mesh.presence[t.on]?.at || 0) < 60000, call: o => Mesh.call(t.on, 'task', o, 300000), paired: true };
     const mid = typeof Relay !== 'undefined' ? Relay.mac()?.meshId : null;
     return { meshId: typeof Mesh !== 'undefined' && Mesh.member(mid) ? mid : null, name: Link.macName(), ready: () => Link.ready(), call: o => Link.task(o), paired: !!(typeof Relay !== 'undefined' && Relay.mac()) || !!Link.mac()?.token };
   },
@@ -504,10 +504,10 @@ const Agent = {
     return /\{teams/.test(j) ? 'teams' : /\{slack\}/.test(j) ? 'slack' : /\{whatsapp\}/.test(j) ? 'whatsapp' : /\{outlook\}[^"]*calendar/i.test(j) ? 'cal' : /\{outlook\}/.test(j) ? 'mail' : 'web';
   },
   waitLabel(m) { return m < 0 ? 'Until it’s back' : !m ? 'Don’t wait' : m < 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`; },
-  /** Wait for an offline Mac (or StudioGen) as long as this kind of request may; true once it's back. */
+  /** Wait for an offline Mac (or NaoMuse) as long as this kind of request may; true once it's back. */
   async wait(t, to, card) {
     const min = +this.waitRules()[this.waitKind(t)] || 0;
-    if (!min) throw new Error(`${to.name} is offline right now. Is StudioGen open?`);
+    if (!min) throw new Error(`${to.name} is offline right now. Is ${BRAND.mac} open?`);
     const until = min < 0 ? Infinity : Date.now() + min * 60000, hm = min < 0 ? '' : new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     if (card) { this.post({ id: card, status: 'waiting', headline: `Waiting for ${to.name}: it’s offline${hm ? ` (until ${hm})` : ''}` }); Voice.respond(`${to.name} is offline. I’ll send it when it’s back${hm ? `, until ${hm}` : ''}.`); }
     Log.i('agent', `Waiting for ${to.name}`, { task: t.name, min });
@@ -515,18 +515,18 @@ const Agent = {
     if (card) this.post({ id: card, status: 'running', headline: `Asking ${to.name}…` });
     return true;
   },
-  /** Through StudioGBee (js/bee.js): the request waits there for the Mac (or StudioGen) as long as this kind may, and the
+  /** Through NaoMuseHive (js/bee.js): the request waits there for the Mac (or NaoMuse) as long as this kind may, and the
       answer comes back here, or onto its card later (Agent.late) if this screen has gone meanwhile. */
   async viaBee(t, to, params, o) {
     const min = +this.waitRules()[this.waitKind(t)] || 0;
-    if (!min) throw new Error(`${to.name} is offline right now. Is StudioGen open?`);
+    if (!min) throw new Error(`${to.name} is offline right now. Is ${BRAND.mac} open?`);
     const ttl = min < 0 ? 7 * 86400000 : min * 60000, hm = min < 0 ? '' : new Date(Date.now() + ttl).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    if (o.card) { this.post({ id: o.card, status: 'waiting', headline: `Waiting at StudioGBee for ${to.name}${hm ? ` (until ${hm})` : ''}` }); Voice.respond(`${to.name} is offline. StudioGBee keeps your request until it’s back${hm ? `, until ${hm}` : ''}; you can close the app.`); }
-    Log.i('agent', `Queued at StudioGBee for ${to.name}`, { task: t.name, min });
+    if (o.card) { this.post({ id: o.card, status: 'waiting', headline: `Waiting at ${BRAND.hive} for ${to.name}${hm ? ` (until ${hm})` : ''}` }); Voice.respond(`${to.name} is offline. ${BRAND.hive} keeps your request until it’s back${hm ? `, until ${hm}` : ''}; you can close the app.`); }
+    Log.i('agent', `Queued at ${BRAND.hive} for ${to.name}`, { task: t.name, min });
     const r = await Bee.call(to.meshId, 'task', { id: t.origId || t.id, params, confirmed: !!o.confirmed }, ttl, o.card ? { card: o.card, task: t.id, title: t.name } : {});
     if (r?.error) throw new Error(r.error); return r?.card ?? r;
   },
-  /** An answer that came through StudioGBee after the screen that asked had gone (the app was closed or reloaded). */
+  /** An answer that came through NaoMuseHive after the screen that asked had gone (the app was closed or reloaded). */
   late(p, a) {
     const ok = !a.error, k = ok ? this.asCard(a.result?.card ?? a.result) : null;
     this.post({ id: p.card, task: p.task, title: p.title, ...(ok ? { ...k, status: 'done' } : { type: 'summary', status: 'failed', headline: a.error }), at: Date.now() });
@@ -612,8 +612,8 @@ const Agent = {
     if (this.where(t) === 'mac' && !o.here) {
       const to = this.target(t);
       if (!to.ready()) {
-        if (!to.paired) throw new Error('This needs StudioGen on your Mac: pair in Settings › Connections.');
-        // a StudioGBee in the mesh keeps it while the app is closed (not something that sends and should be asked again)
+        if (!to.paired) throw new Error(`This needs ${BRAND.mac} on your Mac: pair in Settings › Connections.`);
+        // a NaoMuseHive in the mesh keeps it while the app is closed (not something that sends and should be asked again)
         if (typeof Bee !== 'undefined' && Bee.up() && to.meshId && !(this.acts(t) && this.waitRules().ask)) return this.viaBee(t, to, params, o);
         await this.wait(t, to, o.card);
         if (this.acts(t) && this.waitRules().ask && !(await this.askAgain(t, params, to))) throw new Error('Okay, I didn’t.');
@@ -706,13 +706,13 @@ const Agent = {
     catch (e) { Working.end(false); const signin = /^SIGNIN:/.test(e.message); this.post({ id: c.id, type: 'summary', status: signin ? 'signin' : 'failed', headline: signin ? `Sign in to ${e.message.slice(7)} in the agent browser` : e.message, at: Date.now() }); if (signin) AgentWeb.show(true); throw e; }
   },
   /** On the phone: the Mac's own tasks (names, examples, inputs), for matching and the model. */
-  /** What the mesh's online StudioGens share, as their presence names it; meshStale: it changed since the last fetch. */
+  /** What the mesh's online NaoMuses share, as their presence names it; meshStale: it changed since the last fetch. */
   meshHash() { return typeof Mesh === 'undefined' || !Mesh.m ? '' : JSON.stringify(Object.entries(Mesh.presence).filter(([, x]) => x.app === 'StudioGen' && Date.now() - x.at < 60000).map(([id, x]) => [id, x.caps?.agent || []])); },
   meshStale() { return this.meshHash() !== (this.meshSeen ?? ''); },
   async refresh(force) {
     if (force) this.meshAt = 0; const seen = this.meshHash(); let failed = false;
     if (!LINK_HOST && Link.ready()) try { const r = await Link.tasks(); if (Array.isArray(r?.tasks)) store.set('macTasks', r.tasks); } catch (e) { Log.d('agent', 'Mac tasks: not fetched', { error: e.message }); }
-    // the other StudioGens in the mesh (at most once a minute): what each lets this device run; an offline one's are kept, to wait for it
+    // the other NaoMuses in the mesh (at most once a minute): what each lets this device run; an offline one's are kept, to wait for it
     if (typeof Mesh === 'undefined' || !Mesh.m || Date.now() - (this.meshAt || 0) < 60000) return; this.meshAt = Date.now();
     const mac = typeof Relay !== 'undefined' ? Relay.mac()?.meshId : null, asked = new Set(), got = [];
     for (const [id, x] of Object.entries(Mesh.presence)) {
@@ -721,7 +721,7 @@ const Agent = {
       catch (e) { failed = true; Log.d('agent', `Mesh tasks: not fetched from ${x.name}`, { error: e.message }); }
     }
     store.set('meshTasks', [...this.meshMine().filter(t => !asked.has(t.on) && Mesh.member(t.on)), ...got]);
-    if (!failed) this.meshSeen = seen; // a StudioGen that didn't answer is asked again next time
+    if (!failed) this.meshSeen = seen; // a NaoMuse that didn't answer is asked again next time
   },
   /** The tasks this Mac offers: for its owner's devices the ones made here; for others the shared ones that need no sign-in. */
   offered(own = true) {
@@ -748,7 +748,7 @@ const Agent = {
   drop(id) { store.set('agentFeed', this.feed().filter(x => x.id !== id)); AgentHome.draw(); },
 };
 
-// the mesh's StudioGens change what they share (their presence names it), or five minutes went by: fetch what they offer again
+// the mesh's NaoMuses change what they share (their presence names it), or five minutes went by: fetch what they offer again
 setInterval(() => { if (typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStale() || Date.now() - (Agent.meshAt || 0) > 300000)) Agent.refresh(true); }, 20000);
 
 /* ---------- Actions: the agent's steps (also usable in any script) ---------- */
@@ -766,7 +766,7 @@ const agentAction = (id, def) => Actions.define(id, { ...def, async run(...a) {
     that its button or field is there. */
 const checkOnly = (kind, v, a, c) => { if (!c?.check || !c.task?.acts) return false;
   return kind === 'key' ? /enter/i.test(v || 'Enter') : kind === 'type' ? a.flags.includes('enter') : /send|post|reply|submit|save|delete|remove|book|pay|confirm|publish/i.test(`${v} ${a.sel || ''}`); };
-const needWeb = () => { if (!AgentWeb.can()) throw new Error('This step needs StudioGen on a Mac (its agent browser)'); };
+const needWeb = () => { if (!AgentWeb.can()) throw new Error(`This step needs ${BRAND.mac} on a Mac (its agent browser)`); };
 agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', arg: 'Web address; inputs: ?name=value (added to the address), wait=selector, site=name (to ask for a sign-in), ms=15000, container=name (else the site’s container)', async run(v, say, ev = {}) {
   const c = agentCtx(ev), W = AgentWeb.bound(c); needWeb(); const a = agentArgs(ev.args), u = new URL(v);
   for (const [k, x] of a.q) if (x !== '') u.searchParams.set(k, x);
@@ -799,7 +799,7 @@ agentAction('agent.open', { group: 'Agent', name: 'Agent browser: open a page', 
       W.show(true);
       // a sign-in page, on any site: by its address, or by its words (WhatsApp's stays at web.whatsapp.com until linked)
       if (SIGNIN.test(here()) || SIGNIN_WORDS.test(txt)) throw new Error(`SIGNIN:${site}`);
-      if (/works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser|switch to a supported browser/i.test(txt)) throw new Error(`${site} says this browser isn’t supported. Update StudioGen, then ask again.`);
+      if (/works with google chrome|update (your )?browser|browser (is )?not supported|unsupported browser|switch to a supported browser/i.test(txt)) throw new Error(`${site} says this browser isn’t supported. Update ${BRAND.mac}, then ask again.`);
       if (/are you a robot|not a robot|verify you are human|captcha|unusual traffic/i.test(txt)) throw new Error(`${site} wants to check you’re not a robot: answer it in the agent browser on your Mac, then ask again.`);
       throw new Error(`${site} didn’t open as expected. Have a look in the agent browser on your Mac (sign in if it asks), then ask again.`);
     }
@@ -1018,17 +1018,17 @@ const AgentHome = {
       ${this.waitHtml()}`,
       [['Save', () => { store.set('agentCfg', { ...c, outlook: $('#agOl').value, remote: $('#agRemote') ? $('#agRemote').checked : c.remote, watch: $('#agWatch') ? $('#agWatch').checked : c.watch, practice: $('#agPractice').checked, stepMode: $('#agStep') ? $('#agStep').checked : c.stepMode, parallel: $('#agPar') ? +$('#agPar').value : c.parallel }); this.waitSave(); toast('Saved'); }], ['Close']]);
   },
-  /** Waiting requests (Agent.waitRules): how long each kind may wait for an offline Mac or StudioGen. */
+  /** Waiting requests (Agent.waitRules): how long each kind may wait for an offline Mac or NaoMuse. */
   waitHtml() {
     const w = Agent.waitRules(), opts = v => [0, 1, 5, 10, 30, 60, 240, -1].map(m => `<option value="${m}" ${+v === m ? 'selected' : ''}>${Agent.waitLabel(m)}</option>`).join('');
-    return `<p class="se-note"><b>Waiting requests</b> · when the Mac (or StudioGen) a request is for is offline, it waits on this device while ${APP_NAME} is open, then runs when it's back.</p>
+    return `<p class="se-note"><b>Waiting requests</b> · when the Mac (or ${BRAND.mac}) a request is for is offline, it waits on this device while ${APP_NAME} is open, then runs when it's back.</p>
       <div class="ag-wait">${Agent.WAIT_KINDS.map(([k, l]) => `<label class="se-row"><span>${esc(l)}</span><select data-agwait="${k}">${opts(w[k])}</select></label>`).join('')}</div>
       <label class="se-check"><input type="checkbox" id="agWaitAsk" ${w.ask ? 'checked' : ''}> Ask again before sending something that waited</label>`;
   },
   waitSave() { if (!$('[data-agwait]')) return; const w = { ask: !!$('#agWaitAsk')?.checked }; for (const el of $$('[data-agwait]')) w[el.dataset.agwait] = +el.value; store.set('waitRules', w); },
   /** Containers, like Firefox's (js/media.js Containers, desktop/browse.js): each keeps its own sign-ins; sites go into one. */
   containers() {
-    sheet('Containers and sign-ins', `<p class="se-note">Like Firefox containers: each keeps its own sign-ins, so a work and a personal account of the same site can both stay signed in. Put sites in a container, one a line (<code>outlook.office.com</code>); a site in none opens in Default. A task can also name its container. Sign-ins are kept when StudioGen restarts or updates.</p>
+    sheet('Containers and sign-ins', `<p class="se-note">Like Firefox containers: each keeps its own sign-ins, so a work and a personal account of the same site can both stay signed in. Put sites in a container, one a line (<code>outlook.office.com</code>); a site in none opens in Default. A task can also name its container. Sign-ins are kept when ${BRAND.mac} restarts or updates.</p>
       <div id="ctList">${Containers.all().map(c => this.ctRow(c)).join('')}</div>
       <div class="chip-row"><button class="chip" data-ag="ctadd">+ Container</button></div>`,
       [['Save', () => { this.ctSave(); toast('Containers saved'); }], ['Cancel']]);

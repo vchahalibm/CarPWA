@@ -84,7 +84,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <h2 id="what">What a watcher is</h2>
 <p>Think of a watcher as an agent task that runs on its own schedule. It reads something: a list (mail, chats, posts), part of a web page, a price, a feed, a folder on your Mac, or a window. It compares that with what it saw last time. When something new or different turns up, you get a <b>👁 card</b> on the Agent screen, a quiet notification, and, when it matters, the assistant says it aloud.</p>
 <figure><img src="img/watchers/agent.jpg" alt="The Agent screen with watch cards: a WhatsApp message from Mom, an order from a webhook, a moved meeting and a new mail" loading="lazy"><figcaption>The Agent screen: each 👁 card is a watcher's news, with <b>Check now</b> and <b>Watchers</b>. The <b>👁 Watchers</b> button at the top right opens the list.</figcaption></figure>
-<div class="tip"><b>Watchers run in StudioGen on your Mac</b>Like tasks, they use the agent browser with your sign-ins, so they can see your Outlook, Slack, Teams, WhatsApp and X. DriveGen on your phone gets their news as cards (see <a href="#where">Where they run</a>).</div>
+<div class="tip"><b>Watchers run in NaoMuse on your Mac</b>Like tasks, they use the agent browser with your sign-ins, so they can see your Outlook, Slack, Teams, WhatsApp and X. DriveGen on your phone gets their news as cards (see <a href="#where">Where they run</a>).</div>
 
 <h2 id="first">Your first watcher, in a minute</h2>
 <ol class="steps">
@@ -105,7 +105,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <p>Say (or type) what you want: <q class="say">tell me when the price of [a product's link] drops below 12000</q>, <q class="say">keep an eye on the news about Acme</q>, <q class="say">let me know when bitcoin goes above 90 lakh rupees</q>, <q class="say">notify me when ollama/ollama has a new release</q>. The assistant drafts the watcher and asks before saving it. Say <b>yes</b> and it reads once, as above. If it's missing something (which person? which page?), it opens the form instead.</p>
 <figure><img src="img/watchers/voice.jpg" alt="Saying tell me when the price drops below 12000; the assistant answers: I'll watch Amazon price, every hour, and tell you when it's below 12000. Shall I?" loading="lazy"><figcaption>By voice: the assistant drafts the watcher and asks “Shall I?”.</figcaption></figure>
 <h3>Tap what to watch on a page</h3>
-<p>Open any page in the agent browser and tap <span class="path">👁 Watch something here</span> in its bar (or <span class="path">+ New watcher › Watch something on a page</span> and give its address). Tap the part to watch: a list, a price, a status, a paragraph. StudioGen suggests the kind from what you tapped (a list: new items; a number: a price; text: changes). You choose the line (<code>below 11000</code>, <code>drops 5%</code>) or the words.</p>
+<p>Open any page in the agent browser and tap <span class="path">👁 Watch something here</span> in its bar (or <span class="path">+ New watcher › Watch something on a page</span> and give its address). Tap the part to watch: a list, a price, a status, a paragraph. NaoMuse suggests the kind from what you tapped (a list: new items; a number: a price; text: changes). You choose the line (<code>below 11000</code>, <code>drops 5%</code>) or the words.</p>
 <div class="pair">
   <figure><img src="img/watchers/browser.jpg" alt="The agent browser showing a product page, with a Watch something here button in its bar" loading="lazy"><figcaption>The agent browser's <b>👁 Watch something here</b>.</figcaption></figure>
   <figure><img src="img/watchers/pick.jpg" alt="The Watch this sheet: you picked 11,499, tell me when a number crosses a line, below 11000" loading="lazy"><figcaption>After tapping the price: the kind is suggested.</figcaption></figure>
@@ -145,7 +145,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
   <figure><img src="img/watchers/varun-5-teach-form.jpg" alt="Watch this: you picked a message after 2 steps; new items appear in a list; name: New in Varun" loading="lazy"><figcaption>The form after teaching.</figcaption></figure>
   <figure><img src="img/watchers/varun-6-card.jpg" alt="The Agent screen: a notification and a card, New in Varun: Booked the table for 8, see you there" loading="lazy"><figcaption>When Varun writes: a notification and a 👁 card.</figcaption></figure>
 </div>
-<div class="tip"><b>What to tap on WhatsApp</b>Tap his <b>chat in the list on the left</b> (anywhere on the row: his name, the preview, the time). Today's WhatsApp doesn't label its rows, so StudioGen finds the row by its shape (a list of look-alike rows) and watches every row like it, keeping only those with his name. You don't need to tap a name exactly. If WhatsApp says it's <i>open in another window</i>, the agent browser presses <b>Use here</b> by itself (only one WhatsApp window works at a time, and both are the agent browser's own).</div>
+<div class="tip"><b>What to tap on WhatsApp</b>Tap his <b>chat in the list on the left</b> (anywhere on the row: his name, the preview, the time). Today's WhatsApp doesn't label its rows, so NaoMuse finds the row by its shape (a list of look-alike rows) and watches every row like it, keeping only those with his name. You don't need to tap a name exactly. If WhatsApp says it's <i>open in another window</i>, the agent browser presses <b>Use here</b> by itself (only one WhatsApp window works at a time, and both are the agent browser's own).</div>
 <div class="warn"><b>Way 2 opens his chat at every check</b>Opening a chat marks its messages as read, on your phone too, so Varun sees blue ticks and you lose the unread badge. For WhatsApp, prefer the template or Way 1, which only read the chat list. Way 2 suits sites where opening a page changes nothing (a channel, a feed, a search).</div>
 <p>Which to choose? <b>Way 1</b> is lighter (one page, no clicks each check) and sees his latest message without marking it read. <b>Way 2</b> sees every message in his chat, but marks them read. With either, add <b>Only tell me if…</b> (for example <q class="say">he needs an answer today</q>) or <b>Say it aloud: Always</b> in <b>Edit</b>.</p>
 
@@ -187,8 +187,8 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <ul>
   <li><b>From</b> and <b>To</b>: tap a quick choice (<i>Where I am</i>, <i>Where I'm navigating to</i>, <i>Home</i>, <i>Work</i>, your saved places), or type any address or place and pick it from the list. The start can be anywhere, not just home or work.</li>
   <li><b>Avoid tolls</b> and <b>Avoid highways</b>: Google Maps leaves those routes out.</li>
-  <li><b>Avoid roadworks and closures</b>: StudioGen skips a route Google marks with construction, a closure or an accident.</li>
-  <li><b>Avoid roads</b> and <b>Prefer roads</b>: roads or places, comma-separated (“Old Madras Rd, Silk Board”). StudioGen opens each route's turn-by-turn steps in Google Maps, so a road anywhere on the way counts, not just the one in “via”. A place Google doesn't name in the steps (a junction such as Silk Board) is found on the map and checked against the route's path: Last check says “Silk Board: on the way of Hosur Rd (180 m)”. A route with something you avoid is skipped; when every route has it, you're told about them all. A preferred road is told first when it is within a few minutes of the fastest. Google Maps can't do this. The steps are read once and kept for 12 hours, so the first check takes longer (up to a minute).</li>
+  <li><b>Avoid roadworks and closures</b>: NaoMuse skips a route Google marks with construction, a closure or an accident.</li>
+  <li><b>Avoid roads</b> and <b>Prefer roads</b>: roads or places, comma-separated (“Old Madras Rd, Silk Board”). NaoMuse opens each route's turn-by-turn steps in Google Maps, so a road anywhere on the way counts, not just the one in “via”. A place Google doesn't name in the steps (a junction such as Silk Board) is found on the map and checked against the route's path: Last check says “Silk Board: on the way of Hosur Rd (180 m)”. A route with something you avoid is skipped; when every route has it, you're told about them all. A preferred road is told first when it is within a few minutes of the fastest. Google Maps can't do this. The steps are read once and kept for 12 hours, so the first check takes longer (up to a minute).</li>
   <li><b>Only on</b> days and between times (for example weekdays 8:00–10:00): outside them the watcher rests.</li>
 </ul>
 <p><b>Last check</b> shows what it read, for example <i>routes: 26 min via Outer Ring Rd · 38 min via Old Madras Rd [skipped: along old madras]</i>.</p>
@@ -212,7 +212,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <tr><td>Work</td><td>Calendar: a meeting moved, added or cancelled · GitHub items assigned to me · a GitHub build failed · a status page shows an incident · a competitor's pricing page changes · new reviews · a shared document changed</td></tr>
 <tr><td>Life</td><td>Parcel status · tickets on sale · new apartment listings · new jobs on a careers page · school or society notices · results published</td></tr>
 <tr><td>News and money</td><td>A topic or company in the news · a stock crosses a price · a crypto coin crosses a price · a government tender or circular · a software release</td></tr>
-<tr><td>Media</td><td>A YouTube channel's new videos · a podcast's new episodes · a subreddit · a Hacker News mention · a blog's new posts (StudioGen finds its feed)</td></tr>
+<tr><td>Media</td><td>A YouTube channel's new videos · a podcast's new episodes · a subreddit · a Hacker News mention · a blog's new posts (NaoMuse finds its feed)</td></tr>
 <tr><td>On the road</td><td>Lookahead: traffic and what's on the way · a faster way · be there by · leave by (my next meeting) · fuel or charging on the way · weather ahead · next town · food at meal times · parking near where I'm going · 10 minutes away · speed cameras · toll plazas · tomorrow's drive</td></tr>
 <tr><td>On this Mac</td><td>New or changed files in a folder · a file changes · an app's window (words appear, or it changes) · a webhook · when another watcher has news</td></tr>
 </table></div>
@@ -243,7 +243,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
   <div class="card"><h4>👁 A card</h4><p>On the Agent screen and in the timeline, with <b>Check now</b> and <b>Watchers</b>.</p></div>
   <div class="card"><h4>A quiet notification</h4><p>A short note at the top, wherever you are. It never switches screens.</p></div>
   <div class="card"><h4>Said aloud</h4><p><b>When it's important</b> (the default), <b>Always</b> or <b>Never</b>, in the assistant's own voice: the 3D assistant waves, then speaks with its lips moving. Never while you're presenting or in a conversation.</p></div>
-  <div class="card"><h4>On your phone</h4><p>A card in DriveGen; when the phone is away, a notification through StudioGBee that says only “a watcher found something new”.</p></div>
+  <div class="card"><h4>On your phone</h4><p>A card in DriveGen; when the phone is away, a notification through NaoMuseHive that says only “a watcher found something new”.</p></div>
   <div class="card"><h4>The daily digest</h4><p>At 18:00, one card sums up what your watchers saw that day (written by the language model).</p></div>
   <div class="card"><h4>Quiet hours</h4><p>22:00–07:00: no notifications or voice. Cards and the digest still come.</p></div>
 </div>
@@ -295,7 +295,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <figure><img src="img/watchers/card-confirm.jpg" alt="A card: I lost what it watches; is this it? Acme Noise-Cancelling Headphones, Black (found by its words), with Yes, that's it and No, I'll pick it" loading="lazy"><figcaption><b>Yes, that's it</b> keeps the new place; <b>No, I'll pick it</b> opens the page for you to tap it again.</figcaption></figure>
 <p>If even that fails, the card says <b>Pick it again</b>.</p>
 <h3>App windows</h3>
-<p>Watching another app's window needs <b>Screen Recording</b> for StudioGen. The first time, StudioGen asks. If it was turned down, the watcher pauses with a card that offers <b>Ask me again</b> or <b>Open System Settings</b> (<span class="path">Privacy &amp; Security › Screen Recording</span>).</p>
+<p>Watching another app's window needs <b>Screen Recording</b> for NaoMuse. The first time, NaoMuse asks. If it was turned down, the watcher pauses with a card that offers <b>Ask me again</b> or <b>Open System Settings</b> (<span class="path">Privacy &amp; Security › Screen Recording</span>).</p>
 <h3>Finding out why</h3>
 <ul>
   <li><b>Last check</b> (in a watcher's <b>Edit</b>, and on the “Couldn't read it” sheet): each step of its last check in plain words, for example opened in 1.3 s, pressed Use here, which ways of finding the part matched and how many, how many it kept, news or nothing new, or where it stopped.</li>
@@ -308,16 +308,16 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 
 <h2 id="where">Where they run</h2>
 <div class="two">
-  <div class="card"><h4>This Mac</h4><p>In StudioGen's agent browser, with your sign-ins. It always leaves one of the 3 browser slots free for what you ask.</p></div>
-  <div class="card"><h4>A Worker</h4><p>With a Worker in your mesh (<span class="path">Mesh › Workers</span>), the form has <b>Runs on</b>. A Worker is always on and keeps its own sign-ins. Its news comes back to your Mac sealed, and StudioGBee keeps it while the Mac sleeps. <b>Check now</b>, <b>Pause</b> and <b>Delete</b> reach it.</p></div>
+  <div class="card"><h4>This Mac</h4><p>In NaoMuse's agent browser, with your sign-ins. It always leaves one of the 3 browser slots free for what you ask.</p></div>
+  <div class="card"><h4>A Worker</h4><p>With a Worker in your mesh (<span class="path">Mesh › Workers</span>), the form has <b>Runs on</b>. A Worker is always on and keeps its own sign-ins. Its news comes back to your Mac sealed, and NaoMuseHive keeps it while the Mac sleeps. <b>Check now</b>, <b>Pause</b> and <b>Delete</b> reach it.</p></div>
   <div class="card"><h4>Your phone</h4><p>DriveGen gets each piece of news as a card (untick <b>On my phone too</b> to stop). <span class="path">Settings › Assistant › Watchers</span> there shows your Mac's watchers, with Check now and Pause.</p></div>
 </div>
-<p><b>After an update or a restart</b>, watchers carry on by themselves: their first checks come within a minute, and what arrived while StudioGen was off is told then. Paused ones (signed out, say) stay paused until you act on their card. <b>Closing StudioGen's window</b> keeps it running in the menu bar, and watchers keep checking (a little less often while it's hidden); <b>Quit</b> (⌘Q) stops them. To have them running after you restart your Mac, tick <b>Start at login</b> in StudioGen's menu-bar menu (it then starts hidden, with watchers running).</p>
+<p><b>After an update or a restart</b>, watchers carry on by themselves: their first checks come within a minute, and what arrived while NaoMuse was off is told then. Paused ones (signed out, say) stay paused until you act on their card. <b>Closing NaoMuse's window</b> keeps it running in the menu bar, and watchers keep checking (a little less often while it's hidden); <b>Quit</b> (⌘Q) stops them. To have them running after you restart your Mac, tick <b>Start at login</b> in NaoMuse's menu-bar menu (it then starts hidden, with watchers running).</p>
 <p><b>Live</b> (in <i>How often</i>) keeps the page open in a hidden browser. The page itself says when the watched part changes, so you hear within a few seconds instead of on a schedule. That costs memory, so keep live watchers for chats, or put them on a Worker.</p>
 
 <h2 id="hooks">Webhooks</h2>
-<p><span class="path">On this Mac › A webhook</span> gives you an address on your StudioGBee. Whatever another service POSTs to it (a form, a shop's order notice, a home-automation event, up to 16 KB) becomes a 👁 card within seconds, even if it arrives while your Mac is asleep (it's kept for a week). The address is shown in the watcher's <b>Edit</b>. Anyone with the address can post to it, so share it only with the service that needs it.</p>
-<div class="warn"><b>Needs StudioGBee</b>Webhooks come in through your StudioGBee, which must be reachable from the internet for outside services. Without a bee, the webhook template says so.</div>
+<p><span class="path">On this Mac › A webhook</span> gives you an address on your NaoMuseHive. Whatever another service POSTs to it (a form, a shop's order notice, a home-automation event, up to 16 KB) becomes a 👁 card within seconds, even if it arrives while your Mac is asleep (it's kept for a week). The address is shown in the watcher's <b>Edit</b>. Anyone with the address can post to it, so share it only with the service that needs it.</p>
+<div class="warn"><b>Needs NaoMuseHive</b>Webhooks come in through your NaoMuseHive, which must be reachable from the internet for outside services. Without a bee, the webhook template says so.</div>
 
 <h2 id="say">Things you can say</h2>
 <div class="two">
@@ -329,7 +329,7 @@ code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:14px}
 <h2 id="privacy">Privacy and manners</h2>
 <ul>
   <li>Watchers read with your sign-ins on your own Mac or Worker. What they see, their history and their CSV files stay there. Only the news itself goes to your own devices, sealed.</li>
-  <li>StudioGBee never sees what your watchers found. A phone notification says only “a watcher found something new”. Webhooks are the exception: what an outside service posts reaches the bee as it was sent.</li>
+  <li>NaoMuseHive never sees what your watchers found. A phone notification says only “a watcher found something new”. Webhooks are the exception: what an outside service posts reaches the bee as it was sent.</li>
   <li>Watchers that act on things ask first. Password, payment and one-time-code fields are never recorded or typed.</li>
   <li>Be gentle with sites: checks have a little randomness, failures back off, and the X templates check every 30 minutes to start with. Some sites' terms don't allow automated reading; whether to watch them is your choice.</li>
 </ul>

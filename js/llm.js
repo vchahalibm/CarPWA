@@ -6,10 +6,10 @@
      cards — reading a page and writing the result card
      build — building tasks and scripts (the long build prompt)
    Where each runs ('auto' tries them in this order):
-     builtin — built into StudioGen: llama.cpp in its main process (desktop/llm.js), gpt-oss from a file it downloaded or
+     builtin — built into NaoMuse: llama.cpp in its main process (desktop/llm.js), gpt-oss from a file it downloaded or
               the copy Ollama already has; nothing else to install
      local  — a model server on this Mac (Ollama by default, gpt-oss; or a pool of Macs behind an OpenAI-compatible address)
-     remote — your Mac's model, from a phone or a StudioGen Worker (link request 'llm', or a StudioGen of yours in the mesh
+     remote — your Mac's model, from a phone or a NaoMuse Worker (link request 'llm', or a NaoMuse of yours in the mesh
               that hosts one: presence caps.llm); only for the host's owner's own devices
      cloud  — Claude, with your key
      mac    — Apple's on-device model (small: the last resort)
@@ -40,9 +40,9 @@ const LLM_PROMPTS = {
   'ask': { name: 'Ask the model (script step)', role: 'cards', where: 'js/brain.js › brain.ask', vars: [],
     text: 'You are the assistant inside a presentation and task app, speaking out loud. Answer briefly and plainly (at most three sentences) unless asked for a list or data. If asked for data, answer with JSON only.' },
   'plan': { name: 'Plan a task from building blocks', role: 'build', where: 'js/tasklocal.js › TaskLocal.plan (the quick builder)', vars: [],
-    text: 'You plan an agent task for the StudioGen app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.' },
+    text: `You plan an agent task for the ${BRAND.mac} app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.` },
   'build.inapp': { name: 'Build by talking: inside the app', role: 'build', where: 'js/taskbuild.js › added after the build prompt', vars: [],
-    text: '\n\n---\n## Inside the app (this conversation)\nYou are talking inside the StudioGen app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.' },
+    text: `\n\n---\n## Inside the app (this conversation)\nYou are talking inside the ${BRAND.mac} app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.` },
   'watch.judge': { name: 'Watchers: does it matter?', role: 'fast', where: 'js/watch.js › Watch.judge (a watcher with “Only tell me if…”)', vars: ['rule', 'memory'],
     text: 'You decide whether something a web watcher just found matters to the user. Their rule: “{rule}”. What you know about them:\n{memory}\nmatters: does it satisfy the rule? important: would they want to hear it out loud right now (urgent, from someone close, needs them today)? why: a few words.' },
   'watch.extract': { name: 'Watchers: fields from a page', role: 'fast', where: 'js/watch.js › Watch.extract (a watcher that reads “the price and whether it’s in stock”)', vars: ['fields', 'about'],
@@ -72,7 +72,7 @@ const LLM = {
   setPrompt(id, text) { const o = store.get('prompts', {}); if (text == null || text === LLM_PROMPTS[id]?.text) delete o[id]; else o[id] = text; store.set('prompts', o); },
 
   /* ---------- Where it runs ---------- */
-  /** The model built into StudioGen (desktop/llm.js): { available, model, loaded, downloading, models } (checked at most every 30 s). */
+  /** The model built into NaoMuse (desktop/llm.js): { available, model, loaded, downloading, models } (checked at most every 30 s). */
   async builtin(force) {
     if (!window.DriveDeckDesktop?.llm) return (this.bi = { available: false });
     if (!force && this.bi && Date.now() - this.bi.at < 30000) return this.bi;
@@ -89,7 +89,7 @@ const LLM = {
     catch { this.health = { at: Date.now(), ok: false, up: false, models: [] }; }
     return this.health;
   },
-  /** Someone else's model this device may use: the paired Mac (phones), or a StudioGen of yours in the mesh that hosts one. */
+  /** Someone else's model this device may use: the paired Mac (phones), or a NaoMuse of yours in the mesh that hosts one. */
   remote() {
     if (!LINK_HOST && typeof Link !== 'undefined' && Link.ready() && Date.now() > (this.noRemote || 0)) return { name: Link.macName(), call: o => Link.llm(o) };
     if (typeof Mesh === 'undefined' || !Mesh.m) return null;
@@ -110,7 +110,7 @@ const LLM = {
   },
   async can(role = 'fast') { return (await this.order(role)).length > 0; },
   /** What a role uses now, for Settings and the logs. */
-  async describe(role) { const w = (await this.order(role))[0]; return { builtin: `${this.bi?.model?.id || 'the model'} built into StudioGen`, local: `${this.cfg().model} in Ollama (or your model server)`, remote: `${this.remote()?.name}'s model`, cloud: `Claude (${this.cfg().cloud})`, mac: 'Apple’s on-device model' }[w] || 'none'; },
+  async describe(role) { const w = (await this.order(role))[0]; return { builtin: `${this.bi?.model?.id || 'the model'} built into ${BRAND.mac}`, local: `${this.cfg().model} in Ollama (or your model server)`, remote: `${this.remote()?.name}'s model`, cloud: `Claude (${this.cfg().cloud})`, mac: 'Apple’s on-device model' }[w] || 'none'; },
 
   /** { system, prompt | messages, schema?, max?, temperature?, onChunk? } → { text, json? (parsed when a schema was given), via }.
       onChunk(text): the words as they come (the built-in engine, Ollama and Claude stream; the others give it all at once). */
@@ -175,7 +175,7 @@ const LLM = {
     const r = await MacAI.ask({ instructions: o.system || '', prompt: o.prompt || (o.messages || []).map(m => `${m.role}: ${m.content}`).join('\n\n'), schema: o.schema, temperature: o.temperature ?? 0.2, max: Math.min(1500, o.max || 400) });
     return { text: r.json ?? r.text ?? '' };
   },
-  /** On StudioGen: a request from one of its owner's own devices (a phone, a Worker): answered here, never passed on. */
+  /** On NaoMuse: a request from one of its owner's own devices (a phone, a Worker): answered here, never passed on. */
   async answer(p, who) {
     if (!this.cfg().share) throw new Error('This Mac doesn’t share its model (Settings › Assistant › Language model)');
     if (typeof Agent !== 'undefined' && !Agent.ownDevice(who)) throw new Error('Only this Mac’s owner’s own devices may use its model');
@@ -201,7 +201,7 @@ const LLM = {
   },
   /** Use a model that Ollama has (after downloading). */
   useLocal(model) { const c = this.cfg(); this.save({ ...c, url: `${this.OLLAMA()}/v1`, model }); },
-  /** No Ollama yet: StudioGen downloads Ollama's own app (ollama.com, the zip), puts it in your Applications folder and opens
+  /** No Ollama yet: NaoMuse downloads Ollama's own app (ollama.com, the zip), puts it in your Applications folder and opens
       it; one code you approve once (js/ostasks.js). Already there but closed: just opens it. Then waits up to 2 minutes for it. */
   OLLAMA_INSTALL: 'set -e; if [ -d /Applications/Ollama.app ]; then open -a /Applications/Ollama.app; echo opened; exit 0; fi; D="$HOME/Applications"; if [ -d "$D/Ollama.app" ]; then open "$D/Ollama.app"; echo opened; exit 0; fi; mkdir -p "$D"; T=$(mktemp -d); curl -fsSL https://ollama.com/download/Ollama-darwin.zip -o "$T/ollama.zip"; ditto -x -k "$T/ollama.zip" "$D"; rm -rf "$T"; open "$D/Ollama.app"; echo installed',
   canInstall: () => typeof OsTasks !== 'undefined' && OsTasks.can(),
@@ -218,16 +218,16 @@ const LLM = {
     const c = this.cfg(), f = await this.fit(), ol = LINK_HOST ? await this.ollama() : null, h = LINK_HOST ? await this.local() : null;
     const opt = (v, cur, l) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`;
     const bi = LINK_HOST ? await this.builtin(true) : { available: false };
-    const roles = await Promise.all(this.ROLES.map(async ([k, n, d]) => `<label class="se-row"><span><b>${n}</b> <span class="se-note">${d} · now: ${esc(await this.describe(k))}</span></span><select data-llmrole="${k}">${opt('auto', c.roles[k], 'Automatic')}${bi.available ? opt('builtin', c.roles[k], 'Built into StudioGen') : ''}${LINK_HOST ? opt('local', c.roles[k], 'Ollama or a model server') : ''}${opt('remote', c.roles[k], LINK_HOST ? 'My other StudioGen’s model' : 'My Mac’s model')}${opt('cloud', c.roles[k], 'Claude (cloud)')}${LINK_HOST ? opt('mac', c.roles[k], 'Apple’s on-device model') : ''}</select></label>`));
-    sheet('Language model', `<p class="se-note">One model for everything that needs one: understanding what you say, result cards, building tasks and scripts. By default it runs on ${LINK_HOST ? 'this Mac' : 'your Mac'}, so nothing leaves it; Claude is the option in the cloud. <b>Automatic</b> tries ${LINK_HOST ? 'the model built into StudioGen, then Ollama or your model server, then Claude (if you add a key), then Apple’s small model' : 'your Mac’s model, then Claude (if you add a key)'}.</p>
+    const roles = await Promise.all(this.ROLES.map(async ([k, n, d]) => `<label class="se-row"><span><b>${n}</b> <span class="se-note">${d} · now: ${esc(await this.describe(k))}</span></span><select data-llmrole="${k}">${opt('auto', c.roles[k], 'Automatic')}${bi.available ? opt('builtin', c.roles[k], `Built into ${BRAND.mac}`) : ''}${LINK_HOST ? opt('local', c.roles[k], 'Ollama or a model server') : ''}${opt('remote', c.roles[k], LINK_HOST ? `My other ${BRAND.mac}’s model` : 'My Mac’s model')}${opt('cloud', c.roles[k], 'Claude (cloud)')}${LINK_HOST ? opt('mac', c.roles[k], 'Apple’s on-device model') : ''}</select></label>`));
+    sheet('Language model', `<p class="se-note">One model for everything that needs one: understanding what you say, result cards, building tasks and scripts. By default it runs on ${LINK_HOST ? 'this Mac' : 'your Mac'}, so nothing leaves it; Claude is the option in the cloud. <b>Automatic</b> tries ${LINK_HOST ? `the model built into ${BRAND.mac}, then Ollama or your model server, then Claude (if you add a key), then Apple’s small model` : 'your Mac’s model, then Claude (if you add a key)'}.</p>
       ${bi.available ? this.biHtml(bi, f) : ''}
       ${LINK_HOST ? `<details class="lk-direct ${h.ok ? 'on' : ''}" ${bi.model ? '' : 'open'}><summary><b>Or in Ollama, or a model server / a pool of Macs</b></summary><p><b>Ollama on this Mac</b>: ${h.ok ? `✓ ${esc(c.model)} is ready` : h.up ? `the server answers, but hasn’t got ${esc(c.model)}` : 'no model server running'} · ${f.gb} GB memory${f.chip ? ` · ${esc(f.chip)}` : ''}</p>
-        ${!ol.up ? `<p class="se-note">The model runs in <b>Ollama</b> (free, from ollama.com). ${this.canInstall() ? 'StudioGen can install it for you (you approve it once), then download the model.' : 'Install it, open it, then come back: the model downloads from here.'}</p><div class="chip-row">${this.canInstall() ? '<button class="chip accent" data-llm="install">Install Ollama for me</button>' : ''}<button class="chip${this.canInstall() ? '' : ' accent'}" data-llm="getollama">Get Ollama (website)</button><button class="chip" data-llm="recheck">Check again</button></div>`
+        ${!ol.up ? `<p class="se-note">The model runs in <b>Ollama</b> (free, from ollama.com). ${this.canInstall() ? `${BRAND.mac} can install it for you (you approve it once), then download the model.` : 'Install it, open it, then come back: the model downloads from here.'}</p><div class="chip-row">${this.canInstall() ? '<button class="chip accent" data-llm="install">Install Ollama for me</button>' : ''}<button class="chip${this.canInstall() ? '' : ' accent'}" data-llm="getollama">Get Ollama (website)</button><button class="chip" data-llm="recheck">Check again</button></div>`
           : f.best && !ol.models.includes(f.best.id) ? `<div class="chip-row"><button class="chip accent" data-llm="pull|${f.best.id}">Download ${esc(f.best.name)} (${f.best.size})</button></div><div class="su-bar" id="llmBar" hidden><i></i></div>` : ''}
         ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB. Pool this Mac with another (Thunderbolt or the same network) using a pooling server such as exo or mlx-swarm (their instructions), then put its address and model below.</p>` : ''}
         <label class="se-field"><span>Model server (OpenAI-compatible: Ollama, LM Studio, or a pool of Macs)</span><input id="llmUrl" value="${esc(c.url)}" autocapitalize="off" autocorrect="off"></label>
         <label class="se-field"><span>Model</span><input id="llmModel" list="llmModels" value="${esc(c.model)}" autocapitalize="off" autocorrect="off"><datalist id="llmModels">${(h.models || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></label>
-      </details><label class="se-check"><input type="checkbox" id="llmShare" ${c.share ? 'checked' : ''}> My phones, iPads and StudioGen Workers may use this Mac’s model</label>` : ''}
+      </details><label class="se-check"><input type="checkbox" id="llmShare" ${c.share ? 'checked' : ''}> My phones, iPads and ${BRAND.worker}s may use this Mac’s model</label>` : ''}
       <label class="se-field"><span>Claude model (cloud)</span><input id="llmCloud" value="${esc(c.cloud)}" list="llmCl"><datalist id="llmCl">${BRAIN_MODELS.anthropic.map(m => `<option value="${m}">`).join('')}</datalist></label>
       <label class="se-field"><span>Anthropic API key (kept on this device)</span><input id="llmKey" type="password" value="${esc(this.key())}" autocomplete="off"></label>
       <p class="se-note"><b>Each job</b></p>${roles.join('')}
@@ -237,14 +237,14 @@ const LLM = {
   /** Settings: the built-in engine, its model (Ollama's copy, or downloaded), the download with progress. */
   biHtml(bi, f) {
     const best = f.best || LLM_MODELS[0], m = bi.models?.find(x => x.id === best.id) || {}, dl = bi.downloading;
-    return `<div class="lk-direct ${bi.model ? 'on' : ''}"><p><b>Built into StudioGen</b> (llama.cpp on the graphics chip; nothing else to install): ${bi.model ? `✓ ${esc(bi.model.id)} ${bi.model.source === 'ollama' ? '(read from Ollama’s copy)' : '(downloaded)'}${bi.loaded ? ' · loaded' : ' · loads when first needed'}` : 'no model yet'} · ${f.gb} GB memory</p>
-      ${bi.model?.source === 'ollama' ? `<p class="se-note">It reads the model file Ollama already has (Ollama itself isn’t used). ${dl ? 'When StudioGen’s own copy has downloaded, it switches to that by itself.' : m.downloaded ? '' : 'To be independent of Ollama’s files, download StudioGen’s own copy: it switches when done.'}</p>` : ''}
+    return `<div class="lk-direct ${bi.model ? 'on' : ''}"><p><b>Built into ${BRAND.mac}</b> (llama.cpp on the graphics chip; nothing else to install): ${bi.model ? `✓ ${esc(bi.model.id)} ${bi.model.source === 'ollama' ? '(read from Ollama’s copy)' : '(downloaded)'}${bi.loaded ? ' · loaded' : ' · loads when first needed'}` : 'no model yet'} · ${f.gb} GB memory</p>
+      ${bi.model?.source === 'ollama' ? `<p class="se-note">It reads the model file Ollama already has (Ollama itself isn’t used). ${dl ? `When ${BRAND.mac}’s own copy has downloaded, it switches to that by itself.` : m.downloaded ? '' : `To be independent of Ollama’s files, download ${BRAND.mac}’s own copy: it switches when done.`}</p>` : ''}
       <div class="chip-row">${!bi.model && m.ollama ? `<button class="chip accent" data-llm="biuse|${best.id}|ollama">Use the ${esc(best.name)} file Ollama has (no download)</button>` : ''}
-        ${!m.downloaded ? (dl ? `<button class="chip" disabled>Downloading StudioGen’s own copy… ${Math.round(dl.done / dl.total * 100)}%</button><button class="chip" data-llm="bistop">Stop</button>` : `<button class="chip${!bi.model && !m.ollama ? ' accent' : ''}" data-llm="bidl|${best.id}">Download StudioGen’s own copy (${best.size})</button>`) : bi.model?.source !== 'download' ? `<button class="chip" data-llm="biuse|${best.id}">Use StudioGen’s own copy</button>` : ''}
+        ${!m.downloaded ? (dl ? `<button class="chip" disabled>Downloading ${BRAND.mac}’s own copy… ${Math.round(dl.done / dl.total * 100)}%</button><button class="chip" data-llm="bistop">Stop</button>` : `<button class="chip${!bi.model && !m.ollama ? ' accent' : ''}" data-llm="bidl|${best.id}">Download ${BRAND.mac}’s own copy (${best.size})</button>`) : bi.model?.source !== 'download' ? `<button class="chip" data-llm="biuse|${best.id}">Use ${BRAND.mac}’s own copy</button>` : ''}
         ${m.downloaded ? `<button class="chip" data-llm="birm|${best.id}">Delete the download</button>` : ''}</div><div class="su-bar" id="biBar" ${dl ? '' : 'hidden'}><i style="width:${dl ? Math.round(dl.done / dl.total * 100) : 0}%"></i></div>
       ${f.next ? `<p class="se-note"><b>A better model with more Macs:</b> ${esc(f.next.name)} needs about ${f.next.need} GB; pool this Mac with another (see below).</p>` : ''}</div>`;
   },
-  /** Download into StudioGen, with progress to a bar and a line (Settings, the startup checklist). */
+  /** Download into NaoMuse, with progress to a bar and a line (Settings, the startup checklist). */
   async biDownload(id, onp = () => {}) {
     const off = DriveDeckDesktop.llm.onProgress(p => { if (p.id === id) onp(p.done / p.total); });
     try { const r = await DriveDeckDesktop.llm.download(id); if (r?.error) throw new Error(r.error); await this.builtin(true); } finally { off(); }
@@ -287,9 +287,9 @@ document.addEventListener('click', async e => {
     try { await LLM.pull(arg, f => { if (bar) bar.firstElementChild.style.width = `${Math.round(f * 100)}%`; b.textContent = `Downloading… ${Math.round(f * 100)}%`; }); LLM.useLocal(arg); toast('Downloaded: this Mac’s model is ready'); LLM.settings(); }
     catch (err) { b.disabled = false; toast(err.message); } }
 }, true);
-// StudioGen: is the model server there (for Automatic, the mesh's presence and Settings)
+// NaoMuse: is the model server there (for Automatic, the mesh's presence and Settings)
 setTimeout(() => { if (LINK_HOST) { LLM.local(); LLM.builtin(); setInterval(() => { LLM.local(); LLM.builtin(); }, 60000); } }, 1500);
 // a model download (started in the startup list or Settings) goes on in the background: Settings › Assistant shows how far, and it says when it's done
 if (window.DriveDeckDesktop?.llm?.onProgress) DriveDeckDesktop.llm.onProgress(p => {
-  LLM.dl = p; if (p.ok) { LLM.dl = null; LLM.builtin(true); toast('gpt-oss has downloaded: StudioGen uses its own copy now'); Log.i('llm', 'Built-in model downloaded'); }
+  LLM.dl = p; if (p.ok) { LLM.dl = null; LLM.builtin(true); toast(`gpt-oss has downloaded: ${BRAND.mac} uses its own copy now`); Log.i('llm', 'Built-in model downloaded'); }
 });

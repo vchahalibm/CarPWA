@@ -1,5 +1,5 @@
 // Every desktop file the app loads (require('./x') in desktop/*.js) is in the packaged app (package.json build.files):
-// a missing one stops StudioGen before its window opens (0.18.0 left out watchio.js). Run: node tests/desktop/packaged.cjs (CI too).
+// a missing one stops NaoMuse before its window opens (0.18.0 left out watchio.js). Run: node tests/desktop/packaged.cjs (CI too).
 const fs = require('fs'), path = require('path'), dir = path.join(__dirname, '../../desktop');
 const files = new Set(require(path.join(dir, 'package.json')).build.files), missing = [];
 const seen = new Set(), walk = f => { if (seen.has(f)) return; seen.add(f);

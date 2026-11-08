@@ -1,0 +1,17 @@
+{
+  "id": "brand-names", "title": "The names: NaoMuse on the Mac's screens, DriveGen on the phone, the internal ids unchanged, “Hey NaoMuse” wakes it", "tags": ["brand", "ui"],
+  "steps": [
+    { "do": "launch" },
+    { "do": "expect", "js": "APP_NAME === BRAND.mac && document.title.includes(BRAND.mac)", "why": "The Mac app's name and window title" },
+    { "do": "expect", "js": "APP_ID", "equals": "StudioGen", "why": "Its internal id stays (what other devices see)" },
+    { "do": "view", "name": "start" },
+    { "do": "expect", "text": "NaoMuse gives your presentations", "why": "The start screen says NaoMuse" },
+    { "do": "view", "name": "settings" },
+    { "do": "expect", "text": "NaoMuse is used for", "why": "So does Settings" },
+    { "do": "expect", "js": "['Hey NaoMuse, what time is it', 'hey nao muse what time', 'Hey now muse what time', 'ok studio gen open maps'].map(t => Chat.wakeRe().test(t)).join()", "equals": "true,true,true,true", "why": "The wake word, as recognizers hear it (and the old name)" },
+    { "do": "expect", "js": "Mesh.selfEntry({ id: 'x', sigPub: '', dhPub: '' }, 'owner').app", "equals": "StudioGen", "why": "The mesh still announces the internal id" },
+    { "do": "drivegen", "device": "iphone" },
+    { "do": "expect", "on": "phone", "js": "APP_NAME === BRAND.phone && APP_ID === 'DriveGen'", "why": "The phone app is DriveGen" },
+    { "do": "errors.none", "ignore": ["ResizeObserver"] }
+  ]
+}

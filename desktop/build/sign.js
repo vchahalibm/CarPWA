@@ -1,5 +1,5 @@
 'use strict';
-/* Signing StudioGen (electron-builder's afterPack: after the app is put together, before the DMG and zip are made).
+/* Signing NaoMuse (electron-builder's afterPack: after the app is put together, before the DMG and zip are made).
    With the build's certificate (your own self-made code-signing certificate, any name; MAC_SIGN_ID, in the keychain MAC_SIGN_KEYCHAIN; the workflow imports it from the secrets
    MAC_CERT_P12 / MAC_CERT_PASSWORD) every version carries the same signature identity, so macOS sees each update as the
    same app: the Keychain's “Always Allow” for “StudioGen Safe Storage” (which encrypts the browser's cookies and kept
@@ -16,5 +16,5 @@ module.exports = async ctx => {
   execFileSync('codesign', args, { stdio: 'inherit' });
   execFileSync('codesign', ['--verify', '--deep', app], { stdio: 'inherit' });
   const dr = execFileSync('codesign', ['-dr', '-', app], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  console.log(`  • signed ${path.basename(app)} (${ctx.arch === 1 ? 'x64' : ctx.arch === 3 ? 'arm64' : ctx.arch}) ${id ? 'with the StudioGen certificate' : 'ad-hoc (no certificate in this build)'}: ${dr.split('\n').pop()}`);
+  console.log(`  • signed ${path.basename(app)} (${ctx.arch === 1 ? 'x64' : ctx.arch === 3 ? 'arm64' : ctx.arch}) ${id ? 'with the NaoMuse certificate' : 'ad-hoc (no certificate in this build)'}: ${dr.split('\n').pop()}`);
 };

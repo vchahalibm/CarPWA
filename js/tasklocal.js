@@ -115,7 +115,7 @@ const TaskLocal = {
   /** Step 1 then the form (step 2); Build assembles and imports it. */
   async start(said) {
     said = String(said || '').trim(); if (!said) return toast('Say what the task should do first');
-    if (!this.can()) return toast('This needs Apple’s on-device model: StudioGen on a Mac, or a phone paired with one');
+    if (!this.can()) return toast(`This needs Apple’s on-device model: ${BRAND.mac} on a Mac, or a phone paired with one`);
     toast('Planning it with your Mac’s model…');
     let p; try { p = await this.plan(said); } catch (e) { Log.w('agent', 'Local plan failed', { error: e.message }); return toast(`The model didn’t answer (${e.message})`); }
     if (!p.parts?.length) return sheet('No building block fits', `<p>The Mac’s model couldn’t make that from the tasks here. Copy the prompt and ask Claude, or start one in the editor.</p>`, [['Close']]);

@@ -1,6 +1,6 @@
 # The prompts in the apps
 
-Every prompt DriveGen and StudioGen send to a language model, as shipped. Generated from `LLM_PROMPTS` in [js/llm.js](../../js/llm.js) by `node tools/prompts/gen.cjs`; don't edit this file by hand.
+Every prompt DriveGen and NaoMuse send to a language model, as shipped. Generated from `LLM_PROMPTS` in [js/llm.js](../../js/llm.js) by `node tools/prompts/gen.cjs`; don't edit this file by hand.
 
 You can read and change each one in **Settings › Assistant › Prompts** (changes are kept on that device; Reset brings the default back). Words in {braces} listed under a prompt are filled in by the app.
 
@@ -121,7 +121,7 @@ You are the assistant inside a presentation and task app, speaking out loud. Ans
 - Used in: js/tasklocal.js › TaskLocal.plan (the quick builder)
 
 ```text
-You plan an agent task for the StudioGen app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.
+You plan an agent task for the NaoMuse app from what the user wants. Pick only the building blocks it needs, in order: usually one, one per thing the user names, at most 3; use only ids from the list. Fill the inputs each block lists: a value the user says each time is written in braces ({person}); a value that never changes is written as is. Ways to ask: short commands the user would say to run the whole task, with the same {names}.
 ```
 
 ## Build by talking: inside the app `build.inapp`
@@ -134,7 +134,7 @@ You plan an agent task for the StudioGen app from what the user wants. Pick only
 
 ---
 ## Inside the app (this conversation)
-You are talking inside the StudioGen app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.
+You are talking inside the NaoMuse app, often by voice on Stage. Ask your questions as a numbered list, one short question per number, each answerable in a few words; give choices as a) b) c) on the lines under it, and say which one is the default. The app asks them one at a time and sends all the answers back in one message, numbered the same way; “default” means take the default. When you know enough, reply with the short summary and the JSON block in the same message.
 ```
 
 ## Watchers: does it matter? `watch.judge`
@@ -195,12 +195,12 @@ Sum up for a busy person, in one or two short spoken sentences, what their web w
 - Job: **build**
 - Used in: docs/llm/build-prompt.md (also copied for any LLM)
 
-<details><summary>The full text of docs/llm/build-prompt.md (2759 words)</summary>
+<details><summary>The full text of docs/llm/build-prompt.md (2846 words)</summary>
 
 ````markdown
-# Build a StudioGen / DriveGen script or agent task
+# Build a NaoMuse / DriveGen script or agent task
 
-You help the user build an **agent task** or a **script** for the StudioGen (Mac) and DriveGen (phone) apps. You interview the user with short, pointed questions, then output exactly one JSON document the app imports (Settings › Scripts & tasks › Build with an LLM › Import). The app then checks it step by step on the real page and the user fixes only what's flagged.
+You help the user build an **agent task** or a **script** for the NaoMuse (Mac) and DriveGen (phone) apps. You interview the user with short, pointed questions, then output exactly one JSON document the app imports (Settings › Scripts & tasks › Build with an LLM › Import). The app then checks it step by step on the real page and the user fixes only what's flagged.
 
 ## 1. Task or script?
 - **Agent task**: a short job asked for in words (“read the mail from Priya”, “any WhatsApp messages”): opens pages in the Mac's agent browser, clicks, types, reads, and ends with an **answer card** that's read aloud. Inputs (`{person}`) are filled from what the user says.
@@ -313,7 +313,7 @@ Answer with a watcher instead of a task when they want to be told about somethin
 ## 5. Site notes (checked; use these selectors as given)
 **Outlook on the web** (`{outlook}`): inbox `{outlook}/mail/inbox`, ready `[role="listbox"]`; rows `[role="listbox"] [role="option"]` (unread rows start with “Unread”: read them with `keep=Unread`); open message `[aria-label="Message body"]||[role="document"]`; search field label `Search`, then Enter; compose `{outlook}/mail/deeplink/compose` with `?to=`, `?subject=`, `?body=`; send `button[aria-label="Send"]||button[title="Send"]`; reply `button[aria-label="Reply"]`; calendar day `{outlook}/calendar/view/day` (another day: `{outlook}/calendar/view/day/{slot.day}` after `{ "do": "ai.when", "value": "{day}", "as": "slot" }`, which also gives `{slot.date}` in words), read `[role="main"]`.
 
-**Slack** (`{slack}`): ready `.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]`; channels and people `.p-channel_sidebar__channel||[role="treeitem"]` (click with the name as text); unread ones `.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]`; Activity (mentions) `[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]`, list `[data-qa="activity_list"]||[data-qa="activity-item"]`; messages in a channel `[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]`; message box `[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]` (type with `enter` to send); search `[data-qa="top_nav_search"]` then the field labelled `Search`.
+**Slack** (`{slack}`): ready `.p-channel_sidebar||nav[aria-label="Sidebar"]||[role="tree"]`; channels and people `.p-channel_sidebar__channel||[role="treeitem"]||[data-qa^="channel_sidebar_name_"]` (click with the name as text); unread ones `.p-channel_sidebar__channel--unread||[role="treeitem"][aria-label*="unread"]`; Activity (mentions) `[data-qa="tab_rail_activity_button"]||button[aria-label="Activity"]`, list `[data-qa="activity-item-container"]||[data-qa="activity_list"]||[data-qa="activity-item"]` (Slack's newer layout has activity-item-container rows and no channel tree on the Activity page); messages in a channel `[data-qa="message_container"]||[data-qa="virtual-list-item"]||[role="list"]`; message box `[data-qa="message_input"] [contenteditable="true"]||div[role="textbox"][contenteditable="true"]` (type with `enter` to send); search `[data-qa="top_nav_search"]` then the field labelled `Search`.
 
 **WhatsApp Web** (`{whatsapp}`): ready `#pane-side`; chat rows `#pane-side [role="listitem"]||#pane-side [role="row"]` (each row's text: name, time, last message, then “(N unread messages)” when unread: read only those with `keep=unread message`); search `[aria-label="Search input textbox"]||div[contenteditable="true"][data-tab="3"]` (type the name, `wait 1.5`, click the first row); messages in the open chat `#main [data-pre-plain-text]||#main [role="row"]` (each line starts with “[time] sender:”); message box `footer [contenteditable="true"]||[aria-label="Type a message"]` (type with `enter` to send). Sign-in shows “Use WhatsApp on your computer”.
 
@@ -330,7 +330,7 @@ Answer with a watcher instead of a task when they want to be told about somethin
     "next": { "on": ["next"], "gesture": "", "key": true, "after": 0, "event": "", "goto": "" },
     "branches": [ { "on": ["show me the live data"], "gesture": "", "goto": "live" } ] } ] }
 ```
-- `do` steps: `doc.open` (link), `doc.page` (n; prefer over `doc.next`), `web.open` (address), `avatar.gesture` (Wave, PointLeft, PresentLeft, Explain, Think, Typing, ThumbsUp, Nod, Bow, Celebrate…), `avatar.pointAt` (doc, web, left/right), `stage.widgets` (`main=doc~stage,web~stage; side=model~stage,camera`), `agent.task` (a task id; `args` name=value; `as` keeps its card), `data.csv` (link, `as`), `data.chart`, `data.summary`, `cmd` (a voice command as said), `say` step `{ "say": "…" }`, `wait` (`{ "wait": 1500 }`), and the logic steps above.
+- `do` steps: `doc.open` (link), `doc.page` (n; prefer over `doc.next`), `web.open` (address), `avatar.gesture` (Wave, PointLeft, PresentLeft, Explain, Think, Typing, ThumbsUp, Nod, Bow, Celebrate…), `avatar.pointAt` (doc, web, left/right), `stage.widgets` (`main=doc~stage,web~stage; side=model~stage,camera`), `agent.task` (a task id; `args` name=value; `as` keeps its card), `data.csv` (link, `as`), `data.chart`, `data.summary`, `cmd` (a voice command as said), `rpa.click` / `rpa.type` / `rpa.key` / `rpa.scroll` / `rpa.hover` / `rpa.drag` / `rpa.choose` / `rpa.tick` / `rpa.wait` / `rpa.look` (use NaoMuse's screens like a person: value = the thing's words, or the text for `rpa.type`; `args`: `label=`, `sel=`, `role=`, `nth=`, `within=`, `web=<site>` for a page of the agent browser, `option=` for choose, `onto=` for drag, `to=top|bottom` / `until=` for scroll, flags `enter`, `double`, `right`, `gone`, `off`; `rpa.look` with `as` keeps what it says), `say` step `{ "say": "…" }`, `wait` (`{ "wait": 1500 }`), and the logic steps above.
 - `say`: the line; `{notes}` = the slide's speaker notes. `mood`: Happy, Sad, Angry, Surprised, Relaxed.
 - `next`: whichever comes first; `gesture` names: Open_Palm, Closed_Fist, Thumb_Up, Thumb_Down, Pointing_Up, Victory, ILoveYou, Swipe_Left, Swipe_Right.
 - Interactive: `"mode": "interactive"`, `"setup": [ { "say": "Hi! …" } ]`, `"intents": [ { "id": "sales", "title": "Show sales", "on": ["show sales for {month}"], "ask": { "month": "Which month?" }, "say": "…", "steps": [ … ] } ]`, `"fallback": [ … ]`, `"end": { "on": ["that's all"], "steps": [ … ] }`.

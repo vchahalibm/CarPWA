@@ -11,7 +11,7 @@
    app's own storage (IndexedDB). Loaded after radio.js.
    ============================================================ */
 /** What the desktop app's browsers say they are: plain Chrome. Sites such as WhatsApp Web refuse a browser that also names
-    StudioGen or Electron (“WhatsApp works with Google Chrome 100+”), though it is Chrome underneath. */
+    NaoMuse or Electron (“WhatsApp works with Google Chrome 100+”), though it is Chrome underneath. */
 const BROWSER_UA = navigator.userAgent.replace(/\s(StudioGen|Electron|DriveDeck)\/\S+/gi, '');
 /** Containers for the desktop app's browsers, like Firefox's: each its own sign-ins (a session: 'persist:browse' is Default,
     'persist:c-<id>' the others; desktop/browse.js keeps them across restarts). Sites go into a container by rule

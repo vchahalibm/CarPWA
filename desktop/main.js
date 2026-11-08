@@ -1,5 +1,5 @@
 'use strict';
-/* StudioGen (the desktop app of DriveGen/DriveDeck): the same web app in an Electron window.
+/* NaoMuse (the desktop app of DriveGen/DriveDeck): the same web app in an Electron window.
    The web files (index.html, js/, css/, vendor/, icons/…) are served from a private, secure origin
    (app://drivedeck/), so everything that needs one works as on the web: the microphone, WebGPU, workers, the
    service worker and model caching. Nothing in the web app changes for the desktop; it notices Electron from
@@ -9,13 +9,19 @@
 const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage, screen, ipcMain, desktopCapturer, dialog, systemPreferences } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const BRAND = require('./brand'); // the names people see (js/brand.js)
+// The app's internal name stays StudioGen whatever it's called: the Keychain's “StudioGen Safe Storage” (kept sign-ins,
+// memory), its folder in Application Support and its logs follow it. The name people see is BRAND.mac (the bundle, menus, windows).
+app.setName('StudioGen');
+if (!process.env.SG_DATA && !app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'StudioGen'));
+if (process.platform === 'darwin') app.setAppLogsPath(path.join(app.getPath('home'), 'Library', 'Logs', 'StudioGen'));
 
 const BROWSER_UA_MAIN = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'; // the watchers' feed reader says it's a browser (some feeds refuse others)
 const SCHEME = 'app', HOST = 'drivedeck', ORIGIN = `${SCHEME}://${HOST}`; // the internal origin keeps its name: your data lives there
-// StudioGen Worker (worker/README.md, docs/studiogbee.html § 8): StudioGen in a Linux container without a screen of its own
+// NaoMuse Worker (worker/README.md, docs/studiogbee.html § 8): NaoMuse in a Linux container without a screen of its own
 // (a virtual one, Xvfb). No updates (the image is rebuilt), no menu bar or dialogs, data in SG_DATA; set up from the
 // environment (SG_NAME, SG_MESH_INVITE, the model), then seen and used from your devices (js/remoteview.js).
-// A light Worker (SG_LIGHT=1) is the same on a Mac: a second, hidden StudioGen with its own profile, started by StudioGen
+// A light Worker (SG_LIGHT=1) is the same on a Mac: a second, hidden NaoMuse with its own profile, started by NaoMuse
 // itself (Workers in js/workers.js, LightWorkers below); SIGUSR2 shows or hides its window.
 const WORKER = process.env.SG_WORKER === '1', LIGHT = WORKER && process.env.SG_LIGHT === '1', HIDDEN = process.env.SG_HIDDEN === '1'; /* HIDDEN: started without its window (MuseTester's silent runs; SIGUSR2 shows it) */
 if (WORKER) {
@@ -23,8 +29,8 @@ if (WORKER) {
   if (process.env.SG_DATA) app.setPath('userData', process.env.SG_DATA);
 }
 const fs = require('fs');
-// Errors in this process: written with their stack to ~/Library/Logs/StudioGen/main.log (kept short), and shown once a
-// minute at most, instead of Electron's bare “A JavaScript error occurred in the main process” box. StudioGen keeps running.
+// Errors in this process: written with their stack to ~/Library/Logs/NaoMuse/main.log (kept short), and shown once a
+// minute at most, instead of Electron's bare “A JavaScript error occurred in the main process” box. NaoMuse keeps running.
 let lastErrBox = 0;
 function mainError(kind, e) {
   const text = `${new Date().toISOString()} ${kind}: ${e?.stack || e}\n`;
@@ -33,7 +39,7 @@ function mainError(kind, e) {
   console.error(text);
   if (kind === 'error' && !WORKER && app.isReady() && Date.now() - lastErrBox > 60000) {
     lastErrBox = Date.now();
-    dialog.showMessageBox({ type: 'warning', message: 'StudioGen hit an error (it keeps running)', detail: `${e?.message || e}\n\nThe details are in ~/Library/Logs/StudioGen/main.log.`,
+    dialog.showMessageBox({ type: 'warning', message: `${BRAND.mac} hit an error (it keeps running)`, detail: `${e?.message || e}\n\nThe details are in ~/Library/Logs/StudioGen/main.log.`,
       buttons: ['OK', 'Copy details'] }).then(r => { if (r.response === 1) require('electron').clipboard.writeText(text); }).catch(() => {});
   }
 }
@@ -51,7 +57,7 @@ const WatchIO = require('./watchio')({ app, dialog, desktopCapturer, systemPrefe
 const T0 = Date.now(), startup = [];
 const trace = step => { startup.push(`+${Date.now() - T0} ms ${step}`); if (step === 'sign-ins unlocked' || step === 'gave up waiting') { clearTimeout(traceT); mainError('startup', startup.join(' · ')); } };
 const traceT = setTimeout(() => trace('gave up waiting'), 60000);
-// The kept sign-ins are unlocked (Keychain) after the window has loaded, so a password prompt never leaves StudioGen
+// The kept sign-ins are unlocked (Keychain) after the window has loaded, so a password prompt never leaves NaoMuse
 // without a window; the agent browser waits for this before loading anything (dd:browse-ready).
 let browseDone; const signinsReady = new Promise(r => { browseDone = r; });
 const Speech = require('./speech')({ app, getWindow: () => mainWin }); // Apple's speech recognizer (desktop/speech/main.swift) for voice commands
@@ -60,8 +66,8 @@ const Builtin = require('./llm')({ app, send: p => mainWin?.webContents.send('dd
 // The link to DriveGen on a phone or iPad (desktop/link.js): its requests are done by the page (js/link.js), asked here.
 const linkWaits = new Map();
 const linkAsk = (kind, payload) => new Promise((res, rej) => {
-  if (!mainWin) return rej(new Error('StudioGen’s window is closed'));
-  const id = Math.random().toString(36).slice(2), t = setTimeout(() => { linkWaits.delete(id); rej(new Error('No answer from StudioGen')); }, kind === 'run' || kind === 'say' ? 600000 : 15000);
+  if (!mainWin) return rej(new Error(`${BRAND.mac}’s window is closed`));
+  const id = Math.random().toString(36).slice(2), t = setTimeout(() => { linkWaits.delete(id); rej(new Error(`No answer from ${BRAND.mac}`)); }, kind === 'run' || kind === 'say' ? 600000 : 15000);
   linkWaits.set(id, { res, rej, t }); mainWin.webContents.send('dd:link-ask', { id, kind, payload });
 });
 const Link = require('./link')({ app, ask: linkAsk });
@@ -128,11 +134,11 @@ function guard(win) {
 
 function createWindow({ show = true } = {}) {
   const win = mainWin = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: 'StudioGen', show,
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, backgroundColor: '#000000', title: BRAND.mac, show,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', webPreferences: LIGHT ? { ...webPrefs, paintWhenInitiallyHidden: true } : webPrefs, // a light Worker paints while hidden (seen from afar)
   });
   guard(win); guestRules(win.webContents);
-  // On a Mac, closing the window hides it: StudioGen stays in the menu bar and keeps working (watchers, your phone's
+  // On a Mac, closing the window hides it: NaoMuse stays in the menu bar and keeps working (watchers, your phone's
   // requests, the mesh); Quit (⌘Q, the menu bar, an update) really quits.
   win.on('close', e => { if (quitting || process.platform !== 'darwin' || WORKER) return; e.preventDefault(); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); });
   win.on('closed', () => { if (mainWin === win) mainWin = null; presenting = false; presWin?.close(); menu(); });
@@ -161,13 +167,13 @@ function openPresenter(onDisplay) {
   const main = mainWin ? screen.getDisplayMatching(mainWin.getBounds()) : screen.getPrimaryDisplay();
   const d = onDisplay || (presenting && otherDisplay(main)) || main, w = Math.min(1180, d.workArea.width - 40), h = Math.min(780, d.workArea.height - 40);
   presWin = new BrowserWindow({ width: w, height: h, x: d.workArea.x + Math.round((d.workArea.width - w) / 2), y: d.workArea.y + Math.round((d.workArea.height - h) / 2),
-    minWidth: 640, minHeight: 420, backgroundColor: '#000000', title: 'StudioGen · Presenter', webPreferences: webPrefs });
+    minWidth: 640, minHeight: 420, backgroundColor: '#000000', title: `${BRAND.mac} · Presenter`, webPreferences: webPrefs });
   guard(presWin);
   presWin.on('closed', () => { presWin = null; menu(); });
   presWin.loadURL(`${ORIGIN}/presenter.html`);
   menu(); return presWin;
 }
-/** StudioGen full screen on display `id` (the wall); the presenter view on another screen when there is one. */
+/** NaoMuse full screen on display `id` (the wall); the presenter view on another screen when there is one. */
 function present(id) {
   const win = showMain(), d = screen.getAllDisplays().find(x => x.id === +id) || otherDisplay(screen.getDisplayMatching(win.getBounds())) || screen.getPrimaryDisplay();
   const go = () => {
@@ -190,7 +196,7 @@ function menu() {
   if (!tray) return;
   const ds = displays();
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open StudioGen', click: showMain },
+    { label: `Open ${BRAND.mac}`, click: showMain },
     { type: 'separator' },
     { label: 'Present on', submenu: ds.map(d => ({ label: `${d.label} (${d.w}×${d.h})${d.primary ? ' · main screen' : ''}`, click: () => present(d.id) })) },
     { label: 'Presenter view', click: () => { showMain(); openPresenter(); } },
@@ -201,13 +207,13 @@ function menu() {
     { label: 'Start at login', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: i => loginItem(i.checked) },
     { type: 'separator' },
     { label: 'Check for updates…', click: () => { showMain(); Updates.check(true); } },
-    { label: 'Quit StudioGen', role: 'quit' },
+    { label: `Quit ${BRAND.mac}`, role: 'quit' },
   ]));
 }
 function makeTray() {
   const img = nativeImage.createFromPath(path.join(__dirname, 'trayTemplate.png'));
   img.setTemplateImage(true);
-  tray = new Tray(img); tray.setToolTip('StudioGen');
+  tray = new Tray(img); tray.setToolTip(BRAND.mac);
   menu();
   screen.on('display-added', menu); screen.on('display-removed', menu);
 }
@@ -215,8 +221,8 @@ function makeTray() {
 // The direct link to DriveGen (js/direct.js): the Mac's real local address in its WebRTC code instead of an mDNS name, which
 // some networks (hotspots, office Wi-Fi) don't resolve. The code is only ever shown as a QR on this screen.
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
-/* ---------- Light Workers: hidden StudioGens on this Mac, each with its own profile (sign-ins, tasks) in
-   <userData>/workers/<id>; started with StudioGen and stopped with it. ---------- */
+/* ---------- Light Workers: hidden NaoMuses on this Mac, each with its own profile (sign-ins, tasks) in
+   <userData>/workers/<id>; started with NaoMuse and stopped with it. ---------- */
 const LightWorkers = (() => {
   const { spawn } = require('child_process'), kids = new Map();
   const file = () => path.join(app.getPath('userData'), 'light-workers.json');
@@ -243,7 +249,7 @@ const LightWorkers = (() => {
     stop: id => { const p = kids.get(id); if (p) p.kill(); return true; },
     show: id => { const p = kids.get(id); if (p) p.kill('SIGUSR2'); return !!p; },
     remove(id, data) { this.stop(id); keep(list().filter(w => w.id !== id)); if (data && OK.test(id)) setTimeout(() => fs.rmSync(path.join(app.getPath('userData'), 'workers', id), { recursive: true, force: true }), 1500); return true; },
-    resume() { for (const w of list()) if (w.auto !== false) start({ ...w, invite: '' }); }, // at StudioGen's start
+    resume() { for (const w of list()) if (w.auto !== false) start({ ...w, invite: '' }); }, // at NaoMuse's start
     stopAll() { for (const p of kids.values()) try { p.kill(); } catch {} },
   };
 })();
@@ -367,7 +373,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('dd:watchlog', own((op, a) => { try { return WatchIO.history(op, a); } catch (e) { return { error: e.message }; } }));
   ipcMain.handle('dd:diag', own((op, a) => { try { return WatchIO.diag(op, a); } catch (e) { return { error: e.message }; } })); // debugging: Diagnose files, the debug log
   ipcMain.handle('dd:browse-ready', own(() => signinsReady.then(() => true)));
-  // Memory (js/memory.js): one file in StudioGen's folder, locked with the Keychain (safeStorage); never sent anywhere
+  // Memory (js/memory.js): one file in NaoMuse's folder, locked with the Keychain (safeStorage); never sent anywhere
   const memFile = () => path.join(app.getPath('userData'), 'memory.bin');
   ipcMain.handle('dd:memory', own((op, data) => {
     const { safeStorage } = require('electron');
@@ -376,10 +382,10 @@ app.whenReady().then(async () => {
     if (op === 'wipe') { try { fs.rmSync(memFile()); } catch {} return true; }
     return null;
   }));
-  // Light Workers (js/workers.js): create, start, stop, show, remove; only from StudioGen's own page
+  // Light Workers (js/workers.js): create, start, stop, show, remove; only from NaoMuse's own page
   ipcMain.handle('dd:light', own((op, a) => ({ list: () => LightWorkers.list(), create: () => LightWorkers.create(a || {}), start: () => LightWorkers.start(a), stop: () => LightWorkers.stop(a), show: () => LightWorkers.show(a), remove: () => LightWorkers.remove(a?.id, a?.data) })[op]?.() ?? null));
   // A Worker's settings for the page (once at start): its name, the invite to join, the model to use for cards
-  ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { light: LIGHT, name: process.env.SG_NAME || 'StudioGen Worker', invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
+  ipcMain.on('dd:worker', e => { e.returnValue = WORKER && String(e.senderFrame?.url || '').startsWith(ORIGIN) ? { light: LIGHT, name: process.env.SG_NAME || `${BRAND.worker}`, invite: process.env.SG_MESH_INVITE || '', practice: process.env.SG_PRACTICE === '1',
     llm: process.env.SG_LLM_PROVIDER ? { provider: process.env.SG_LLM_PROVIDER, url: process.env.SG_LLM_URL || '', model: process.env.SG_LLM_MODEL || '', key: process.env.SG_LLM_KEY || '' } : null } : null; });
   // Updates (desktop/updater.js): state, check now, and apply (web: reload on the new files; shell: install and restart).
   ipcMain.handle('dd:update-status', own(() => Updates.status()));
@@ -391,12 +397,13 @@ app.whenReady().then(async () => {
   }));
   Updates.on(s => { for (const w of [mainWin, presWin]) w?.webContents.send('dd:update', s); }); // for webview-preload.js; a public file of the app
   if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu' }, { role: 'editMenu' },
+    { label: BRAND.mac, submenu: [{ role: 'about', label: `About ${BRAND.mac}` }, { type: 'separator' }, { role: 'services' }, { type: 'separator' },
+      { role: 'hide', label: `Hide ${BRAND.mac}` }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit', label: `Quit ${BRAND.mac}` }] }, { role: 'editMenu' },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'toggleDevTools' }] },
     { role: 'windowMenu' },
   ]));
   if (!WORKER) makeTray(); else if (LIGHT) app.dock?.hide();
-  if (LIGHT || HIDDEN) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // StudioGen › Workers › Show its window
+  if (LIGHT || HIDDEN) process.on('SIGUSR2', () => { if (!mainWin) return; if (mainWin.isVisible()) mainWin.hide(); else { mainWin.show(); mainWin.focus(); } }); // NaoMuse › Workers › Show its window
   if (!WORKER) LightWorkers.resume();
   // Started at login: just the menu bar until you open it.
   createWindow({ show: HIDDEN ? false : WORKER ? !LIGHT : !app.getLoginItemSettings().wasOpenedAtLogin }); trace('window');
@@ -414,4 +421,12 @@ app.on('before-quit', e => {
   Promise.race([Promise.all([Browse.save().catch(err => console.warn('browse save', err.message)), Builtin.quit?.().catch(err => console.warn('model quit', err.message))]), new Promise(r => setTimeout(r, 5000))]).finally(() => { browseSaved = true; app.quit(); });
 });
 // A downloaded new version of the app installs when you quit (and opens next time you start it).
-app.on('will-quit', () => { Speech.quit(); AI.quit(); Builtin.unload(); LightWorkers.stopAll(); Updates.installShell(false); });
+/** After a rename (StudioGen → NaoMuse), an app updated in place still sits at the old path: once it has quit, it moves
+    to <BRAND.mac>.app beside it (same bundle id and signature, so macOS keeps its permissions). Not when a shell update is waiting. */
+function renameBundle() {
+  const a = path.resolve(process.execPath, '../../..'), to = path.join(path.dirname(a), `${BRAND.mac}.app`);
+  if (!app.isPackaged || WORKER || !a.endsWith('.app') || a === to || fs.existsSync(to)) return;
+  try { fs.accessSync(path.dirname(a), fs.constants.W_OK); } catch { return; }
+  require('child_process').spawn('/bin/sh', ['-c', `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done; mv "$A" "$B"`], { detached: true, stdio: 'ignore', env: { ...process.env, A: a, B: to } }).unref();
+}
+app.on('will-quit', () => { Speech.quit(); AI.quit(); Builtin.unload(); LightWorkers.stopAll(); if (!Updates.installShell(false)) renameBundle(); });

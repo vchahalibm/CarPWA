@@ -1,4 +1,4 @@
-# StudioGBee (bee/README.md): docker build -t studiogbee bee && docker run -d --name studiogbee -p 8840:8840 -v studiogbee:/data studiogbee
+# NaoMuseHive (bee/README.md): docker build -t studiogbee bee && docker run -d --name studiogbee -p 8840:8840 -v studiogbee:/data studiogbee
 FROM node:22-alpine
 WORKDIR /bee
 COPY package.json package-lock.json ./

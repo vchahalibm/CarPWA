@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================
-   The relay link: DriveGen ↔ StudioGen from anywhere, no account, no server
+   The relay link: DriveGen ↔ NaoMuse from anywhere, no account, no server
    of ours. Messages go through public relays and are end-to-end encrypted,
    so a relay only sees a random topic and noise. Three kinds, in one list:
      wss://…           an MQTT broker (QoS 0)                  carries everything
@@ -8,7 +8,7 @@
      tracker+wss://…   a WebTorrent tracker (WebSocket)          introductions only: hellos and the
                                                                 direct-link handshake, never data
    docs/connections.html has the design.
-   - StudioGen keeps THE relay list (ordered, with a revision; Settings ›
+   - NaoMuse keeps THE relay list (ordered, with a revision; Settings ›
      Connections › Relays). Pairing (once per device) puts the list in the
      code ("SG3…": room, 256-bit key, the brokers, the revision). A changed
      list reaches a device only by pairing it again; until then it keeps
@@ -28,7 +28,7 @@
      only while searching for the other side.
    - Over it: presence, the link requests (offers, run, say; answers kept 10
      minutes for resends), and the WebRTC handshake for a direct link when the
-     direct settings (StudioGen's) allow it (js/direct.js).
+     direct settings (NaoMuse's) allow it (js/direct.js).
    Loaded after direct.js.
    ============================================================ */
 // Public relays, checked by echo tests (Oct 2026); operators and kinds mixed, so no single company or protocol is the only way.
@@ -47,7 +47,7 @@ const RELAY_DEFAULTS = [
   { url: 'wss://mqtt-dashboard.com:8884/mqtt', name: 'HiveMQ dashboard broker (backup)' },
 ];
 const DIRECT_DEFAULTS = { mode: 'auto', relayData: true, stun: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478', 'stun:global.stun.twilio.com:3478'], turn: { url: '', user: '', pass: '' } };
-// StudioGen in a plain browser for the network lab (?linktest=host): the link side only (docs/connection-tests.html).
+// NaoMuse in a plain browser for the network lab (?linktest=host): the link side only (docs/connection-tests.html).
 const LINK_HOST = !!window.DriveDeckDesktop || new URLSearchParams(location.search).get('linktest') === 'host';
 const b64u = { enc: b => { let s = ''; for (const x of new Uint8Array(b)) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
   dec: s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)) };
@@ -144,7 +144,7 @@ const relayKind = u => /^nostr\+/.test(u) ? NostrT : /^tracker\+/.test(u) ? Trac
 const Relay = {
   pool: new Map(), seen: new Map(), mine: new Map(), waits: new Map(), answers: new Map(), online: {}, peerUse: {}, keys: new Map(), topics: {},
   isMac: () => LINK_HOST,
-  /* ---------- The list (StudioGen's), the pairings, the direct settings ---------- */
+  /* ---------- The list (NaoMuse's), the pairings, the direct settings ---------- */
   list: () => store.get('relayList', null) || { rev: 1, brokers: RELAY_DEFAULTS },
   directCfg: () => ({ ...DIRECT_DEFAULTS, ...store.get('directCfg', {}) }),
   peers: () => store.get('relayPeers', []),
@@ -152,7 +152,7 @@ const Relay = {
   rooms() { const base = this.isMac() ? this.peers() : this.mac() ? [this.mac()] : []; return typeof Mesh !== 'undefined' ? [...base, ...Mesh.rooms()] : base; }, // + the mesh's group channel and pairwise rooms (js/mesh.js)
   brokersOf: room => room.brokers?.length ? room.brokers : RELAY_DEFAULTS.slice(0, 2).map(b => b.url), // pairings before the list (SG2): the first two defaults
   ready() { return !this.isMac() && !!this.mac() && !!this.online.mac && this.dataUp(this.mac()) && this.dataOk(); },
-  /** Data (requests and answers) may go over the relays: StudioGen's setting, told to the device in every hello. */
+  /** Data (requests and answers) may go over the relays: NaoMuse's setting, told to the device in every hello. */
   dataOk() { return this.isMac() ? this.directCfg().relayData !== false : this.mac()?.relayData !== false; },
   /** Up and able to carry data for this room (trackers only introduce). */
   dataUp(room) { return this.active(room).some(u => relayKind(u).data && this.pool.get(u)?.mq?.up); },
@@ -177,13 +177,13 @@ const Relay = {
      The phrase becomes a 256-bit number with PBKDF2-SHA256, 600,000 rounds (slow on purpose: guessing takes long), salted with
      the pairing's room, and is mixed into the random key (above). It is never sent or shown: the pairing code carries only a
      short check (so a typo is caught), and only the number made from it is kept. Change it on the Mac, then type the same new
-     phrase on the device: StudioGen switches when it sees the device use it (like a new random key). */
+     phrase on the device: NaoMuse switches when it sees the device use it (like a new random key). */
   async passKey(phrase, room) {
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(phrase.normalize('NFKC').trim()), 'PBKDF2', false, ['deriveBits']);
     return b64u.enc(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(`studiogen-phrase:${room}`), iterations: 600000 }, base, 256));
   },
   async passCheck(pk) { return pk === 'none' ? 'none' : b64u.enc(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`check:${pk}`))).slice(0, 8); },
-  /** StudioGen: a new phrase for a device (empty: no phrase). It is used once the device has the same one. */
+  /** NaoMuse: a new phrase for a device (empty: no phrase). It is used once the device has the same one. */
   async changePhrase(id, phrase) {
     const p = this.peers().find(x => x.id === id); if (!p) return;
     const pk = phrase.trim() ? await this.passKey(phrase, p.room) : 'none';
@@ -205,10 +205,10 @@ const Relay = {
   },
   /** The pairing as stored now (it changes when the secret does). */
   fresh(room) { return this.rooms().find(r => r.room === room.room) || room; },
-  /* ---------- Changing the secret (StudioGen starts it: "Change the secret", or on a schedule) ----------
-     1. StudioGen makes a new random 256-bit key and sends it, locked with the current key ("rekey"); it keeps sending with the
+  /* ---------- Changing the secret (NaoMuse starts it: "Change the secret", or on a schedule) ----------
+     1. NaoMuse makes a new random 256-bit key and sends it, locked with the current key ("rekey"); it keeps sending with the
         current key until the device confirms. 2. The device switches to the new key, keeps the old one 10 minutes for messages
-        still on their way, and confirms with the new key ("rekey-ok"). 3. StudioGen, seeing the new key used, switches too and
+        still on their way, and confirms with the new key ("rekey-ok"). 3. NaoMuse, seeing the new key used, switches too and
         keeps the old one 10 minutes. A device that's offline gets the new key when it next says hello. */
   rekey(id) {
     const p = this.peers().find(x => x.id === id); if (!p) return;
@@ -216,7 +216,7 @@ const Relay = {
     store.set('relayPeers', this.peers().map(x => x.id === id ? { ...x, nextKey: next, rekeySent: Date.now() } : x));
     this.post(this.fresh(p), 'rekey', { key: next }); Log.i('relay', `New secret for ${p.name}: sent`);
   },
-  commit(room) { // StudioGen: the device uses the new key now
+  commit(room) { // NaoMuse: the device uses the new key now
     store.set('relayPeers', this.peers().map(x => x.room === room.room && x.nextKey ? { ...x, oldKey: x.key, key: x.nextKey, nextKey: null, keyAt: new Date().toISOString(), oldUntil: Date.now() + 600000 } : x));
     Log.i('relay', `New secret in use: ${room.name}`); this.onchange?.();
   },
@@ -286,13 +286,13 @@ const Relay = {
   /** again: send the same message again after 1.5 s and 4 s (a relay can drop one; the other side drops repeats by id). */
   async post(room, type, body, again = false) {
     room = this.fresh(room);
-    // Mesh rooms: two StudioGens may talk, so the direction comes from their ids.
+    // Mesh rooms: two NaoMuses may talk, so the direction comes from their ids.
     const t = await this.topic(room, room.mesh ? Mesh.dirOut(room) : this.outDir()), iv = crypto.getRandomValues(new Uint8Array(12)), id = Math.random().toString(36).slice(2);
     const plain = new TextEncoder().encode(JSON.stringify({ id, ts: Date.now(), type, body }));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(t) }, await this.key(room, 'key', 'passKey'), plain));
     const p = new Uint8Array(12 + ct.length); p.set(iv); p.set(ct, 12);
     const data = type === 'ask' || type === 're';
-    if (data && !this.dataOk()) return false; // the relays only introduce (StudioGen's setting)
+    if (data && !this.dataOk()) return false; // the relays only introduce (NaoMuse's setting)
     const urls = this.active(room).filter(u => this.pool.get(u)?.mq?.up && (!data || relayKind(u).data)), sent = urls.filter(u => this.pool.get(u).mq.publish(t, p));
     this.mine.set(id, { at: Date.now(), urls: sent.filter(u => relayKind(u).echo), back: new Set() }); // trackers don't echo: no misses counted for them
     if (again) for (const ms of [1500, 4000]) setTimeout(() => { for (const u of this.active(room)) if (this.pool.get(u)?.mq?.up && (!data || relayKind(u).data)) this.pool.get(u).mq.publish(t, p); }, ms);
@@ -300,8 +300,8 @@ const Relay = {
   },
   async got(topic, payload, b) {
     const room = this.topics[topic] && this.fresh(this.topics[topic]); if (!room || payload.length < 29) return;
-    // The current key, else (while the secret is being changed) the next one (StudioGen) or the previous one (both, 10 minutes).
-    // …each with the current phrase, or one being changed (StudioGen) or the previous one (10 minutes).
+    // The current key, else (while the secret is being changed) the next one (NaoMuse) or the previous one (both, 10 minutes).
+    // …each with the current phrase, or one being changed (NaoMuse) or the previous one (10 minutes).
     let m, used = null, usedPw = null;
     const tries = [['key', 'passKey'], ['nextKey', 'passKey'], ['key', 'nextPass'], ['nextKey', 'nextPass'], ['oldKey', 'passKey'], ['key', 'oldPass'], ['oldKey', 'oldPass']];
     for (const [which, pw] of tries) {
@@ -320,7 +320,7 @@ const Relay = {
   },
   async handle(room, type, b) {
     if (room.group) return Mesh.onGroup(room, type, b); // the mesh's group channel (signed messages)
-    if (type === 'mesh-invite' && !this.isMac() && b.code) { if (store.get('meshAutoJoin', true)) Mesh.join(b.code).catch(e => Log.w('mesh', 'Join failed', e)); return; } // paired with a StudioGen in a mesh: join it
+    if (type === 'mesh-invite' && !this.isMac() && b.code) { if (store.get('meshAutoJoin', true)) Mesh.join(b.code).catch(e => Log.w('mesh', 'Join failed', e)); return; } // paired with a NaoMuse in a mesh: join it
     if (type === 'mesh-key' && room.mesh && Mesh.isOwner(room.peerId) && b.key) { const m = Mesh.m; if (m && b.key !== m.key) Mesh.save({ ...m, oldKey: m.key, key: b.key, oldUntil: Date.now() + 600000 }); return; } // the group key changed (someone was removed)
     if (type === 'mrtc' && room.mesh) return typeof MeshDirect !== 'undefined' && MeshDirect.signal(room, b); // setting up a direct link between two members (js/meshdirect.js)
     if (type === 'ask' && room.mesh) { // a mesh member's request: its permissions decide (js/mesh.js)
@@ -353,8 +353,8 @@ const Relay = {
       this.answers.set(b.id, a); this.post(room, 're', a); return;
     }
     if (type === 're') { const w = this.waits.get(b.id); if (w) { this.waits.delete(b.id); clearTimeout(w.t); clearInterval(w.again); b.error ? w.rej(new Error(b.error)) : w.res(b.result); } return; }
-    // The WebRTC handshake (StudioGen's direct settings: how, and which STUN/TURN servers).
-    if (type === 'rekey' && !this.isMac() && b.key) { // a new secret from StudioGen (locked with the current one)
+    // The WebRTC handshake (NaoMuse's direct settings: how, and which STUN/TURN servers).
+    if (type === 'rekey' && !this.isMac() && b.key) { // a new secret from NaoMuse (locked with the current one)
       const mac = this.mac(); if (b.key !== mac.key) store.set('relayMac', { ...mac, oldKey: mac.key, key: b.key, keyAt: new Date().toISOString(), oldUntil: Date.now() + 600000 });
       Log.i('relay', 'New secret from your Mac'); this.post(this.mac(), 'rekey-ok', {}); this.onchange?.(); return;
     }
@@ -363,9 +363,9 @@ const Relay = {
     if (type === 'rtc-offer' && !this.isMac()) { if (store.get('directAllow', true) === false) return; try { const code = await Direct.answer(b.code, b.ice || []); this.post(room, 'rtc-answer', { code }); } catch (e) { Log.w('relay', 'Direct answer failed', e); } return; }
     if (type === 'rtc-answer' && this.isMac()) { try { await Direct.accept(b.code); this.directTries = 0; } catch (e) { Log.w('relay', 'Direct accept failed', e); } }
   },
-  helloBody(room, re) { return { name: this.isMac() ? 'StudioGen' : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, relayData: this.isMac() ? this.dataOk() : undefined, meshId: typeof Mesh !== 'undefined' ? Mesh._me?.id : undefined, re: re ? 1 : undefined }; },
+  helloBody(room, re) { return { name: this.isMac() ? BRAND.mac : Direct.myName(), use: this.window(room), rev: room.rev || 0, master: this.isMac() ? this.list().rev : undefined, relayData: this.isMac() ? this.dataOk() : undefined, meshId: typeof Mesh !== 'undefined' ? Mesh._me?.id : undefined, re: re ? 1 : undefined }; },
   hello() { for (const r of this.rooms()) if (!r.quiet) this.post(r, 'hello', this.helloBody(r)); }, // mesh rooms are quiet: presence goes once, on the group channel
-  /** Direct when possible: StudioGen starts the handshake (auto: across networks with STUN; local: same network only; off: never),
+  /** Direct when possible: NaoMuse starts the handshake (auto: across networks with STUN; local: same network only; off: never),
       again after a link ends or fails, with growing pauses (1, 2, 5, 10 minutes). */
   maybeDirect(room) {
     const c = this.directCfg(); if (c.mode === 'off' || Direct.connected) return;
@@ -382,12 +382,12 @@ const Relay = {
     const id = Math.random().toString(36).slice(2);
     return new Promise((res, rej) => {
       const send = () => this.post(room, 'ask', { id, kind, payload });
-      const w = { res, rej, t: setTimeout(() => { this.waits.delete(id); clearInterval(w.again); rej(new Error('Your Mac didn’t answer: is StudioGen open?')); }, ms), again: setInterval(send, 15000) };
+      const w = { res, rej, t: setTimeout(() => { this.waits.delete(id); clearInterval(w.again); rej(new Error(`Your Mac didn’t answer: is ${BRAND.mac} open?`)); }, ms), again: setInterval(send, 15000) };
       this.waits.set(id, w); send();
       for (const d of [3000, 7000]) setTimeout(() => { if (this.waits.has(id)) send(); }, d); // early resends: a request lost while the two settle on a shared relay
     });
   },
-  /* ---------- Pairing (once per device; again when StudioGen's list changes) ---------- */
+  /* ---------- Pairing (once per device; again when NaoMuse's list changes) ---------- */
   async newPairing(phrase = '') {
     const L = this.list(), p = { id: Math.random().toString(36).slice(2, 8), room: b64u.enc(crypto.getRandomValues(new Uint8Array(16))), key: b64u.enc(crypto.getRandomValues(new Uint8Array(32))), name: 'A device (pairing…)', paired: new Date().toISOString(), keyAt: new Date().toISOString(), brokers: L.brokers.map(b => b.url), rev: L.rev };
     if (phrase.trim()) { p.passKey = await this.passKey(phrase, p.room); p.passAt = p.paired; }
@@ -395,7 +395,7 @@ const Relay = {
     return 'SG3' + b64u.enc(new TextEncoder().encode(JSON.stringify({ r: p.room, k: p.key, b: p.brokers, v: p.rev, ...(p.passKey ? { c: await this.passCheck(p.passKey) } : {}) }))); // the phrase itself is never in the code
   },
   pairWith(code) {
-    if (!/^SG[23][\w-]+$/.test(code)) throw new Error('That isn’t a StudioGen pairing code');
+    if (!/^SG[23][\w-]+$/.test(code)) throw new Error(`That isn’t a ${BRAND.mac} pairing code`);
     const j = JSON.parse(new TextDecoder().decode(b64u.dec(code.slice(3))));
     store.set('relayMac', { room: j.r, key: j.k, brokers: j.b || null, rev: j.v || 0, name: 'Your Mac', paired: new Date().toISOString(), needPass: j.c || null }); this.restart();
     return { needPass: !!j.c };
@@ -423,7 +423,7 @@ const Relay = {
     Direct.showCode($('#dlQr'), code);
   },
   async guestPair() {
-    closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p>
+    closeSheet(); Direct.screen('Pair with your Mac (once)', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>${BRAND.mac} › Settings › Connections › Pair a phone or iPad</b>. Point this camera at the code.</p><p class="se-note" id="dlState">Looking for the code…</p>
       <details class="se-note"><summary>No camera? Paste the code</summary><textarea id="dlPaste" class="se-wide" rows="3" placeholder="SG3…"></textarea><div class="chip-row"><button class="chip accent" data-rl="paste">Use this code</button></div></details></div></div>`);
     try { this.guestPaired(await Direct.scan($('#dlCam'), 'SG')); }
     catch (e) { // no camera (a simulator, a desktop) or not allowed: pasting is the way
@@ -440,10 +440,10 @@ const Relay = {
     }
     catch (e) { if ($('#dlState')) $('#dlState').textContent = e.message; }
   },
-  /** StudioGen › Connections › Relays: the list both sides use, in order. */
+  /** NaoMuse › Connections › Relays: the list both sides use, in order. */
   editor(draft) {
     const L = draft || JSON.parse(JSON.stringify(this.list())); this.draft = L;
-    sheet('Relays (StudioGen’s list)', `<p class="se-note">Public relays, tried in this order: both apps use the first two that work (MQTT brokers and Nostr relays carry everything; WebTorrent trackers only introduce the two apps, and are used when nothing else works), and move down the list together when one stops. Your own broker works too (wss://user:password@host:port/path). Devices get the list when they pair: after a change, pair them again.</p>
+    sheet(`Relays (${BRAND.mac}’s list)`, `<p class="se-note">Public relays, tried in this order: both apps use the first two that work (MQTT brokers and Nostr relays carry everything; WebTorrent trackers only introduce the two apps, and are used when nothing else works), and move down the list together when one stops. Your own broker works too (wss://user:password@host:port/path). Devices get the list when they pair: after a change, pair them again.</p>
       <ol class="rl-list">${L.brokers.map((b, i) => `<li><div><b>${esc(b.name || new URL(b.url).host)}</b><span class="se-note">${esc(b.url.replace(/\/\/[^@/]*@/, '//•••@'))}</span><span class="se-note" id="rlT${i}"></span></div>
         <button class="icon-btn" data-rlx="up:${i}" ${i ? '' : 'disabled'} aria-label="Up">↑</button><button class="icon-btn" data-rlx="down:${i}" ${i < L.brokers.length - 1 ? '' : 'disabled'} aria-label="Down">↓</button><button class="icon-btn" data-rlx="del:${i}" aria-label="Remove">${svg('del')}</button></li>`).join('')}</ol>
       <div class="se-row"><select id="rlKind"><option value="">MQTT broker</option><option value="nostr+">Nostr relay</option><option value="tracker+">WebTorrent tracker (introductions only)</option></select><input id="rlUrl" class="se-wz-in" placeholder="wss://broker.example.com:8084/mqtt"><input id="rlName" class="se-wz-in" placeholder="Name (optional)"><button class="chip" data-rlx="add">Add</button></div>`,
@@ -465,7 +465,7 @@ const Relay = {
   },
   directSheet() {
     const c = this.directCfg(), o = (v, l) => `<option value="${v}" ${c.mode === v ? 'selected' : ''}>${l}</option>`;
-    sheet('Direct link', `<p class="se-note">Once a device is online through the relays, StudioGen offers it a direct, encrypted WebRTC link (the relays carry the handshake). When it connects, requests go straight between the two; if it can’t, or drops, they stay on the relays, and StudioGen tries again later (after 1, 2, 5, then every 10 minutes).</p>
+    sheet('Direct link', `<p class="se-note">Once a device is online through the relays, ${BRAND.mac} offers it a direct, encrypted WebRTC link (the relays carry the handshake). When it connects, requests go straight between the two; if it can’t, or drops, they stay on the relays, and ${BRAND.mac} tries again later (after 1, 2, 5, then every 10 minutes).</p>
       <label class="se-field"><span>Try a direct link</span><select id="dcMode">${o('auto', 'Whenever possible, also across networks (STUN)')}${o('local', 'Only on the same network (no outside servers)')}${o('off', 'Never: relays only')}</select></label>
       <label class="se-check"><input type="checkbox" id="dcData" ${c.relayData !== false ? 'checked' : ''}> When there's no direct link, let requests and results go over the relays (encrypted). Off: the relays only introduce the two apps; without a direct link (or TURN) there's no connection.</label>
       <label class="se-field"><span>STUN servers (one per line): tell each side its public address, nothing passes through them</span><textarea id="dcStun" class="se-wide" rows="2">${esc(c.stun.join('\n'))}</textarea></label>
@@ -504,7 +504,7 @@ document.addEventListener('click', e => {
     [['Save', () => Relay.setPhrase($('#rlPhrase3').value).then(() => { toast('Saved'); Link.settings(); }, e2 => toast(e2.message))], ['Cancel', () => Link.settings()]]);
   if (k === 'rekey') { Relay.rekey(id); toast('New secret sent: it’s used once the device confirms'); return setTimeout(() => LinkHost.settings(), 300); }
   if (k === 'rekeyall') { Relay.peers().forEach(p => Relay.rekey(p.id)); toast('New secrets sent to every device'); return setTimeout(() => LinkHost.settings(), 300); }
-  if (k === 'revoke') { Relay.revoke(id); toast('Revoked: that device can’t reach StudioGen any more'); return LinkHost.settings(); }
+  if (k === 'revoke') { Relay.revoke(id); toast(`Revoked: that device can’t reach ${BRAND.mac} any more`); return LinkHost.settings(); }
   if (k === 'forget') { Relay.forget(); toast('Forgotten'); closeSheet(); }
   if (k === 'allow') { store.set('directAllow', !store.get('directAllow', true)); if (!store.get('directAllow', true)) Direct.close(); Link.settings(); }
 }, true);

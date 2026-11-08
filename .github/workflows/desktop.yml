@@ -1,6 +1,6 @@
 name: Desktop app
 
-# Builds StudioGen for Mac (Apple silicon and Intel) from the same web files as the PWA (DriveGen), and publishes the signed
+# Builds NaoMuse for Mac (Apple silicon and Intel) from the same web files as the PWA (DriveGen), and publishes the signed
 # update feed the app updates itself from (the release "updates": update.json + its Ed25519 signature, the web files, the
 # zipped apps). Every run keeps the DMGs as a downloadable artifact; a tag like desktop-v0.6.0 also publishes a GitHub release.
 on:
@@ -60,8 +60,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -f update-out/update.json.sig ]; then echo "No signing key (secret UPDATE_SIGNING_KEY): not publishing updates"; exit 0; fi
-          gh release view updates >/dev/null 2>&1 || gh release create updates --title "StudioGen updates" --latest=false \
-            --notes "The signed feed StudioGen updates itself from. To install StudioGen, download the DMG from a desktop-v* release or the latest Desktop app run."
+          gh release view updates >/dev/null 2>&1 || gh release create updates --title "NaoMuse updates" --latest=false \
+            --notes "The signed feed NaoMuse updates itself from. To install NaoMuse, download the DMG from a desktop-v* release or the latest Desktop app run."
           have=$(gh release view updates --json assets -q '.assets[].name')
           # Payload first, the manifest last, so an app never sees update.json before its files are there.
           for f in update-out/*; do n=$(basename "$f")
@@ -74,7 +74,7 @@ jobs:
           for n in $have; do echo "$keep" | grep -qx "$n" || gh release delete-asset updates "$n" -y; done
       - uses: actions/upload-artifact@v4
         with:
-          name: StudioGen-mac
+          name: NaoMuse-mac
           path: desktop/dist/*.dmg
           if-no-files-found: error
 
@@ -87,11 +87,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: StudioGen-mac
+          name: NaoMuse-mac
       - uses: softprops/action-gh-release@v2
         with:
           files: '*.dmg'
           body: |
-            StudioGen for Mac. Download the DMG for your Mac: **arm64** for Apple silicon (M1 and later), **x64** for Intel.
-            The app isn't notarised: after dragging it to Applications, run `xattr -cr /Applications/StudioGen.app` once in Terminal (or right-click › Open).
-            After that StudioGen updates itself (Settings › System › Updates, or the menu bar › Check for updates).
+            NaoMuse for Mac. Download the DMG for your Mac: **arm64** for Apple silicon (M1 and later), **x64** for Intel.
+            The app isn't notarised: after dragging it to Applications, run `xattr -cr /Applications/NaoMuse.app` once in Terminal (or right-click › Open).
+            After that NaoMuse updates itself (Settings › System › Updates, or the menu bar › Check for updates).

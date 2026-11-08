@@ -1,10 +1,10 @@
 'use strict';
 /* ============================================================
-   DriveGen ↔ StudioGen over Tailscale.
-   - StudioGen (desktop/link.js) serves a small API on the Mac and shares
+   DriveGen ↔ NaoMuse over Tailscale.
+   - NaoMuse (desktop/link.js) serves a small API on the Mac and shares
      it on the user's tailnet (`tailscale serve`): https://<mac>.<tailnet>.ts.net,
      reachable only from their own devices, from anywhere.
-   - Here, in StudioGen (LinkHost): answers what paired devices ask: the
+   - Here, in NaoMuse (LinkHost): answers what paired devices ask: the
      scripts you made available to them (Settings › Connections), running
      one (its spoken lines, {result} and any data rows go back), or what
      was said, for the interactive script that is running. Connections
@@ -32,7 +32,7 @@ const Link = {
     try {
       const r = await fetch(`${m.url.replace(/\/$/, '')}${p}`, { method: body ? 'POST' : 'GET', signal: ctl.signal, headers: { 'content-type': 'application/json', ...(m.token ? { authorization: `Bearer ${m.token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `${r.status}`); return j;
-    } catch (e) { throw new Error(e.name === 'AbortError' ? 'Your Mac didn’t answer' : e.message === 'Failed to fetch' || e.message === 'Load failed' ? 'Can’t reach your Mac: is it awake, with StudioGen open and Tailscale on (here too)?' : e.message); }
+    } catch (e) { throw new Error(e.name === 'AbortError' ? 'Your Mac didn’t answer' : e.message === 'Failed to fetch' || e.message === 'Load failed' ? `Can’t reach your Mac: is it awake, with ${BRAND.mac} open and Tailscale on (here too)?` : e.message); }
     finally { clearTimeout(t); }
   },
   /** Pair: the Mac's address and the 6-digit code it shows. */
@@ -62,7 +62,7 @@ const Link = {
   spoken(j) { if (j.state === 'failed') return `It didn’t work on your Mac: ${j.error || 'no reason given'}.`; const r = j.result; return (j.said || []).join(' ') || (r != null && typeof r !== 'object' ? String(r) : '') || 'Done on your Mac.'; },
   /** The voice command “run … on my Mac”: a script it offers by name, else the words go to the Mac as said. */
   async command(q, say) {
-    if (!this.ready()) return say(typeof Relay !== 'undefined' && Relay.online.mac && !Relay.dataOk() ? 'Your Mac only takes requests over a direct link, and there isn’t one on this network right now.' : typeof Relay !== 'undefined' && Relay.mac() ? 'I can’t reach your Mac right now. Is StudioGen open, with the internet?' : 'Pair with your Mac first: Settings, Connections.');
+    if (!this.ready()) return say(typeof Relay !== 'undefined' && Relay.online.mac && !Relay.dataOk() ? 'Your Mac only takes requests over a direct link, and there isn’t one on this network right now.' : typeof Relay !== 'undefined' && Relay.mac() ? `I can’t reach your Mac right now. Is ${BRAND.mac} open, with the internet?` : 'Pair with your Mac first: Settings, Connections.');
     if (typeof Working !== 'undefined') { Voice.show?.(q, 'Asking your Mac…'); Working.begin(); } else say('Asking your Mac…');
     try {
       const offers = (await this.offers()).scripts || [], p = plain(q), s = offers.find(o => plain(o.name) === p) || offers.find(o => plain(o.name).includes(p) || p.includes(plain(o.name)));
@@ -79,29 +79,29 @@ const Link = {
     const m = this.mac(); let offers = null, err = '';
     if (this.ready()) { try { offers = (await (this.direct() || this.relay() ? this.offers() : this.call('/api/offers', null, 8000))).scripts || []; } catch (e) { err = e.message; } }
     const rm = typeof Relay !== 'undefined' ? Relay.mac() : null;
-    const relay = rm ? `<div class="lk-direct ${Relay.online.mac ? 'on' : ''}"><p>${Relay.online.mac ? `✓ <b>${esc(rm.name || 'Your Mac')}</b> is reachable, ${esc(this.via())}` : `Paired with <b>${esc(rm.name || 'your Mac')}</b>: not reachable now (is StudioGen open, with the internet?)`}</p>
-      ${Relay.outdated(rm) ? '<p class="se-empty warn">Your Mac has a new list of relays: pair again (StudioGen › Settings › Connections › Pair a phone or iPad) to use it.</p>' : ''}
+    const relay = rm ? `<div class="lk-direct ${Relay.online.mac ? 'on' : ''}"><p>${Relay.online.mac ? `✓ <b>${esc(rm.name || 'Your Mac')}</b> is reachable, ${esc(this.via())}` : `Paired with <b>${esc(rm.name || 'your Mac')}</b>: not reachable now (is ${BRAND.mac} open, with the internet?)`}</p>
+      ${Relay.outdated(rm) ? `<p class="se-empty warn">Your Mac has a new list of relays: pair again (${BRAND.mac} › Settings › Connections › Pair a phone or iPad) to use it.</p>` : ''}
       <p class="se-note">The secret that locks your messages: from ${esc(new Date(rm.keyAt || rm.paired).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))} (your Mac changes it; ask there, in Settings › Connections). Your own secret phrase on top: <b>${rm.passKey ? 'on' : 'none'}</b> <button class="link-btn" data-rl="devphrase">${rm.nextCheck ? 'Type the new phrase' : 'Secret phrase…'}</button></p>
       ${rm.needPass || rm.nextCheck ? `<p class="se-empty warn">${rm.needPass ? 'Type the secret phrase you set on your Mac to finish pairing.' : 'Your Mac has a new secret phrase: type it to keep in touch.'}</p>` : !Relay.online.mac && Relay.unreadable && Date.now() - Relay.unreadable < 120000 ? '<p class="se-empty warn">Messages from your Mac can’t be opened here: the secret phrase may not match (or the pairing is old). Check the phrase, or pair again.</p>' : ''}
       <p class="se-note">Relays from your Mac’s list (revision ${rm.rev || 1}), in the order both use them:</p><ul class="av-report">${Relay.status(rm)}</ul>
       <div class="chip-row"><button class="chip" data-rl="allow">${store.get('directAllow', true) ? '✓ Direct link when your Mac offers one' : 'Relays only (no direct link)'}</button><button class="chip" data-rl="guestpair">Pair again</button><button class="chip" data-rl="forget">Forget this Mac</button></div></div>`
-      : `<div class="lk-direct"><p><b>Pair once</b> and reach your Mac from anywhere (also on mobile data), with no account: scan StudioGen’s code one time. Messages go through public relays, end-to-end encrypted.</p><button class="chip accent" data-rl="guestpair">Pair once</button></div>`;
+      : `<div class="lk-direct"><p><b>Pair once</b> and reach your Mac from anywhere (also on mobile data), with no account: scan ${BRAND.mac}’s code one time. Messages go through public relays, end-to-end encrypted.</p><button class="chip accent" data-rl="guestpair">Pair once</button></div>`;
     const direct = typeof Direct === 'undefined' ? '' : Direct.connected ? `<div class="lk-direct on"><p>✓ Connected directly to <b>${esc(Direct.peer)}</b> (same network)</p><button class="chip" data-dl="end">Disconnect</button></div>`
-      : `<div class="lk-direct"><p><b>Directly</b>, no account: on the same Wi-Fi, or with the Mac on this phone’s hotspot. Scan StudioGen’s code, then show yours to the Mac.</p><button class="chip accent" data-dl="guest">Connect directly</button></div>`;
+      : `<div class="lk-direct"><p><b>Directly</b>, no account: on the same Wi-Fi, or with the Mac on this phone’s hotspot. Scan ${BRAND.mac}’s code, then show yours to the Mac.</p><button class="chip accent" data-dl="guest">Connect directly</button></div>`;
     const meshCard = typeof MeshView !== 'undefined' ? `<div class="lk-direct">${MeshView.card()}</div>` : '';
-    const fromHere = rm || this.direct() ? `<div class="chip-row"><button class="chip" data-rvopen="web">Sign in on your Mac from here</button><button class="chip" data-rvopen="app">Use StudioGen from here</button></div>` : ''; // js/remoteview.js (a direct link)
-    sheet('Your Mac (StudioGen)', meshCard + fromHere + (typeof Bee !== 'undefined' ? Bee.html() : '') + relay + (rm ? '' : direct) + (m?.token || this.direct() || rm ? `${m?.token ? `<p class="se-note">Over Tailscale: paired with <b>${esc(m.name || m.url)}</b> (${esc(m.url)}).</p>` : ''}${err ? `<p class="se-empty warn">${esc(err)}</p>` : ''}
-      ${offers ? (offers.length ? `<p class="se-note">Scripts your Mac offers (say “run … on my Mac”):</p><div class="pick-list">${offers.map(o => `<button class="big-btn" data-macrun="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>` : '<p class="se-note">Your Mac offers no scripts yet: in StudioGen, Settings › Connections, tick the ones paired devices may run.</p>') : ''}`
-      : `<p class="se-note"><b>Or</b> connect directly each time (same Wi-Fi, no internet needed): the button above. <b>Or over Tailscale</b> (needs a Tailscale account on both): on the Mac, StudioGen › Settings › Connections › Pair a device.</p>
-      <label class="se-field"><span>Your Mac’s address (shown in StudioGen)</span><input id="lkUrl" class="se-wz-in" value="${esc(m?.url || '')}" placeholder="https://my-mac.tail1234.ts.net" autocapitalize="off" autocorrect="off"></label>
-      <label class="se-field"><span>The 6-digit code StudioGen shows</span><input id="lkCode" class="se-wz-in" inputmode="numeric" maxlength="7" placeholder="123456"></label>`),
+    const fromHere = rm || this.direct() ? `<div class="chip-row"><button class="chip" data-rvopen="web">Sign in on your Mac from here</button><button class="chip" data-rvopen="app">Use ${BRAND.mac} from here</button></div>` : ''; // js/remoteview.js (a direct link)
+    sheet(`Your Mac (${BRAND.mac})`, meshCard + fromHere + (typeof Bee !== 'undefined' ? Bee.html() : '') + relay + (rm ? '' : direct) + (m?.token || this.direct() || rm ? `${m?.token ? `<p class="se-note">Over Tailscale: paired with <b>${esc(m.name || m.url)}</b> (${esc(m.url)}).</p>` : ''}${err ? `<p class="se-empty warn">${esc(err)}</p>` : ''}
+      ${offers ? (offers.length ? `<p class="se-note">Scripts your Mac offers (say “run … on my Mac”):</p><div class="pick-list">${offers.map(o => `<button class="big-btn" data-macrun="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>` : `<p class="se-note">Your Mac offers no scripts yet: in ${BRAND.mac}, Settings › Connections, tick the ones paired devices may run.</p>`) : ''}`
+      : `<p class="se-note"><b>Or</b> connect directly each time (same Wi-Fi, no internet needed): the button above. <b>Or over Tailscale</b> (needs a Tailscale account on both): on the Mac, ${BRAND.mac} › Settings › Connections › Pair a device.</p>
+      <label class="se-field"><span>Your Mac’s address (shown in ${BRAND.mac})</span><input id="lkUrl" class="se-wz-in" value="${esc(m?.url || '')}" placeholder="https://my-mac.tail1234.ts.net" autocapitalize="off" autocorrect="off"></label>
+      <label class="se-field"><span>The 6-digit code ${BRAND.mac} shows</span><input id="lkCode" class="se-wz-in" inputmode="numeric" maxlength="7" placeholder="123456"></label>`),
       m?.token ? [['Forget the Tailscale pairing', () => { store.set('linkMac', null); toast('Forgotten'); }], ['Close']]
         : this.direct() || rm ? [['Close']]
         : [['Pair', async () => { const u = $('#lkUrl').value, c = $('#lkCode').value; if (!u || !c) return toast('The address and the code, please'); try { toast(`Paired with ${await this.pair(u, c)}`); } catch (e) { sheet('Didn’t pair', `<p>${esc(e.message)}</p>`, [['Try again', () => this.settings()], ['Close']]); } }], ['Cancel']]);
   },
 };
 
-/* ---------- StudioGen: answering paired devices ---------- */
+/* ---------- NaoMuse: answering paired devices ---------- */
 const LinkHost = {
   offered: () => store.get('linkOffers', []),
   scripts() { return Scripts.all().filter(s => s.json?.mode !== 'interactive' && this.offered().includes(s.id)); },
@@ -109,7 +109,7 @@ const LinkHost = {
   async run({ script, vars = {}, from, own = true }) {
     const s = this.scripts().find(x => x.id === script || plain(x.name) === plain(script)); if (!s) throw new Error('That script isn’t offered to paired devices');
     if (!own && typeof Agent !== 'undefined' && Agent.privateSteps(s.json)) throw new Error('That script uses this Mac’s sign-ins or files: only its owner’s devices may run it');
-    if (Script.running) throw new Error(`StudioGen is busy with “${Script.cur?.name}”`);
+    if (Script.running) throw new Error(`${BRAND.mac} is busy with “${Script.cur?.name}”`);
     toast(`${from} runs “${s.name}”`); Log.i('link', `Remote run: ${s.name}`, { from });
     const rows0 = typeof DataViz !== 'undefined' ? JSON.stringify(Object.values(DataViz.sets).map(d => d.at)) : '';
     const said = []; Script.remote = said;
@@ -145,7 +145,7 @@ const LinkHost = {
       ${rp.length ? `<ul class="av-report">${Relay.status({ room: rp[0].room, brokers: rp[0].brokers || Relay.brokersOf(rp[0]) })}</ul>` : ''}
       <div class="chip-row"><button class="chip accent" data-rl="hostpair">Pair a phone or iPad (once)</button><button class="chip" data-rl="relays">Relays…</button><button class="chip" data-rl="direct">Direct link…</button></div></div>`;
     sheet('Connections', `<div class="lk">${relay}${typeof Bee !== 'undefined' ? Bee.html() : ''}<p class="se-note"><b>Directly, each time</b> (same Wi-Fi, no internet)</p>${direct}<p class="se-note"><b>Over Tailscale</b> (needs a Tailscale account on both)</p>${ts}
-      <p class="se-note">${s.listening ? '✓' : '✗'} StudioGen answers on this Mac (port ${s.port}). Only your own Tailscale devices can reach it, and each must be paired.</p>
+      <p class="se-note">${s.listening ? '✓' : '✗'} ${BRAND.mac} answers on this Mac (port ${s.port}). Only your own Tailscale devices can reach it, and each must be paired.</p>
       ${s.pairing ? `<div class="lk-pair"><div class="lk-code">${s.pairing.code.replace(/(\d{3})/, '$1 ')}</div>${s.url ? '<div id="lkQr" title="The address, for a phone camera"></div>' : ''}<p class="se-note">In DriveGen: Settings › Connections › your Mac’s address (${esc(s.url || 'shown above')}) and this code. It works for 10 minutes.</p></div>` : ''}
       <p class="se-note"><b>Paired devices</b></p>${s.devices.length ? `<ul class="av-report">${s.devices.map(d => `<li>${esc(d.name)} <span class="se-note">since ${esc(new Date(d.paired).toLocaleDateString())}${d.seen ? `, last seen ${esc(new Date(d.seen).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}` : ''}</span> <button class="link-btn" data-lkrevoke="${esc(d.id)}">Revoke</button></li>`).join('')}</ul>` : '<p class="se-note">None yet.</p>'}
       <p class="se-note"><b>Scripts paired devices may run</b> (they show and speak here too; their lines, {result} and data go back)</p>
@@ -171,14 +171,14 @@ if (window.DriveDeckDesktop?.link) DriveDeckDesktop.link.onAsk(async (kind, p) =
 });
 ACTIONS.connections = () => Link.settings();
 document.addEventListener('click', async e => {
-  const r = e.target.closest('[data-lkrevoke]'); if (r) { e.stopPropagation(); await DriveDeckDesktop.link.revoke(r.dataset.lkrevoke); toast('Revoked: that device can’t reach StudioGen any more'); return LinkHost.settings(); }
+  const r = e.target.closest('[data-lkrevoke]'); if (r) { e.stopPropagation(); await DriveDeckDesktop.link.revoke(r.dataset.lkrevoke); toast(`Revoked: that device can’t reach ${BRAND.mac} any more`); return LinkHost.settings(); }
   const m = e.target.closest('[data-macrun]'); if (m) { e.stopPropagation(); closeSheet(); toast('Running on your Mac…'); try { const j = await Link.run(m.dataset.macrun); if (j.rows?.length) DataViz.set(DataViz.target(), DataViz.from(j.rows), { kind: 'script', label: 'from your Mac' }); Voice.respond(Link.spoken(j)); } catch (err) { toast(err.message); } }
 }, true);
 document.addEventListener('change', e => { const c = e.target.closest?.('[data-lkoffer]'); if (!c) return; const s = new Set(LinkHost.offered()); c.checked ? s.add(c.dataset.lkoffer) : s.delete(c.dataset.lkoffer); store.set('linkOffers', [...s]); });
 
 /* ---------- Script actions (DriveGen, or any app paired with a Mac) ---------- */
 const kv = args => Object.fromEntries((args || []).map(a => String(a).split('=')).filter(p => p[0]?.trim() && p.length > 1).map(([k, ...v]) => [k.trim(), v.join('=').trim()]));
-Actions.define('mac.run', { group: 'Your Mac', name: 'Run a script on your Mac (StudioGen)', arg: 'The script’s name; inputs: name=value for its {variables}', async run(v, say, ev = {}) {
+Actions.define('mac.run', { group: 'Your Mac', name: `Run a script on your Mac (${BRAND.mac})`, arg: 'The script’s name; inputs: name=value for its {variables}', async run(v, say, ev = {}) {
   const j = await Link.run(v, kv(ev.args)); if (j.state === 'failed') throw new Error(j.error || 'It didn’t work on your Mac');
   if (j.rows?.length) DataViz.set(DataViz.target(), DataViz.from(j.rows), { kind: 'script', label: 'from your Mac' });
   if (!ev.keep) Voice.respond(Link.spoken(j)); return j.result ?? (j.rows || (j.said || []).join(' ')); } });

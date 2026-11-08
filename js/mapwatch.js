@@ -2,9 +2,9 @@
 /* ============================================================
    Map watchers, phase 1 (design: docs/maps-watchers.html): watchers that know where you are and where you're going.
    - Places: home and work (Settings › Location), besides Your place.
-   - Where you are: DriveGen sends its position (and where it's navigating to) to your own StudioGens every 30 s while
-     you drive: the link to your Mac ('loc'), and your StudioGens in the mesh; sealed, own devices only, not kept (the
-     latest only, forgotten after 15 minutes). StudioGen keeps it in MapWatch.here.
+   - Where you are: DriveGen sends its position (and where it's navigating to) to your own NaoMuses every 30 s while
+     you drive: the link to your Mac ('loc'), and your NaoMuses in the mesh; sealed, own devices only, not kept (the
+     latest only, forgotten after 15 minutes). NaoMuse keeps it in MapWatch.here.
    - Google Maps, read in the agent browser: directions with traffic and the other routes (each: minutes, km, via,
      notes). Practice copy: labs/practice/gmaps.html.
    - Watchers (source 'gmaps'): traffic on my route (5+ minutes more), a faster way (5+ minutes saved), leave by (the next
@@ -17,7 +17,7 @@ const MapWatch = {
   fresh: () => MapWatch.here && Date.now() - MapWatch.here.at < 15 * 60000 ? MapWatch.here : null,
 
   /* ---------- Where you are: from DriveGen ---------- */
-  /** On StudioGen: a position from one of your own devices (Direct.handle 'loc', own devices only). */
+  /** On NaoMuse: a position from one of your own devices (Direct.handle 'loc', own devices only). */
   got(p, who) {
     if (!(+p.lat && +p.lon)) return { ok: false };
     this.here = { lat: +p.lat, lon: +p.lon, speed: +p.speed || 0, heading: +p.heading || 0, at: Date.now(), dest: p.dest?.lat ? { name: String(p.dest.name || '').slice(0, 80), lat: +p.dest.lat, lon: +p.dest.lon } : null, from: who?.name || '' };
@@ -26,7 +26,7 @@ const MapWatch = {
     if (want) for (const w of Watch.list()) if (w.on && w.source === 'gmaps' && w.from === 'here' && w.state && (w.state.next || 0) - Date.now() > WATCH_MS['5m']) { w.state.next = Date.now(); Watch.put(w); } /* a drive started: check soon */
     return { ok: true, want }; /* want: the phone keeps sending (else it sends less often) */
   },
-  /** On DriveGen (or StudioGen with GPS): send where you are to your Mac and your StudioGens, every 30 s while driving. */
+  /** On DriveGen (or NaoMuse with GPS): send where you are to your Mac and your NaoMuses, every 30 s while driving. */
   async share() {
     if (typeof LINK_HOST !== 'undefined' && LINK_HOST) return;
     if (settings.shareLoc === false || !/^(gps|demo)$/.test(loc.source) || !(loc.speed > 1.5 || nav)) return;

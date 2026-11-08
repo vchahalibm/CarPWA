@@ -1,5 +1,5 @@
 'use strict';
-/* The language model built into StudioGen (the page: js/llm.js, job runner 'builtin'): llama.cpp through node-llama-cpp,
+/* The language model built into NaoMuse (the page: js/llm.js, job runner 'builtin'): llama.cpp through node-llama-cpp,
    on the Mac's graphics chip (Metal), in this process. No other app to install.
    - The model is a GGUF file: downloaded from Hugging Face into <userData>/models (resumable, size checked), or the copy
      Ollama already has (read in place, nothing downloaded twice).

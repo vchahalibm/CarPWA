@@ -16,7 +16,7 @@ export function journeys({ A, B, P, devs, sleep }) {
   const since = (s, t, re) => (s.said || []).some((l, i) => /^app:/.test(l) && re.test(l) && (s.saidAt?.[i] || 0) > t);
   const lastReply = s => (s.said || []).filter(l => /^app:/.test(l)).pop() || '';
 
-  // What each StudioGen has before the journey starts
+  // What each NaoMuse has before the journey starts
   const setup = {
     A: `(()=>{ const add=(n,j)=>Scripts.add({ name:n, ...j });
       add('Daily brief', { beats:[{ id:'a', title:'Brief', do:[{say:'Three meetings today; the first at ten.'}], next:{after:0.3} }] });
@@ -31,7 +31,7 @@ export function journeys({ A, B, P, devs, sleep }) {
 
   const demo = {
     setup: [
-      { title: 'The StudioGens get their scripts (Daily brief and Keynote on A; Sales summary, Welcome tour and a private Draft pitch on B)', always: true,
+      { title: 'The NaoMuses get their scripts (Daily brief and Keynote on A; Sales summary, Welcome tour and a private Draft pitch on B)', always: true,
         auto: async () => { await A.eval(setup.A); await B.eval(setup.B); }, check: async () => { const [a, b] = await Promise.all([st(A), st(B)]); return a.scripts?.includes('Keynote') && b.scripts?.includes('Draft pitch') || 'scripts not there yet'; } },
     ],
     pair: [
@@ -142,7 +142,7 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => { const p = S.par || {}; const ok = Object.values(p.log || {}).every(([, h]) => !/^ERR/.test(h)); return ok && p.peak === 3 && p.log['whatsapp.from'][0] > p.log['whatsapp.read'][0] || `peak ${p.peak}: ${JSON.stringify(p.log)}`; } },
     ],
     worker: [
-      { title: 'Studio A makes an invite for one of its owner’s own devices; a StudioGen Worker starts in Docker with it', always: true,
+      { title: 'Studio A makes an invite for one of its owner’s own devices; a NaoMuse Worker starts in Docker with it', always: true,
         auto: async () => { S.inv = await A.eval(`Mesh.invite('member', true)`); try { execFileSync('docker', ['rm', '-f', 'sg-worker-t'], { stdio: 'ignore' }); } catch {}
           execFileSync('docker', ['run', '-d', '--name', 'sg-worker-t', '--shm-size', '1g', '-e', 'SG_NAME=Test Worker', '-e', `SG_MESH_INVITE=${S.inv}`, '-e', 'SG_PRACTICE=1', '-e', 'SG_SECRET=tandem-secret', 'studiogen-worker', '--remote-debugging-port=9222'], { stdio: 'ignore' });
           await sleep(15000); execFileSync('docker', ['cp', new URL('./worker-eval.cjs', import.meta.url).pathname, 'sg-worker-t:/tmp/we.cjs']); },
@@ -172,7 +172,7 @@ export function journeys({ A, B, P, devs, sleep }) {
       { title: 'The Worker stops', always: true, auto: async () => { try { execFileSync('docker', ['rm', '-f', 'sg-worker-t'], { stdio: 'ignore' }); } catch {} }, check: async () => true },
     ],
     bee: [
-      { title: 'Two StudioGBees start in Docker (this team’s and another team’s)', always: true,
+      { title: 'Two NaoMuseHives start in Docker (this team’s and another team’s)', always: true,
         auto: async () => { for (const [n, p, nm] of [[1, 8841, 'Team bee'], [2, 8842, 'Other team bee']]) { try { execFileSync('docker', ['rm', '-f', `sg-bee-${n}`], { stdio: 'ignore' }); } catch {} execFileSync('docker', ['run', '-d', '--name', `sg-bee-${n}`, '-p', `${p}:8840`, '-e', `BEE_ADMIN_CODE=TESTBEE${n}`, '-e', `BEE_NAME=${nm}`, 'studiogbee'], { stdio: 'ignore' }); } await sleep(2500); },
         check: async () => { try { const [a, b] = await Promise.all([8841, 8842].map(p => fetch(`http://localhost:${p}/healthz`).then(r => r.json()))); return a.ok && b.ok || 'not up'; } catch (e) { return `not up: ${e.message}`; } }, wait: 30 },
       { title: 'Studio A (owner) adds the team bee; Studio B and the phone connect by themselves', always: true,
@@ -180,7 +180,7 @@ export function journeys({ A, B, P, devs, sleep }) {
         check: async () => { const ups = await Promise.all([A, B, P].map(d => d.eval('Bee.up()').catch(() => false))); return ups.every(Boolean) || `connected: A ${ups[0]}, B ${ups[1]}, phone ${ups[2]}`; }, wait: 60 },
       { title: 'Studio B quits; the phone asks for its page title: it waits at the bee', always: true,
         auto: async () => { await B.stop(); await sleep(70000); await P.step('command', 'title of the mesh page'); },
-        check: async () => { const c = (await st(P)).agent?.[0]; return c?.status === 'waiting' && /StudioGBee/.test(c.headline) || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 40 },
+        check: async () => { const c = (await st(P)).agent?.[0]; return c?.status === 'waiting' && /NaoMuseHive/.test(c.headline) || `card: ${c?.status} ${c?.headline || ''}`; }, wait: 40 },
       { title: 'The phone app is closed and opened again (the answer must still find it)', always: true,
         auto: async () => { await P.eval('location.reload(), 1').catch(() => {}); await sleep(6000); }, check: async () => (await P.eval('typeof Bee !== "undefined" && Object.keys(store.get("beePending", {})).length')) >= 1 || 'nothing pending after the reload', wait: 30 },
       { title: 'Studio B comes back: it takes the waiting request from the bee, and the answer lands on the phone’s card', always: true, auto: () => B.restart(),

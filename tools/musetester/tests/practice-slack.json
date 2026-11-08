@@ -1,7 +1,7 @@
 {
   "id": "practice-slack", "title": "Slack watchers on the practice Slack: mentions, a channel by Jump to, DMs, threads, a search", "tags": ["practice", "slack", "watchers"],
   "steps": [
-    { "do": "launch", "practice": true, "why": "Open StudioGen (a throwaway profile, the practice sites)" },
+    { "do": "launch", "practice": true, "why": "Open NaoMuse (a throwaway profile, the practice sites)" },
     { "do": "practice.signin" },
     { "do": "watch.make", "template": "slack.mentions", "why": "Make “New Slack mentions”" },
     { "do": "watch.check", "name": "New Slack mentions", "why": "First check: what's there now" },

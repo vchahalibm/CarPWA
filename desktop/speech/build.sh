@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds desktop/speech/bin/sg-speech: Apple's speech recognizer for StudioGen, for Apple silicon and Intel in one file,
+# Builds desktop/speech/bin/sg-speech: Apple's speech recognizer for NaoMuse, for Apple silicon and Intel in one file,
 # with its permission texts inside (Info.plist), ad-hoc signed. Run by `npm run speech` and before `npm run dist` (CI).
 set -e
 cd "$(dirname "$0")"; mkdir -p bin

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StudioGBee Dashboard</title>
+<title>NaoMuseHive Dashboard</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--ink:#15181d;--mut:#5b6472;--line:#e1e4ea;--acc:#2563eb;--ok:#0f8a4b;--mid:#b7791f;--no:#c2262e;--vio:#7c3aed;--hon:#b7791f}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a21;--ink:#e8eaee;--mut:#9aa3b2;--line:#2a2f3a;--acc:#6ea0ff;--ok:#34c47c;--mid:#e0a84a;--no:#f2646b;--vio:#a78bfa;--hon:#e0a84a}}
@@ -29,9 +29,9 @@ select{font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--lin
 <body>
 <div id="app"></div>
 <script>
-/* The StudioGBee dashboard (docs/studiogbee.html § 7): for mesh owners, metadata only (who, to whom, kind, size, when,
-   what waits); the bee can't read the contents and doesn't show them. Signed in with a code from a mesh owner's StudioGen
-   (Settings › Connections › StudioGBee › Dashboard code), or a passkey added after that. */
+/* The NaoMuseHive dashboard (docs/studiogbee.html § 7): for mesh owners, metadata only (who, to whom, kind, size, when,
+   what waits); the bee can't read the contents and doesn't show them. Signed in with a code from a mesh owner's NaoMuse
+   (Settings › Connections › NaoMuseHive › Dashboard code), or a passkey added after that. */
 const $ = s => document.querySelector(s), esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const api = async (p, b) => { const r = await fetch(p, b ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) } : {}); const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status }); return j; };
@@ -50,9 +50,9 @@ async function refresh() { try { D = await api('/api/state'); draw(); } catch (e
 function connectLive() { try { live?.close(); live = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/live'); live.onmessage = m => { const e = JSON.parse(m.data).e; if (!e || !D) return; D.events.push(e); if (tab === 'overview' || tab === 'activity') clearTimeout(live._t), live._t = setTimeout(refresh, 400); }; live.onclose = () => setTimeout(connectLive, 5000); } catch {} }
 
 function loginView() {
-  $('#app').innerHTML = `<div class="login card"><b style="font-size:20px">🐝 StudioGBee</b><p class="mut">For mesh owners: the mesh's activity, never its contents.</p>
+  $('#app').innerHTML = `<div class="login card"><b style="font-size:20px">🐝 NaoMuseHive</b><p class="mut">For mesh owners: the mesh's activity, never its contents.</p>
     ${window.PublicKeyCredential ? '<button class="b acc" id="pk" style="width:100%;padding:10px">Sign in with a passkey</button><p class="mut">or</p>' : ''}
-    <p class="mut" style="margin:0">Type the code from StudioGen › Settings › Connections › StudioGBee › <b>Dashboard code</b></p>
+    <p class="mut" style="margin:0">Type the code from NaoMuse › Settings › Connections › NaoMuseHive › <b>Dashboard code</b></p>
     <input id="code" maxlength="10" autocomplete="one-time-code" autocapitalize="characters" placeholder="ABCD2345"><button class="b acc" id="go" style="width:100%;padding:10px">Sign in with the code</button><p id="err" class="no"></p></div>`;
   $('#go').onclick = async () => { try { await api('/api/login', { code: $('#code').value }); start(); } catch (e) { $('#err').textContent = e.message; } };
   $('#code').onkeydown = e => { if (e.key === 'Enter') $('#go').click(); };
@@ -108,7 +108,7 @@ const VIEW = {
   devices: () => `<div class="card"><h3>Members</h3><div class="wrap"><table><tr><th>Device</th><th>App</th><th>Role</th><th>Status</th><th>Through</th><th>Notifications</th></tr>${D.devices.map(d => `<tr><td><span class="dot ${d.online ? 'on' : ''}"></span>${esc(d.name)}</td><td>${esc(d.app)}${d.ver ? ` <span class="mut">${esc(d.ver)}</span>` : ''}</td><td>${esc(d.role)}</td><td>${d.online ? 'online' : `seen ${ago(d.seen)}`}</td><td>${esc(d.via || '–')}</td><td>${d.push ? 'on' : '–'}</td></tr>`).join('')}</table></div></div>`,
   activity: () => `<div class="card"><h3>Activity</h3><input id="q" placeholder="Search (a name, “expired”…)" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;margin-bottom:8px"><div id="evs">${evList(D.events.slice(-300))}</div></div>`,
   bees: () => `<div class="card"><h3>This bee</h3><p><b>${esc(D.bee.name)}</b> <span class="mut">${esc(D.bee.id)} · up since ${new Date(D.bee.since).toLocaleString()} · ${D.backups} backups kept</span></p></div>
-    <div class="card"><h3>Linked bees (other teams)</h3>${D.peers.length ? `<table><tr><th>Bee</th><th>State</th><th>Connection</th><th>Their devices online</th><th></th></tr>${D.peers.map(p => `<tr><td>${esc(p.name)}</td><td>${p.state === 'active' ? '<span class="ok">linked</span>' : p.state === 'pending' ? '<span class="mid">asks to link</span>' : '<span class="mut">waiting for them to accept</span>'}</td><td>${p.up ? 'up' : 'down'}</td><td>${p.online}</td><td>${p.state === 'pending' ? `<button class="b acc" data-accept="${esc(p.id)}">Accept</button> ` : ''}<button class="b" data-unlink="${esc(p.id)}">${p.state === 'pending' ? 'Refuse' : 'Unlink'}</button></td></tr>`).join('')}</table>` : '<p class="mut">None. To link another team’s bee: in StudioGen › Settings › Connections › StudioGBee, make a link code and give it to their owner (or paste theirs).</p>'}</div>`,
+    <div class="card"><h3>Linked bees (other teams)</h3>${D.peers.length ? `<table><tr><th>Bee</th><th>State</th><th>Connection</th><th>Their devices online</th><th></th></tr>${D.peers.map(p => `<tr><td>${esc(p.name)}</td><td>${p.state === 'active' ? '<span class="ok">linked</span>' : p.state === 'pending' ? '<span class="mid">asks to link</span>' : '<span class="mut">waiting for them to accept</span>'}</td><td>${p.up ? 'up' : 'down'}</td><td>${p.online}</td><td>${p.state === 'pending' ? `<button class="b acc" data-accept="${esc(p.id)}">Accept</button> ` : ''}<button class="b" data-unlink="${esc(p.id)}">${p.state === 'pending' ? 'Refuse' : 'Unlink'}</button></td></tr>`).join('')}</table>` : '<p class="mut">None. To link another team’s bee: in NaoMuse › Settings › Connections › NaoMuseHive, make a link code and give it to their owner (or paste theirs).</p>'}</div>`,
   history: () => { const days = 7, start = new Date().setHours(0, 0, 0, 0) - (days - 1) * 86400000, rows = [];
     for (let i = 0; i < days; i++) { const a = start + i * 86400000, b = a + 86400000, ev = D.events.filter(e => e.at >= a && e.at < b); rows.push({ d: new Date(a).toLocaleDateString([], { weekday: 'short' }), del: ev.filter(e => e.kind === 'delivered').length, q: ev.filter(e => e.kind === 'queued').length, x: ev.filter(e => e.kind === 'expired').length, on: new Set(ev.filter(e => e.kind === 'online').map(e => e.dev)).size }); }
     const max = Math.max(1, ...rows.map(r => r.del + r.q)), W = 560, H = 160, bw = W / days;

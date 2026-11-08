@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* StudioGen update feed (run by .github/workflows/desktop.yml, from the repository root).
+/* NaoMuse update feed (run by .github/workflows/desktop.yml, from the repository root).
      node tools/release/make-update.mjs version        writes web-version.json (WEB_VERSION, the vendor hash, COMMIT)
      node tools/release/make-update.mjs pack <outDir>  packs the web files, collects the zipped apps from desktop/dist,
                                                        writes update.json and signs it (UPDATE_SIGNING_KEY: Ed25519 PEM)
@@ -32,7 +32,7 @@ if (cmd === 'version') {
   const appTar = path.join(out, `web-app-${info.version}.tar.gz`), vendorTar = path.join(out, `web-vendor-${info.vendorHash.slice(0, 16)}.tar.gz`);
   tar(appTar, APP_FILES.filter(f => fs.existsSync(f)));
   tar(vendorTar, ['--exclude', 'vendor/models/*.vrm', '--exclude', 'vendor/mediapipe/models/*.task', '--exclude', 'vendor/mediapipe/wasm/*.wasm', 'vendor']);
-  // The zipped apps electron-builder made (StudioGen-<v>-arm64-mac.zip, StudioGen-<v>-mac.zip for Intel).
+  // The zipped apps electron-builder made (NaoMuse-<v>-arm64-mac.zip, NaoMuse-<v>-mac.zip for Intel).
   const zips = fs.readdirSync('desktop/dist').filter(f => f.endsWith('.zip') && f.includes(`-${shell}-`));
   const arm = zips.find(f => f.includes('arm64')), x64 = zips.find(f => !f.includes('arm64'));
   const sh = {}; for (const [k, f] of [['arm64', arm], ['x64', x64]]) if (f) { fs.copyFileSync(path.join('desktop/dist', f), path.join(out, f)); sh[k] = entry(path.join(out, f)); }

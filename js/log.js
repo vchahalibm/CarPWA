@@ -8,9 +8,11 @@
    tab away from ordinary users; it isn't security (the logs never leave
    the device unless you share them).
    ============================================================ */
-// The app's name: StudioGen in the desktop app, DriveGen on the web (the code and stored data keep the old internal names).
-const APP_NAME = /Electron\//.test(navigator.userAgent) ? 'StudioGen' : 'DriveGen';
-if (APP_NAME !== 'DriveGen') { document.title = document.title.replace(/DriveGen/g, APP_NAME); document.documentElement.classList.add('desktop-app'); }
+// APP_ID: which app this is, internally ('StudioGen' on a Mac, 'DriveGen' on the web): sent between devices (presence, the
+// mesh, pairing) and used in code, never shown. APP_NAME: the name people see, from BRAND (js/brand.js).
+const APP_ID = /Electron\//.test(navigator.userAgent) ? 'StudioGen' : 'DriveGen';
+const APP_NAME = APP_ID === 'StudioGen' ? BRAND.mac : BRAND.phone;
+document.title = document.title.replace(/DriveGen/g, APP_NAME); if (APP_ID === 'StudioGen') document.documentElement.classList.add('desktop-app');
 const DEBUG_KEY_SHA256 = '248e61e1904edf1421dfa3905d12511a46dd3b0878f5be978b01bbb4c3e839eb';
 const Log = (() => {
   const FLAG = 'dd.debug', BUF = 'dd.logbuf', MAX = 2500, t0 = performance.now();

@@ -3,7 +3,7 @@
    More watcher templates (docs/watchers.html § 12, “next”): shopping (Amazon, Flipkart, any shop), travel, work, life,
    news and money, media, and the Mac's own sources (a folder, a file, an app window, a webhook, another watcher's news).
    Each is { id, group, name, about?, inputs: [[key, question, placeholder, type?]], pick?, make(values) → a watcher }.
-   type: 'folder' / 'file' (picked in StudioGen), 'window' (an open window), 'watcher' (another one). pick: the page opens
+   type: 'folder' / 'file' (picked in NaoMuse), 'window' (an open window), 'watcher' (another one). pick: the page opens
    and you tap the list (sites differ too much to guess). Prices keep a history (record) for the data widget.
    With Agent settings › Use the practice sites, the shop templates open labs/practice/shop.html. Loaded after watch.js.
    ============================================================ */
@@ -83,7 +83,7 @@ WATCH_TEMPLATES.push(
     make: v => ({ name: `Podcast: ${wtHost(v.url)}`, source: 'feed', url: v.url, detect: { kind: 'new' }, every: '6h' }) },
   { id: 'subreddit', group: 'Media', name: 'New posts in a subreddit', inputs: [['sub', 'Which subreddit?', 'LocalLLaMA']],
     make: v => ({ name: `r/${v.sub.replace(/^r\//, '')}`, source: 'feed', url: `https://www.reddit.com/r/${encodeURIComponent(v.sub.replace(/^r\//, ''))}/new/.rss`, detect: { kind: 'new' }, every: '30m' }) },
-  { id: 'hn', group: 'Media', name: 'A Hacker News mention', inputs: [['words', 'Which words?', 'StudioGen']],
+  { id: 'hn', group: 'Media', name: 'A Hacker News mention', inputs: [['words', 'Which words?', BRAND.mac]],
     make: v => ({ name: `Hacker News: ${v.words}`, source: 'feed', url: `https://hnrss.org/newest?q=${encodeURIComponent(v.words)}`, detect: { kind: 'new' }, every: '30m' }) },
   { id: 'blog', group: 'Media', name: 'A blog’s new posts', inputs: [['url', 'The blog’s address (its feed is found)', 'https://…']],
     make: v => ({ name: `Blog: ${wtHost(v.url)}`, source: 'feed', url: v.url, detect: { kind: 'new' }, every: '6h' }) },
@@ -92,9 +92,9 @@ WATCH_TEMPLATES.push(
     make: v => ({ name: `Folder: ${String(v.path).split('/').pop()}`, source: 'files', path: v.path, depth: 2, rawIds: true, detect: { kind: 'new' }, every: '5m' }) },
   { id: 'mac.file', group: 'On this Mac', name: 'A file changes', inputs: [['path', 'Which file?', '', 'file']],
     make: v => ({ name: `File: ${String(v.path).split('/').pop()}`, source: 'files', path: v.path, file: true, detect: { kind: 'changes' }, every: '15m' }) },
-  { id: 'mac.window', group: 'On this Mac', name: 'An app’s window (words appear, or it changes)', about: 'The screen model reads the window; StudioGen needs Screen Recording (System Settings › Privacy & Security).', inputs: [['window', 'Which window?', '', 'window'], ['words', 'Words to look for (empty: any change; || between)', '']],
+  { id: 'mac.window', group: 'On this Mac', name: 'An app’s window (words appear, or it changes)', about: `The screen model reads the window; ${BRAND.mac} needs Screen Recording (System Settings › Privacy & Security).`, inputs: [['window', 'Which window?', '', 'window'], ['words', 'Words to look for (empty: any change; || between)', '']],
     make: v => ({ name: `Window: ${v.window}`, source: 'window', window: v.window, detect: v.words ? { kind: 'contains', words: v.words } : { kind: 'changes' }, every: '5m' }) },
-  { id: 'mac.hook', group: 'On this Mac', name: 'A webhook (anything another service sends)', about: 'You get an address; whatever is POSTed to it comes here, through StudioGBee.', inputs: [],
+  { id: 'mac.hook', group: 'On this Mac', name: 'A webhook (anything another service sends)', about: `You get an address; whatever is POSTed to it comes here, through ${BRAND.hive}.`, inputs: [],
     make: () => ({ name: 'Webhook', source: 'hook', rawIds: true, detect: { kind: 'new' }, every: '1d' }) },
   { id: 'mac.chain', group: 'On this Mac', name: 'When another watcher has news', about: 'Its news become this one’s items: add actions (run a task, start a watcher) in Edit.', inputs: [['from', 'Which watcher?', '', 'watcher']],
     make: v => ({ name: `After: ${Watch.get(v.from)?.name || 'a watcher'}`, source: 'chain', from: v.from, rawIds: true, detect: { kind: 'new' }, every: '1d' }) },

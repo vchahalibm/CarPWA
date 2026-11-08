@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================
    Direct links between mesh members (WebRTC data channels), one per pair, so devices that aren't the one paired
-   phone-and-Mac also talk without the relays: full activity to every StudioGen, requests and shows straight across.
+   phone-and-Mac also talk without the relays: full activity to every NaoMuse, requests and shows straight across.
    - Set up through the pair's own encrypted room on the relays (Mesh.pairRoom): the member with the smaller id offers,
      the other answers; ICE gathered in full first (no trickle), the SDP deflated like Direct's codes.
    - Settings › Connections › Direct link applies: off (none), same network (no STUN), whenever possible (STUN/TURN).

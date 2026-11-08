@@ -10,7 +10,7 @@
    - Picking: EmbeddingGemma (desktop/llm.js) turns facts and what was said into vectors; the closest facts, mixed with
      words and names in common and recency, plus pinned ones, within ~1,500 tokens.
    - Tidying once a day: near-duplicates merged, expired dropped, unused ones fade, at most 400 facts.
-   - Kept on StudioGen in one file locked with the Keychain (DriveDeckDesktop.memory); a phone uses its Mac's memory
+   - Kept on NaoMuse in one file locked with the Keychain (DriveDeckDesktop.memory); a phone uses its Mac's memory
      (link request 'memory', own devices only), or its own (words only) when it has no Mac.
    Loaded after chat.js.
    ============================================================ */
@@ -19,7 +19,7 @@ const MEM_SECRET = /\b(password|passcode|pass code|pin code|otp|one[- ]time (cod
 const Memory = {
   d: null, loading: null,
   blank: () => ({ v: 1, on: true, facts: [], episodes: [], vec: {}, tidyAt: 0 }),
-  /** Where it lives: StudioGen's locked file, else this device's storage. */
+  /** Where it lives: NaoMuse's locked file, else this device's storage. */
   local: () => !!window.DriveDeckDesktop?.memory,
   /** A phone with a Mac: the Mac's memory. */
   remote: () => !LINK_HOST && typeof Link !== 'undefined' && Link.ready() && Date.now() > (Memory.noRemote || 0),
@@ -124,7 +124,7 @@ const Memory = {
     for (const id of Object.keys(d.vec)) if (!d.facts.some(f => f.id === id)) delete d.vec[id];
     d.tidyAt = now; this.save(); Log.i('memory', 'Tidied', { facts: d.facts.length });
   },
-  /** On StudioGen: a phone's request (its owner's own devices only). */
+  /** On NaoMuse: a phone's request (its owner's own devices only). */
   async answer(p, who) {
     if (typeof Agent !== 'undefined' && !Agent.ownDevice(who)) throw new Error('Only this Mac’s owner’s own devices share its memory');
     if (p.op === 'for') return { text: await this.for(String(p.q || '').slice(0, 2000)) };
@@ -137,14 +137,14 @@ const Memory = {
 
   /* ---------- Settings › Assistant › Memory ---------- */
   async settings(q = '') {
-    if (this.remote()) return sheet('Memory', `<p>This ${isIOS ? 'phone' : 'device'} uses the memory of ${esc(Link.macName())}: see it there (StudioGen › Settings › Assistant › Memory).</p>`, [['OK']]);
+    if (this.remote()) return sheet('Memory', `<p>This ${isIOS ? 'phone' : 'device'} uses the memory of ${esc(Link.macName())}: see it there (${BRAND.mac} › Settings › Assistant › Memory).</p>`, [['OK']]);
     const d = await this.load(), l = d.facts.filter(f => !q || plain(`${f.subject} ${f.text}`).includes(plain(q))).sort((a, b) => (b.pinned - a.pinned) || ((b.updated || b.created) - (a.updated || a.created)));
     sheet('Memory', `<p class="se-note">What the assistant remembers about you, kept on this ${this.local() ? 'Mac, locked with its Keychain' : 'device'}. It learns from conversations; say “remember that …”, “forget that”, “what do you remember about Priya”.</p>
       <label class="se-check"><input type="checkbox" id="memOn" ${this.on() ? 'checked' : ''}> Remember things</label>
       <label class="se-field"><span>Search (${d.facts.length} facts, ${d.episodes.length} conversations)</span><input id="memQ" value="${esc(q)}"></label>
       <div class="mem-list">${l.slice(0, 80).map(f => `<div class="mem-row"><span>${f.pinned ? '📌 ' : ''}${esc(f.text)}<br><span class="se-note">${f.kind} · ${f.source === 'said' ? 'you said to remember' : 'learned'} ${new Date(f.updated || f.created).toLocaleDateString()}${f.expires ? ` · until ${f.expires}` : ''}${f.uses ? ` · used ${f.uses}×` : ''}</span></span><span><button class="link-btn" data-mem="pin|${f.id}">${f.pinned ? 'Unpin' : 'Pin'}</button> <button class="link-btn" data-mem="edit|${f.id}">Edit</button> <button class="link-btn" data-mem="del|${f.id}">Forget</button></span></div>`).join('') || '<p class="se-note">Nothing yet.</p>'}</div>
       <div class="chip-row"><button class="chip" data-mem="add">+ Add</button><button class="chip" data-mem="wipe">Forget everything</button></div>
-      ${this.canEmbed() ? '' : '<p class="se-note">Finding facts by meaning needs StudioGen on a Mac (EmbeddingGemma); here it finds them by their words.</p>'}`,
+      ${this.canEmbed() ? '' : `<p class="se-note">Finding facts by meaning needs ${BRAND.mac} on a Mac (EmbeddingGemma); here it finds them by their words.</p>`}`,
       [['Search', () => this.settings($('#memQ').value)], ['Close', () => { d.on = $('#memOn').checked; this.save(); }]]);
   },
 };

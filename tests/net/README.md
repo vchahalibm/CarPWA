@@ -9,7 +9,7 @@ The plan is in [docs/connection-tests.html](../../docs/connection-tests.html). T
 Everything runs inside one privileged container (`sglab-netlab`) with Linux network namespaces (`ns.sh`), so Docker's own
 networking can't get in the way: the container's root namespace is the lab's "internet" (a bridge, coturn for STUN/TURN, the
 app's web server, and NAT out to the real internet for the public relays); each scenario adds, per side, a router namespace with
-a NAT/firewall profile and a device namespace where headless Chromium runs the app (StudioGen's link side with `?linktest=host`,
+a NAT/firewall profile and a device namespace where headless Chromium runs the app (NaoMuse's link side with `?linktest=host`,
 or DriveGen). Router profiles:
 
 | Profile | What it does | Stands for |
@@ -33,13 +33,13 @@ lab routers' backs, which made direct links look possible when they weren't (and
 
 ## 2. Real internet, every night
 
-`.github/workflows/net-nightly.yml` runs `tests/net/remote.mjs` on GitHub's machines: a host (StudioGen's link side) on Linux and
+`.github/workflows/net-nightly.yml` runs `tests/net/remote.mjs` on GitHub's machines: a host (NaoMuse's link side) on Linux and
 guests (DriveGen) on Linux and macOS, different networks, pairing through a seed both derive from the run id and the `NET_SEED`
-secret. Optional: `HOME_PAIR_CODE` (a pairing code made by your own StudioGen) also tests against your Mac. Results go to the run
+secret. Optional: `HOME_PAIR_CODE` (a pairing code made by your own NaoMuse) also tests against your Mac. Results go to the run
 summary. Locally: `CDP=9341 node tests/net/remote.mjs host SEED 2` and, in another terminal, `CDP=9342 node tests/net/remote.mjs guest SEED`
 (with `python3 -m http.server 8811` in the repository).
 
 ## 3. On real devices
 
-Settings › Connections › **Test the connection** in DriveGen and StudioGen: this network's router type, every relay, the link
+Settings › Connections › **Test the connection** in DriveGen and NaoMuse: this network's router type, every relay, the link
 to the other app, a verdict, and a JSON report to copy. The field checklist is in the plan (section 7).

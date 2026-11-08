@@ -5,7 +5,7 @@ const mem = {}, ctx = {
   store: { get: (k, d) => k in mem ? mem[k] : d, set: (k, v) => { mem[k] = v; } },
   plain: t => String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim(),
 };
-vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname + '/../js/watch.js', 'utf8') + '\nthis.Watch = Watch;', ctx);
+ctx.BRAND = require(__dirname + '/../js/brand.js'); ctx.APP_ID = ctx.APP_ID || 'DriveGen'; vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname + '/../js/watch.js', 'utf8') + '\nthis.Watch = Watch;', ctx);
 const W = ctx.Watch;
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 

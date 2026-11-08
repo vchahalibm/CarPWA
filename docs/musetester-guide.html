@@ -29,7 +29,7 @@
 <body>
 <main>
 <h1>MuseTester: using it, and writing tests</h1>
-<p class="mut">MuseTester is the apps' main tester. It works StudioGen, DriveGen, Workers and the mesh the way a person does: it clicks, types, scrolls and waits, and it checks what happens. This guide covers running it and writing new tests. Anyone who adds a feature to the apps also adds a test for it, so this guide is for them too.</p>
+<p class="mut">MuseTester is the apps' main tester. It works NaoMuse, DriveGen, Workers and the mesh the way a person does: it clicks, types, scrolls and waits, and it checks what happens. This guide covers running it and writing new tests. Anyone who adds a feature to the apps also adds a test for it, so this guide is for them too.</p>
 
 <ul class="toc">
   <li><a href="#need">1. What you need</a></li>
@@ -51,11 +51,11 @@
 <h2 id="need">1. What you need</h2>
 <ul>
   <li><b>Node.js 22</b> or newer (<code>node -v</code>).</li>
-  <li><b>StudioGen</b> installed in /Applications, or the desktop app's files in the project: <code>cd desktop &amp;&amp; npm install</code>. Use <code>--app dev</code> to test today's code from <code>desktop/</code>.</li>
+  <li><b>NaoMuse</b> installed in /Applications, or the desktop app's files in the project: <code>cd desktop &amp;&amp; npm install</code>. Use <code>--app dev</code> to test today's code from <code>desktop/</code>.</li>
   <li><b>Google Chrome</b>: it shows the control panel and runs DriveGen as a phone or an iPad.</li>
-  <li>Optional: <b>Docker</b> (OrbStack) for the Worker and StudioGBee tests.</li>
+  <li>Optional: <b>Docker</b> (OrbStack) for the Worker and NaoMuseHive tests.</li>
 </ul>
-<p>Tests use a <b>throwaway profile</b> by default. Your own StudioGen, its sign-ins and its watchers are never touched. Only tests marked <code>"profile": "mine"</code> use your profile, and only when you pass <code>--profile mine</code>.</p>
+<p>Tests use a <b>throwaway profile</b> by default. Your own NaoMuse, its sign-ins and its watchers are never touched. Only tests marked <code>"profile": "mine"</code> use your profile, and only when you pass <code>--profile mine</code>.</p>
 
 <h2 id="run">2. Running tests</h2>
 <pre>node tools/musetester/muse.mjs                       # the panel, with every test
@@ -66,14 +66,14 @@ node tools/musetester/muse.mjs --list                # every test, its profile a
 node tools/musetester/muse.mjs --record my-test      # you use the app; it writes the test</pre>
 <div class="wrap"><table>
 <tr><th>Option</th><th>What it does</th></tr>
-<tr><td><code>--app installed|dev</code></td><td>The installed StudioGen (the default), or the one in <code>desktop/</code> with today's code.</td></tr>
-<tr><td><code>--silent</code></td><td>No panel, StudioGen hidden, DriveGen headless, and steps that need you are skipped. Clicks and typing use page events.</td></tr>
+<tr><td><code>--app installed|dev</code></td><td>The installed NaoMuse (the default), or the one in <code>desktop/</code> with today's code.</td></tr>
+<tr><td><code>--silent</code></td><td>No panel, NaoMuse hidden, DriveGen headless, and steps that need you are skipped. Clicks and typing use page events.</td></tr>
 <tr><td><code>--go</code></td><td>With the panel: the chosen tests start straight away, and MuseTester ends after them.</td></tr>
 <tr><td><code>--speed 2</code></td><td>Show mode twice as fast (<code>0.5</code>: half as fast).</td></tr>
 <tr><td><code>--no-show</code></td><td>The windows are in view, but nothing is shown moving (no pointer and no real input).</td></tr>
 <tr><td><code>--skip docker,slow</code></td><td>Leaves out tests with these tags or ids.</td></tr>
-<tr><td><code>--profile mine</code></td><td>The tests that need your accounts. Add <code>--restart-mine</code> to let MuseTester quit your StudioGen and open it again afterwards.</td></tr>
-<tr><td><code>--keep</code></td><td>Leaves StudioGen open after the tests, so you can look around.</td></tr>
+<tr><td><code>--profile mine</code></td><td>The tests that need your accounts. Add <code>--restart-mine</code> to let MuseTester quit your NaoMuse and open it again afterwards.</td></tr>
+<tr><td><code>--keep</code></td><td>Leaves NaoMuse open after the tests, so you can look around.</td></tr>
 <tr><td><code>--mark</code></td><td>Ticks the try-it-out items in docs/TasksNeedingComeBack.md that passed.</td></tr>
 </table></div>
 
@@ -86,14 +86,14 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
   <li>Steps only you can do (a drive, a tap on your phone) show <b>Your turn</b>.</li>
 </ul>
 <p><b>Show mode</b> is the default when the panel is open. A pointer glides to each target, rings it in blue and clicks it with real mouse input. Typing appears letter by letter, and a caption at the top names the test and the step. When a watcher checks, the agent browser's panel shows the page it reads.</p>
-<figure><img src="img/musetester/rpa-board.jpg" alt="StudioGen with a board of controls: the pointer has just dragged “Drag me” onto “Drop here”, which is ringed in blue; the caption at the top reads MuseTester, the automation engine, step 26"><figcaption>The rpa-engine test in show mode: the drag has just landed. Above it, the name is typed, Blue is chosen, and the list has been scrolled to Row 35.</figcaption></figure>
+<figure><img src="img/musetester/rpa-board.jpg" alt="NaoMuse with a board of controls: the pointer has just dragged “Drag me” onto “Drop here”, which is ringed in blue; the caption at the top reads MuseTester, the automation engine, step 26"><figcaption>The rpa-engine test in show mode: the drag has just landed. Above it, the name is typed, Blue is chosen, and the list has been scrolled to Row 35.</figcaption></figure>
 
 <h2 id="engine">4. One engine: RPA</h2>
 <p>Everything MuseTester does on the screen goes through <b>RPA</b> (<code>js/rpa.js</code>), the app's own automation engine. That covers clicking, typing, keys, scrolling, pointing, dragging, dropdowns, checkboxes, waiting and reading. Scripts use the same engine through the <code>rpa.*</code> actions, on Stage or anywhere. So a test that passes shows that the engine your scripts use works too.</p>
 <div class="wrap"><table>
 <tr><th>Where</th><th>Input</th></tr>
-<tr><td>StudioGen, show mode or a script</td><td>Real input: Electron's <code>sendInputEvent</code> through <code>DriveDeckDesktop.input</code>. It is checked: a click on something that is covered fails and names what covers it.</td></tr>
-<tr><td>StudioGen silent, and DriveGen</td><td>Page events (pointer, mouse, click, input, change, keys).</td></tr>
+<tr><td>NaoMuse, show mode or a script</td><td>Real input: Electron's <code>sendInputEvent</code> through <code>DriveDeckDesktop.input</code>. It is checked: a click on something that is covered fails and names what covers it.</td></tr>
+<tr><td>NaoMuse silent, and DriveGen</td><td>Page events (pointer, mouse, click, input, change, keys).</td></tr>
 <tr><td>A page of the agent browser (<code>web</code>)</td><td>The webview's own real input; fields are found and focused through the bridge.</td></tr>
 </table></div>
 <p>RPA never types into or records password, payment or one-time-code fields.</p>
@@ -159,7 +159,7 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
 <h3>The apps</h3>
 <div class="wrap"><table>
 <tr><th>Step</th><th>Does</th></tr>
-<tr><td><code>launch</code></td><td>Opens StudioGen: <code>as</code>, <code>practice</code> (the practice sites), <code>profile</code>, <code>app</code>, <code>env</code>, <code>folders</code>.</td></tr>
+<tr><td><code>launch</code></td><td>Opens NaoMuse: <code>as</code>, <code>practice</code> (the practice sites), <code>profile</code>, <code>app</code>, <code>env</code>, <code>folders</code>.</td></tr>
 <tr><td><code>drivegen</code></td><td>Opens DriveGen in Chrome: <code>device</code> (<code>iphone</code>, <code>ipad</code>, <code>ipad-portrait</code>), <code>settings</code>.</td></tr>
 <tr><td><code>quit</code></td><td>Closes an app. A <code>launch</code> afterwards is a restart with the same profile.</td></tr>
 <tr><td><code>practice</code>, <code>practice.signin</code>, <code>practice.incoming</code></td><td>The practice sites on or off, signed in, and given news (<code>site</code>, <code>text</code>, <code>query</code>).</td></tr>
@@ -205,7 +205,7 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
 { "do": "expect", "var": "check.count", "gte": 1 }</pre>
 
 <h2 id="web">9. Pages in the agent browser</h2>
-<p>Watchers and tasks work in StudioGen's agent browser. To act inside one of its pages, add <code>web</code> (part of the page's address) and use the <code>web.*</code> steps. A practice Slack test, for example:</p>
+<p>Watchers and tasks work in NaoMuse's agent browser. To act inside one of its pages, add <code>web</code> (part of the page's address) and use the <code>web.*</code> steps. A practice Slack test, for example:</p>
 <pre>{ "do": "launch", "practice": true },
 { "do": "practice.signin" },
 { "do": "web.click", "web": "slack", "text": "sales" },
@@ -217,7 +217,7 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
 <h2 id="record">10. Recording a test</h2>
 <pre>node tools/musetester/muse.mjs --record watcher-pause --title "Pausing a watcher from its list"</pre>
 <ol>
-  <li>StudioGen opens with a throwaway profile, and a caption says it's recording.</li>
+  <li>NaoMuse opens with a throwaway profile, and a caption says it's recording.</li>
   <li>Use it as you would. Your clicks, typing (and Enter), dropdown choices and checkboxes are written down as steps, each by the words on what you clicked where they're unique, else its label, else a selector.</li>
   <li>Press Enter in the terminal. The steps are saved to <code>tests/watcher-pause.json</code>.</li>
   <li>Open the file and add what should be true: <code>expect</code>, <code>look</code> or <code>wait.for</code> after the steps that change something. Add <code>why</code> to each step. Then run it.</li>

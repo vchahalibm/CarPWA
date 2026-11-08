@@ -77,12 +77,12 @@ const DataViz = {
   async csvFrom(src) {
     if (!/^(\/|~)/.test(src)) { // a link (or a file served with the app, e.g. samples/sales.csv)
       const r = await fetch(src); if (!r.ok) throw new Error(`${r.status}`); return /\.json(\?|$)/i.test(src) ? this.from(await r.text()) : this.csv(await r.text()); }
-    if (!window.DriveDeckDesktop?.data) throw new Error('Files on this computer can be read in StudioGen; here use a link or choose the file');
+    if (!window.DriveDeckDesktop?.data) throw new Error(`Files on this computer can be read in ${BRAND.mac}; here use a link or choose the file`);
     const r = await DriveDeckDesktop.data.read({ file: src }); if (!r.ok) throw new Error(r.denied ? 'You didn’t allow it' : r.err);
     return /\.json$/i.test(src) ? this.from(r.text) : this.csv(r.text);
   },
   async sql(file, sql, params = []) {
-    if (!window.DriveDeckDesktop?.data) throw new Error('Databases can be read in StudioGen on a computer');
+    if (!window.DriveDeckDesktop?.data) throw new Error(`Databases can be read in ${BRAND.mac} on a computer`);
     const r = await DriveDeckDesktop.data.query({ file, sql, params }); if (!r.ok) throw new Error(r.denied ? 'You didn’t allow it' : r.err);
     if (r.total > r.rows.length) toast(`Showing ${r.rows.length.toLocaleString()} of ${r.total.toLocaleString()} rows`);
     return { columns: r.columns, rows: r.rows };
@@ -198,7 +198,7 @@ document.addEventListener('change', e => { if (e.target.id === 'dwFile' && e.tar
 
 /* ---------- Script actions ---------- */
 const dataTarget = ev => (ev?.args?.[0] && W[wtype(ev.args[0])] ? ev.args[0] : DataViz.target());
-Actions.define('data.csv', { group: 'Data', name: 'Load a CSV or JSON file into the data widget', arg: 'A link, or a path on this computer (StudioGen)', async run(v, say, ev) {
+Actions.define('data.csv', { group: 'Data', name: 'Load a CSV or JSON file into the data widget', arg: `A link, or a path on this computer (${BRAND.mac})`, async run(v, say, ev) {
   const d = await DataViz.csvFrom(v); await DataViz.set(dataTarget(ev), d, { kind: 'csv', src: v, label: v.split(/[/?#]/).filter(Boolean).pop() }); return d.rows; } });
 Actions.define('data.sql', { group: 'Data', name: 'Query a SQLite database (read-only)', arg: 'SQL; inputs: the database file, then values for each ? in order', raw: true, async run(v, say, ev = {}) {
   const [db, ...params] = ev.args || []; if (!db) throw new Error('Which database? Put its file as the first input');

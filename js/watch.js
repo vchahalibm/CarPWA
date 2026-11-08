@@ -8,11 +8,11 @@
               difference) · value (a number crosses a line, or changes) · contains / gone (words) · appears / disappears
      filters  quiet hours (no toast or voice, still a card and the digest) · only if the model agrees it matters (ask)
      actions  a watch card on the Agent screen and the timeline · a quiet toast · spoken when important · the digest
-   Runs in StudioGen's agent browser (the containers' sign-ins), one check at a time per site, leaving a slot for tasks;
+   Runs in NaoMuse's agent browser (the containers' sign-ins), one check at a time per site, leaving a slot for tasks;
    signed out or a robot check: paused, with a card to sign in. Templates for Slack, Teams, Outlook, WhatsApp, X, pages.
-   Where (phase 5, design § 7): each watcher runs here or on another StudioGen of yours (a Worker): the definition goes
+   Where (phase 5, design § 7): each watcher runs here or on another NaoMuse of yours (a Worker): the definition goes
    there with the mesh request 'watch' (own devices only), it runs there, and its news comes back as 'watch-event' (sealed,
-   through the mesh, or StudioGBee while this Mac is away). The news also goes to your DriveGens (a push through the bee
+   through the mesh, or NaoMuseHive while this Mac is away). The news also goes to your DriveGens (a push through the bee
    when the phone is away). Live pages: the bridge's observer pokes a check within seconds. Finders: a picked part keeps
    several ways to find it; when the first stops matching, the next one is tried and kept (self-healing), else it asks you
    to pick it again.
@@ -96,7 +96,7 @@ const Watch = {
     if (k === 'hook' || k === 'chain') return (w.state.inbox || []).splice(0);
     if (k === 'gmaps') return MapWatch.read(w, trace); /* map watchers (js/mapwatch.js) */ /* what arrived since the last check (hookIn, chainOut) */
     if (k === 'files') {
-      if (!window.DriveDeckDesktop?.files) throw new Error('Folders and files are watched by StudioGen on a Mac');
+      if (!window.DriveDeckDesktop?.files) throw new Error(`Folders and files are watched by ${BRAND.mac} on a Mac`);
       if (w.file && w.detect?.kind !== 'new') { const r = await DriveDeckDesktop.files('read', { path: w.path }); if (r?.error) throw new Error(r.error); return r.text; }
       const r = await DriveDeckDesktop.files('list', { path: w.path, depth: w.depth || 1 }); if (r?.error) throw new Error(r.error);
       const size = b => b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${Math.round(b / 1e3)} KB` : `${b} bytes`;
@@ -104,7 +104,7 @@ const Watch = {
     }
     if (k === 'window') return this.windowText(w);
     if (k === 'feed' || k === 'json') {
-      if (!window.DriveDeckDesktop?.fetch) throw new Error('Feeds are read by StudioGen on a Mac');
+      if (!window.DriveDeckDesktop?.fetch) throw new Error(`Feeds are read by ${BRAND.mac} on a Mac`);
       let r = await DriveDeckDesktop.fetch(w.feedUrl || w.url); if (r?.error || r.status >= 400) throw new Error(r?.error || `The address answered ${r.status}`);
       if (k === 'feed' && !w.feedUrl && /<html[\s>]|<!doctype html/i.test(r.text.slice(0, 3000))) { /* a web page: its own feed, if it names one (blogs, YouTube channels, status pages) */
         const l = r.text.match(/<link[^>]+type=["']application\/(rss|atom)\+xml["'][^>]*>/i), h = l?.[0].match(/href=["']([^"']+)["']/i)?.[1];
@@ -157,7 +157,7 @@ const Watch = {
   },
   /** An app window on this Mac, read by the screen model: its lines top to bottom (needs Screen Recording). */
   async windowText(w) {
-    if (!window.DriveDeckDesktop?.windows) throw new Error('App windows are watched by StudioGen on a Mac');
+    if (!window.DriveDeckDesktop?.windows) throw new Error(`App windows are watched by ${BRAND.mac} on a Mac`);
     const r = await DriveDeckDesktop.windows('shot', { name: w.window }); if (r?.error) throw new Error(/Screen Recording/.test(r.error) || r.access === 'denied' ? 'PERM:screen' : r.error);
     const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('Couldn’t read the picture of that window')); i.src = r.png; });
     const c = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height }); c.getContext('2d').drawImage(img, 0, 0);
@@ -346,7 +346,7 @@ const Watch = {
   quiet(w) { const q = String(w.quiet || store.get('watchQuiet', '22:00-07:00')).match(/(\d\d):(\d\d)-(\d\d):(\d\d)/); if (!q) return false; const n = new Date(), m = n.getHours() * 60 + n.getMinutes(), a = +q[1] * 60 + +q[2], b = +q[3] * 60 + +q[4]; return a < b ? m >= a && m < b : m >= a || m < b; },
   /** Tell: a card (and the timeline), a quiet toast, the voice when important, the digest. */
   tell(w, hit, verdict) {
-    if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], value: hit.value, important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another StudioGen of yours: it tells */
+    if (w.origin) return this.send(w.origin, { id: w.originId, headline: hit.headline, items: hit.items || [], value: hit.value, important: !!verdict?.important, why: verdict?.why || '', state: this.brief(w) }).then(r => { if (r?.error === 'No such watcher here') { this.del(w.id); Log.i('watch', `Deleted there, so stopped here: ${w.name}`); } }); /* run here for another NaoMuse of yours: it tells */
     const t = w.tell || {}, quiet = this.quiet(w), presenting = typeof Script !== 'undefined' && Script.running;
     const card = { task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'list', headline: hit.headline, items: hit.items || [], status: 'done', watch: w.id, ...(verdict?.why ? { why: verdict.why } : {}), ...(hit.link ? { link: hit.link } : {}), ...(hit.shot ? { shot: Agent.img(hit.shot) } : {}), ...(hit.take ? { take: hit.take } : {}), ...(hit.share ? { share: hit.share } : {}) };
     if (t.card !== false) { const c = Agent.post(card); Agent.log({ id: c.id, kind: 'watch', title: card.title, status: 'done', headline: hit.headline, items: hit.items }); }
@@ -358,7 +358,7 @@ const Watch = {
     Log.i('watch', `Told: ${hit.headline}`, { quiet, important: !!verdict?.important });
   },
   /* ---------- Watchers on other devices of yours (design § 7) ---------- */
-  /** StudioGens of yours that can run watchers now (a Worker, another Mac): from their presence. */
+  /** NaoMuses of yours that can run watchers now (a Worker, another Mac): from their presence. */
   runners() {
     if (typeof Mesh === 'undefined' || !Mesh.m) return [];
     return Mesh.members().filter(m => m.id !== Mesh._me?.id && Mesh.own(m.id) && Mesh.presence[m.id]?.caps?.watch && Date.now() - (Mesh.presence[m.id].at || 0) < 180000);
@@ -368,7 +368,7 @@ const Watch = {
   brief(w) { const s = w.state || {}; return { at: s.at, count: s.count, changedAt: s.changedAt, lastHit: s.lastHit, error: s.fails ? s.error : '', fails: s.fails || 0, paused: s.paused || '', next: s.next, healed: s.healed }; },
   /** A request to the device running it. */
   remote(w, op, more = {}, ms = 120000) { return Mesh.call(w.runOn, 'watch', { op, id: w.id, ...more }, ms); },
-  /** News for one of your devices: through the mesh when it's there, else StudioGBee keeps it (push: a phone that's away
+  /** News for one of your devices: through the mesh when it's there, else NaoMuseHive keeps it (push: a phone that's away
       gets “a watcher found something new”, nothing more). */
   async send(to, p, push) {
     try { return await Mesh.call(to, 'watch-event', p, 30000); }
@@ -379,7 +379,7 @@ const Watch = {
     if (typeof Mesh === 'undefined' || !Mesh.m) return;
     for (const m of Mesh.members()) if (m.app === 'DriveGen' && m.id !== Mesh._me?.id && Mesh.own(m.id)) this.send(m.id, { phone: true, ...p }, true);
   },
-  /** Requests from your own StudioGen (Direct.handle 'watch', own devices only): run its watchers here. */
+  /** Requests from your own NaoMuse (Direct.handle 'watch', own devices only): run its watchers here. */
   async answer(p, who) {
     if (p.op === 'all') return { mac: typeof LinkHost !== 'undefined' ? LinkHost.name?.() || '' : '', list: this.list().filter(w => !w.origin).map(w => ({ id: w.id, name: w.name, on: w.on, where: this.where(w), paused: w.state?.paused || '', lastHit: w.state?.lastHit || '', changedAt: w.state?.changedAt })) }; /* your phone: this Mac's watchers */
     if (p.op === 'pnow' || p.op === 'ponoff') { const w = this.get(p.id); if (!w || w.origin) throw new Error('No such watcher');
@@ -449,7 +449,7 @@ const Watch = {
         w.state.paused = 'Is this what it watches?';
         if (!o.preview) Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: 'ask', headline: `I lost what it watches; is this it? “${m.slice(8)}” (found by ${w.state.proposal?.how || 'its words'})`, watch: w.id, confirm: true });
       }
-      if (m === 'PERM:screen') { w.state.paused = 'Allow StudioGen to see other windows (Screen Recording)'; w.state.error = w.state.paused;
+      if (m === 'PERM:screen') { w.state.paused = `Allow ${BRAND.mac} to see other windows (Screen Recording)`; w.state.error = w.state.paused;
         if (!o.preview) { Agent.post({ task: `watch.${w.id}`, title: `👁 ${w.name}`, type: 'summary', status: 'failed', headline: w.state.paused, watch: w.id }); if (typeof Perm !== 'undefined') Perm.denied('screen', () => { w.state.paused = ''; w.state.next = Date.now(); this.put(w); }); } }
       if (/^GONE:/.test(m)) { /* none of its finders found the part: pick it again */
         w.state.paused = 'What it watches isn’t on the page any more';
@@ -492,7 +492,7 @@ const Watch = {
   },
 
   /* ---------- Making one: templates, Watch something here, from a card ---------- */
-  /** A template's form: its questions (text, a folder or file picked in StudioGen, an open window, another watcher), then
+  /** A template's form: its questions (text, a folder or file picked in NaoMuse, an open window, another watcher), then
       how often and how to tell; templates with pick: open the page and you tap the list or part. */
   async fromTemplate(id) {
     const T = WATCH_TEMPLATES.find(x => x.id === id); if (!T) return;
@@ -510,7 +510,7 @@ const Watch = {
         const made = T.make(v);
         if (T.pick) { closeSheet(); await AgentWeb.go(made.url); const r = await this.pick(made.tip || 'Tap the list (or the part) to watch'); if (!r) return; return this.picked(r, AgentWeb.url(), made.steps || []); }
         const w = this.make({ name: T.name, template: T.id, templateInputs: v, ...made });
-        if (w.source === 'hook') { try { Object.assign(w, await Bee.hookNew(w.name)); } catch (e) { return sheet('No webhook', `<p>${esc(e.message)}</p><p class="se-note">Webhooks come in through StudioGBee (Mesh › StudioGBee).</p>`, [['Close']]); } }
+        if (w.source === 'hook') { try { Object.assign(w, await Bee.hookNew(w.name)); } catch (e) { return sheet('No webhook', `<p>${esc(e.message)}</p><p class="se-note">Webhooks come in through ${BRAND.hive} (Mesh › ${BRAND.hive}).</p>`, [['Close']]); } }
         this.formRead(w); await this.saveChecked(w); }], ['Back', () => this.templates()]]);
   },
   formHtml(o) {
@@ -528,7 +528,7 @@ const Watch = {
   /** Read once before saving (the baseline: nothing told), show what it reads now. */
   async saveChecked(w) {
     sheet('Checking…', `<p class="se-note">Reading ${esc(w.name)} once${w.runOn && w.runOn !== 'here' ? ` on ${esc(this.where(w))}` : ''}, so it knows what's there now.</p>`, []);
-    if (w.runOn && w.runOn !== 'here') try { /* on another StudioGen of yours: it reads there and keeps the state; this Mac keeps the definition and tells you */
+    if (w.runOn && w.runOn !== 'here') try { /* on another NaoMuse of yours: it reads there and keeps the state; this Mac keeps the definition and tells you */
       const { state, ...def } = w, r = await this.remote(w, 'save', { w: def }, 150000);
       w.state = { ...w.state, ...r.state }; this.put(w);
       const got = r.got, now = Array.isArray(got) ? `${r.count} item${r.count === 1 ? '' : 's'} now${got.length ? `, e.g. “${esc(String(got[0]).slice(0, 90))}”` : ''}` : typeof got === 'boolean' ? (got ? 'It’s there now' : 'Not there now') : `Now: “${esc(String(got).slice(0, 140))}”`;
@@ -544,13 +544,13 @@ const Watch = {
   /** An error in words for you (not GONE:…). */
   why(m) {
     return String(m).replace(/^SIGNIN:(.+)$/, 'Sign in to $1 in the agent browser first, then try again.').replace(/^GONE:.*$/, 'The page opened, but what it watches wasn’t on it (the site may have changed). Show me shows the page as the watcher saw it; Pick it again lets you tap it.')
-      .replace(/^CONFIRM:(.*)$/, 'It found something like it: “$1”. Check the card to say whether that’s it.').replace(/^PERM:screen$/, 'StudioGen needs Screen Recording to see other windows.').replace(/^NOTFOUND:.*$/, 'What it watches wasn’t on the page.');
+      .replace(/^CONFIRM:(.*)$/, 'It found something like it: “$1”. Check the card to say whether that’s it.').replace(/^PERM:screen$/, `${BRAND.mac} needs Screen Recording to see other windows.`).replace(/^NOTFOUND:.*$/, 'What it watches wasn’t on the page.');
   },
   /** Diagnose: the page's structure (words as shapes), each selector this page's watchers use tried on it, and their last
-      checks, into a file in StudioGen's diagnostics folder (to look at, or to send). w: a watcher (its own browser), or
+      checks, into a file in NaoMuse's diagnostics folder (to look at, or to send). w: a watcher (its own browser), or
       none (the page in the agent browser). */
   async diagnose(w) {
-    if (!window.DriveDeckDesktop?.diag) return toast('Diagnosing needs StudioGen 0.18.3 or later on a Mac');
+    if (!window.DriveDeckDesktop?.diag) return toast(`Diagnosing needs ${BRAND.mac} 0.18.3 or later on a Mac`);
     const v = w ? AgentWeb.views.get(this.viewKey(w)) : AgentWeb.views.get(AgentWeb.cur), url = v ? AgentWeb.url({ view: v }) : '';
     if (!v || !url || url === 'about:blank') return toast(w ? 'The watcher hasn’t opened its page yet: Check now first' : 'Open a page in the agent browser first');
     const host = (() => { try { return new URL(url).host; } catch { return ''; } })(), mine = w ? [w] : this.list().filter(x => { try { return new URL(String(x.url || '').replace(/\{(\w+)\}/g, (m, k) => Agent.sites()[k] ?? m)).host === host; } catch { return false; } });
@@ -566,7 +566,7 @@ const Watch = {
     const focus = [...selectors.map(x => x.sel.split('||')[0]).filter(x => !/^rows-in:/.test(x)), ...selectors.flatMap(x => x.sel.split('||').filter(y => /^rows-in:/.test(y)).map(y => y.slice(8))), '#pane-side', '#side', '#main', '[role="grid"]', '[role="list"]', '[role="listbox"]', '[role="tree"]', 'main', '[role="main"]'];
     const page = await AgentWeb.call('diagnose', [{ selectors, focus: [...new Set(focus)].join('||'), max: 6000 }], 45000, { view: v });
     if (!page?.ok) return toast(`Couldn’t diagnose: ${page?.error || 'the page didn’t answer'}`);
-    const report = { what: 'StudioGen page diagnosis (words replaced by shapes)', at: new Date().toISOString(), app: store.get('setupDone') || '', page,
+    const report = { what: `${BRAND.mac} page diagnosis (words replaced by shapes)`, at: new Date().toISOString(), app: store.get('setupDone') || '', page,
       watchers: mine.map(x => ({ name: x.name, template: x.template || '', url: x.url, ready: x.ready || '', rows: x.rows || '', read: x.read || '', keep: x.keep ? '(set)' : '', detect: x.detect, every: x.every, error: x.state?.error ? this.why(x.state.error) : '', fails: x.state?.fails || 0, lastCheck: x.state?.trace || null })) };
     const f = await DriveDeckDesktop.diag('write', { name: `${host || 'page'}${w ? '-' + w.name : ''}`, text: JSON.stringify(report, null, 1) });
     if (f?.error) return toast(`Couldn’t save it: ${f.error}`);
@@ -606,7 +606,7 @@ const Watch = {
     return this.picked(r, AgentWeb.url(), [], again);
   },
   /** Teach it: do the steps in the agent browser (searches, tabs), then tap what to watch (js/taskedit.js TaskTeach). */
-  teach(url) { if (!this.can()) return toast('Teaching needs StudioGen on a Mac'); closeSheet(); TaskTeach.forWatch = true; TaskTeach.start(url); },
+  teach(url) { if (!this.can()) return toast(`Teaching needs ${BRAND.mac} on a Mac`); closeSheet(); TaskTeach.forWatch = true; TaskTeach.start(url); },
   /** A part was picked (tapped, or at the end of Teach it): the watcher form, with the kind suggested. */
   picked(r, page, steps = [], again) {
     // a list: by its role (row, listitem…), else by shape (look-alike siblings around the tap: today's WhatsApp, many sites)
@@ -675,7 +675,7 @@ const Watch = {
     const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     for (const c of this.list()) if (c.source === 'chain' && c.from === w.id && c.on) { (c.state.inbox ||= []).push(...(hit.items?.length ? hit.items : [{ title: hit.headline }]).map(i => `${t} · ${[i.title, i.detail].filter(Boolean).join(' · ')}`)); c.state.inbox = c.state.inbox.slice(-100); c.state.next = Date.now(); this.put(c); setTimeout(() => this.check(this.get(c.id)), 500); }
   },
-  /** A webhook's message (StudioGBee passes it on, js/bee.js): the watcher with that hook gets it as a new item. */
+  /** A webhook's message (NaoMuseHive passes it on, js/bee.js): the watcher with that hook gets it as a new item. */
   hookIn(m) {
     const w = this.list().find(x => x.source === 'hook' && x.hook === m.token); if (!w) return;
     let b = m.body; try { b = JSON.parse(b); } catch {}
@@ -697,7 +697,7 @@ const Watch = {
   async phoneSheet() {
     sheet('Watchers', '<p class="se-note">Asking your Mac…</p>', [['Close']]);
     let r; try { r = await Link.watch({ op: 'all' }); } catch (e) { return sheet('Watchers', `<p>${esc(e.message)}</p><p class="se-note">They run on your Mac; pair in Settings › Connections.</p>`, [['Close']]); }
-    sheet('Watchers', `<p class="se-note">On your Mac${r.mac ? ` (${esc(r.mac)})` : ''}; news comes here as cards. Make and edit them in StudioGen.</p><div class="wt-list">${(r.list || []).map(w => `<div class="mem-row"><span><b>${w.on ? '' : '⏸ '}${esc(w.name)}</b><br><span class="se-note">${w.paused ? `⚠️ ${esc(w.paused)}` : w.lastHit ? esc(w.lastHit.slice(0, 90)) : 'no news yet'}</span></span>
+    sheet('Watchers', `<p class="se-note">On your Mac${r.mac ? ` (${esc(r.mac)})` : ''}; news comes here as cards. Make and edit them in ${BRAND.mac}.</p><div class="wt-list">${(r.list || []).map(w => `<div class="mem-row"><span><b>${w.on ? '' : '⏸ '}${esc(w.name)}</b><br><span class="se-note">${w.paused ? `⚠️ ${esc(w.paused)}` : w.lastHit ? esc(w.lastHit.slice(0, 90)) : 'no news yet'}</span></span>
       <span class="acts"><button class="link-btn" data-wt="pnow|${esc(w.id)}">Check now</button> <button class="link-btn" data-wt="ponoff|${esc(w.id)}">${w.on ? 'Pause' : 'Resume'}</button></span></div>`).join('') || '<p class="se-note">None yet.</p>'}</div>`, [['Close']]);
   },
   /** “Watch this” on a task's card: the task runs on a schedule and its new items are told. */
@@ -706,7 +706,7 @@ const Watch = {
   /* ---------- By voice ---------- */
   /** “Tell me when the Acme widget is under 500”: the model drafts it (a template, or a page and a kind), you say yes. */
   async fromWords(text, say) {
-    if (!this.can()) return say('Watchers run on your Mac: say it to StudioGen there.');
+    if (!this.can()) return say(`Watchers run on your Mac: say it to ${BRAND.mac} there.`);
     if (typeof Intent === 'undefined' || !Intent.can()) { this.templates(); return say('I need the language model for that. Pick one here instead.'); }
     const usable = WATCH_TEMPLATES.filter(t => !t.pick && !t.inputs.some(x => x[3])), cat = usable.map(t => `${t.id}: ${t.name}${t.inputs.length ? ` (${t.inputs.map(x => x[0]).join(', ')})` : ''}`).join('\n');
     const schema = { type: 'object', required: ['template', 'inputs', 'url', 'kind', 'cond', 'every', 'name'], properties: { template: { type: ['string', 'null'] }, inputs: { type: 'object', additionalProperties: { type: 'string' } }, url: { type: ['string', 'null'] }, kind: { type: 'string' }, cond: { type: 'string' }, every: { type: 'string' }, name: { type: 'string' } } };

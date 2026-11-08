@@ -2,7 +2,7 @@
 /* ============================================================
    Permissions said “no” to, often by mistake: the microphone, speech recognition, the camera. The system asks only once;
    when something needs one that's off, `Perm.denied(kind, retry)` explains and offers to ask again:
-   - StudioGen: Ask me again resets this app's answer (tccutil, desktop/main.js 'dd:perm') and the Mac asks again; or Open
+   - NaoMuse: Ask me again resets this app's answer (tccutil, desktop/main.js 'dd:perm') and the Mac asks again; or Open
      System Settings at the right page. Then `retry` runs (listening, the camera…).
    - DriveGen (a browser can't reset its answer): Try again (the browser asks again when it can), with the steps for this
      browser or the iPhone otherwise.
@@ -17,7 +17,7 @@ const Perm = {
     if (this.desk()) return (await DriveDeckDesktop.perm('status', kind)) || 'unknown';
     try { const q = await navigator.permissions.query({ name: kind === 'camera' ? 'camera' : 'microphone' }); return q.state; } catch { return 'unknown'; }
   },
-  /** Ask the system again: StudioGen resets this app's answer first; a browser just tries. true when allowed now. */
+  /** Ask the system again: NaoMuse resets this app's answer first; a browser just tries. true when allowed now. */
   async ask(kind) {
     if (this.desk()) {
       await DriveDeckDesktop.perm('reset', kind);
@@ -29,7 +29,7 @@ const Perm = {
   /** Where to turn it on by hand, in words, for this device. */
   how(kind) {
     const what = kind === 'camera' ? 'Camera' : 'Microphone';
-    if (this.desk()) return `System Settings › Privacy & Security › ${kind === 'speech' ? 'Speech Recognition' : what} › turn on StudioGen.`;
+    if (this.desk()) return `System Settings › Privacy & Security › ${kind === 'speech' ? 'Speech Recognition' : what} › turn on ${BRAND.mac}.`;
     if (isIOS) return `On the iPhone or iPad: Settings › Apps › Safari › ${what} › Ask or Allow (from the Home Screen app: also Settings › ${APP_NAME} if it's listed), then open ${APP_NAME} again. In a Safari tab: the aA button › Website Settings › ${what} › Allow.`;
     if (/Android/.test(navigator.userAgent)) return `Tap the icon left of the address › Permissions › ${what} › Allow, then try again.`;
     return `Click the icon left of the address (site settings) › ${what} › Allow, then try again.`;

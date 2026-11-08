@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /* Real-internet connection test (docs/connection-tests.html, layer 3), run by .github/workflows/net-nightly.yml on separate
-   cloud machines (different networks): one is StudioGen's link side (host), the other a DriveGen (guest). Both build the same
+   cloud machines (different networks): one is NaoMuse's link side (host), the other a DriveGen (guest). Both build the same
    pairing from a seed (the run id and a secret), so they need no other way to meet than the relays.
-     node tests/net/remote.mjs host  <seed> <minutes>         stay online as StudioGen for that long
+     node tests/net/remote.mjs host  <seed> <minutes>         stay online as NaoMuse for that long
      node tests/net/remote.mjs guest <seed>                   find the host, try a direct link, time requests, report
-     node tests/net/remote.mjs guest-code <SG3 code>          the same against a real StudioGen (e.g. the Mac at home)
+     node tests/net/remote.mjs guest-code <SG3 code>          the same against a real NaoMuse (e.g. the Mac at home)
    Needs Chrome/Chromium (CHROME=path) and the app served at http://localhost:8811 (python3 -m http.server 8811). */
 import { spawn } from 'child_process';
 import crypto from 'crypto';
@@ -21,7 +21,7 @@ async function browser() {
 const ev = (wsUrl, expr, ms = 600000) => new Promise((res, rej) => { const ws = new WebSocket(wsUrl), t = setTimeout(() => { ws.close(); rej(new Error('timeout')); }, ms);
   ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: expr, awaitPromise: true, returnByValue: true } }));
   ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id !== 1) return; clearTimeout(t); ws.close(); m.result?.exceptionDetails ? rej(new Error(m.result.exceptionDetails.exception?.description || 'error')) : res(m.result.result.value); }; });
-// The pairing both sides derive from the seed: a room and a key (as StudioGen's pairing code would carry), the default relay list.
+// The pairing both sides derive from the seed: a room and a key (as NaoMuse's pairing code would carry), the default relay list.
 const derived = seed => { const h = k => crypto.createHash('sha256').update(`${k}:${seed}`).digest('base64url'); return { room: h('room').slice(0, 22), key: h('key').slice(0, 43) }; };
 
 const b = await browser();

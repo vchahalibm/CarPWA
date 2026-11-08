@@ -3,7 +3,7 @@
    Talking freely (design: docs/watchers.html § 1). What's said or typed that isn't a command or a task's wording goes to
    the language model (js/llm.js), which either picks something to do (a task, a command, a script) or just talks.
    - Allowed when you called the assistant: typed, the mic tapped, a gesture; in always-listening conversation mode only
-     after the wake word (“Hey StudioGen”, Settings › Assistant › Talking freely), and for 30 s after it for follow-ups,
+     after the wake word (“Hey NaoMuse”, Settings › Assistant › Talking freely), and for 30 s after it for follow-ups,
      so the room's chatter on Stage isn't answered.
    - One model call: “ACTION {json}” → it's done (acting ones ask first, as always); anything else is the reply, streamed:
      shown as it comes and spoken sentence by sentence (the avatar's lips follow the voice).
@@ -14,13 +14,14 @@
 const Chat = {
   hist: [], at: 0, woke: 0,
   on: () => settings.chatOn !== false,
-  /** The wake word, as said (spaces and “studio gen” vs “studiogen” don't matter). */
+  /** The wake word, as said (spaces don't matter: “naomuse” matches “nao muse”), and how recognizers hear the app's name. */
+  WAKE_ALIKE: { 'StudioGen': ['(?:nao|now|neo|nau|naw)\\s*mu(?:se|ze|ses)', 'studio\\s*gen'], 'DriveGen': ['drive\\s*gen'] }, // 'studio gen': the name before NaoMuse
   wakeRe() {
     const w = String(settings.wakeWord || `Hey ${APP_NAME}`).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/);
-    const name = w.slice(1).join('').split('').join('\\s*'); // “studiogen” matches “studio gen”
-    return new RegExp(`^\\s*(?:${w[0]}|hey|hi|ok|okay)[\\s,]+(?:${name}|${APP_NAME.toLowerCase().split('').join('\\s*')})\\b[\\s,.!?]*`, 'i');
+    const name = w.slice(1).join('').split('').join('\\s*'), names = [name, APP_NAME.toLowerCase().split('').join('\\s*'), ...(this.WAKE_ALIKE[APP_ID] || [])];
+    return new RegExp(`^\\s*(?:${w[0]}|hey|hi|ok|okay)[\\s,]+(?:${names.join('|')})\\b[\\s,.!?]*`, 'i');
   },
-  /** “Hey StudioGen, what's …” → the rest, and the next 30 s count as woken. */
+  /** “Hey NaoMuse, what's …” → the rest, and the next 30 s count as woken. */
   wake(raw) { const m = String(raw).match(this.wakeRe()); if (!m) return null; this.woke = Date.now(); return { rest: String(raw).slice(m[0].length).trim() }; },
   /** May this be answered freely? Typed or a tapped mic: yes; always-listening: only after the wake word. */
   allowed(spoken) { if (!this.on()) return false; if (!spoken || !(typeof Convo !== 'undefined' && Convo.active)) return true; return Date.now() - this.woke < 30000; },

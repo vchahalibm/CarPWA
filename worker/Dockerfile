@@ -1,4 +1,4 @@
-# StudioGen Worker (worker/README.md): StudioGen without a screen, in a Linux container.
+# NaoMuse Worker (worker/README.md): NaoMuse without a screen, in a Linux container.
 #   docker build -f worker/Dockerfile -t studiogen-worker .        (from the repo root)
 FROM node:22-bookworm-slim
 # what Electron (Chromium) needs on Linux, and a virtual screen (Xvfb)
@@ -15,6 +15,6 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 ENV SG_WORKER=1 SG_DATA=/data ELECTRON_DISABLE_SECURITY_WARNINGS=1
 VOLUME /data
-# a 1440×900 screen nobody looks at, StudioGen in it (worker/start.sh; tini reaps what Chromium leaves). Seen and used from
-# your devices (Mesh › See its screen). Arguments after the image name go to StudioGen.
+# a 1440×900 screen nobody looks at, NaoMuse in it (worker/start.sh; tini reaps what Chromium leaves). Seen and used from
+# your devices (Mesh › See its screen). Arguments after the image name go to NaoMuse.
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/worker/start.sh"]

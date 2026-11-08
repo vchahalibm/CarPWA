@@ -1,5 +1,5 @@
 'use strict';
-/* StudioGen updates, from the repository's GitHub release "updates" (published by .github/workflows/desktop.yml).
+/* NaoMuse updates, from the repository's GitHub release "updates" (published by .github/workflows/desktop.yml).
    Two layers:
    - Web: the app's own files (index.html, js/, css/…) as one small signed bundle, and the vendored libraries (vendor/) as
      another, downloaded only when they change. Unpacked under userData/updates and served instead of the copy inside the
@@ -10,6 +10,7 @@
    Security: update.json (versions, file names, sizes, SHA-256s) is signed in CI with an Ed25519 key; the app checks the
    signature with the public key below before reading it, then every download's size and SHA-256. Only HTTPS from GitHub;
    never a lower version than what's running; archive paths can't leave their folder. Nothing runs before it's verified. */
+const BRAND = require('./brand');
 const fs = require('fs'), fsp = fs.promises, path = require('path'), crypto = require('crypto'), zlib = require('zlib'), { spawn, execFile } = require('child_process');
 
 // Electron's fs sees inside .asar archives, so it can't delete an app bundle: use the plain one for that.
@@ -117,7 +118,7 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
   async function webUpdate(m) {
     const W = m.web, cur = active();
     if (!W || !(W.version > cur.version)) return false;
-    if (newer(W.minShell || '0', shellVersion)) { log(`update: web ${W.version} needs StudioGen ${W.minShell}`); return false; }
+    if (newer(W.minShell || '0', shellVersion)) { log(`update: web ${W.version} needs ${BRAND.mac} ${W.minShell}`); return false; }
     // Vendor files: only when they changed.
     const haveVendor = (state.vendor?.hash === W.vendor?.hash && ok(state.vendor.dir)) || W.vendor?.hash === (bundledInfo.vendorHash ||= await folderHash(path.join(bundled, 'vendor')));
     if (W.vendor?.hash && !haveVendor) {
@@ -163,7 +164,7 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
     const S = m.shell, entry = S?.[process.arch];
     if (!S || !newer(S.version, shellVersion) || !entry) return false;
     if (state.shell?.version === S.version && ok(state.shell.dir)) return true; // already downloaded
-    const buf = await asset(entry, `StudioGen ${S.version}`), dir = path.join(root, `shell-${S.version}`), zip = path.join(root, `shell-${S.version}.zip`);
+    const buf = await asset(entry, `${BRAND.mac} ${S.version}`), dir = path.join(root, `shell-${S.version}`), zip = path.join(root, `shell-${S.version}.zip`);
     await ofs.promises.rm(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); await fsp.writeFile(zip, buf);
     await new Promise((res, rej) => execFile('/usr/bin/ditto', ['-x', '-k', zip, dir], e => e ? rej(e) : res()));
     await fsp.rm(zip, { force: true });
@@ -172,7 +173,7 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
     if (!fs.readFileSync(info, 'utf8').includes(`<string>${S.version}</string>`)) throw new Error('the downloaded app has another version');
     fs.writeFileSync(path.join(dir, '.verified'), S.version);
     state.shell = { version: S.version, dir, app: path.join(dir, name) }; save();
-    log(`update: StudioGen ${S.version} ready to install`);
+    log(`update: ${BRAND.mac} ${S.version} ready to install`);
     return true;
   }
   /** Can this copy of the app replace itself (in a folder you can write to)? */
@@ -187,13 +188,13 @@ module.exports = function updater({ app, net, bundled, log = console.log }) {
       ${relaunch ? 'open "$APP"' : ''}`;
     spawn('/bin/sh', ['-c', script], { detached: true, stdio: 'ignore', env: { ...process.env, APP: a, OLD: old, NEW: S.app } }).unref();
     state.installing = S.version; delete state.shell; save();
-    log(`update: installing StudioGen ${S.version}${relaunch ? ' and restarting' : ' after quitting'}`);
+    log(`update: installing ${BRAND.mac} ${S.version}${relaunch ? ' and restarting' : ' after quitting'}`);
     return true;
   }
   /** Started fine: remove what the last update left behind. */
   function cleanup() {
     const a = appBundle(); if (a && ofs.existsSync(`${a}.old`)) ofs.rm(`${a}.old`, { recursive: true, force: true }, e => e && log('update: old copy not removed', e.message));
-    if (state.installing) { log(`update: now running StudioGen ${shellVersion}`); delete state.installing; save(); }
+    if (state.installing) { log(`update: now running ${BRAND.mac} ${shellVersion}`); delete state.installing; save(); }
     try { const keep = new Set([state.web?.dir, state.vendor?.dir, state.shell?.dir].filter(Boolean).map(d => path.basename(d)));
       for (const f of fs.readdirSync(root)) if (/^(web|vendor|shell)-/.test(f) && !keep.has(f)) ofs.rm(path.join(root, f), { recursive: true, force: true }, () => {}); } catch {}
   }

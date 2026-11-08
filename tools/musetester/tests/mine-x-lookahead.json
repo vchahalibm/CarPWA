@@ -1,6 +1,6 @@
 {
   "id": "mine-x-lookahead", "profile": "mine", "title": "Lookahead reads X with your sign-in", "tags": ["maps", "lookahead", "real"],
-  "tryitout": ["Sign in to X in StudioGen's agent browser"],
+  "tryitout": ["Sign in to X in NaoMuse's agent browser"],
   "steps": [
     { "do": "launch", "practice": false },
     { "do": "watch.make", "template": "map.traffic", "name": "MuseTester lookahead", "set": { "from": "${routeFrom}", "to": "${routeTo}", "look": { "on": true, "news": true, "posts": true, "x": true, "weather": true } } },

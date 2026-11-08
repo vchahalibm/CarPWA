@@ -224,9 +224,9 @@ const BUILTINS = {
   showWidget: { group: 'Dashboard', name: 'Show a widget', ok: v => !!widgetId(v.widget || v.q), run: (v, say) => showWidget(widgetId(v.widget || v.q), say) },
   dockHide: { group: 'Dashboard', name: 'Hide the dock (full screen)', run: (v, say) => { setDock(true); say('Dock hidden. Tap the left edge to bring it back.'); } },
   dockShow: { group: 'Dashboard', name: 'Show the dock', run: (v, say) => { setDock(false); say('Dock shown.'); } },
-  macRun: { group: 'Your Mac', name: 'Run something on your Mac (StudioGen)', run: (v, say) => typeof Link !== 'undefined' ? Link.command(v.q || v.text || '', say) : say('That needs the link to your Mac.') },
+  macRun: { group: 'Your Mac', name: `Run something on your Mac (${BRAND.mac})`, run: (v, say) => typeof Link !== 'undefined' ? Link.command(v.q || v.text || '', say) : say('That needs the link to your Mac.') },
   // The mesh and the link (MeshCmd in js/mesh.js): the same commands the tandem tests use
-  ...Object.fromEntries([['meshWho', 'who', 'Who’s around in the mesh'], ['meshCreate', 'create', 'Create a mesh (StudioGen)'], ['meshInvite', 'invite', 'Invite a device to the mesh'],
+  ...Object.fromEntries([['meshWho', 'who', 'Who’s around in the mesh'], ['meshCreate', 'create', `Create a mesh (${BRAND.mac})`], ['meshInvite', 'invite', 'Invite a device to the mesh'],
     ['meshJoin', 'join', 'Join a mesh with an invite'], ['meshLeave', 'leave', 'Leave the mesh'], ['meshRemove', 'remove', 'Remove a device from the mesh'], ['meshAllow', 'allow', 'Let a device run scripts'],
     ['meshDeny', 'deny', 'Stop a device running scripts'], ['meshRun', 'run', 'Run a script on a device in the mesh'], ['meshFetch', 'fetch', 'Get something shared in the mesh'],
     ['meshShare', 'share', 'Share something with the mesh'], ['meshPrivate', 'private', 'Make something private'], ['meshShared', 'shared', 'What’s shared in the mesh'],
@@ -355,7 +355,7 @@ const DEFAULT_COMMANDS = [
   { id: 'dash.widget', name: 'Show a widget', say: ['(show|open|add|go to) [me] [the|my] {widget} widget'], do: { type: 'builtin', fn: 'showWidget' } },
   { id: 'dash.dockhide', name: 'Hide the dock', say: ['hide [the] (dock|sidebar|side bar)', '[go|enter|turn on] full screen', 'fullscreen'], do: { type: 'builtin', fn: 'dockHide' } },
   { id: 'dash.dockshow', name: 'Show the dock', say: ['show [the] (dock|sidebar|side bar)', '(exit|leave|turn off) full screen'], do: { type: 'builtin', fn: 'dockShow' } },
-  { id: 'mac.run', name: 'Run something on my Mac', say: ['[please] run [the] {q} on my (mac|computer|laptop|studiogen)', 'ask my (mac|computer|laptop) [to] {q}', 'tell my (mac|computer|laptop) [to] {q}', 'on my (mac|computer|laptop) {q}'], do: { type: 'builtin', fn: 'macRun' } },
+  { id: 'mac.run', name: 'Run something on my Mac', say: ['[please] run [the] {q} on my (mac|computer|laptop|naomuse|studiogen)', 'ask my (mac|computer|laptop) [to] {q}', 'tell my (mac|computer|laptop) [to] {q}', 'on my (mac|computer|laptop) {q}'], do: { type: 'builtin', fn: 'macRun' } },
   // The mesh (both apps) and the link
   { id: 'mesh.who', name: 'Who’s around', say: ['(who’s|whos|who is) (around|online|connected|in the mesh)', '(show|open) [me] the mesh', 'mesh status'], do: { type: 'builtin', fn: 'meshWho' } },
   { id: 'mesh.create', name: 'Create a mesh', say: ['(create|make|start) a [new] mesh (called|named) {name}', '(create|make|start) a [new] mesh'], do: { type: 'builtin', fn: 'meshCreate' } },
@@ -378,7 +378,7 @@ const DEFAULT_COMMANDS = [
   { id: 'mesh.back', name: 'Back a step on every screen', say: ['(previous|last) (slide|step|page) (everywhere|on all screens|on every screen)', '[go] back [a step] in the show', 'show back'], do: { type: 'builtin', fn: 'meshBack' } },
   { id: 'mesh.cue', name: 'Send the cue', say: ['cue [the] (screens|show|others|next part)', 'send [a|the] cue'], do: { type: 'builtin', fn: 'meshCue' } },
   { id: 'mesh.stop', name: 'Stop the show', say: ['(stop|end) the show [everywhere]', 'stop [the] show on (all|every) screens'], do: { type: 'builtin', fn: 'meshStop' } },
-  { id: 'link.pair', name: 'Pair a phone with the Mac', say: ['pair [a|my|the|this] (phone|iphone|ipad|device)', 'pair with my (mac|computer|studiogen)', 'pair [this phone] with [the|my] mac'], do: { type: 'builtin', fn: 'linkPair' } },
+  { id: 'link.pair', name: 'Pair a phone with the Mac', say: ['pair [a|my|the|this] (phone|iphone|ipad|device)', 'pair with my (mac|computer|naomuse|studiogen)', 'pair [this phone] with [the|my] mac'], do: { type: 'builtin', fn: 'linkPair' } },
   { id: 'link.test', name: 'Test the connection', say: ['test the connection', '(run|do) [a] connection test', 'check the connection'], do: { type: 'builtin', fn: 'linkTest' } },
   { id: 'link.directoff', name: 'Direct link off', say: ['turn off [the] direct link', 'direct link off', '(don’t|dont|do not) use [the] direct link'], do: { type: 'builtin', fn: 'linkDirectOff' } },
   { id: 'link.directon', name: 'Direct link on', say: ['turn on [the] direct link', 'direct link on', 'use [the] direct link'], do: { type: 'builtin', fn: 'linkDirectOn' } },
@@ -616,7 +616,7 @@ const Commands = {
     return plain(raw).split(' ').filter(w => w.length > 2 && !vocab.has(w) && !filler.test(w));
   },
   run(raw, spoken, alts = []) {
-    // “Hey StudioGen, …”: the wake word is taken off (it also lets what follows be answered freely, js/chat.js)
+    // “Hey NaoMuse, …”: the wake word is taken off (it also lets what follows be answered freely, js/chat.js)
     const w = typeof Chat !== 'undefined' ? Chat.wake(raw) : null;
     if (w) { if (!w.rest) { Voice.open(); return Voice.respond('Yes?', null, { ask: true }); } raw = w.rest; alts = []; }
     Voice.open();
@@ -637,7 +637,7 @@ const Commands = {
     // a task of the agent's library said in one of its ways (js/agent.js), when no command matched for sure
     // a task asked for in one of its own ways, word for word, beats a command found by keywords or loosely (“summarise my unread mail” isn't “read my messages”)
     if (typeof Agent !== 'undefined' && (!r.cmd || (r.how === 'loose' && r.conf < LOOSE_RUN) || Agent.overrides(r.cmd.id) || ((r.cmd.match === 'keywords' || /^(loose|fuzzy)$/.test(r.how || '')) && Agent.match(raw)?.exact))) { const m = Agent.match(raw); if (m && !(m.extra && !r.cmd && typeof Intent !== 'undefined' && Intent.can())) /* words it would ignore: the model picks */ { Log.i('cmd', `“${raw}” → task ${m.task.id}`, m.params); return Agent.start(m.task, m.params, { say }); } }
-    // nothing matched, and a StudioGen in the mesh shares something new since the last look: fetch it, then try its tasks
+    // nothing matched, and a NaoMuse in the mesh shares something new since the last look: fetch it, then try its tasks
     if (!r.cmd && typeof Agent !== 'undefined' && this.meshTried !== raw && typeof Mesh !== 'undefined' && Mesh.m && (Agent.meshStale() || Date.now() - (Agent.meshAt || 0) > 15000)) { this.meshTried = raw; return Agent.refresh(true).then(() => this.run(raw, true, alts)); } // once per thing said (true: already shown)
     this.meshTried = null;
     const sorry = () => say(typeof Convo !== 'undefined' && Convo.active ? 'Sorry, I didn’t get that.' : 'Sorry, I didn’t catch that. Say “what can I say” for ideas.');

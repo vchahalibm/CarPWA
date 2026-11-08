@@ -674,7 +674,7 @@ const INDIGO_DEMO = {
     {
       "id": "thanks",
       "title": "Thank you",
-      "say": "That was StudioGen working a live website: a site helper, recorded clicks, text on screen, a picture of the screen, and the screen model. Thank you!",
+      "say": `That was ${BRAND.mac} working a live website: a site helper, recorded clicks, text on screen, a picture of the screen, and the screen model. Thank you!`,
       "mood": "Happy",
       "gesture": "Bow",
       "next": {

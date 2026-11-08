@@ -21,8 +21,8 @@ const BOOK = [
 const DESIGN = [ // design notes: linked, not part of the book
   ['requirements.html', 'Requirements', 'Every feature and its status'], ['../docs/roadmap.md', 'Roadmap', 'What comes next'],
   ['watchers.html', 'Chat, cards and watchers', 'Design'], ['maps-watchers.html', 'Map watchers', 'Design'], ['mesh.html', 'The mesh', 'Design'],
-  ['studiogbee.html', 'Profiles and StudioGBee', 'Design'], ['connections.html', 'Connections', 'Design'], ['connection-tests.html', 'Connection tests', 'Test plan'],
-  ['scripts.md', 'Script format', 'Reference'], ['agent-tasks.md', 'Agent tasks', 'Design'], ['desktop-updates.md', 'Desktop updates', 'How StudioGen updates'],
+  ['studiogbee.html', 'Profiles and NaoMuseHive', 'Design'], ['connections.html', 'Connections', 'Design'], ['connection-tests.html', 'Connection tests', 'Test plan'],
+  ['scripts.md', 'Script format', 'Reference'], ['agent-tasks.md', 'Agent tasks', 'Design'], ['desktop-updates.md', 'Desktop updates', 'How NaoMuse updates'],
   ['memory-strategy.md', 'Memory', 'Design'], ['duplex-voice.md', 'Conversation mode', 'Design'],
 ];
 const PREFIX = Object.fromEntries(BOOK.flatMap(b => b.chapters).map(c => [c.file, c.p]));
@@ -93,7 +93,7 @@ ${parts.flatMap(p => p.chapters).map(ch => ch.css).join('\n')}
 <nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a>${nav}<b>Appendix</b><a href="#design">Design notes</a></nav>
 <main id="top">
 <div class="cover">
-<h1>DriveGen &amp; StudioGen Handbook</h1>
+<h1>DriveGen &amp; NaoMuse Handbook</h1>
 <p>Every guide in one place, in the order you'll meet things: start with the apps, then use them every day, then make your own scripts and tasks, then see how they talk, then test them.</p>
 <div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a>${parts.flatMap(p => p.chapters).map(ch => `<a href="#${ch.c.p}"><b>${ch.n}. ${esc(ch.c.title)}</b><span>${esc(ch.c.blurb)}</span></a>`).join('')}</div>
 </div>

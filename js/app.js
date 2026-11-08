@@ -124,8 +124,8 @@ const settings = Object.assign({
   theme: 'dark', units: 'metric', wallpaper: 0, speedLimit: true, voice: true,
   hideWhileDriving: true, readAloud: true, wakeLock: true,
   router: 'osrm', tomtomKey: '', navMode: 'map', hudMirror: false, terrain: true,
-  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', intentAI: true, startGreet: true, startScreen: APP_NAME === 'StudioGen' ? 'start' : 'dashboard', ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
-  shareLoc: true, /* while driving, where you are goes to your own Mac for map watchers (js/mapwatch.js) */ roadAhead: true, /* with no Mac reachable, DriveGen looks ahead itself (js/lookahead.js RoadLocal) */ convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_NAME === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
+  arYaw: 0, arPitch: 0, arFov: 64, nativeCalls: true, musicApp: 'demo', stt: 'browser', voiceLang: 'auto', tts: 'auto', intentAI: true, startGreet: true, startScreen: APP_ID === 'StudioGen' ? 'start' : 'dashboard', ttsVoice: 'af_heart', voiceGender: 'female', phoneVoice: '', sttEnd: '0.8', vadSilence: '5', musicShortcut: 'DriveGen Play', dashLayout: 'cluster', cluster: 'twin', accent: null,
+  shareLoc: true, /* while driving, where you are goes to your own Mac for map watchers (js/mapwatch.js) */ roadAhead: true, /* with no Mac reachable, DriveGen looks ahead itself (js/lookahead.js RoadLocal) */ convo: false, convoGap: '1', convoStt: 'auto', appMode: APP_ID === 'StudioGen' ? 'stage' : 'drive', driveTabs: false, stance: 'sway', driveCam: 'back', stageCam: 'front', captions: true, peopleOn: false, claimSeq: 'Open_Palm>Closed_Fist', ownerOnly: true, blurOthers: false, stageKeep: 'voice', cmdTone: false, handPointer: false, detModel: 'yolo', detOn: true, detAR: true, detAlerts: false, detAnswer: true, detFps: '3', detAlertList: null
 }, store.get('settings', {}));
 // Listening moved to the device's own recognizer (no model to hold in memory); Whisper stays an option. Once, for earlier installs.
 // Replies: Automatic (the device's voice unless Kokoro is fast here) replaces the old default, the natural voice, once.
@@ -184,11 +184,11 @@ const APPS = [
 ];
 const appById = id => APPS.find(a => a.id === id);
 let current = 'dashboard';
-// StudioGen: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
-if (APP_NAME !== 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // DriveGen: the agent's Home first
-if (APP_NAME === 'StudioGen') { APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1)); APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'start'), 1)); }
-if (APP_NAME === 'StudioGen') APPS.splice(2, 0, ...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // Start, Mesh, Agent on the first page
-let recents = store.get('recents', APP_NAME === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
+// NaoMuse: the Mesh is its own screen to watch, so it's first on the home screen and in the dock
+if (APP_ID !== 'StudioGen') APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // DriveGen: the agent's Home first
+if (APP_ID === 'StudioGen') { APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'mesh'), 1)); APPS.unshift(...APPS.splice(APPS.findIndex(a => a.id === 'start'), 1)); }
+if (APP_ID === 'StudioGen') APPS.splice(2, 0, ...APPS.splice(APPS.findIndex(a => a.id === 'agent'), 1)); // Start, Mesh, Agent on the first page
+let recents = store.get('recents', APP_ID === 'StudioGen' ? ['mesh', 'maps', 'music'] : ['maps', 'music', 'phone']).filter(appById);
 
 function appIcon(a, withBadge) {
   return `<div class="app-icon" style="background:${a.bg}">${svg(a.icon)}${withBadge && a.id === 'messages' ? '<span class="badge" data-badge hidden></span>' : ''}</div>`;
@@ -402,7 +402,7 @@ function updateSpeedUI() {
   $$('[data-speed-unit]').forEach(e => e.textContent = speedUnit());
   $$('[data-speed-pill]').forEach(e => e.classList.toggle('over', over));
   $('#gpsDot').className = 'gps-dot ' + (loc.source === 'none' ? '' : loc.source);
-  $('#locPrompt').hidden = loc.source !== 'none' || (APP_NAME === 'StudioGen' && !settings.driveTabs) || (typeof Stage !== 'undefined' && Stage.on); // not for presenting
+  $('#locPrompt').hidden = loc.source !== 'none' || (APP_ID === 'StudioGen' && !settings.driveTabs) || (typeof Stage !== 'undefined' && Stage.on); // not for presenting
   renderLimit();
 }
 let shownLimit = '';
@@ -1191,14 +1191,14 @@ listeners.push(updateDrive);
 let deferredInstall = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 /* Settings in tabs, by what the app is used for: the mode on top, then Assistant · Stage · Drive · Scripts & tasks · System.
-   Drive is there in DriveGen, and in StudioGen only when it's also used for driving. Groups go to tabs by their title. */
+   Drive is there in DriveGen, and in NaoMuse only when it's also used for driving. Groups go to tabs by their title. */
 const SETTINGS_TABS = [['assistant', 'Assistant'], ['stage', 'Stage'], ['drive', 'Drive'], ['scripts', 'Scripts & tasks'], ['connections', 'Connections'], ['system', 'System']];
 const SETTINGS_TAB_OF = { Assistant: 'assistant', Voice: 'assistant', Cameras: 'stage', 'Scripts & tasks': 'scripts', Connections: 'connections', Display: 'system', System: 'system',
   Dashboard: 'drive', 'Camera & objects': 'drive', Driving: 'drive', Navigation: 'drive', 'Phone & apps': 'drive', Location: 'drive' };
 function settingsTabs() {
   const body = $('#settingsBody'), titles = $$(':scope > .group-title', body); if (!titles.length || $('.set-tabs:not(.dbg-tabs)', body)) return; // built already (the debug log's Settings/Logs switch is a .set-tabs too)
-  const drive = APP_NAME !== 'StudioGen' || settings.driveTabs, tabs = SETTINGS_TABS.filter(([k]) => k !== 'drive' || drive);
-  let cur = store.get('setTab', null); if (!tabs.some(t => t[0] === cur)) cur = settings.appMode === 'stage' ? 'stage' : APP_NAME === 'StudioGen' ? 'stage' : 'drive';
+  const drive = APP_ID !== 'StudioGen' || settings.driveTabs, tabs = SETTINGS_TABS.filter(([k]) => k !== 'drive' || drive);
+  let cur = store.get('setTab', null); if (!tabs.some(t => t[0] === cur)) cur = settings.appMode === 'stage' ? 'stage' : APP_ID === 'StudioGen' ? 'stage' : 'drive';
   let mode = null;
   for (const t of titles) {
     const k = t.textContent.trim() === 'Mode' ? 'mode' : SETTINGS_TAB_OF[t.textContent.trim()] || 'system', g = t.nextElementSibling;
@@ -1245,8 +1245,8 @@ function renderSettings() {
     </div>
     <div class="group-title">Connections</div>
     <div class="group">
-      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : 'Your Mac (StudioGen)', Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
-      ${typeof Workers !== 'undefined' && Workers.can() ? btn('workers', 'Workers', 'More StudioGens of yours: in OrbStack, light on this Mac, or elsewhere') : ''}
+      ${typeof Link !== 'undefined' ? btn('connections', window.DriveDeckDesktop?.link ? 'Connections (your iPhone and iPad)' : `Your Mac (${BRAND.mac})`, Link.ready() ? esc(Link.mac().name || 'Paired') : window.DriveDeckDesktop?.link ? '' : 'Not paired') : ''}
+      ${typeof Workers !== 'undefined' && Workers.can() ? btn('workers', 'Workers', `More ${BRAND.mac}s of yours: in OrbStack, light on this Mac, or elsewhere`) : ''}
       ${typeof LinkTest !== 'undefined' ? btn('linkTest', 'Test the connection', 'This network, the relays, the other app') : ''}
       ${typeof Relay !== 'undefined' && window.DriveDeckDesktop ? btn('relays', 'Relays (public MQTT brokers)', `${Relay.list().brokers.length} · revision ${Relay.list().rev}`) + btn('directLink', 'Direct link', ({ auto: 'Whenever possible', local: 'Same network only', off: 'Never' })[Relay.directCfg().mode]) : ''}
     </div>
@@ -1292,7 +1292,7 @@ function renderSettings() {
     <div class="group-title">Voice</div>
     <div class="group">
       <div class="row"><div class="main"><div class="t">Speech recognition</div><div class="s">${(typeof Voice !== 'undefined' && !SR) ? 'Whisper base · on this device, works offline (no built-in recognizer here)' : settings.stt === 'whisper' ? (store.get('whisperOK') ? 'Whisper base · on this device, works offline; uses more memory' : 'Whisper base · about 80 MB on first use, works offline; uses more memory') : (IS_DESKTOP_APP ? ((window.DriveDeckDesktop?.speech?.local || []).includes(MacSpeech.pick()) ? 'The Mac’s own recognizer (Apple), on this Mac: nothing is sent anywhere; best for Indian English' : MacSpeech.ok() ? 'The Mac’s own recognizer, through Apple’s servers (this language can’t be recognised offline here)' : 'Whisper on this Mac (the Mac’s recognizer can’t do this language here)') : 'This device’s own recognizer: no download, leaves memory for other features')}</div></div>${(typeof Voice !== 'undefined' && !SR) ? '' : seg('stt', [['browser', IS_DESKTOP_APP ? 'Mac' : 'Device'], ['whisper', 'Whisper']])}</div>
-      ${tog('intentAI', 'Understand commands by meaning', IS_DESKTOP_APP ? 'When no phrase matches, Apple’s on-device model on this Mac picks the command (macOS 26+, Apple Intelligence on): private, free' : 'When no phrase matches, your Mac’s on-device model picks the command (StudioGen on macOS 26+, through the link)')}
+      ${tog('intentAI', 'Understand commands by meaning', IS_DESKTOP_APP ? 'When no phrase matches, Apple’s on-device model on this Mac picks the command (macOS 26+, Apple Intelligence on): private, free' : `When no phrase matches, your Mac’s on-device model picks the command (${BRAND.mac} on macOS 26+, through the link)`)}
       ${tog('sttLocal', 'Keep speech on this device', IS_DESKTOP_APP ? 'Never send what you say to Apple: languages the Mac can’t recognise offline use Whisper instead' : 'Never send what you say to Apple or Google: Whisper (and Moonshine in conversations) listen on the device instead of the phone’s recognizer')}
       ${tog('convo', 'Conversation mode (beta)', 'Tap the mic once and keep talking: it listens while it replies, so you can interrupt. Listens with the phone’s recognizer in the car (where it has one) and on this device on Stage: Moonshine or Whisper for English, Whisper for other languages')}
       ${settings.convo && (['auto', 'en'].includes(settings.voiceLang || 'auto') || settings.convoStt === 'native' || (typeof SR !== 'undefined' && SR)) ? `<div class="row"><div class="main"><div class="t">Listening in conversations</div><div class="s">${{ auto: `Automatic: ${typeof SR !== 'undefined' && SR ? 'in the car, the phone’s own recognizer (leaves memory for the reply voice; on-device listening takes over if it stops hearing you); on Stage, ' : ''}Moonshine on iPhone, iPad and phones (small enough to sit beside the reply voice and avatar), Whisper on computers (more accurate)`, moonshine: 'Moonshine tiny: about 50 MB, fastest, English only', whisper: isIOS ? 'Whisper base: more accurate with accents, but on an iPad it needs the avatar put away to fit in memory' : 'Whisper base: more accurate with accents; best with a GPU', native: 'The phone’s own recognizer (experimental): accurate, needs the internet. If it stops hearing you, on-device listening takes over' }[settings.convoStt || 'auto']}</div></div>${seg('convoStt', [['auto', 'Auto'], ['moonshine', 'Moonshine'], ['whisper', 'Whisper'], ...(typeof SR !== 'undefined' && SR ? [['native', 'Phone']] : [])])}</div>` : ''}
@@ -1329,7 +1329,7 @@ function renderSettings() {
       ${btn('place', 'Your place', esc(homePlace()?.name || 'Not set (weather shows Bengaluru)'))}
       ${typeof MapWatch !== 'undefined' && !LINK_HOST ? tog('shareLoc', 'Tell my Mac where I am while driving', 'For map watchers (traffic, a faster way, leave-by): every 30 s while driving, to your own Mac only, sealed; not kept') + tog('roadAhead', 'Look ahead myself when no Mac is reachable', 'While navigating: the weather ahead, the next town, and the last fuel for a while (open data, no Google)') : ''}
       ${typeof MapWatch !== 'undefined' ? btn('placeHome', 'Home', esc(places().home?.name || 'Not set (for leave-by and trips)')) + btn('placeWork', 'Work', esc(places().work?.name || 'Not set')) : ''}
-      ${btn('gps', APP_NAME === 'StudioGen' ? 'Use this Mac’s location' : 'Use device GPS')}
+      ${btn('gps', APP_ID === 'StudioGen' ? 'Use this Mac’s location' : 'Use device GPS')}
       ${loc.source === 'demo' ? btn('stopdemo', 'Stop demo drive') : btn('demo', 'Start demo drive', 'Simulated route')}
     </div>
     <div class="group-title">System</div>
@@ -1338,7 +1338,7 @@ function renderSettings() {
       <div class="row"><div class="main"><div class="t">Start screen</div><div class="s">What opens when ${APP_NAME} starts</div></div>${seg('startScreen', [['start', 'Start page'], ['agent', 'Agent'], ['dashboard', 'Dashboard']])}</div>
       ${tog('startGreet', 'The assistant says hello on the start page', 'A wave and a short spoken hello')}
       ${typeof StartPage !== 'undefined' ? btn('startAvatar', 'The assistant on the start page', `${StartPage.look().model ? (BUILTIN_MODELS[StartPage.look().model]?.name || StartPage.look().model) : 'As on Stage'} · ${StartPage.look().size}%`) : ''}
-      ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_NAME === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
+      ${tog('wakeLock', 'Keep screen awake', !('wakeLock' in navigator) ? 'Not supported in this browser' : APP_ID === 'StudioGen' ? 'While a script, show or conversation runs, or presenting (the display sleeps as usual otherwise)' : 'Uses the Screen Wake Lock API')}
       ${btn('fullscreen', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen')}
       ${btn('installHelp', isStandalone() ? 'Installed' : 'Install on this device', isStandalone() ? '✓' : 'Full screen, no browser bars')}
       ${typeof DesktopUpdates !== 'undefined' && DesktopUpdates ? '' : btn('webUpdate', 'Check for updates', swReg?.waiting ? 'Ready: restart to use it' : 'Updates arrive by themselves too')}
@@ -1388,9 +1388,9 @@ function toast(msg) {
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2400);
 }
 let wakeLock = null;
-// StudioGen keeps the screen awake only while it's busy (a script, a show or a conversation running, or presenting full
+// NaoMuse keeps the screen awake only while it's busy (a script, a show or a conversation running, or presenting full
 // screen): holding it all the time kept a Mac's display from ever sleeping. In the car (DriveGen) it's always on.
-const wakeBusy = () => APP_NAME !== 'StudioGen' || (typeof Script !== 'undefined' && Script.running) || (typeof Convo !== 'undefined' && Convo.active) || !!document.fullscreenElement || (typeof Mesh !== 'undefined' && !!(Mesh.conducting || Mesh.myShow));
+const wakeBusy = () => APP_ID !== 'StudioGen' || (typeof Script !== 'undefined' && Script.running) || (typeof Convo !== 'undefined' && Convo.active) || !!document.fullscreenElement || (typeof Mesh !== 'undefined' && !!(Mesh.conducting || Mesh.myShow));
 async function syncWakeLock() {
   try {
     if (settings.wakeLock && wakeBusy() && 'wakeLock' in navigator && document.visibilityState === 'visible') {
@@ -1399,7 +1399,7 @@ async function syncWakeLock() {
   } catch {}
 }
 document.addEventListener('visibilitychange', syncWakeLock);
-if (APP_NAME === 'StudioGen') setInterval(syncWakeLock, 10000); // busy or not changes with scripts and shows
+if (APP_ID === 'StudioGen') setInterval(syncWakeLock, 10000); // busy or not changes with scripts and shows
 async function toggleFullscreen() {
   try { document.fullscreenElement ? await document.exitFullscreen() : await document.documentElement.requestFullscreen(); }
   catch { toast('Full screen not available'); }
@@ -1595,18 +1595,18 @@ function netState() {
   return ['on', 'Online', 'Nothing paired yet: Settings › Connections'];
 }
 function renderNet() { const el = $('#netState'); if (!el) return; const [k, label, tip] = netState(); el.className = `net-state ${k}`; el.title = tip; el.querySelector('span').textContent = label; }
-$('#netState')?.addEventListener('click', () => (APP_NAME === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : typeof Link !== 'undefined' ? Link.settings() : openView('settings')));
+$('#netState')?.addEventListener('click', () => (APP_ID === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : typeof Link !== 'undefined' ? Link.settings() : openView('settings')));
 setInterval(renderNet, 3000); addEventListener('online', renderNet); addEventListener('offline', renderNet); setTimeout(renderNet, 500);
 applySettings(); renderHome(); updatePlayerUI(); renderDashTiles(); renderMessages();
-// The first screen: StudioGen's start page by default, DriveGen's dashboard (Settings › Start screen)
+// The first screen: NaoMuse's start page by default, DriveGen's dashboard (Settings › Start screen)
 openView('dashboard');
 if (/^(start|agent)$/.test(settings.startScreen) && !new URLSearchParams(location.search).get('view')) addEventListener('DOMContentLoaded', () => { if (current === 'dashboard' && (settings.startScreen === 'agent' ? typeof AgentHome !== 'undefined' : typeof StartPage !== 'undefined')) openView(settings.startScreen); }); // startpage.js loads later
 tick(); setInterval(tick, 1000);
 emit();
 
 // Resume the last location source; auto-start GPS if permission was already granted.
-// StudioGen is for presenting and tasks: no demo drive, sample message or location prompt unless it's also used for driving.
-const forDriving = () => (APP_NAME !== 'StudioGen' && new URLSearchParams(location.search).get('linktest') !== 'host') || settings.driveTabs; // the network lab's StudioGen side counts as StudioGen
+// NaoMuse is for presenting and tasks: no demo drive, sample message or location prompt unless it's also used for driving.
+const forDriving = () => (APP_ID !== 'StudioGen' && new URLSearchParams(location.search).get('linktest') !== 'host') || settings.driveTabs; // the network lab's NaoMuse side counts as NaoMuse
 const lastSrc = store.get('locSource', 'none');
 if (lastSrc === 'demo' && forDriving()) startDemo();
 else if (forDriving()) navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted' || lastSrc === 'gps') startGPS(); }).catch(() => {});
@@ -1667,7 +1667,7 @@ ACTIONS.webUpdate = async () => {
   try { await swReg.update(); } catch { return toast('Couldn’t check: offline?'); }
   setTimeout(() => { if (swReg.waiting || swReg.installing) { if (swReg.waiting) showUpdate(swReg.waiting); toast('An update is ready'); } else toast(`${APP_NAME} is up to date`); }, 1500);
 };
-/* StudioGen (desktop) updates: the app downloads and verifies them (desktop/updater.js); this offers a restart when one is
+/* NaoMuse (desktop) updates: the app downloads and verifies them (desktop/updater.js); this offers a restart when one is
    ready: the app's web files (a reload) or a new version of the app itself (installed on restart or when you quit). */
 var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may draw before this line runs
   s: {},
@@ -1681,7 +1681,7 @@ var DesktopUpdates = window.DriveDeckDesktop?.updates ? { // var: Settings may d
       toast(this.s.error ? `Couldn’t check for updates: ${this.s.error}` : this.s.shellReady || this.s.webReady ? 'An update is ready' : `${APP_NAME} is up to date`);
   },
   bar(kind) {
-    if (window.DriveDeckDesktop?.worker) return; // a Worker is updated by StudioGen (light) or its image (Docker), not by itself
+    if (window.DriveDeckDesktop?.worker) return; // a Worker is updated by NaoMuse (light) or its image (Docker), not by itself
     const s = this.s, bar = $('#updateBar'), shell = kind === 'shell';
     $('b', bar).textContent = shell ? `${APP_NAME} ${s.shellReady} is ready` : 'Update ready';
     $('.lp-t span', bar).textContent = shell ? (s.canSwap ? 'Restart to install it, or it installs when you quit' : 'Download it from the releases page (this copy can’t replace itself here)') : 'Restart to use the new version';

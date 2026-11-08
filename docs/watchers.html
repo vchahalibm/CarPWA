@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Talking freely, cards everywhere, and watchers</h1>
-<p class="mut">Design, 31 October 2026; decisions in section 13 (updated the same day with memory, the lessons from RPA tools and the open watcher model). All six phases are built (js/watch.js, js/watchtpl.js) (section 13); the code is js/watch.js for watchers. It builds on the language model built into StudioGen (gpt-oss), agent tasks, the agent browser, Workers, the mesh and StudioGBee. Section 9 lists the questions to settle before building.</p>
+<p class="mut">Design, 31 October 2026; decisions in section 13 (updated the same day with memory, the lessons from RPA tools and the open watcher model). All six phases are built (js/watch.js, js/watchtpl.js) (section 13); the code is js/watch.js for watchers. It builds on the language model built into NaoMuse (gpt-oss), agent tasks, the agent browser, Workers, the mesh and NaoMuseHive. Section 9 lists the questions to settle before building.</p>
 <ol class="toc">
   <li><a href="#chat">Talking freely with the assistant</a></li>
   <li><a href="#cards">Answers as cards, wherever you ask</a></li>
@@ -134,7 +134,7 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 <h3>What you get</h3>
 <ul>
 <li>A <b>watch card</b> on the Agent screen (and the timeline): what changed, the new items, the old → new value, a thumbnail of the area; buttons Open page, Mute this watcher for a day, Not important (teaches the filter).</li>
-<li>A small <b>notification</b> on the home screen and Stage (a toast with the headline, not a screen change), a push to DriveGen (through StudioGBee when the phone is away), spoken only for what you marked important, never while presenting unless you allow it.</li>
+<li>A small <b>notification</b> on the home screen and Stage (a toast with the headline, not a screen change), a push to DriveGen (through NaoMuseHive when the phone is away), spoken only for what you marked important, never while presenting unless you allow it.</li>
 <li>A <b>digest</b> instead of single notes, if you prefer: “Since this morning: 6 new Slack mentions (2 for you), Acme price down to 489, the policy page changed its refund section”, written by the model and read by the assistant.</li>
 <li>A <b>Watchers</b> list: each one's last check, last change, next check, where it runs, on/off, edit, “check now”.</li>
 </ul>
@@ -150,15 +150,15 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 
 <h2 id="where">7. Where watchers run: this Mac, Workers, the feed</h2>
 <pre>
- Watch Worker (OrbStack, its own sign-ins)        StudioGen on your Mac                    DriveGen (phone)
+ Watch Worker (OrbStack, its own sign-ins)        NaoMuse on your Mac                    DriveGen (phone)
    live: Slack, Teams, WhatsApp, X pages            the feed: watch cards, digest            notification + card
-   polling: websites on schedules                   Watchers list, editing                    (through StudioGBee
+   polling: websites on schedules                   Watchers list, editing                    (through NaoMuseHive
    the model: your Mac's (through the mesh)    ──►  the model (gpt-oss, built in)       ──►    when away)
    events: sealed, through the mesh / bee           notifications on home, Stage
 </pre>
 <ul>
-<li><b>Any StudioGen can run watchers</b>; a <b>Watch Worker</b> is simply a Worker you assign them to. Making one: Mesh › Workers › + New Worker › “for watching” (OrbStack recommended: always on, its own sign-ins, can keep pages open).</li>
-<li>A worker sends <b>events</b> (small: watcher, kind, items, a thumbnail) to your StudioGens and devices over the mesh, sealed; if they're offline, StudioGBee keeps them and DriveGen gets a push. The feed on each device shows them as cards.</li>
+<li><b>Any NaoMuse can run watchers</b>; a <b>Watch Worker</b> is simply a Worker you assign them to. Making one: Mesh › Workers › + New Worker › “for watching” (OrbStack recommended: always on, its own sign-ins, can keep pages open).</li>
+<li>A worker sends <b>events</b> (small: watcher, kind, items, a thumbnail) to your NaoMuses and devices over the mesh, sealed; if they're offline, NaoMuseHive keeps them and DriveGen gets a push. The feed on each device shows them as cards.</li>
 <li>The <b>model</b> (for “ask” rules and digests) is the Mac's, through the mesh as now; a watcher that only compares text needs no model at all.</li>
 <li>Watchers move between machines with a tap (the definition travels; sign-ins don't: signing in on the new one is part of moving).</li>
 </ul>
@@ -224,7 +224,7 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 <p>A watcher is a short pipeline: <b>a source → a reader → one or more detectors → filters → actions</b>. Each part is a plug-in with a name and settings, so new ways to watch are added without changing the rest, and the editor shows them as cards like task steps.</p>
 <div class="wrap"><table>
 <tr><th>Part</th><th>Kinds (now · later)</th></tr>
-<tr><td><b>Source</b>: where it looks</td><td><b>Now</b>: a web page polled (with steps first: sign-in container, search, tabs) · a web page kept open and observed live · an RSS/Atom feed · a JSON address (public APIs) · <b>Later</b>: a mail folder rule (mail that arrives), a file or folder on the Mac, an app window on the Mac (read with ScreenAI's text reading), a calendar (changes), the clipboard, a webhook into StudioGBee, another watcher's output (chains)</td></tr>
+<tr><td><b>Source</b>: where it looks</td><td><b>Now</b>: a web page polled (with steps first: sign-in container, search, tabs) · a web page kept open and observed live · an RSS/Atom feed · a JSON address (public APIs) · <b>Later</b>: a mail folder rule (mail that arrives), a file or folder on the Mac, an app window on the Mac (read with ScreenAI's text reading), a calendar (changes), the clipboard, a webhook into NaoMuseHive, another watcher's output (chains)</td></tr>
 <tr><td><b>Reader</b>: what it takes from the source</td><td>A part of the page (several finders: selector, words, anchor, picture) · a list as rows with columns (title, who, when, link…), picked by tapping one row · a number or word · the whole page's text · a screenshot of an area · fields the model pulls out (“the price and whether it's in stock”)</td></tr>
 <tr><td><b>Detector</b>: what counts</td><td>New items (identity by chosen columns) · gone items · changed text (with a readable difference) · value crosses a line / changes by a percent · contains / doesn't contain / matches a pattern · appears / disappears (an element, a button “Book now”) · count above / below · the model's judgement (“important for me?”, with your memory) · visual difference above a threshold · nothing changed for too long (a stale page)</td></tr>
 <tr><td><b>Filter</b>: when not to tell</td><td>Ignore parts (ads, clocks) · only from / not from (people) · quiet hours · at most once per … · only after it holds for N checks (no flapping) · only if the model agrees it matters · while presenting: hold for later</td></tr>
@@ -277,7 +277,7 @@ what you say ──► 1. exact phrases and task wordings (instant, as now: “n
 <tr><td>2</td><td>Talking freely after the wake word: the tool-or-reply call, streaming speech, the chat in the Assistant widget and the Agent screen · <b>built 31 Oct</b></td></tr>
 <tr><td>3</td><td>Memory: working memory and episodes, facts with the on-device embedding model, Settings › Memory, voice controls · <b>built 31 Oct</b></td></tr>
 <tr><td>4</td><td>Watchers on this Mac: the pipeline (page polled / live / feed / JSON; parts, lists, values; new / changed / value / contains / appears / ask), watch cards, toasts, digest, the Watchers list, Watch something here, the first templates · <b>built 31 Oct</b> (judge with “Only tell me if…”; 👁 Watch this on task cards)</td></tr>
-<tr><td>5</td><td>Watchers on Workers (choice per watcher): live pages, events through the mesh and StudioGBee, phone pushes; self-healing finders · <b>built 31 Oct</b> (the screen-model fallback for finders comes in phase 6)</td></tr>
+<tr><td>5</td><td>Watchers on Workers (choice per watcher): live pages, events through the mesh and NaoMuseHive, phone pushes; self-healing finders · <b>built 31 Oct</b> (the screen-model fallback for finders comes in phase 6)</td></tr>
 <tr><td>6</td><td>More sources (mail, files, app windows, calendar), watchers by voice and from cards/tasks, the next templates · <b>built 1 Nov</b> (with filters, actions, chains, the change history, webhooks; guide: <a href="watchers-guide.html">watchers-guide.html</a>)</td></tr>
 </table>
 </main>

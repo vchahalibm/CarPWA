@@ -1,4 +1,4 @@
-// sg-ai: Apple's on-device language model (Foundation Models, the model behind Apple Intelligence) for StudioGen
+// sg-ai: Apple's on-device language model (Foundation Models, the model behind Apple Intelligence) for NaoMuse
 // (desktop/ai.js starts it; the page sees it as window.DriveDeckDesktop.ai: the Brain's “This Mac” provider and
 // commands by intent, also for the phones that ask their Mac).
 // Needs macOS 26+, Apple silicon and Apple Intelligence on; otherwise it says so ("status") and the app does without.
@@ -86,7 +86,7 @@ func ask(_ o: [String: Any]) async {
 
 FileHandle.standardInput.readabilityHandler = { h in
   let data = h.availableData
-  if data.isEmpty { exit(0) } // StudioGen went away
+  if data.isEmpty { exit(0) } // NaoMuse went away
   for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
     guard let o = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any], let cmd = o["cmd"] as? String else { continue }
     if cmd == "status" { emit(status()); continue }

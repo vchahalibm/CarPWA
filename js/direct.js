@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================
-   A direct link between DriveGen and StudioGen: WebRTC, no account, no server.
-   - Handshake by QR codes: StudioGen shows its code (a WebRTC offer), the
+   A direct link between DriveGen and NaoMuse: WebRTC, no account, no server.
+   - Handshake by QR codes: NaoMuse shows its code (a WebRTC offer), the
      phone scans it with its camera, shows its own code (the answer), and
      the Mac's camera scans that. Codes are the session description,
      deflated and base64url'd ("SG1…"), so they are only good for that one
@@ -11,7 +11,7 @@
      local network. When the network changes it drops; connect again
      (Tailscale, js/link.js, is the way from anywhere).
    - The same requests as over Tailscale: offers, run, say (LinkHost in
-     StudioGen answers them; Link in DriveGen sends them through Direct when
+     NaoMuse answers them; Link in DriveGen sends them through Direct when
      it is connected).
    Loaded after link.js.
    ============================================================ */
@@ -27,7 +27,7 @@ const Direct = {
     return 'SG1' + btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   },
   async unpack(code) {
-    if (!/^SG1[\w-]+$/.test(code)) throw new Error('That isn’t a StudioGen code');
+    if (!/^SG1[\w-]+$/.test(code)) throw new Error(`That isn’t a ${BRAND.mac} code`);
     const b = atob(code.slice(3).replace(/-/g, '+').replace(/_/g, '/')), bytes = Uint8Array.from(b, c => c.charCodeAt(0));
     const j = JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text());
     return { type: j.t, sdp: j.s };
@@ -35,12 +35,12 @@ const Direct = {
   gathered(pc) { return new Promise(r => { if (pc.iceGatheringState === 'complete') return r(); const t = setTimeout(r, 4000); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); r(); } }); }); },
   // STUN only when set up through the relay (js/relay.js); the QR way stays on the local network.
   fresh(ice = []) { this.close(true); const pc = this.pc = new RTCPeerConnection({ iceServers: ice }); pc.addEventListener('connectionstatechange', () => { if (['failed', 'closed'].includes(pc.connectionState) && this.pc === pc) this.lost(); }); return pc; },
-  /* ---------- StudioGen: offer, then the phone's answer ---------- */
+  /* ---------- NaoMuse: offer, then the phone's answer ---------- */
   async offer(ice) { const pc = this.fresh(ice); this.wire(pc.createDataChannel('studiogen', { ordered: true })); await pc.setLocalDescription(await pc.createOffer()); await this.gathered(pc); return this.pack(pc.localDescription); },
   async accept(code) { const d = await this.unpack(code); if (d.type !== 'answer') throw new Error('Scan the code DriveGen shows after it scanned yours'); await this.pc.setRemoteDescription(d); },
   /* ---------- DriveGen: the Mac's offer → an answer to show ---------- */
   async answer(code, ice) {
-    const d = await this.unpack(code); if (d.type !== 'offer') throw new Error('Scan the code StudioGen shows (Settings › Connections › Connect a phone)');
+    const d = await this.unpack(code); if (d.type !== 'offer') throw new Error(`Scan the code ${BRAND.mac} shows (Settings › Connections › Connect a phone)`);
     const pc = this.fresh(ice); pc.addEventListener('datachannel', e => this.wire(e.channel));
     await pc.setRemoteDescription(d); await pc.setLocalDescription(await pc.createAnswer()); await this.gathered(pc); return this.pack(pc.localDescription);
   },
@@ -57,17 +57,17 @@ const Direct = {
     if (m.hello) { this.peer = m.hello.name || m.hello.app; this.peerMeshId = m.hello.meshId || null; this.peerIsStudio = m.hello.app === 'StudioGen'; Log.i('direct', `Connected: ${this.peer}`); if (!(typeof Relay !== 'undefined' && Relay.rooms().length)) toast(`Connected directly to ${this.peer}`); this.onchange?.(); Bus.emit('link.direct', { value: this.peer }); return; }
     if (m.ping) return;
     if (m.re) { const w = this.waits.get(m.re); if (w) { this.waits.delete(m.re); clearTimeout(w.t); m.error ? w.rej(new Error(m.error)) : w.res(m.result); } return; }
-    if (m.ask) { // a request from the other side (StudioGen answers DriveGen's)
+    if (m.ask) { // a request from the other side (NaoMuse answers DriveGen's)
       const t0 = Date.now();
       try { const r = await Direct.handle(m.ask, m.payload || {}, { via: 'direct', meshId: this.peerMeshId, name: this.peer }); this.send({ re: m.id, result: r }); if (typeof Mesh !== 'undefined') Mesh.pairedRequest(m.ask, m.payload || {}, r, Date.now() - t0, this.peerMeshId, this.peer); }
       catch (e) { this.send({ re: m.id, error: e.message }); }
     }
   },
-  /** StudioGen's answers, the same as over Tailscale (LinkHost, js/link.js). who: how the request came, which proves who
+  /** NaoMuse's answers, the same as over Tailscale (LinkHost, js/link.js). who: how the request came, which proves who
       sent it: 'pair' (a pairing room), 'direct' (this link) or 'mesh' (a mesh member's pair room or direct link, with its
       meshId and permissions). What needs this Mac's sign-ins is only for its owner's own devices (Agent.ownDevice). */
   async handle(kind, p, who = { via: 'unknown' }) {
-    if (typeof LinkHost === 'undefined' || !LINK_HOST) throw new Error('Only StudioGen answers that');
+    if (typeof LinkHost === 'undefined' || !LINK_HOST) throw new Error(`Only ${BRAND.mac} answers that`);
     const from = who.name || this.peer || 'A phone', own = typeof Agent === 'undefined' || Agent.ownDevice(who);
     if (kind === 'echo') return { name: APP_NAME, at: Date.now(), rows: Array.from({ length: Math.min(1000, +p.n || 0) }, (_, i) => ({ i, region: ['North', 'South', 'East', 'West'][i % 4], value: (i * 37) % 1000 })) }; // the connection test (js/linktest.js)
     if (kind === 'offers') return { name: APP_NAME, scripts: LinkHost.scripts().map(s => ({ id: s.id, name: s.name, about: s.json.about || '' })) };
@@ -102,7 +102,7 @@ const Direct = {
     try { this.ch?.close(); } catch {} try { this.pc?.close(); } catch {}
     this.ch = this.pc = null; if (!quiet) this.peer = ''; else this.peer = '';
   },
-  myName() { return LINK_HOST ? 'StudioGen' : `${APP_NAME} on ${/iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent) ? 'iPad' : isIOS ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'a computer'}`; },
+  myName() { return LINK_HOST ? BRAND.mac : `${APP_NAME} on ${/iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent) ? 'iPad' : isIOS ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'a computer'}`; },
 
   /* ---------- Full-screen steps: a big code to show, the camera to scan one ---------- */
   screen(title, html, onCancel) {
@@ -113,7 +113,7 @@ const Direct = {
   },
   done() { this.stopScan(); $('#dlFull')?.remove(); },
   async showCode(el, code) { await LinkHost.qr(el, code, 'L'); },
-  /** Scan a StudioGen code with the camera (jsQR, vendor/jsqr): resolves with the text. */
+  /** Scan a NaoMuse code with the camera (jsQR, vendor/jsqr): resolves with the text. */
   async scan(el, prefix = 'SG1') {
     if (!window.jsQR) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/jsqr/jsQR.js'; s.onload = res; s.onerror = () => rej(new Error('The code reader didn’t load')); document.head.appendChild(s); });
     const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; el.replaceChildren(v);
@@ -134,7 +134,7 @@ const Direct = {
     });
   },
   stopScan() { if (this.scanning) { clearTimeout(this.scanTimer); this.scanning = null; Camera.release('qr'); } },
-  /** StudioGen: show the offer, then scan the phone's answer with the Mac's camera. */
+  /** NaoMuse: show the offer, then scan the phone's answer with the Mac's camera. */
   async hostFlow() {
     const f = this.screen('Connect a phone or iPad directly', '<div class="dl-step"><p>Making the code…</p></div>', () => this.close());
     const code = await this.offer().catch(e => { toast(e.message); return null; }); if (!code || !$('#dlFull')) return;
@@ -150,11 +150,11 @@ const Direct = {
   },
   /** DriveGen: scan the Mac's code, show the answer until the link opens. */
   async guestFlow() {
-    closeSheet(); const f = this.screen('Connect to your Mac directly', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>StudioGen › Settings › Connections › Connect a phone</b>. Point this camera at the code it shows.</p><p class="se-note" id="dlState">Looking for the code…</p></div></div>`, () => this.close());
+    closeSheet(); const f = this.screen('Connect to your Mac directly', `<div class="dl-step"><div class="dl-cam" id="dlCam"></div><div><p>On the Mac: <b>${BRAND.mac} › Settings › Connections › Connect a phone</b>. Point this camera at the code it shows.</p><p class="se-note" id="dlState">Looking for the code…</p></div></div>`, () => this.close());
     try {
       const offer = await this.scan($('#dlCam')); $('#dlState').textContent = 'Got it…';
       const code = await this.answer(offer); if (!$('#dlFull')) return;
-      f.querySelector('.dl-main').innerHTML = `<div class="dl-step"><div class="dl-qr" id="dlQr"></div><div><p>Now hold this code up to the <b>Mac’s camera</b> (StudioGen is scanning for it).</p><p class="se-note" id="dlState">Waiting for the Mac…</p></div></div>`;
+      f.querySelector('.dl-main').innerHTML = `<div class="dl-step"><div class="dl-qr" id="dlQr"></div><div><p>Now hold this code up to the <b>Mac’s camera</b> (${BRAND.mac} is scanning for it).</p><p class="se-note" id="dlState">Waiting for the Mac…</p></div></div>`;
       this.showCode($('#dlQr'), code); await this.opened(120000); this.done();
     } catch (e) { if ($('#dlState')) $('#dlState').textContent = e.message; }
   },

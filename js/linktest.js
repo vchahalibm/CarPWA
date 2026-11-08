@@ -9,7 +9,7 @@
    - Every relay in the list: connects, echoes (trackers: answers), timed.
    - The paired app: online, the link in use, the direct link's candidate
      types (host / srflx / relay) and round trip, a small request and a
-     200-row one timed (DriveGen asks; StudioGen reports its devices).
+     200-row one timed (DriveGen asks; NaoMuse reports its devices).
    - A verdict in plain words; the report as JSON to copy or share.
    window.LinkTest.run() gives the same report to the lab's runner.
    Loaded after relay.js.
@@ -79,7 +79,7 @@ const LinkTest = {
       : `${okR.length} of ${r.relays.length} relays work here (${data.length} carry data${okR.length > data.length ? `, ${okR.length - data.length} introduce only` : ''}).`);
     const p = r.peer;
     if (p.role === 'drivegen') v.push(!p.paired && !p.tailscale ? 'Not paired with a Mac yet: Settings › Connections › Pair once.'
-      : !p.online && p.via === 'none' ? 'Your Mac isn’t reachable right now: is StudioGen open, with the internet?'
+      : !p.online && p.via === 'none' ? `Your Mac isn’t reachable right now: is ${BRAND.mac} open, with the internet?`
       : p.error ? `Your Mac is reachable ${p.via}, but a request failed: ${p.error}`
       : `Your Mac answers ${p.via}: ${p.pingMs} ms for a small request, ${p.rows200Ms} ms for 200 rows${p.rows200Ok ? '' : ' (incomplete!)'}.`);
     else v.push(p.devices.length ? `${p.devices.filter(d => d.online).length} of ${p.devices.length} paired devices are online${p.devices.some(d => d.direct) ? ', one directly' : ''}.` : 'No devices paired yet.');

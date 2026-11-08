@@ -1,21 +1,21 @@
-// StudioGBee: the optional always-on hive for a StudioGen mesh (design: docs/studiogbee.html § 5 and § 7).
-//   - Devices (StudioGen, DriveGen) connect over a WebSocket (/ws) and prove who they are by signing a challenge with their
+// NaoMuseHive: the optional always-on hive for a NaoMuse mesh (design: docs/studiogbee.html § 5 and § 7).
+//   - Devices (NaoMuse, DriveGen) connect over a WebSocket (/ws) and prove who they are by signing a challenge with their
 //     mesh device key; the bee checks it against the mesh's roster, which a mesh owner registered with the bee's admin code
 //     and which only an owner's signature can change.
 //   - It carries sealed messages between members (sealed end to end with their pairwise keys: the bee sees only who, to
 //     whom, what kind, how big and when), keeps them while the receiver is offline until they expire, and sends a push
 //     ("your answer is ready", no contents) to a DriveGen that is away.
-//   - It keeps each StudioGen's library backup (sealed with the mesh's group key).
+//   - It keeps each NaoMuse's library backup (sealed with the mesh's group key).
 //   - Bees of different teams link with a code one owner gives the other; nothing is forwarded until the code's owner accepts.
 //   - The dashboard (/dashboard) shows mesh owners the metadata: who is online, what waits, what flowed. Login: a code from a
-//     mesh owner's StudioGen, or a passkey registered after that.
+//     mesh owner's NaoMuse, or a passkey registered after that.
 // Data in $BEE_DATA (default ./data): state.json, queue.json, events.json. Run: node server.mjs, or Docker (bee/README.md).
 import http from 'http'; import fs from 'fs'; import path from 'path'; import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import webpush from 'web-push';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const PORT = +process.env.PORT || 8840, DATA = path.resolve(process.env.BEE_DATA || path.join(HERE, 'data')), NAME = process.env.BEE_NAME || 'StudioGBee';
+const PORT = +process.env.PORT || 8840, DATA = path.resolve(process.env.BEE_DATA || path.join(HERE, 'data')), NAME = process.env.BEE_NAME || 'NaoMuseHive';
 const MAX_MSG = 512 * 1024, MAX_BACKUP = 4 * 1024 * 1024, MAX_TTL = 7 * 86400000;
 fs.mkdirSync(DATA, { recursive: true });
 const b64u = b => Buffer.from(b).toString('base64url'), J = o => JSON.stringify(o), now = () => Date.now();
@@ -107,7 +107,7 @@ async function onDevice(ws, m, nonce) {
   }
   if (m.t === 'auth') {
     const mesh = S.meshes[m.mesh], who = member(m.mesh, m.dev);
-    if (!mesh) throw new Error('This bee doesn’t know that mesh: an owner adds it (StudioGen › Settings › Connections › StudioGBee)');
+    if (!mesh) throw new Error('This bee doesn’t know that mesh: an owner adds it (NaoMuse › Settings › Connections › NaoMuseHive)');
     if (!who) throw new Error('Not a member of the mesh');
     if (!(await verify(who.sigPub, `${nonce}|${m.mesh}|${S.id}`, m.sig))) throw new Error('The signature doesn’t match');
     const old = conns.get(m.dev); if (old && old !== ws) try { old.close(); } catch {}
@@ -256,7 +256,7 @@ const server = http.createServer(async (req, res) => {
       deliver(msg); event('hook', { mesh: h.mesh, to: h.dev, size: text.length }); return json({ ok: true });
     }
     if (u.pathname === '/healthz') return json({ ok: true, name: NAME, id: S.id, since: started, devices: conns.size, queued: Q.length });
-    if (u.pathname === '/api/login' && req.method === 'POST') { const b = await body(req), c = dashCodes.get(String(b.code || '').toUpperCase().replace(/\s+/g, '')); if (!c || c.until < now()) return json({ error: 'That code isn’t valid (get a new one in StudioGen)' }, 401); dashCodes.delete(String(b.code).toUpperCase().replace(/\s+/g, '')); login(res, req, c.mesh); return json({ ok: true }); }
+    if (u.pathname === '/api/login' && req.method === 'POST') { const b = await body(req), c = dashCodes.get(String(b.code || '').toUpperCase().replace(/\s+/g, '')); if (!c || c.until < now()) return json({ error: 'That code isn’t valid (get a new one in NaoMuse)' }, 401); dashCodes.delete(String(b.code).toUpperCase().replace(/\s+/g, '')); login(res, req, c.mesh); return json({ ok: true }); }
     if (u.pathname === '/api/passkey/options' && req.method === 'POST') { // a challenge, to register (signed in) or to sign in
       const ch = b64u(crypto.randomBytes(32)), s = session(req); challenges.set(ch, { until: now() + 300000, mesh: s?.mesh });
       return json({ challenge: ch, rpId: new URL(origin(req)).hostname, name: NAME, user: s ? { id: b64u(Buffer.from(s.mesh)), name: S.meshes[s.mesh]?.name || 'mesh' } : null, allow: s ? [] : S.passkeys.map(p => p.id) });

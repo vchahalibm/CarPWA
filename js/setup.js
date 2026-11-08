@@ -10,11 +10,12 @@
    ============================================================ */
 // What's new in this update (shown on the first start after it). Newest first; keep it to a few lines.
 const SETUP_NEWS = [
+  `New names: the Mac app is ${BRAND.mac} (it was StudioGen) and the hive is ${BRAND.hive} (it was StudioGBee). The same app, sign-ins, memory and data; say “Hey ${BRAND.mac}”. After you next quit, the app moves itself to ${BRAND.mac}.app`,
   'Scripts can use the app like a person: click, type, keys, scroll, drag, dropdowns, checkboxes, wait and read (the rpa steps, group Automation), with the engine MuseTester tests with',
   'Fixed: a script’s goto replayed the beats before its target, so a forward jump ran what it skipped and a loop back reset its counter',
   'Fixed: the natural voice couldn’t download (its files moved on Hugging Face on 2 November): it downloads again once',
   'Slack watchers for a search, your DMs and thread replies; all the watchers of a site share one window and read it as it is (no reloading each time)',
-  'Fixed: StudioGen could hang with a live Outlook watcher (it reloaded Outlook every few seconds) and crash when quitting with the built-in model loaded; Slack channel and person watchers find their channel with Jump to, whichever tab Slack is on',
+  `Fixed: ${BRAND.mac} could hang with a live Outlook watcher (it reloaded Outlook every few seconds) and crash when quitting with the built-in model loaded; Slack channel and person watchers find their channel with Jump to, whichever tab Slack is on`,
   'Slack watchers work with Slack’s new Activity layout (an existing watcher fixes itself on its next check); Outlook watchers find the mail list more ways; cards show the sender and time apart',
   'More on the road: food at meal times on the way, parking near where you’re going, “10 minutes away” with a message to send, speed cameras and toll plazas ahead, tomorrow’s drive the evening before; poor air, sunset and state crossings',
   'On the road: fuel or charging on the way (the last one for a while, with ratings), the weather where you’ll be, and the next town; your phone says them between turns, and looks ahead itself when no Mac is reachable',
@@ -24,7 +25,7 @@ const SETUP_NEWS = [
   'Map watchers take any start and destination (search, or your places in 👁 Watchers › Places), avoid tolls, highways, roadworks or roads you name, prefer your roads, run only on days and hours you pick, and “Be there by 9:30” trips',
   'Map watchers: traffic on your route, a faster way (5+ minutes), and when to leave for your next meeting, from Google Maps',
   'Watchers by voice (“tell me when the price drops below 12000”), Amazon and Flipkart prices, travel, news, folders, app windows and webhooks; edit them, add actions, and see a price’s history in the data widget (guide: docs/watchers-guide.html)',
-  'StudioGen opens its window first and unlocks your sign-ins after, so a Keychain prompt no longer leaves it without a window',
+  `${BRAND.mac} opens its window first and unlocks your sign-ins after, so a Keychain prompt no longer leaves it without a window`,
   'Watchers can run on a Worker (always on), tell your phone (a push when it’s away), notice live pages within seconds, and find a moved part again by themselves',
   'Watchers: tell me when there’s new mail, a chat, a Slack mention, an X post, or a page changes (Agent screen › 👁 Watchers; 👁 Watch this on a task’s card)',
   'The assistant remembers: what you ask it to (“remember that …”) and what it learns from conversations, kept on this Mac (Settings › Assistant › Memory)',
@@ -35,20 +36,20 @@ const SETUP_NEWS = [
   'Weather for your place: Settings › Location › Your place; the weather says which place it shows',
   'Turned down the microphone, speech recognition or the camera by mistake? The app now offers to ask again (and Settings › System › Permissions)',
   'The Agent screen’s timeline starts with your earlier results',
-  'The language model is built into StudioGen now: nothing else to install (it reads the copy Ollama has, or downloads gpt-oss once)',
+  `The language model is built into ${BRAND.mac} now: nothing else to install (it reads the copy Ollama has, or downloads gpt-oss once)`,
   'Workers from the app: Mesh › Workers › + New Worker, in OrbStack (installed for you if needed), light on this Mac, or on another machine; each with its own sign-ins, using this Mac’s model',
   'One language model for everything, on your Mac by default: gpt-oss (picked by this Mac’s memory, downloaded here), Claude as the option; phones and Workers use the Mac’s (Settings › Assistant › Language model)',
   'Read and change every prompt the app sends to the model: Settings › Assistant › Prompts',
   'The Agent screen keeps a timeline of the tasks and scripts that ran, below the newest cards',
   'Sign in on your Mac from your phone: when a task stops at a sign-in, “Sign in from here” shows the agent browser live (your own devices, the same network)',
   'Tasks run side by side: mail, WhatsApp and Slack at once, each in its own browser (Agent settings › Tasks at once)',
-  'StudioGen Worker: StudioGen in Docker, with sign-ins of its own, set up and used from your devices (worker/README.md)',
-  'StudioGBee (optional, one Docker command, bee/README.md): requests for an offline Mac wait there and the answer comes even if the app was closed, with a notification; backups; a dashboard for mesh owners (Settings › Connections › StudioGBee)',
-  'Your sign-ins stay yours: tasks that use your mail, chats or Mac run only for your own devices; shared tasks without a sign-in (a web search) can be run on your StudioGen by anyone in the mesh, just by asking',
+  `${BRAND.worker}: ${BRAND.mac} in Docker, with sign-ins of its own, set up and used from your devices (worker/README.md)`,
+  `${BRAND.hive} (optional, one Docker command, bee/README.md): requests for an offline Mac wait there and the answer comes even if the app was closed, with a notification; backups; a dashboard for mesh owners (Settings › Connections › ${BRAND.hive})`,
+  `Your sign-ins stay yours: tasks that use your mail, chats or Mac run only for your own devices; shared tasks without a sign-in (a web search) can be run on your ${BRAND.mac} by anyone in the mesh, just by asking`,
   'If your Mac is offline, a request waits for it (10 minutes to start with) and runs when it’s back (Agent › Library › Settings › Waiting requests)',
   'Practice Teams beside the practice inbox, Slack and WhatsApp, and a new task: “what did Priya say on Teams?”',
   'Answers are read in full: up to five items as “who: the gist”, then how many more are on the card; going to another screen lets the reply finish',
-  'Sign-ins in the agent browser are kept when StudioGen restarts or updates',
+  `Sign-ins in the agent browser are kept when ${BRAND.mac} restarts or updates`,
   'Containers for the agent browser, like Firefox’s: Work and Personal sign-ins kept apart (Agent › Library › Settings)',
   'Settings › System › Debug log: turn on the log with the key, to send it with a problem',
   'The Agent screen shows the assistant beside your cards (and beside the watch panel while a task runs)',
@@ -155,7 +156,7 @@ const Setup = {
     // Your Mac / Apple's model
     r = this.row('mac', IS_DESKTOP_APP ? 'Language model' : 'Your Mac'); await this.wait(gap);
     if (IS_DESKTOP_APP) await this.model(r);
-    else r.set(Link.ready() ? 'done' : 'info', Link.ready() ? `Paired with ${Link.macName()}: mail, calendar and chats run there` : 'Pair with StudioGen on your Mac for mail, calendar and chats', 'Settings › Connections');
+    else r.set(Link.ready() ? 'done' : 'info', Link.ready() ? `Paired with ${Link.macName()}: mail, calendar and chats run there` : `Pair with ${BRAND.mac} on your Mac for mail, calendar and chats`, 'Settings › Connections');
     // Waiting requests: asked once (install, or the first update that has it), then in Agent settings
     if (typeof Agent !== 'undefined' && !store.get('waitRules', null)) {
       r = this.row('wait', 'When your Mac is offline'); await this.wait(gap); this.asked = true;
@@ -176,26 +177,26 @@ const Setup = {
     const f = await LLM.fit(), ol = await LLM.ollama(), where = 'Settings › Assistant › Language model';
     const pool = f.next ? ` With another Mac in a pool, ${f.next.name} (about ${f.next.need} GB together) would answer better.` : '';
     if (!f.best) return r.set('info', `${f.gb} GB of memory is too little for a local model: add your Claude key, or pool this Mac with another.${pool}`, where);
-    // built into StudioGen (desktop/llm.js): Ollama's copy is used as it is; else one download, nothing to install
+    // built into NaoMuse (desktop/llm.js): Ollama's copy is used as it is; else one download, nothing to install
     const bi = await LLM.builtin(true);
     if (bi.available && !(ol.up && LLM.cfg().roles.cards === 'local')) {
       const m = bi.models?.find(x => x.id === f.best.id) || {};
       if (!bi.model && m.ollama) { await DriveDeckDesktop.llm.use({ id: f.best.id, ollama: true }); await LLM.builtin(true); }
       else if (!bi.model && m.downloaded) { await DriveDeckDesktop.llm.use({ id: f.best.id }); await LLM.builtin(true); }
-      if (LLM.biReady()) { r.set('done', `${LLM.bi.model.id} is built into StudioGen${LLM.bi.model.source === 'ollama' ? ' and reads the model file Ollama already has (Ollama itself isn’t used): nothing to download' : ''}. Understanding, cards and building run on this Mac (${f.gb} GB), private and free.${pool}`, where);
-        if (LLM.bi.model.source === 'ollama' && !m.downloaded && !LLM.bi.downloading) { r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick"><button class="chip" data-sumodel="own|${f.best.id}">Download StudioGen’s own copy instead (${f.best.size})</button></div>`);
-          r.li.onclick = async e => { const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; r.li.querySelector('.su-pick')?.remove(); r.set('work', 'Downloading StudioGen’s own copy (it answers with Ollama’s file meanwhile; this goes on after Start)…', where); r.progress(0);
-            try { await LLM.biDownload(b.dataset.sumodel.split('|')[1], p => r.progress(p)); r.progress(null); r.set('done', `${f.best.name}: StudioGen’s own copy is in use.${pool}`, where); } catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}`, where); } }; }
+      if (LLM.biReady()) { r.set('done', `${LLM.bi.model.id} is built into ${BRAND.mac}${LLM.bi.model.source === 'ollama' ? ' and reads the model file Ollama already has (Ollama itself isn’t used): nothing to download' : ''}. Understanding, cards and building run on this Mac (${f.gb} GB), private and free.${pool}`, where);
+        if (LLM.bi.model.source === 'ollama' && !m.downloaded && !LLM.bi.downloading) { r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick"><button class="chip" data-sumodel="own|${f.best.id}">Download ${BRAND.mac}’s own copy instead (${f.best.size})</button></div>`);
+          r.li.onclick = async e => { const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; r.li.querySelector('.su-pick')?.remove(); r.set('work', `Downloading ${BRAND.mac}’s own copy (it answers with Ollama’s file meanwhile; this goes on after Start)…`, where); r.progress(0);
+            try { await LLM.biDownload(b.dataset.sumodel.split('|')[1], p => r.progress(p)); r.progress(null); r.set('done', `${f.best.name}: ${BRAND.mac}’s own copy is in use.${pool}`, where); } catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}`, where); } }; }
         return; }
       const bbtns = h => { r.li.querySelector('.su-pick')?.remove(); r.li.querySelector('.su-main').insertAdjacentHTML('beforeend', `<div class="chip-row su-pick">${h}</div>`); };
       this.asked = true;
-      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}, built into StudioGen: one ${f.best.size} download, nothing to install. Then everything that needs a model runs here, private and free.${pool}`, where);
+      r.set('info', `This Mac (${f.gb} GB${f.chip ? `, ${f.chip}` : ''}) can run ${f.best.name}, built into ${BRAND.mac}: one ${f.best.size} download, nothing to install. Then everything that needs a model runs here, private and free.${pool}`, where);
       bbtns(`<button class="chip accent" data-sumodel="bidl|${f.best.id}">Download ${esc(f.best.name)}</button><button class="chip" data-sumodel="skip">Later</button>`);
       r.li.onclick = async e => {
         const b = e.target.closest('[data-sumodel]'); if (!b) return; this.touched = true; const [k, id] = b.dataset.sumodel.split('|');
         if (k === 'skip') { r.li.querySelector('.su-pick')?.remove(); return r.set('info', `Not yet: ${f.best.name} can be downloaded later.`, where); }
         r.li.querySelector('.su-pick')?.remove(); r.set('work', `Downloading ${f.best.name}…`, where); r.progress(0);
-        try { await LLM.biDownload(id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); r.set('done', `${f.best.name} is built into StudioGen.${pool}`, where); }
+        try { await LLM.biDownload(id, p => { r.progress(p); r.li.querySelector('.su-d').firstChild.textContent = `Downloading ${f.best.name}… ${Math.round(p * 100)}% `; }); r.progress(null); r.set('done', `${f.best.name} is built into ${BRAND.mac}.${pool}`, where); }
         catch (err) { r.progress(null); r.set('warn', `The download stopped: ${err.message}. It carries on where it stopped: ${where}.`, where); }
       };
       return;

@@ -25,7 +25,7 @@
 <body>
 <main>
 <h1>Connection test plan</h1>
-<p class="mut">How to test every way DriveGen and StudioGen connect, across the networks people really use, not only two apps on one Mac. 18 October 2026. Companion to <a href="connections.html">the connections design</a>.</p>
+<p class="mut">How to test every way DriveGen and NaoMuse connect, across the networks people really use, not only two apps on one Mac. 18 October 2026. Companion to <a href="connections.html">the connections design</a>.</p>
 <ul class="toc">
   <li><a href="#dims">1. What varies</a></li>
   <li><a href="#expect">2. Expected outcome per network pair</a></li>
@@ -41,19 +41,19 @@
 
 <h2 id="dims">1. What varies</h2>
 <div class="wrap"><table><thead><tr><th>Dimension</th><th>Values</th></tr></thead><tbody>
-<tr><td><b>Apps / platforms</b></td><td>StudioGen (Mac, packaged app) · DriveGen on iPhone (Home Screen app and Safari tab) · iPad · Android Chrome · desktop Chrome</td></tr>
+<tr><td><b>Apps / platforms</b></td><td>NaoMuse (Mac, packaged app) · DriveGen on iPhone (Home Screen app and Safari tab) · iPad · Android Chrome · desktop Chrome</td></tr>
 <tr><td><b>Network of each side</b></td><td>
   N1 same Wi-Fi as the other · N2 home router (port-preserving NAT, the common case) · N3 strict router (a different public port per destination: “symmetric” NAT) · N4 mobile data (carrier-grade NAT, often strict; IPv6 with NAT64 on some carriers) · N5 Mac on the phone’s hotspot · N6 office firewall: UDP blocked, only web ports (80/443) out · N7 office with a web proxy / TLS inspection · N8 hotel or café with a sign-in page and client isolation · N9 double NAT (router behind router) · N10 a VPN on one side · N11 IPv6-only</td></tr>
 <tr><td><b>Link settings</b></td><td>Direct: whenever possible / same network / never · data over relays when direct fails: on / off · TURN: none / configured · STUN providers: one / several</td></tr>
 <tr><td><b>Rendezvous</b></td><td>MQTT brokers (and, when added, Nostr relays, WebTorrent trackers) · list order · one broker down / blocked on one side / all down</td></tr>
 <tr><td><b>Links</b></td><td>Relay (pair once) · Direct by QR · Tailscale</td></tr>
-<tr><td><b>Events</b></td><td>pairing, revoke, list revision change, network switch (Wi-Fi ⇄ mobile), app to background and back (iOS), phone locked, Mac sleep and wake, StudioGen restart, long-running script (minutes), large result (200 rows)</td></tr>
+<tr><td><b>Events</b></td><td>pairing, revoke, list revision change, network switch (Wi-Fi ⇄ mobile), app to background and back (iOS), phone locked, Mac sleep and wake, NaoMuse restart, long-running script (minutes), large result (200 rows)</td></tr>
 </tbody></table></div>
 <p class="mut">The full product is thousands of combinations; we test the network pairs exhaustively in the lab (cheap, automated), the most common real pairs every night, and the rest in field sessions.</p>
 
 <h2 id="expect">2. Expected outcome per network pair</h2>
 <p>With STUN, data over relays on, no TURN. <span class="d">Direct</span> = WebRTC peer to peer; <span class="r">Relay</span> = requests through the brokers (encrypted); <span class="f">Fail</span> = no link (with TURN configured these become <i>TURN</i>).</p>
-<div class="wrap"><table><thead><tr><th>StudioGen ↓ / DriveGen →</th><th>N1 same Wi-Fi</th><th>N2 home</th><th>N3 strict</th><th>N4 mobile</th><th>N6 UDP blocked</th><th>N8 hotel isolation</th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th>NaoMuse ↓ / DriveGen →</th><th>N1 same Wi-Fi</th><th>N2 home</th><th>N3 strict</th><th>N4 mobile</th><th>N6 UDP blocked</th><th>N8 hotel isolation</th></tr></thead><tbody>
 <tr><td><b>N1 same Wi-Fi</b></td><td class="d">Direct</td><td>–</td><td>–</td><td>–</td><td>–</td><td class="r">Relay (isolation blocks LAN)</td></tr>
 <tr><td><b>N2 home</b></td><td>–</td><td class="d">Direct</td><td class="d">Direct</td><td class="d">Direct (usually)</td><td class="r">Relay</td><td class="d">Direct / Relay</td></tr>
 <tr><td><b>N3 strict</b></td><td>–</td><td class="d">Direct</td><td class="r">Relay</td><td class="r">Relay (often)</td><td class="r">Relay</td><td class="r">Relay</td></tr>
@@ -72,7 +72,7 @@
 </pre>
 
 <h2 id="diag">4. Layer 1: a Connection test screen in both apps</h2>
-<p>Settings › Connections › <b>Test the connection</b>, in DriveGen and StudioGen. It runs in about 20 seconds and shows, then copies as JSON (or shows as a QR for the other app to scan):</p>
+<p>Settings › Connections › <b>Test the connection</b>, in DriveGen and NaoMuse. It runs in about 20 seconds and shows, then copies as JSON (or shows as a QR for the other app to scan):</p>
 <ul>
   <li><b>This network</b>: local addresses (IPv4/IPv6), public address and port from two STUN servers, and the <b>NAT type</b> estimate (same public port from both: port-preserving; different: strict/symmetric), UDP reachable or not, a captive portal detected or not.</li>
   <li><b>Rendezvous</b>: each broker in the list: connects, echo time, blocked or not.</li>
@@ -82,12 +82,12 @@
 <p>The same checks run headless through test hooks (<code>?linktest</code>) so Layers 2 and 3 use exactly the code users run.</p>
 
 <h2 id="lab">5. Layer 2: a network lab on one Mac (automated)</h2>
-<p>One privileged Docker container holds the whole lab as Linux network namespaces (<code>tests/net/ns.sh</code>): a router namespace in front of each app, the lab's “internet” in the container itself. (Separate Docker networks and router containers were tried first: on OrbStack, traffic slipped between them through the Docker host, so namespaces it is.) The apps run as headless Chromium (Playwright): DriveGen as-is, StudioGen's link side through a test shim (the same js/relay.js, js/direct.js, js/link.js, with the desktop powers stubbed). The real public brokers and STUN servers are used through the routers' internet access, plus a local broker and TURN server for offline runs.</p>
+<p>One privileged Docker container holds the whole lab as Linux network namespaces (<code>tests/net/ns.sh</code>): a router namespace in front of each app, the lab's “internet” in the container itself. (Separate Docker networks and router containers were tried first: on OrbStack, traffic slipped between them through the Docker host, so namespaces it is.) The apps run as headless Chromium (Playwright): DriveGen as-is, NaoMuse's link side through a test shim (the same js/relay.js, js/direct.js, js/link.js, with the desktop powers stubbed). The real public brokers and STUN servers are used through the routers' internet access, plus a local broker and TURN server for offline runs.</p>
 <pre>
                          ┌──────── internet (real brokers, STUN) ────────┐
                          │                                               │
    ┌─ net A ──────────┐  │  ┌ router A ┐           ┌ router B ┐  │  ┌─ net B ───────────┐
-   │ StudioGen (shim) ├──┼──┤ NAT type ├───────────┤ NAT type ├──┼──┤ DriveGen (Chromium)│
+   │ NaoMuse (shim) ├──┼──┤ NAT type ├───────────┤ NAT type ├──┼──┤ DriveGen (Chromium)│
    └──────────────────┘  │  │ firewall │  "wan"    │ firewall │  │  └───────────────────┘
                          │  │ netem    │  network  │ netem    │  │
                          │  └──────────┘           └──────────┘  │
@@ -115,14 +115,14 @@
 
 <h2 id="cloud">6. Layer 3: real internet, every night (GitHub Actions)</h2>
 <ul>
-  <li>A scheduled workflow starts headless DriveGens on GitHub's runners (Linux, in Microsoft's cloud: a different network and NAT than the Mac's), pairs them with a <b>test StudioGen</b> (a packaged StudioGen on the Mac at home or a spare Mac, left running with a test profile and a test pairing), and runs the smoke set over the real internet: online time, direct or relay, round trips, failover with one broker blocked on the runner.</li>
+  <li>A scheduled workflow starts headless DriveGens on GitHub's runners (Linux, in Microsoft's cloud: a different network and NAT than the Mac's), pairs them with a <b>test NaoMuse</b> (a packaged NaoMuse on the Mac at home or a spare Mac, left running with a test profile and a test pairing), and runs the smoke set over the real internet: online time, direct or relay, round trips, failover with one broker blocked on the runner.</li>
   <li>Also runner ↔ runner across two regions (two jobs) for the no-Mac case of the shim.</li>
   <li>Results go to a GitHub issue or the run summary; a red result opens an issue. Public brokers' health is tracked over weeks (which ones fail, when), feeding the default list.</li>
 </ul>
 
 <h2 id="field">7. Layer 4: field tests on real devices and networks</h2>
 <p>Checklist sessions with the Connection test screen (Layer 1) on each side; results pasted into a shared table (one row per session).</p>
-<div class="wrap"><table><thead><tr><th>#</th><th>StudioGen on</th><th>DriveGen on</th><th>Try</th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th>#</th><th>NaoMuse on</th><th>DriveGen on</th><th>Try</th></tr></thead><tbody>
 <tr><td>F1</td><td>home Wi-Fi</td><td>iPhone, same Wi-Fi</td><td>pair, direct by QR, relay, run a script, background/foreground</td></tr>
 <tr><td>F2</td><td>home Wi-Fi</td><td>iPhone on mobile data (each carrier you can get: e.g. Jio, Airtel, Vi; AT&amp;T, Verizon, T-Mobile)</td><td>relay, direct upgrade, Wi-Fi ⇄ mobile switch while a script runs</td></tr>
 <tr><td>F3</td><td>the phone's hotspot</td><td>the same iPhone</td><td>“same network only” direct, no internet (airplane mode + hotspot), QR direct</td></tr>
@@ -130,14 +130,14 @@
 <tr><td>F5</td><td>hotel or café Wi-Fi</td><td>iPad on the same Wi-Fi</td><td>client isolation (expect relay), sign-in page handling</td></tr>
 <tr><td>F6</td><td>home Wi-Fi</td><td>iPhone in a moving car</td><td>cell handovers, tunnels, “run … on my Mac” by voice, reconnect time</td></tr>
 <tr><td>F7</td><td>Mac asleep, then woken</td><td>iPhone</td><td>reconnect time after wake; requests during sleep</td></tr>
-<tr><td>F8</td><td>two StudioGens (when the mesh comes)</td><td>two phones</td><td>request by device and by capability; a synchronised show</td></tr>
+<tr><td>F8</td><td>two NaoMuses (when the mesh comes)</td><td>two phones</td><td>request by device and by capability; a synchronised show</td></tr>
 </tbody></table></div>
 
 <h2 id="events">8. Events and failures to inject</h2>
 <ul>
   <li><b>Brokers</b>: the first broker down for both; down for one side only; all down then one back; a broker that accepts but drops messages; slow broker (2 s).</li>
   <li><b>Network</b>: switch networks mid-request; 10 s outage; IP address change; loss and delay (bad link); UDP suddenly blocked after direct connected.</li>
-  <li><b>Apps</b>: StudioGen restart; Mac sleep/wake; DriveGen to background and back; phone locked for 1 and 10 minutes; two DriveGens at once; a request while the Mac is busy with a script.</li>
+  <li><b>Apps</b>: NaoMuse restart; Mac sleep/wake; DriveGen to background and back; phone locked for 1 and 10 minutes; two DriveGens at once; a request while the Mac is busy with a script.</li>
   <li><b>Security</b>: a replayed message (must be dropped), a message under the wrong key (ignored), a revoked device trying (no answer), an old list revision (told to pair again), a tampered pairing code (rejected).</li>
 </ul>
 
@@ -156,9 +156,9 @@
 <h2 id="phases">10. Phases</h2>
 <div class="card"><b>Status (18 Oct 2026)</b>: T1 built (Settings › Connections › Test the connection; <code>?linktest=host</code>). T2 built (<code>tests/net/lab.mjs</code> with network namespaces in one container, <code>tests/net/ns.sh</code>; the full matrix of 36 scenarios: all as expected after fixes it found: an 8 s connect timeout for relays a firewall silently drops, a widening relay window so two sides on different relays still meet, earlier request resends). T3 built (<code>.github/workflows/net-nightly.yml</code>; first runs: Linux guest ↔ host direct through both routers, 42 ms; the other guest fell back to the relays, 105 ms; 11–12 of 12 relays reachable from GitHub's networks). T4: your field sessions.</div>
 <ol>
-  <li><b>T1</b> The Connection test screen and the <code>?linktest</code> hooks (with a StudioGen link shim for headless runs). Usable right away for your own field tests.</li>
+  <li><b>T1</b> The Connection test screen and the <code>?linktest</code> hooks (with a NaoMuse link shim for headless runs). Usable right away for your own field tests.</li>
   <li><b>T2</b> The Docker lab: router profiles, the runner, the smoke set after every link change, the full matrix weekly, the HTML report.</li>
-  <li><b>T3</b> The nightly GitHub Actions run against a test StudioGen; broker health history.</li>
+  <li><b>T3</b> The nightly GitHub Actions run against a test NaoMuse; broker health history.</li>
   <li><b>T4</b> Field sessions F1–F8 with the checklist; results feed the expected matrix and the default broker list.</li>
 </ol>
 </main>

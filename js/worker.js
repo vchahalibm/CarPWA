@@ -1,9 +1,9 @@
 'use strict';
 /* ============================================================
-   StudioGen Worker: StudioGen in a Linux container (worker/README.md, docs/studiogbee.html § 8). No screen of its own, so
+   NaoMuse Worker: NaoMuse in a Linux container (worker/README.md, docs/studiogbee.html § 8). No screen of its own, so
    it sets itself up from its environment (window.DriveDeckDesktop.worker, desktop/main.js): its name, the mesh invite an
    owner made for one of their own devices (it joins, and treats the inviter as its owner's: Mesh.join(code, true); the
-   owner's StudioGen then tells it the owner's other devices, own-sync in js/mesh.js), the language model (your Mac's, through the
+   owner's NaoMuse then tells it the owner's other devices, own-sync in js/mesh.js), the language model (your Mac's, through the
    mesh, js/llm.js; or one named in the environment), the practice sites for tests. The heavy parts (the 3D
    assistant, the voice) stay off; it opens on the Agent screen. Seen and used from your devices: js/remoteview.js.
    Loaded after remoteview.js.
@@ -14,7 +14,7 @@ if (Worker0) {
     Object.assign(settings, { startScreen: 'agent', tts: 'off', startGreet: false, intentAI: false });
     store.set('settings', settings); store.set('setupDone', 'skip'); store.set('workerInit', 1); location.reload();
   } else {
-    store.set('setupDone', 'skip'); store.set('meshName', Worker0.name); document.title = `${Worker0.name} · StudioGen Worker`;
+    store.set('setupDone', 'skip'); store.set('meshName', Worker0.name); document.title = `${Worker0.name} · ${BRAND.worker}`;
     if (Worker0.practice) store.set('agentCfg', { ...Agent.cfg(), practice: true });
     // the language model: your Mac's through the mesh (js/llm.js remote), unless the environment names another
     if (Worker0.llm) { store.set('llm', { provider: Worker0.llm.provider, model: Worker0.llm.model, url: Worker0.llm.url }); if (Worker0.llm.key) store.set('llmKey', Worker0.llm.key); if (Worker0.llm.provider === 'anthropic') store.set('llmCfg', { ...LLM.cfg(), roles: { fast: 'cloud', cards: 'cloud', build: 'cloud' } }); }

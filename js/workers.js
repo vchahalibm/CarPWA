@@ -1,12 +1,12 @@
 'use strict';
 /* ============================================================
-   Workers, made from StudioGen (design: docs/studiogbee.html § 8; worker/README.md):
-   - In OrbStack (a container, recommended): StudioGen checks for OrbStack (installs it from orbstack.dev if you want:
+   Workers, made from NaoMuse (design: docs/studiogbee.html § 8; worker/README.md):
+   - In OrbStack (a container, recommended): NaoMuse checks for OrbStack (installs it from orbstack.dev if you want:
      its disk image into Applications; you finish its welcome window), then runs the published image
      (ghcr.io/vchahalibm/studiogen-worker, built by .github/workflows/worker-image.yml) with an invite for one of your
-     own devices and a secret for its sign-ins (a file in StudioGen's folder, mounted read-only). All of it through one
+     own devices and a secret for its sign-ins (a file in NaoMuse's folder, mounted read-only). All of it through one
      shell script (WORKER_CTL) you approve once; names and values are its arguments, never part of the code.
-   - Light, on this Mac (no install): a second, hidden StudioGen with its own profile (desktop/main.js LightWorkers),
+   - Light, on this Mac (no install): a second, hidden NaoMuse with its own profile (desktop/main.js LightWorkers),
      using this Mac's model directly.
    - On another machine: the docker command to paste there, invite and secret filled in.
    Each joins the mesh as yours; then it's signed in and used from here or your phone (Sign in from here, js/remoteview.js).
@@ -45,8 +45,8 @@ esac`;
 const Workers = {
   can: () => LINK_HOST && typeof OsTasks !== 'undefined' && OsTasks.can(),
   image: () => store.get('workerImage', WORKER_IMAGE),
-  ctl(op, ...args) { return OsTasks.run('shell', WORKER_CTL, [op, ...args], 'StudioGen Workers (OrbStack)', op === 'install' ? 900 : op === 'create' || op === 'update' ? 900 : 200); },
-  async secretDir(n) { const home = (await OsTasks.run('shell', 'printf %s "$HOME"', [], 'Your home folder', 10)); return `${home}/Library/Application Support/StudioGen/worker-secrets/${n}`; },
+  ctl(op, ...args) { return OsTasks.run('shell', WORKER_CTL, [op, ...args], `${BRAND.worker}s (OrbStack)`, op === 'install' ? 900 : op === 'create' || op === 'update' ? 900 : 200); },
+  async secretDir(n) { const home = (await OsTasks.run('shell', 'printf %s "$HOME"', [], 'Your home folder', 10)); return `${home}/Library/Application Support/${BRAND.mac}/worker-secrets/${n}`; },
   slug: s => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'worker',
   /** The mesh the Worker joins: yours, or a new one made now (a Worker is reached through it). */
   async mesh() { if (!Mesh.m) { await Mesh.create(`${Mesh.myName()}’s devices`); toast('Made a mesh for your devices'); await new Promise(r => setTimeout(r, 1500)); } if (!Mesh.amOwner()) throw new Error('Only a mesh owner makes Workers'); return Mesh.invite('member', true); },
@@ -62,7 +62,7 @@ const Workers = {
   async createDocker(name, say) {
     store.set('workersDocker', true);
     say('Checking for OrbStack…'); let c = await this.ctl('check');
-    if (!c.orbstack && !c.docker) { if (!await new Promise(res => sheet('OrbStack', '<p>Workers run in <b>OrbStack</b> (orbstack.dev), a small app that runs containers on your Mac. It’s free for personal use (businesses need a licence). StudioGen can download it (about 470 MB) and open it; you finish its welcome window.</p>', [['Install OrbStack', () => res(true)], ['Cancel', () => res(false)]]))) throw new Error('Not now');
+    if (!c.orbstack && !c.docker) { if (!await new Promise(res => sheet('OrbStack', `<p>Workers run in <b>OrbStack</b> (orbstack.dev), a small app that runs containers on your Mac. It’s free for personal use (businesses need a licence). ${BRAND.mac} can download it (about 470 MB) and open it; you finish its welcome window.</p>`, [['Install OrbStack', () => res(true)], ['Cancel', () => res(false)]]))) throw new Error('Not now');
       say('Installing OrbStack (about 470 MB)…'); await this.ctl('install'); }
     if (!c.up) { say('Starting OrbStack (finish its welcome window if it shows one)…'); await this.ctl('start'); }
     const id = this.slug(name), inv = await this.mesh(), dir = await this.secretDir(id);
@@ -70,10 +70,10 @@ const Workers = {
     await this.ctl('create', id, this.image(), inv, dir, name);
     Log.i('workers', `Worker ${name} started in OrbStack`); return id;
   },
-  /** Light: a hidden StudioGen on this Mac (no install), using this Mac's model directly. */
+  /** Light: a hidden NaoMuse on this Mac (no install), using this Mac's model directly. */
   async createLight(name, say) {
     const id = this.slug(name), inv = await this.mesh(), c = LLM.cfg(); say(`Starting ${name}…`);
-    await DriveDeckDesktop.light('create', { id, name, invite: inv, llm: !LLM.biReady() && LLM.health?.ok ? { url: c.url, model: c.model } : null }); // with the built-in model, it asks this StudioGen (a second copy would need another 13 GB)
+    await DriveDeckDesktop.light('create', { id, name, invite: inv, llm: !LLM.biReady() && LLM.health?.ok ? { url: c.url, model: c.model } : null }); // with the built-in model, it asks this NaoMuse (a second copy would need another 13 GB)
     Log.i('workers', `Light worker ${name} started`); return id;
   },
   /** For another machine (NAS, server): the command to paste there. */
@@ -83,20 +83,20 @@ const Workers = {
   },
   /* ---------- Mesh › Workers ---------- */
   async sheet() {
-    if (!this.can()) return sheet('Workers', '<p>Workers are made from StudioGen on a Mac.</p>', [['OK']]);
+    if (!this.can()) return sheet('Workers', `<p>Workers are made from ${BRAND.mac} on a Mac.</p>`, [['OK']]);
     sheet('Workers', '<p class="se-note">Looking…</p>', [['Close']]);
     const l = await this.list().catch(e => [{ error: e.message }]);
     const row = w => w.error ? `<li class="se-note">${esc(w.error)}</li>` : `<li>${w.online ? '🟢' : w.state === 'running' ? '🟡' : '⚪️'} <b>${esc(w.name)}</b> <span class="se-note">${w.kind === 'docker' ? 'in OrbStack' : 'light, on this Mac'} · ${esc(w.state)}${w.online ? ' · in the mesh' : w.state === 'running' ? ' · joining…' : ''}</span><br>
       ${w.meshId ? `<button class="link-btn" data-rvopen="web|${esc(w.meshId)}">Sign in from here</button> <button class="link-btn" data-rvopen="app|${esc(w.meshId)}">See its screen</button> ` : ''}${w.kind === 'light' && w.state === 'running' ? `<button class="link-btn" data-wk="show|light|${esc(w.id)}">Show its window</button> ` : ''}
       <button class="link-btn" data-wk="${w.state === 'running' ? 'stop' : 'start'}|${w.kind}|${esc(w.id)}">${w.state === 'running' ? 'Stop' : 'Start'}</button> ${w.kind === 'docker' ? `<button class="link-btn" data-wk="update|docker|${esc(w.id)}">Update</button> <button class="link-btn" data-wk="logs|docker|${esc(w.id)}">Log</button> ` : ''}<button class="link-btn" data-wk="remove|${w.kind}|${esc(w.id)}">Remove</button></li>`;
-    sheet('Workers', `<p class="se-note">A Worker is another StudioGen of yours that runs by itself: its own sign-ins (a second WhatsApp, a work account), tasks run side by side, all using this Mac’s language model. Sign in to it from here or your phone.</p>
+    sheet('Workers', `<p class="se-note">A Worker is another ${BRAND.mac} of yours that runs by itself: its own sign-ins (a second WhatsApp, a work account), tasks run side by side, all using this Mac’s language model. Sign in to it from here or your phone.</p>
       ${l.length ? `<ul class="av-report">${l.map(row).join('')}</ul>` : '<p class="se-note">None yet.</p>'}
       <div class="chip-row"><button class="chip accent" data-wk="new">+ New Worker</button></div>`, [['Close']]);
   },
   newSheet() {
     sheet('New Worker', `<label class="se-field"><span>Its name</span><input id="wkName" value="Worker ${(Mesh.members().filter(x => x.app === 'StudioGen').length || 1)}"></label>
-      <label class="se-check"><input type="radio" name="wkKind" value="docker" checked> <span><b>In OrbStack</b> (recommended): a container, kept apart from this Mac; StudioGen installs OrbStack if needed</span></label>
-      <label class="se-check"><input type="radio" name="wkKind" value="light"> <span><b>Light, on this Mac</b>: nothing to install; a hidden StudioGen with its own sign-ins (stops when this Mac sleeps)</span></label>
+      <label class="se-check"><input type="radio" name="wkKind" value="docker" checked> <span><b>In OrbStack</b> (recommended): a container, kept apart from this Mac; ${BRAND.mac} installs OrbStack if needed</span></label>
+      <label class="se-check"><input type="radio" name="wkKind" value="light"> <span><b>Light, on this Mac</b>: nothing to install; a hidden ${BRAND.mac} with its own sign-ins (stops when this Mac sleeps)</span></label>
       <label class="se-check"><input type="radio" name="wkKind" value="remote"> <span><b>On another machine</b> (a NAS or server with Docker): a command to paste there</span></label>
       <div class="su-bar" id="wkBar" hidden><i></i></div><p class="se-note" id="wkSay"></p>`,
       [['Make it', () => this.make($('#wkName').value.trim(), $('input[name="wkKind"]:checked').value)], ['Cancel', () => this.sheet()]]);

@@ -31,7 +31,7 @@
 </head>
 <body>
 <main>
-<h1>How DriveGen and StudioGen talk to each other</h1>
+<h1>How DriveGen and NaoMuse talk to each other</h1>
 <p class="mut">A friendly guide to the Connections part of the apps: what it does, how it keeps your messages secret, and how you stay in control. Written so a 6th grader can follow it. (Grown-ups: the detailed design is in <a href="connections.html">connections.html</a>.)</p>
 
 <ul class="toc">
@@ -52,7 +52,7 @@
 <h2 id="what">1. What it does</h2>
 <div class="row">
   <div class="card"><span class="big">📱</span><b>DriveGen</b> is the app on a phone or iPad. In a car, it's your talking assistant.</div>
-  <div class="card"><span class="big">💻</span><b>StudioGen</b> is the app on a Mac. It can run presentations, open apps, read data, and do jobs on the computer.</div>
+  <div class="card"><span class="big">💻</span><b>NaoMuse</b> is the app on a Mac. It can run presentations, open apps, read data, and do jobs on the computer.</div>
 </div>
 <p>Connections lets them work as a team. From your phone you can say <b>“run the sales summary on my Mac”</b>, and the Mac does the job and sends the answer back to your phone, even if you're in a car far away from home.</p>
 
@@ -60,7 +60,7 @@
 <p>Every home or school network has a <b>router</b>. Think of it as the <b>front door</b> of a building. It lets people inside go out, and it lets answers come back in. But if a stranger knocks from outside, the door stays shut. That's good for safety, but it means your phone (outside, on mobile data) can't just knock on your Mac's door.</p>
 <div class="pic"><svg viewBox="0 0 640 170" role="img" aria-label="A phone and a Mac each behind a closed door">
   <rect x="10" y="20" width="250" height="130" rx="16" fill="none" stroke="var(--blue)" stroke-width="3"/><text x="24" y="44" font-weight="700">Your home</text>
-  <text x="40" y="105" font-size="40">💻</text><text x="92" y="100">StudioGen</text>
+  <text x="40" y="105" font-size="40">💻</text><text x="92" y="100">NaoMuse</text>
   <rect x="236" y="60" width="24" height="60" rx="4" fill="var(--yellow)"/><text x="150" y="142" class="m" font-size="13">router = door</text>
   <rect x="380" y="20" width="250" height="130" rx="16" fill="none" stroke="var(--green)" stroke-width="3"/><text x="394" y="44" font-weight="700">The car (mobile data)</text>
   <text x="560" y="105" font-size="40">📱</text><text x="470" y="100">DriveGen</text>
@@ -71,7 +71,7 @@
 <h2 id="meet">3. Meeting places (relays)</h2>
 <p>So the two apps meet somewhere both can reach: a <b>relay</b>. A relay is like a <b>public bulletin board</b> or a <b>post office locker</b> on the internet. Each app walks out its own front door (always allowed!), pins messages on the board, and reads the messages left for it.</p>
 <div class="pic"><svg viewBox="0 0 640 190" role="img" aria-label="Both apps going out to a relay in the middle">
-  <text x="30" y="110" font-size="40">💻</text><text x="20" y="150">StudioGen</text>
+  <text x="30" y="110" font-size="40">💻</text><text x="20" y="150">NaoMuse</text>
   <text x="560" y="110" font-size="40">📱</text><text x="556" y="150">DriveGen</text>
   <rect x="230" y="40" width="180" height="110" rx="18" fill="none" stroke="var(--violet)" stroke-width="3"/><text x="262" y="72" font-weight="700">Relay 📋</text><text x="250" y="100" class="m" font-size="14">a public message board</text><text x="262" y="126" font-size="22">📦 📦</text>
   <path d="M85 95 C 150 60, 190 70, 228 90" fill="none" stroke="var(--blue)" stroke-width="3" marker-end="url(#a)"/>
@@ -104,7 +104,7 @@
 <h2 id="pair">5. Pairing: sharing the key in person</h2>
 <p>How do two devices get the same secret key without anyone else seeing it? <b>In person, with a QR code.</b></p>
 <ol class="steps">
-  <li>On the Mac: <b>StudioGen › Settings › Connections › Pair a phone or iPad (once)</b>. A big QR code appears.</li>
+  <li>On the Mac: <b>NaoMuse › Settings › Connections › Pair a phone or iPad (once)</b>. A big QR code appears.</li>
   <li>On the phone: <b>DriveGen › Settings › Connections › Pair once</b>. Point the camera at the code.</li>
   <li>Done! The code held three things: a random room name (where to meet), the secret key, and the Mac's list of meeting places.</li>
 </ol>
@@ -175,7 +175,7 @@ Also: <b>“Let data go over the relays when there's no direct link.”</b> Turn
 
 <h2 id="change">9. Changing the secret: you're in control</h2>
 <p>Changing your secret now and then is good practice, like changing a password. There are two parts you can change: the <b>random key</b> (the Mac makes a new one; you don't type anything) and <b>your phrase</b> (section 8). Your phrase stays the same when the random key changes.</p>
-<div class="card how"><b>How to change it</b> (on the Mac: StudioGen › Settings › Connections):
+<div class="card how"><b>How to change it</b> (on the Mac: NaoMuse › Settings › Connections):
 <ul>
   <li><b>Change secret</b> next to a device: gives that device a new key now.</li>
   <li><b>Change all secrets now:</b> every paired device gets a new key.</li>
@@ -241,7 +241,7 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
 <tr><td><b>HKDF</b></td><td>The mixer that combines the random key and your phrase's number into the real key.</td></tr>
 <tr><td><b>Revoke</b></td><td>Throwing a device's key away so it can't connect any more.</td></tr>
 </tbody></table></div>
-<p class="mut" style="margin-top:28px">DriveGen &amp; StudioGen · Connections explained · 18 October 2026</p>
+<p class="mut" style="margin-top:28px">DriveGen &amp; NaoMuse · Connections explained · 18 October 2026</p>
 </main>
 </body>
 </html>

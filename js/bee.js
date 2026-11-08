@@ -1,8 +1,8 @@
 'use strict';
 /* ============================================================
-   StudioGBee, the apps' side (design: docs/studiogbee.html § 5; the server is bee/server.mjs).
-   An optional always-on hive a team runs (Docker): requests for a Mac or StudioGen that is offline wait there, and the
-   answer comes back when it's online again (with a push to a DriveGen that is away); StudioGens keep a backup of their
+   NaoMuseHive, the apps' side (design: docs/studiogbee.html § 5; the server is bee/server.mjs).
+   An optional always-on hive a team runs (Docker): requests for a Mac or NaoMuse that is offline wait there, and the
+   answer comes back when it's online again (with a push to a DriveGen that is away); NaoMuses keep a backup of their
    library there; bees of different teams can be linked. Without one, nothing changes.
    - The mesh lists its bees (`Mesh.m.bees`): an owner adds one with its address and admin code, and owners' presence
      carries the list, so every member connects by itself.
@@ -34,14 +34,14 @@ const Bee = {
     let ws; try { ws = new WebSocket(this.wsUrl(url)); } catch (e) { s.error = e.message; return this.retry(s); }
     s.ws = ws; s.authed = false;
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } this.got(s, m).catch(err => Log.w('bee', 'Message not handled', { error: err.message })); };
-    ws.onclose = () => { const was = s.authed; s.authed = false; for (const c of s.calls.values()) { clearTimeout(c.t); c.rej(new Error('StudioGBee went away')); } s.calls.clear(); if (was) { Log.i('bee', `Disconnected from ${s.bee?.name || url}`); this.onchange?.(); } if (!s.stop) this.retry(s); };
+    ws.onclose = () => { const was = s.authed; s.authed = false; for (const c of s.calls.values()) { clearTimeout(c.t); c.rej(new Error(`${BRAND.hive} went away`)); } s.calls.clear(); if (was) { Log.i('bee', `Disconnected from ${s.bee?.name || url}`); this.onchange?.(); } if (!s.stop) this.retry(s); };
     ws.onerror = () => { s.error ||= 'Can’t reach it'; };
   },
   retry(s) { clearTimeout(s.t); s.tries++; s.t = setTimeout(() => { if (this.socks.get(s.url) === s && !s.stop) this.connect(s.url); }, Math.min(60000, 1500 * 2 ** Math.min(s.tries, 6))); },
   req(s, o, ms = 20000) {
-    if (!s?.ws || s.ws.readyState !== 1) return Promise.reject(new Error('StudioGBee isn’t connected'));
+    if (!s?.ws || s.ws.readyState !== 1) return Promise.reject(new Error(`${BRAND.hive} isn’t connected`));
     const rid = Math.random().toString(36).slice(2);
-    return new Promise((res, rej) => { const t = setTimeout(() => { s.calls.delete(rid); rej(new Error('StudioGBee didn’t answer')); }, ms); s.calls.set(rid, { res, rej, t }); s.ws.send(JSON.stringify({ ...o, rid })); });
+    return new Promise((res, rej) => { const t = setTimeout(() => { s.calls.delete(rid); rej(new Error(`${BRAND.hive} didn’t answer`)); }, ms); s.calls.set(rid, { res, rej, t }); s.ws.send(JSON.stringify({ ...o, rid })); });
   },
   async got(s, m) {
     if (m.t === 'challenge') {
@@ -62,7 +62,7 @@ const Bee = {
     }
     if (m.t === 'ok' || m.t === 'error') { const c = s.calls.get(m.rid); if (!c) return; s.calls.delete(m.rid); clearTimeout(c.t); m.t === 'ok' ? c.res(m) : c.rej(new Error(m.error)); return; }
     if (m.t === 'msg') return this.onMsg(s, m);
-    if (m.t === 'expired') return this.finish(m.id, { error: `${Mesh.member(m.to)?.name || 'It'} stayed offline, so StudioGBee gave up on the request` });
+    if (m.t === 'expired') return this.finish(m.id, { error: `${Mesh.member(m.to)?.name || 'It'} stayed offline, so ${BRAND.hive} gave up on the request` });
   },
   /** The bee keeps the roster to check who signs in: give it a newer one when the mesh's changes. */
   sync(s) { const r = Mesh.m?.roster; if (s?.authed && r && r.rev > (s.rosterRev || 0)) this.req(s, { t: 'roster', roster: r }).then(x => { s.rosterRev = x.rosterRev; }, () => {}); },
@@ -84,7 +84,7 @@ const Bee = {
   /** A request to a member through the bee: waits there while it's offline (ttl), the answer comes back the same way.
       o.card: the Agent card it's for, kept so a late answer (after a reload) still lands on it. */
   async call(to, kind, payload, ttl = 600000, o = {}) {
-    const s = this.any(); if (!s) throw new Error('StudioGBee isn’t connected');
+    const s = this.any(); if (!s) throw new Error(`${BRAND.hive} isn’t connected`);
     const me = (await Mesh.me()).id, id = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
     const data = await this.seal(me, to, id, { kind, payload });
     if (o.card) store.set('beePending', { ...store.get('beePending', {}), [id]: { ...o, to, until: Date.now() + ttl } });
@@ -116,12 +116,12 @@ const Bee = {
 
   /** A webhook for a watcher: an address anything can POST to; what's posted reaches this device (js/watch.js hookIn). */
   async hookNew(name) {
-    const s = this.any(); if (!s) throw new Error('StudioGBee isn’t connected');
+    const s = this.any(); if (!s) throw new Error(`${BRAND.hive} isn’t connected`);
     const r = await this.req(s, { t: 'hook-new', name }); return { hook: r.token, hookUrl: s.url.replace(/^ws(s?):/, 'http$1:').replace(/\/(ws)?$/, '') + r.path };
   },
   /* ---------- Push: “your answer is ready” on a DriveGen that is away ---------- */
   async notify(quiet) {
-    const s = this.any(); if (!s?.bee?.vapid) throw new Error('StudioGBee isn’t connected');
+    const s = this.any(); if (!s?.bee?.vapid) throw new Error(`${BRAND.hive} isn’t connected`);
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error(isIOS ? 'Add DriveGen to your Home Screen first (Share › Add to Home Screen), then open it from there' : 'This browser can’t show notifications');
     if (!quiet && await Notification.requestPermission() !== 'granted') throw new Error('Notifications are off for DriveGen (allow them in the system settings)');
     if (Notification.permission !== 'granted') return;
@@ -132,7 +132,7 @@ const Bee = {
     await this.req(s, { t: 'push-sub', sub: sub.toJSON() }); s.push = true;
   },
 
-  /* ---------- Backups of a StudioGen's library (sealed with a key made from the group key) ---------- */
+  /* ---------- Backups of a NaoMuse's library (sealed with a key made from the group key) ---------- */
   async boxKey() {
     const m = Mesh.m, base = await crypto.subtle.importKey('raw', b64u.dec(m.key), 'HKDF', false, ['deriveKey']);
     return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: meshEnc(m.id), info: meshEnc('studiogbee-backup-v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
@@ -149,7 +149,7 @@ const Bee = {
     store.set('beeBackupHash', h); store.set('beeBackupAt', Date.now()); Log.i('bee', 'Library backed up', { tasks: lib.tasks.length, scripts: lib.scripts.length }); return true;
   },
   async backups() { return (await this.req(this.any(), { t: 'backup-list' })).list || []; },
-  /** Take tasks, scripts and motions from a backup into this StudioGen (nothing here is replaced: same names are kept twice). */
+  /** Take tasks, scripts and motions from a backup into this NaoMuse (nothing here is replaced: same names are kept twice). */
   async restore(dev) {
     const r = await this.req(this.any(), { t: 'backup-get', dev, kind: 'library' }, 60000), p = b64u.dec(r.data);
     let lib; try { lib = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: p.slice(0, 12) }, await this.boxKey(), p.slice(12)))); } catch { throw new Error('This backup was made with an older key of the mesh (before someone was removed): it can’t be opened'); }
@@ -170,7 +170,7 @@ const Bee = {
   },
   async remove(url) { await Mesh.save({ ...Mesh.m, bees: this.list().filter(b => b.url !== url), beesAt: Date.now() }); Mesh.pres(); const s = this.socks.get(url); if (s) { s.stop = true; try { s.ws.close(); } catch {} this.socks.delete(url); } },
   /** One bee's connection (by address), or any connected one. */
-  sock(url) { const s = url ? this.socks.get(url) : this.any(); if (!s?.authed) throw new Error('StudioGBee isn’t connected'); return s; },
+  sock(url) { const s = url ? this.socks.get(url) : this.any(); if (!s?.authed) throw new Error(`${BRAND.hive} isn’t connected`); return s; },
   async dashCode(url) { return (await this.req(this.sock(url), { t: 'dash-code' })).code; },
   /** reach: the address the other bee uses to call this one (its address in the mesh unless given). */
   async linkCode(url, reach) { const s = this.sock(url); return (await this.req(s, { t: 'link-code', url: reach || s.url })).code; },
@@ -181,10 +181,10 @@ const Bee = {
   html() {
     if (!Mesh.m) return '';
     const l = this.home(), owner = Mesh.amOwner(), s0 = this.any();
-    const row = b => { const s = this.socks.get(b.url); return `<li>${s?.authed ? '🟢' : '⚪️'} <b>${esc(b.name || 'StudioGBee')}</b> <span class="se-note">${esc(b.url)}${s?.authed ? ' · connected' : s?.error ? ` · ${esc(s.error)}` : ' · connecting…'}</span>${owner ? ` <button class="link-btn" data-bee="remove|${esc(b.url)}">Remove</button>` : ''}</li>`; };
-    return `<div class="lk-direct ${this.up() ? 'on' : ''}"><p><b>StudioGBee</b> (optional): an always-on place your team runs, where a request waits while a Mac is offline and the answer comes back when it's on again${LINK_HOST ? '; it also keeps a backup of this StudioGen’s tasks and scripts' : ', with a notification'}. It only sees sealed messages.</p>
+    const row = b => { const s = this.socks.get(b.url); return `<li>${s?.authed ? '🟢' : '⚪️'} <b>${esc(b.name || BRAND.hive)}</b> <span class="se-note">${esc(b.url)}${s?.authed ? ' · connected' : s?.error ? ` · ${esc(s.error)}` : ' · connecting…'}</span>${owner ? ` <button class="link-btn" data-bee="remove|${esc(b.url)}">Remove</button>` : ''}</li>`; };
+    return `<div class="lk-direct ${this.up() ? 'on' : ''}"><p><b>${BRAND.hive}</b> (optional): an always-on place your team runs, where a request waits while a Mac is offline and the answer comes back when it's on again${LINK_HOST ? `; it also keeps a backup of this ${BRAND.mac}’s tasks and scripts` : ', with a notification'}. It only sees sealed messages.</p>
       ${l.length ? `<ul class="av-report">${l.map(row).join('')}</ul>` : `<p class="se-note">${owner ? 'None yet: run one (bee/README.md: one Docker command) and add it here.' : 'None in this mesh yet (an owner adds one).'}</p>`}
-      <div class="chip-row">${owner ? '<button class="chip accent" data-bee="add">+ Add a StudioGBee</button>' : ''}
+      <div class="chip-row">${owner ? `<button class="chip accent" data-bee="add">+ Add a ${BRAND.hive}</button>` : ''}
         ${s0 && owner ? '<button class="chip" data-bee="dash">Dashboard code</button><button class="chip" data-bee="linkcode">Link another team’s bee</button><button class="chip" data-bee="linkjoin">Paste a link code</button>' : ''}
         ${s0 && !LINK_HOST ? `<button class="chip" data-bee="notify">${s0.push ? '✓ Notifications on' : 'Notify me when an answer is ready'}</button>` : ''}
         ${s0 && LINK_HOST ? `<button class="chip" data-bee="backup">Back up now</button><button class="chip" data-bee="restore">Restore…</button>` : ''}</div>
@@ -201,17 +201,17 @@ setTimeout(() => Bee.start(), 2500);
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-bee]'); if (!b) return; e.stopPropagation();
   const [k, arg] = b.dataset.bee.split('|'), back = () => Bee.redraw(), fail = err => toast(err.message);
-  if (k === 'add') return sheet('Add a StudioGBee', `<p class="se-note">Its address (where it runs: <code>http://localhost:8840</code> on this Mac, or its https address) and the admin code it printed when it started (<code>docker logs studiogbee</code>).</p>
+  if (k === 'add') return sheet(`Add a ${BRAND.hive}`, `<p class="se-note">Its address (where it runs: <code>http://localhost:8840</code> on this Mac, or its https address) and the admin code it printed when it started (<code>docker logs studiogbee</code>).</p>
     <label class="se-field"><span>Address</span><input id="beeUrl" value="http://localhost:8840" autocapitalize="off" autocorrect="off"></label><label class="se-field"><span>Admin code</span><input id="beeCode" autocapitalize="characters"></label>`,
     [['Add', () => Bee.add($('#beeUrl').value, $('#beeCode').value).then(n => { toast(`${n} added: the mesh's devices connect to it by themselves`); back(); }, err => sheet('Not added', `<p>${esc(err.message)}</p>`, [['Back', () => back()]]))], ['Cancel', back]]);
   if (k === 'remove') { await Bee.remove(arg); toast('Removed from the mesh'); return back(); }
   if (k === 'dash') return Bee.dashCode().then(c => { const u = (Bee.any().url || '').replace(/^ws/, 'http'); sheet('Dashboard code', `<div class="lk-code">${esc(c.replace(/(.{4})/, '$1 '))}</div><p class="se-note">Open <b>${esc(u)}/dashboard</b> and type this code (it works once, for 10 minutes). There, Settings › Add a passkey lets you sign in with Face ID or Touch ID next time.</p>`, [['Close', back]]); }, fail);
   if (k === 'linkcode') return sheet('Link another team’s bee', `<label class="se-field"><span>The address their bee reaches yours at (https, from the internet or their tailnet)</span><input id="beeReach" value="${esc(Bee.any()?.url || '')}" autocapitalize="off" autocorrect="off"></label>`,
-    [['Make the code', () => Bee.linkCode(Bee.any()?.url, $('#beeReach').value.trim()).then(c => sheet('Link another team’s bee', `<p class="se-note">Give this code to the other team's mesh owner; they paste it in their StudioGen (StudioGBee › Paste a link code). Then accept their bee here or in the dashboard (Bees). Nothing goes between the bees before that. It works for a day.</p><textarea rows="4" readonly style="width:100%">${esc(c)}</textarea>`, [['Copy', () => navigator.clipboard?.writeText(c).then(() => toast('Copied'))], ['Close', back]]), fail)], ['Cancel', back]]);
+    [['Make the code', () => Bee.linkCode(Bee.any()?.url, $('#beeReach').value.trim()).then(c => sheet('Link another team’s bee', `<p class="se-note">Give this code to the other team's mesh owner; they paste it in their ${BRAND.mac} (${BRAND.hive} › Paste a link code). Then accept their bee here or in the dashboard (Bees). Nothing goes between the bees before that. It works for a day.</p><textarea rows="4" readonly style="width:100%">${esc(c)}</textarea>`, [['Copy', () => navigator.clipboard?.writeText(c).then(() => toast('Copied'))], ['Close', back]]), fail)], ['Cancel', back]]);
   if (k === 'linkjoin') return sheet('Paste a link code', '<p class="se-note">The code another team’s owner gave you. Your bee asks theirs to link; it starts once they accept.</p><textarea id="beeLink" rows="4" style="width:100%"></textarea>',
     [['Link', () => Bee.linkJoin($('#beeLink').value).then(() => { toast('Asked: it starts once they accept'); back(); }, fail)], ['Cancel', back]]);
   if (k === 'notify') return Bee.notify().then(() => { toast('Notifications on: you’ll hear when a waiting answer is ready'); back(); }, fail);
   if (k === 'backup') return Bee.backup(true).then(() => { toast('Backed up'); back(); }, fail);
-  if (k === 'restore') return Bee.backups().then(l => sheet('Restore from a backup', l.length ? `<p class="se-note">Tasks, scripts and motions are added to this StudioGen (nothing here is replaced).</p><div class="pick-list">${l.map(x => `<button class="big-btn" data-bee="take|${esc(x.dev)}">${esc(x.name)} · ${esc(new Date(x.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</button>`).join('')}</div>` : '<p>No backups in this mesh yet.</p>', [['Close', back]]), fail);
+  if (k === 'restore') return Bee.backups().then(l => sheet('Restore from a backup', l.length ? `<p class="se-note">Tasks, scripts and motions are added to this ${BRAND.mac} (nothing here is replaced).</p><div class="pick-list">${l.map(x => `<button class="big-btn" data-bee="take|${esc(x.dev)}">${esc(x.name)} · ${esc(new Date(x.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</button>`).join('')}</div>` : '<p>No backups in this mesh yet.</p>', [['Close', back]]), fail);
   if (k === 'take') return Bee.restore(arg).then(n => { toast(`${n} restored`); back(); }, fail);
 }, true);

@@ -11,7 +11,7 @@
     { "do": "watch.set", "name": "Lifecycle mail", "set": { "on": true }, "why": "Resume it" },
     { "do": "eval", "js": "const w = Watch.list().find(x => x.name === 'Lifecycle mail'); const d = Watch.exportDef(w), def = d.watcher || d; Watch.import({ ...def, name: 'Lifecycle copy' }, { auto: true, quiet: true }); return Watch.list().some(x => x.name === 'Lifecycle copy')", "as": "imported", "why": "Export it and import the copy" },
     { "do": "expect", "var": "imported", "equals": true },
-    { "do": "quit", "why": "Quit StudioGen" },
+    { "do": "quit", "why": "Quit NaoMuse" },
     { "do": "launch", "why": "Open it again (the same profile)" },
     { "do": "expect", "js": "Watch.list().filter(w => /^Lifecycle/.test(w.name)).length", "gte": 2, "why": "The watchers are still there" },
     { "do": "until", "js": "(Watch.list().find(w => w.name === 'Lifecycle mail')?.state?.at || 0) > Date.now() - 120000 || Watch.list().find(w => w.name === 'Lifecycle mail')?.state?.next > 0", "timeout": 60, "why": "…and carry on by themselves" }

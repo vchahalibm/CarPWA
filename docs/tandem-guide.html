@@ -33,7 +33,7 @@
 <body>
 <main>
 <h1>Demo Day: testing the apps together</h1>
-<p class="mut">A guide for running the Demo Day journey: two StudioGens and a DriveGen on one Mac, you doing the steps a real user would do, the runner checking each one. No experience with the tests needed.</p>
+<p class="mut">A guide for running the Demo Day journey: two NaoMuses and a DriveGen on one Mac, you doing the steps a real user would do, the runner checking each one. No experience with the tests needed.</p>
 
 <ul class="toc">
   <li><a href="#need">1. What you need (once)</a></li>
@@ -58,18 +58,18 @@ xcodebuild -downloadPlatform iOS</pre></li>
     <pre>cd desktop &amp;&amp; npm install &amp;&amp; cd ..</pre></li>
   <li><b>Node.js 22</b> or newer (<code>node -v</code>).</li>
 </ol>
-<div class="card tip">The test StudioGens use their own empty profiles, created for each run and thrown away afterwards. Your own StudioGen, its pairings and scripts are never touched, and it can stay open.</div>
+<div class="card tip">The test NaoMuses use their own empty profiles, created for each run and thrown away afterwards. Your own NaoMuse, its pairings and scripts are never touched, and it can stay open.</div>
 
 <h2 id="start">2. Start the run</h2>
 <p>In Terminal, in the project folder:</p>
 <pre>node tests/tandem/run.mjs</pre>
 <p>That opens, by itself:</p>
 <ul>
-  <li><b>Studio A</b> and <b>Studio B</b>: two StudioGen windows (Studio A is the Demo-room Mac, the owner; Studio B is the Lobby screen).</li>
+  <li><b>Studio A</b> and <b>Studio B</b>: two NaoMuse windows (Studio A is the Demo-room Mac, the owner; Studio B is the Lobby screen).</li>
   <li><b>Test iPhone</b>: DriveGen in Safari on an iPhone simulator. One you already have running is used and left running; the runner restarts its Safari and gives DriveGen a fresh address, so it starts as a new phone each run.</li>
   <li><b>The control panel</b> in your browser, at <code>http://localhost:8822/tandem/</code>.</li>
 </ul>
-<p>Place the windows so you can see the panel, both StudioGens and the iPhone. Starting takes about half a minute.</p>
+<p>Place the windows so you can see the panel, both NaoMuses and the iPhone. Starting takes about half a minute.</p>
 <div class="wrap"><table>
   <tr><th>To run…</th><th>Type</th></tr>
   <tr><td>The whole Demo Day, you doing the marked steps</td><td><code>node tests/tandem/run.mjs</code></td></tr>
@@ -98,7 +98,7 @@ xcodebuild -downloadPlatform iOS</pre></li>
 </ol>
 <div class="shots">
   <figure class="phone"><img src="req/tandem/05-p-assistant.jpg" alt="A typed command and its answer"><figcaption>Test iPhone: <q class="cmd">run the sales summary on studio b</q>, typed, and Studio B's answer.</figcaption></figure>
-  <figure><img src="req/tandem/02-a-assistant.jpg" alt="The Assistant widget on StudioGen"><figcaption>Studio A: the Assistant widget (top right) with its box. In tandem runs the runner puts it in each StudioGen's Stage column; in your own StudioGen add it with Edit.</figcaption></figure>
+  <figure><img src="req/tandem/02-a-assistant.jpg" alt="The Assistant widget on NaoMuse"><figcaption>Studio A: the Assistant widget (top right) with its box. In tandem runs the runner puts it in each NaoMuse's Stage column; in your own NaoMuse add it with Edit.</figcaption></figure>
 </div>
 <div class="card tip">On the iPhone the Assistant is a small tile on the widgets page (<q class="cmd">show the assistant widget</q>); what you type and the answer also show in the panel at the bottom. Typing is turned off while the car is moving (when “hide while driving” is on); talking always works.</div>
 
@@ -199,17 +199,17 @@ xcodebuild -downloadPlatform iOS</pre></li>
 <div class="wrap"><table>
   <tr><th>What</th><th>Say or type, for example</th><th>Where</th></tr>
   <tr><td>Who's in the mesh, online, doing what</td><td><q class="cmd">who's around</q>, <q class="cmd">show me the mesh</q></td><td>both</td></tr>
-  <tr><td>Create / invite / join / leave</td><td><q class="cmd">create a mesh called Demo day</q>, <q class="cmd">invite to the mesh</q>, <q class="cmd">join the mesh</q>, <q class="cmd">leave the mesh</q></td><td>create: StudioGen</td></tr>
-  <tr><td>Remove a device (owner)</td><td><q class="cmd">remove studio b from the mesh</q></td><td>StudioGen</td></tr>
-  <tr><td>Permissions (owner)</td><td><q class="cmd">don't let test iphone run scripts</q>, <q class="cmd">allow test iphone to run scripts</q></td><td>StudioGen</td></tr>
+  <tr><td>Create / invite / join / leave</td><td><q class="cmd">create a mesh called Demo day</q>, <q class="cmd">invite to the mesh</q>, <q class="cmd">join the mesh</q>, <q class="cmd">leave the mesh</q></td><td>create: NaoMuse</td></tr>
+  <tr><td>Remove a device (owner)</td><td><q class="cmd">remove studio b from the mesh</q></td><td>NaoMuse</td></tr>
+  <tr><td>Permissions (owner)</td><td><q class="cmd">don't let test iphone run scripts</q>, <q class="cmd">allow test iphone to run scripts</q></td><td>NaoMuse</td></tr>
   <tr><td>Run on the paired Mac</td><td><q class="cmd">run the daily brief on my mac</q></td><td>DriveGen</td></tr>
   <tr><td>Run on any device in the mesh</td><td><q class="cmd">run the sales summary on studio b</q></td><td>both</td></tr>
-  <tr><td>Shared things</td><td><q class="cmd">what's shared</q>, <q class="cmd">get the welcome tour from the mesh</q>, <q class="cmd">share the draft with the mesh</q>, <q class="cmd">make the draft private</q></td><td>share: StudioGen</td></tr>
+  <tr><td>Shared things</td><td><q class="cmd">what's shared</q>, <q class="cmd">get the welcome tour from the mesh</q>, <q class="cmd">share the draft with the mesh</q>, <q class="cmd">make the draft private</q></td><td>share: NaoMuse</td></tr>
   <tr><td>Shows</td><td><q class="cmd">start the keynote on all screens</q>, <q class="cmd">start the keynote in tandem</q>, <q class="cmd">next slide everywhere</q>, <q class="cmd">previous slide everywhere</q>, <q class="cmd">send the cue</q>, <q class="cmd">stop the show</q></td><td>both</td></tr>
-  <tr><td>Relay list (owner)</td><td><q class="cmd">share the relay list with the mesh</q></td><td>StudioGen</td></tr>
-  <tr><td>History</td><td><q class="cmd">export the mesh history</q></td><td>StudioGen</td></tr>
+  <tr><td>Relay list (owner)</td><td><q class="cmd">share the relay list with the mesh</q></td><td>NaoMuse</td></tr>
+  <tr><td>History</td><td><q class="cmd">export the mesh history</q></td><td>NaoMuse</td></tr>
   <tr><td>Pairing and the link</td><td><q class="cmd">pair a phone</q> / <q class="cmd">pair with my mac</q>, <q class="cmd">test the connection</q>, <q class="cmd">turn off the direct link</q>, <q class="cmd">turn on the direct link</q></td><td>both</td></tr>
-  <tr><td>Secrets</td><td><q class="cmd">change the secret for test iphone</q>, <q class="cmd">change all the secrets</q></td><td>StudioGen</td></tr>
+  <tr><td>Secrets</td><td><q class="cmd">change the secret for test iphone</q>, <q class="cmd">change all the secrets</q></td><td>NaoMuse</td></tr>
 </table></div>
 
 <h2 id="sims">8. iPhone simulators by hand</h2>
@@ -230,7 +230,7 @@ tests/tandem/sims.sh stop             # shut them all down</pre>
   <tr><td>“Address already in use” at the start</td><td>A run is still going (or was killed). <code>pkill -f tests/tandem/run.mjs; pkill -f sg-tandem-</code>, then start again.</td></tr>
   <tr><td>The iPhone shows an old version of DriveGen</td><td>The runner reloads it once by itself. If not: <code>tests/tandem/sims.sh open http://localhost:8822/index.html?tandem=p</code>.</td></tr>
   <tr><td>No simulator window</td><td>Open it yourself: <code>open -a DeviceHub</code>. The test still works without it, but you can't tap the iPhone.</td></tr>
-  <tr><td>The StudioGens speak out loud</td><td>They do in tandem runs (so you hear the show); <code>--auto</code> keeps them quiet.</td></tr>
+  <tr><td>The NaoMuses speak out loud</td><td>They do in tandem runs (so you hear the show); <code>--auto</code> keeps them quiet.</td></tr>
 </table></div>
 <p class="mut">For developers: the journey's steps are in <code>tests/tandem/journeys.mjs</code> (add acts as features land); the runner is <code>tests/tandem/run.mjs</code>; the commands are <code>MeshCmd</code> in <code>js/mesh.js</code>, wired up in <code>js/commands.js</code>.</p>
 </main>

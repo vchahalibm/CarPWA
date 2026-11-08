@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================
-   The mesh: StudioGens and DriveGens of a team working as one network
-   (docs/mesh.html). StudioGen shows and analyses it (js/meshview.js).
+   The mesh: NaoMuses and DriveGens of a team working as one network
+   (docs/mesh.html). NaoMuse shows and analyses it (js/meshview.js).
    - Identity: every app makes a device key pair once (ECDSA P-256 to sign,
      ECDH P-256 for pairwise keys); its id is a hash of the signing key.
    - The mesh: an id, a name, a group key, the relay list, and a roster of
@@ -18,12 +18,12 @@
      over relays light (presence rides on one message every 15 s, activity
      batched every 30 s within about 2 KB a minute, contents cut to 80
      characters, show progress only on step changes). Every device keeps a
-     journal; StudioGen fetches the details when it wants them.
+     journal; NaoMuse fetches the details when it wants them.
    - Shows (mesh mode): a conductor runs a script and the screens follow,
      in steps (each step at an agreed moment) or in tandem (cues).
    - Shared artifacts: scripts, motions, recordings are announced unless
-     marked private on the StudioGen that made them; members fetch them.
-   - History: StudioGen keeps the events (IndexedDB), a week by default.
+     marked private on the NaoMuse that made them; members fetch them.
+   - History: NaoMuse keeps the events (IndexedDB), a week by default.
    Loaded after linktest.js.
    ============================================================ */
 const MESH_KEEP = [1, 7, 30, 90]; // days to keep the history (Settings, the Mesh screen)
@@ -31,7 +31,7 @@ const MESH_RELAY_BUDGET = 2048;   // bytes a minute of activity over relays, per
 const meshEnc = s => new TextEncoder().encode(s);
 const meshB64 = buf => b64u.enc(buf);
 const meshHash = async s => meshB64(await crypto.subtle.digest('SHA-256', meshEnc(s))).slice(0, 22);
-const meshApp = () => LINK_HOST ? 'StudioGen' : APP_NAME; // the role (the network lab runs StudioGen's side in a plain browser)
+const meshApp = () => LINK_HOST ? 'StudioGen' : APP_NAME; // the role (the network lab runs NaoMuse's side in a plain browser)
 
 Bus.define('mesh.cue', 'The show’s conductor sends a cue (mesh tandem shows)', 'the cue name');
 const Mesh = {
@@ -66,8 +66,8 @@ const Mesh = {
   async signRoster(r) { const me = await this.me(); return { ...r, by: me.id, sig: await this.signStr(this.rosterStr(r)) }; },
   async rosterOk(r, trusted) { const signer = (trusted || r.members).find(x => x.id === r.by && x.role === 'owner'); return !!signer && this.verifyStr(signer.sigPub, this.rosterStr(r), r.sig); },
   selfEntry(me, role) { return { id: me.id, sigPub: me.sigPub, dhPub: me.dhPub, name: this.myName(), app: meshApp(), role, mayInvite: true, perms: { run: true, tasks: role === 'owner' }, joined: new Date().toISOString() }; },
-  myName() { return store.get('meshName', '') || (LINK_HOST ? 'StudioGen' : Direct.myName()); },
-  /** StudioGen: a new mesh, owned by this device; paired devices are invited over their pairing. */
+  myName() { return store.get('meshName', '') || (LINK_HOST ? BRAND.mac : Direct.myName()); },
+  /** NaoMuse: a new mesh, owned by this device; paired devices are invited over their pairing. */
   async create(name) {
     const me = await this.me();
     const roster = await this.signRoster({ rev: 1, members: [this.selfEntry(me, 'owner')] });
@@ -75,7 +75,7 @@ const Mesh = {
     this.event('mesh', { what: 'created', name }); this.invitePaired(); return this.m;
   },
   /** An invite (any member who may invite): a code for a QR or a link, good for a day, once. */
-  /** mine: an invite for one of your own devices (a StudioGen Worker, your other Mac): this StudioGen treats whoever joins
+  /** mine: an invite for one of your own devices (a NaoMuse Worker, your other Mac): this NaoMuse treats whoever joins
       with it as yours, and the invite says so, so the joiner may treat this one as its owner's (docs/studiogbee.html § 8). */
   async invite(role = 'member', mine = false) {
     const me = await this.me(), m = this.m; if (!m) throw new Error('No mesh');
@@ -122,9 +122,9 @@ const Mesh = {
     if (!this.amOwner()) return; const brokers = Relay.list().brokers.map(b => b.url), rev = (this.m.brokersRev || 1) + 1, s = await this.signStr(`brokers|${rev}|${brokers.join(',')}`);
     await this.save({ ...this.m, brokers, brokersRev: rev }); this.group('brokers', { brokers, rev, s });
   },
-  /** StudioGen: invite the devices already paired with it (over their encrypted pairing; they join by themselves). */
+  /** NaoMuse: invite the devices already paired with it (over their encrypted pairing; they join by themselves). */
   async invitePaired() { if (!LINK_HOST || !this.m) return; for (const p of Relay.peers()) Relay.post(p, 'mesh-invite', { code: await this.invite('member') }); },
-  /** StudioGen: a paired device said hello and isn't in the mesh yet: invite it (at most every 10 minutes). */
+  /** NaoMuse: a paired device said hello and isn't in the mesh yet: invite it (at most every 10 minutes). */
   async maybeInvite(room) {
     if (!LINK_HOST || !this.m || !store.get('meshAutoJoin', true) || (room.meshId && this.member(room.meshId))) return;
     (this.invited ||= {}); if (Date.now() - (this.invited[room.room] || 0) < 600000) return; this.invited[room.room] = Date.now();
@@ -172,7 +172,7 @@ const Mesh = {
     if (type === 'roster') return this.onRoster(d.roster);
     if (type === 'brokers') { if (this.isOwner(from) && d.rev > (this.m.brokersRev || 1) && await this.verifyStr(this.member(from).sigPub, `brokers|${d.rev}|${d.brokers.join(',')}`, d.s)) { this.save({ ...this.m, brokers: d.brokers, brokersRev: d.rev }); this.event('mesh', { what: 'new relay list', rev: d.rev }); } return; }
     if (type === 'bye') { delete this.presence[from]; this.event('mesh', { what: 'left', who: from }, from); return; }
-    if (type === 'pres') { if (!this.presence[from]) { this.lastCat = null; clearTimeout(this.catT); this.catT = setTimeout(() => this.pres(), 500 + Math.random() * 1500); if (typeof MeshDirect !== 'undefined') setTimeout(() => MeshDirect.tick(), 3000); } /* someone new or back: they need our catalog */ this.presence[from] = { ...d, at: Date.now(), clock: b.ts - Date.now() }; if (d.bees && this.isOwner(from) && (d.beesAt || 0) > (this.m.beesAt || 0)) { this.save({ ...this.m, bees: d.bees, beesAt: d.beesAt }); if (typeof Bee !== 'undefined') setTimeout(() => Bee.start(), 500); } /* an owner's list of StudioGBees (js/bee.js) */ if (d.cat) this.catalogs[from] = d.cat; this.onchange?.(); if (this.m.pendingInvite && !this.member(me.id) && this.isOwner(from)) this.sendJoin(); return; }
+    if (type === 'pres') { if (!this.presence[from]) { this.lastCat = null; clearTimeout(this.catT); this.catT = setTimeout(() => this.pres(), 500 + Math.random() * 1500); if (typeof MeshDirect !== 'undefined') setTimeout(() => MeshDirect.tick(), 3000); } /* someone new or back: they need our catalog */ this.presence[from] = { ...d, at: Date.now(), clock: b.ts - Date.now() }; if (d.bees && this.isOwner(from) && (d.beesAt || 0) > (this.m.beesAt || 0)) { this.save({ ...this.m, bees: d.bees, beesAt: d.beesAt }); if (typeof Bee !== 'undefined') setTimeout(() => Bee.start(), 500); } /* an owner's list of NaoMuseHives (js/bee.js) */ if (d.cat) this.catalogs[from] = d.cat; this.onchange?.(); if (this.m.pendingInvite && !this.member(me.id) && this.isOwner(from)) this.sendJoin(); return; }
     if (type === 'ev') { this.ingest(d.e || [], from, 'relay'); return; }
     if (type === 'cat') { this.catalogs[from] = d.cat; this.onchange?.(); return; }
     if (type.startsWith('show-')) return this.onShow(type, d, from, b.ts);
@@ -222,7 +222,7 @@ const Mesh = {
     const catHash = await meshHash(JSON.stringify(this.catalog())); if (catHash !== this.lastCat || this.catRev !== this.m.roster?.rev || Date.now() - (this.catAt || 0) > 300000) { d.cat = this.catalog(); this.lastCat = catHash; this.catRev = this.m.roster?.rev; this.catAt = Date.now(); } // again when it changes, when members change, and every 5 min
     this.group('pres', d);
   },
-  /** Something happened here: kept in the journal; sent full over a direct link to a StudioGen, light over the relays. */
+  /** Something happened here: kept in the journal; sent full over a direct link to a NaoMuse, light over the relays. */
   event(kind, data, dev) {
     const e = { id: Math.random().toString(36).slice(2, 10), ts: Date.now(), dev: dev || this._me?.id || 'me', kind, data };
     this.journal.push(e); if (this.journal.length > 2000) this.journal.splice(0, this.journal.length - 2000);
@@ -242,13 +242,13 @@ const Mesh = {
     for (const e of box) { const s = slim(e, 80), n = JSON.stringify(s).length; if (used + n > MESH_RELAY_BUDGET) { out.push({ id: e.id, ts: e.ts, dev: e.dev, kind: 'more', data: { n: box.length - out.length } }); break; } out.push(s); used += n; }
     if (out.length) { const n = JSON.stringify(out).length; this.sent.push({ at: now, n }); this.group('ev', { e: out }); }
   },
-  /** Events arriving (from the group channel, a direct link, the journal of a device): StudioGen keeps them. */
+  /** Events arriving (from the group channel, a direct link, the journal of a device): NaoMuse keeps them. */
   ingest(list, from, via) {
     for (const e of list) { if (!e?.id || this.events.some(x => x.id === e.id && x.dev === e.dev)) continue; e.via = via; this.events.push(e); if (LINK_HOST) MeshStore.add(e); }
     if (this.events.length > 3000) this.events.splice(0, this.events.length - 3000);
     this.onevent?.(list);
   },
-  /** StudioGen: the full journal of a device since a time (over its pairwise room or the pairing). */
+  /** NaoMuse: the full journal of a device since a time (over its pairwise room or the pairing). */
   async details(id, since = Date.now() - 3600000) {
     const room = this.pairRoom(id); if (!room) throw new Error('No room to that device');
     const r = await this.call(id, 'mesh-journal', { since }, 30000); this.ingest(r.events || [], id, 'journal'); return (r.events || []).length;
@@ -258,13 +258,13 @@ const Mesh = {
     if (!this.m || (kind !== 'run' && kind !== 'say')) return;
     this.event('request', { from: fromId || '', fromName: fromName || '', kind, via: 'pairing', script: p.script || (p.id && Scripts.get(p.id)?.name) || '', text: p.text || '', ms, rows: r?.rows?.length || 0, result: [].concat(r?.said || []).join(' ') });
   },
-  /** One of this StudioGen's owner's own devices (docs/studiogbee.html): a device paired with this Mac (pairing is only for
+  /** One of this NaoMuse's owner's own devices (docs/studiogbee.html): a device paired with this Mac (pairing is only for
       your own devices), or one ticked “Yours” in Mesh › Devices. Kept on this Mac, not in the roster, so no mesh owner can
       make their device “yours”. Own devices may run what needs this Mac's sign-ins; the mesh's permissions don't limit them. */
   own(id) { return this.ownHere(id) || Object.entries(store.get('myDevicesVia', {})).some(([by, l]) => this.ownHere(by) && l.includes(id)); },
-  /** Yours by this StudioGen's own knowledge (not by what another said): this one, paired, or ticked. */
+  /** Yours by this NaoMuse's own knowledge (not by what another said): this one, paired, or ticked. */
   ownHere(id) { return !!id && (id === this._me?.id || store.get('myDevices', []).includes(id) || (typeof Relay !== 'undefined' && (Relay.isMac() ? Relay.peers().some(p => p.meshId === id) : Relay.mac?.()?.meshId === id))); }, // a phone: the Mac it's paired with
-  /** What this StudioGen tells its owner's other StudioGens (own-sync): the devices it knows are yours. */
+  /** What this NaoMuse tells its owner's other NaoMuses (own-sync): the devices it knows are yours. */
   ownList() { return this.members().map(x => x.id).filter(id => this.ownHere(id)); },
   setOwn(id, on) { const s = new Set(store.get('myDevices', [])); on ? s.add(id) : s.delete(id); store.set('myDevices', [...s]); },
   /** Requests a member may send here (mesh-* ones, and the link's run/say/offers when its permissions allow). */
@@ -277,7 +277,7 @@ const Mesh = {
     if ((kind === 'run' || kind === 'say') && !own && who.perms?.run === false) throw new Error('This device may not run scripts on this Mac (the mesh owner can allow it)');
     if (kind === 'task' && !own && who.perms?.agent === false) throw new Error('This device may not run tasks on this Mac (the mesh owner can allow it)');
     if (kind === 'tasks' && !own && who.perms?.agent === false) return { tasks: [] };
-    if (kind === 'own-sync') { // one of your own StudioGens says which devices are yours (a Worker learns your phone this way)
+    if (kind === 'own-sync') { // one of your own NaoMuses says which devices are yours (a Worker learns your phone this way)
       if (!this.ownHere(who.id)) throw new Error('Not one of this owner’s devices');
       const l = (p.devs || []).filter(id => this.member(id)).slice(0, 100); store.set('myDevicesVia', { ...store.get('myDevicesVia', {}), [who.id]: l }); return { ok: true, n: l.length };
     }
@@ -331,7 +331,7 @@ const Mesh = {
   privateSet: () => new Set(store.get('meshPrivate', [])),
   isPrivate(k, n) { return this.privateSet().has(`${k}:${n}`); },
   setPrivate(k, n, on) { const s = this.privateSet(); on ? s.add(`${k}:${n}`) : s.delete(`${k}:${n}`); store.set('meshPrivate', [...s]); this.pres(); },
-  /** What this StudioGen shares (not private): kind, name, a version (size and a short hash of the content). */
+  /** What this NaoMuse shares (not private): kind, name, a version (size and a short hash of the content). */
   catalog() {
     if (!LINK_HOST) return [];
     const items = [...Scripts.mine().map(s => ['script', s.name, s.json]), ...Object.entries(typeof Mocap !== 'undefined' ? Mocap.saved() : {}).map(([k, m]) => ['motion', k, m]),
@@ -355,10 +355,10 @@ const Mesh = {
     if (k === 'task') Agent.put({ ...a.v, id: `my.${Date.now().toString(36)}`, share: false, name: Agent.all().some(t => t.name === a.v.name) ? `${a.v.name} (from ${this.member(owner)?.name || 'the mesh'})` : a.v.name });
     this.event('share', { what: 'fetched', kind: k, name: n, from: owner }); return true;
   },
-  /** Request mode: which StudioGen offers a script (by name), online now. */
+  /** Request mode: which NaoMuse offers a script (by name), online now. */
   whoOffers(script) { const p = plain(script); return Object.entries(this.presence).filter(([id, x]) => Date.now() - x.at < 60000 && x.app === 'StudioGen' && (x.caps?.scripts || []).some(n => plain(n) === p || plain(n).includes(p))).map(([id]) => id); },
   async runOn(id, script, vars = {}) { const room = this.pairRoom(id); if (!room) throw new Error('That device isn’t reachable in the mesh'); this.event('request', { to: id, kind: 'run', script }); return this.call(id, 'run', { script, vars }, 600000); },
-  /** DriveGen's “who's around”: the StudioGens online and what they do. */
+  /** DriveGen's “who's around”: the NaoMuses online and what they do. */
   around() { return Object.entries(this.presence).filter(([, x]) => Date.now() - x.at < 60000).map(([id, x]) => ({ id, ...x })); },
 
   /* ---------- Running ---------- */
@@ -373,7 +373,7 @@ const Mesh = {
     Bus.on('link.direct', d => this.event('link', { what: 'direct up', with: d.value }));
   },
 };
-/* ---------- StudioGen's history of events (IndexedDB), kept a week by default ---------- */
+/* ---------- NaoMuse's history of events (IndexedDB), kept a week by default ---------- */
 const MeshStore = {
   db() { return this._db ||= new Promise((res, rej) => { const r = indexedDB.open('dd-mesh', 1); r.onupgradeneeded = () => { const s = r.result.createObjectStore('ev', { keyPath: ['ts', 'id'] }); s.createIndex('ts', 'ts'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
   keepDays: () => +(store.get('meshKeepDays', 7)) || 7,
@@ -390,7 +390,7 @@ Mesh.start();
 const MeshCmd = {
   ALL: /^(all|every|each)( the)? (screens?|macs?|studiogens?|devices?)$|^everywhere$/,
   me: () => Mesh._me?.id,
-  /** A member by what was said: a name or part of it; “my Mac” is the paired StudioGen. */
+  /** A member by what was said: a name or part of it; “my Mac” is the paired NaoMuse. */
   dev(q) {
     const p = plain(q).replace(/^(the|my) /, ''); if (!p) return null;
     if (/^(mac|computer|laptop|studiogen)$/.test(p) && !LINK_HOST) return Relay.mac()?.meshId || null;
@@ -401,11 +401,11 @@ const MeshCmd = {
   name: id => Mesh.member(id)?.name || 'that device',
   online: () => Object.entries(Mesh.presence).filter(([, x]) => Date.now() - x.at < 60000),
   studios() { return this.online().filter(([, x]) => x.app === 'StudioGen').map(([id]) => id); },
-  /** The StudioGen running the show now (any member knows it from show-prepare). */
+  /** The NaoMuse running the show now (any member knows it from show-prepare). */
   conductor() { if (Mesh.conducting) return this.me(); return Object.values(Mesh.shows).filter(s => !s.ended).sort((a, b) => b.started - a.started)[0]?.conductor || null; },
   async go(op, v, say) {
     try {
-      if (!['create', 'join', 'pair', 'test', 'direct', 'rekey'].includes(op) && !Mesh.m) return say('You’re not in a mesh yet. On StudioGen: Mesh, Create a mesh; then invite the others.');
+      if (!['create', 'join', 'pair', 'test', 'direct', 'rekey'].includes(op) && !Mesh.m) return say(`You’re not in a mesh yet. On ${BRAND.mac}: Mesh, Create a mesh; then invite the others.`);
       return await this[op](v, say);
     } catch (e) { say(`That didn’t work: ${e.message}`); }
   },
@@ -414,7 +414,7 @@ const MeshCmd = {
     const l = this.online().filter(([id]) => id !== this.me()).map(([id, x]) => `${x.name || this.name(id)}${x.now?.script ? `, running ${x.now.script}` : x.show ? ', in a show' : ''}`);
     say(l.length ? `${l.length} online: ${l.join('; ')}.` : 'Nobody else in the mesh is online right now.');
   },
-  async create(v, say) { if (!LINK_HOST) return say('Create the mesh on StudioGen; this device joins it.'); if (Mesh.m) return say(`You’re already in ${Mesh.m.name}.`);
+  async create(v, say) { if (!LINK_HOST) return say(`Create the mesh on ${BRAND.mac}; this device joins it.`); if (Mesh.m) return say(`You’re already in ${Mesh.m.name}.`);
     await Mesh.create(v.name || 'My mesh'); closeSheet(); openView('mesh'); say(`Mesh ${Mesh.m.name} created. Say “invite to the mesh” to add a device.`); },
   async invite(v, say) { await MeshView.invite(); say('Here’s the invite: scan it or paste it on the other device.'); },
   async join(v, say) { MeshView.joinSheet(); say('Paste or scan the invite.'); },
@@ -446,11 +446,11 @@ const MeshCmd = {
   async shared(v, say) { closeSheet(); openView('mesh'); MeshView.tab = 'shared'; MeshView.render(); const n = Object.values(Mesh.catalogs).reduce((s, c) => s + (c?.length || 0), 0); say(`${n} things are shared in the mesh.`); },
   async relays(v, say) { if (!Mesh.amOwner()) return say('Only the mesh owner can share the relay list.'); await Mesh.updateBrokers(); say(`Relay list shared with the mesh: ${Relay.list().brokers.length} relays.`); },
   async export(v, say) { closeSheet(); openView('mesh'); await MeshView.export(true); say('The mesh history is downloading.'); },
-  /** Shows: started here (StudioGen) or on the StudioGen that has the script (asked through the mesh). */
+  /** Shows: started here (NaoMuse) or on the NaoMuse that has the script (asked through the mesh). */
   async show(v, say, mode = 'steps') {
     let to = v.device ? this.dev(v.device) : null;
     if (!to) to = LINK_HOST && this.script(v.q) ? this.me() : (Relay.mac()?.meshId && Mesh.member(Relay.mac().meshId) ? Relay.mac().meshId : Mesh.whoOffers(v.q)[0]);
-    if (!to) return say('No StudioGen online can run that show.');
+    if (!to) return say(`No ${BRAND.mac} online can run that show.`);
     return this.ask(to, { op: 'start', script: v.q, screens: v.screens || 'all', mode }, say);
   },
   tandem(v, say) { return this.show(v, say, 'tandem'); },
@@ -482,13 +482,13 @@ const MeshCmd = {
   async test(v, say) { LinkTest.show(); say('Testing the connection…'); },
   async direct(v, say) { const on = v.on !== false; store.set('directCfg', { ...store.get('directCfg', {}), mode: on ? 'auto' : 'off' }); if (!on) { Direct.close(); if (typeof MeshDirect !== 'undefined') for (const id of [...MeshDirect.links.keys()]) MeshDirect.close(id); } say(on ? 'The direct link is on: used whenever the networks allow.' : 'The direct link is off: everything goes through the relays.'); },
   async rekey(v, say) {
-    if (!LINK_HOST) return say('Change the secret on your Mac: StudioGen, Settings, Connections.');
+    if (!LINK_HOST) return say(`Change the secret on your Mac: ${BRAND.mac}, Settings, Connections.`);
     const w = plain(v.who || '').replace(/^(the|my) /, ''), ps = Relay.peers(), nm = x => plain(Mesh.member(x.meshId)?.name || x.name || ''), p = w ? ps.find(x => nm(x) === w) || ps.find(x => nm(x).includes(w) || plain(x.name || '').includes(w)) : null;
     if (v.who && !p) return say(`I can’t find ${v.who} among the paired devices.`);
     (p ? [p] : ps).forEach(x => Relay.rekey(x.id)); say(p ? `New secret sent to ${Mesh.member(p.meshId)?.name || p.name}.` : `New secrets sent to ${ps.length} device${ps.length === 1 ? '' : 's'}.`);
   },
 };
-// StudioGens tell their owner's other StudioGens (online ones they know are yours) which devices are yours, every minute
+// NaoMuses tell their owner's other NaoMuses (online ones they know are yours) which devices are yours, every minute
 setInterval(() => {
   if (!LINK_HOST || !Mesh.m || !Mesh._me) return; const devs = Mesh.ownList();
   for (const x of Mesh.members()) if (x.app === 'StudioGen' && x.id !== Mesh._me.id && Mesh.ownHere(x.id) && Date.now() - (Mesh.presence[x.id]?.at || 0) < 60000) Mesh.call(x.id, 'own-sync', { devs }, 15000).catch(() => {});

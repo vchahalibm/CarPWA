@@ -1,7 +1,7 @@
 #!/bin/sh
 # The network lab inside one privileged container, with Linux network namespaces (no Docker networking in the way):
 #   root namespace = "the internet": bridge wan0 172.31.0.1/24, coturn (STUN/TURN) and the web server on it, and NAT out to the
-#   real internet (for the public relays);  per scenario i and side x (a = StudioGen, b = DriveGen):
+#   real internet (for the public relays);  per scenario i and side x (a = NaoMuse, b = DriveGen):
 #     namespace rXi: the router, veth on wan0 (172.31.0.<10+2i+side>) and a LAN 10.<i>.<side>.1/24, NAT/firewall profile
 #     namespace pXi: the device, 10.<i>.<side>.10, default route via its router; headless Chromium runs here.
 #   ns.sh init                                   once: the internet side

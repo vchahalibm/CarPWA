@@ -5,7 +5,7 @@ const mem = {}, sent = [], ctx = { console, setInterval() {}, setTimeout() {}, d
   store: { get: (k, d) => k in mem ? mem[k] : d, set: (k, v) => { mem[k] = v; } }, WATCH_TEMPLATES: [], Agent: { cfg: () => ({}) }, settings: {},
   LINK_HOST: false, loc: { lat: 12.97161, lon: 77.59462, speed: 0, heading: 90, source: 'gps' }, nav: null,
   Link: { ready: () => true, loc: async p => { sent.push(p); return { want: true }; } }, Mesh: { m: null } };
-vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname + '/../js/mapwatch.js', 'utf8') + '\nthis.M = MapWatch;', ctx);
+ctx.BRAND = require(__dirname + '/../js/brand.js'); ctx.APP_ID = ctx.APP_ID || 'DriveGen'; vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname + '/../js/mapwatch.js', 'utf8') + '\nthis.M = MapWatch;', ctx);
 const M = ctx.M; let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 (async () => {
   let r = M.route('35 min ¦ 15.6 km ¦ via Outer Ring Rd ¦ Fastest route now due to traffic conditions');

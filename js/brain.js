@@ -37,7 +37,7 @@ const Brain = {
 ACTIONS.brain = () => Brain.settings();
 Actions.define('brain.ask', { group: 'Scripts', name: 'Ask the model (Understanding)', arg: 'The question ({variables} are filled in); keep the answer with “as”', run: v => Brain.ask(v) });
 
-/* ---------- Apple's on-device model (Foundation Models): StudioGen through its helper (desktop/ai), a phone through its
+/* ---------- Apple's on-device model (Foundation Models): NaoMuse through its helper (desktop/ai), a phone through its
    paired Mac (the link's 'ai' request, js/link.js). Needs macOS 26+, Apple silicon, Apple Intelligence on. ---------- */
 const MacAI = {
   local: () => !!window.DriveDeckDesktop?.ai,
@@ -49,12 +49,12 @@ const MacAI = {
     const t0 = performance.now(); let r;
     if (this.local()) r = await DriveDeckDesktop.ai.ask(o);
     else if (!LINK_HOST && typeof Link !== 'undefined' && Link.ready()) { try { r = await Link.ai(o); } catch (e) { if (/not available|macOS 26|Apple Intelligence|Unknown request/i.test(e.message)) this.noUntil = Date.now() + 600000; throw e; } }
-    else throw new Error('Apple’s on-device model needs StudioGen on a Mac (macOS 26 or later)');
+    else throw new Error(`Apple’s on-device model needs ${BRAND.mac} on a Mac (macOS 26 or later)`);
     if (r?.error) { if (/not available|macOS 26|Apple Intelligence/i.test(r.error)) this.noUntil = Date.now() + 600000; throw new Error(r.error); }
     Log.d('brain', `Mac model answered in ${Math.round(performance.now() - t0)} ms`, { json: !!r.json }); return r;
   },
   async text(system, user, max) { return (await this.ask({ instructions: system, prompt: user, max, temperature: 0.3 })).text || ''; },
-  /** On StudioGen: a paired phone's request (Direct.handle / LinkHost 'ai'): run it here, within limits. */
+  /** On NaoMuse: a paired phone's request (Direct.handle / LinkHost 'ai'): run it here, within limits. */
   async answer(p) { if (!this.local()) throw new Error('Apple’s on-device model isn’t available on this Mac'); return DriveDeckDesktop.ai.ask({ instructions: p.instructions, prompt: p.prompt, schema: p.schema, temperature: p.temperature, max: p.max }); },
 };
 

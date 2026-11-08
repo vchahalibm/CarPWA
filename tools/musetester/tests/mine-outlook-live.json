@@ -1,5 +1,5 @@
 {
-  "id": "mine-outlook-live", "profile": "mine", "title": "Your Outlook: New mail reads, and a live New mail watcher keeps StudioGen responsive", "tags": ["outlook", "watchers", "real", "health"],
+  "id": "mine-outlook-live", "profile": "mine", "title": "Your Outlook: New mail reads, and a live New mail watcher keeps NaoMuse responsive", "tags": ["outlook", "watchers", "real", "health"],
   "tryitout": ["Outlook: make New mail", "A live Outlook New mail watcher for an hour"],
   "steps": [
     { "do": "launch", "practice": false },

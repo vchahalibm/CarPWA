@@ -1,6 +1,6 @@
-# What people can do with DriveGen and StudioGen: the task catalogue
+# What people can do with DriveGen and NaoMuse: the task catalogue
 
-A working list for the script library (draft for discussion, 23 Oct 2026). Each task is something a person asks for, by voice or typing, in the car (DriveGen) or at the desk (StudioGen), that the Mac carries out as an agent: with its apps, web pages, files, data and Apple's on-device model.
+A working list for the script library (draft for discussion, 23 Oct 2026). Each task is something a person asks for, by voice or typing, in the car (DriveGen) or at the desk (NaoMuse), that the Mac carries out as an agent: with its apps, web pages, files, data and Apple's on-device model.
 
 **How to read it.** Each line: the task · *parameters* (the words filled from what was said) · where it runs (**Mac**, **phone**, **mesh**) · what it needs (Outlook web, Mail, a database…). ⚠ = acts on your behalf (sends, pays, deletes, books): always confirmed first.
 
@@ -59,7 +59,7 @@ A working list for the script library (draft for discussion, 23 Oct 2026). Each 
 44. Translate this document to Hindi · *file, language*
 45. Back up the project folder to the drive · *folder, target*
 
-## 5. Presenting (StudioGen's home ground)
+## 5. Presenting (NaoMuse's home ground)
 46. Present the keynote with the assistant (slides, voice, gestures) · *deck/script*
 47. Rehearse: run through the deck, time each slide, tell me where I rushed · *deck*
 48. Answer questions from the audience using the deck and its notes · *deck*

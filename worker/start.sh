@@ -1,5 +1,5 @@
 #!/bin/sh
-# StudioGen Worker (worker/README.md): a virtual screen nobody looks at, then StudioGen in it. Extra arguments go to StudioGen.
+# NaoMuse Worker (worker/README.md): a virtual screen nobody looks at, then NaoMuse in it. Extra arguments go to NaoMuse.
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 # left by the last run (docker restart)
 Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
 export DISPLAY=:99

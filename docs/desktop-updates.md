@@ -1,6 +1,6 @@
-# StudioGen updates
+# NaoMuse updates
 
-StudioGen (the desktop app) updates itself from this repository's GitHub release **`updates`**, which
+NaoMuse (the desktop app) updates itself from this repository's GitHub release **`updates`**, which
 `.github/workflows/desktop.yml` publishes on every push to `main`. There's no Apple Developer ID, so it doesn't use
 Squirrel/electron-updater; `desktop/updater.js` does it.
 
@@ -9,7 +9,7 @@ Squirrel/electron-updater; `desktop/updater.js` does it.
 | Layer | What | How often | How it's applied |
 |---|---|---|---|
 | **Web** | `index.html`, `js/`, `css/`, `icons/`, `samples/`, `bridge/`… (one ~0.6 MB `web-app-<n>.tar.gz`) and `vendor/` (one ~47 MB `web-vendor-<hash>.tar.gz`, only downloaded when the libraries change) | Every push that changes web files | Unpacked under `~/Library/Application Support/StudioGen/updates/`, served instead of the copy inside the app; **Restart now** restarts the app |
-| **Shell** | The Electron app itself: `desktop/main.js`, `preload.js`, `webview-preload.js`, `updater.js`, Electron (zipped `StudioGen-<v>-arm64-mac.zip` / `-mac.zip`) | Only when `desktop/package.json` `version` goes up | Unzipped with `ditto`, swapped into place when you quit or press **Restart now**; the old copy is kept as `StudioGen.app.old` until the new one starts, then removed |
+| **Shell** | The Electron app itself: `desktop/main.js`, `preload.js`, `webview-preload.js`, `updater.js`, Electron (zipped `NaoMuse-<v>-arm64-mac.zip` / `-mac.zip`) | Only when `desktop/package.json` `version` goes up | Unzipped with `ditto`, swapped into place when you quit or press **Restart now**; the old copy is kept as `NaoMuse.app.old` until the new one starts, then removed |
 
 **Lazy files** (`LAZY` in desktop/updater.js: `vendor/models/*.vrm`, `vendor/mediapipe/models/*.task`,
 `vendor/mediapipe/wasm/*.wasm`) are in neither the app nor the vendor bundle. `web-version.json` lists each with its
@@ -36,11 +36,11 @@ Check for updates). Checks run 20 s after start and every 4 hours.
 
 ### The keys
 
-Made once with Node (`crypto.generateKeyPairSync('ed25519')`), kept outside the repository in `~/StudioGen-update-keys/`:
+Made once with Node (`crypto.generateKeyPairSync('ed25519')`), kept outside the repository in `~/NaoMuse-update-keys/`:
 
 - `update-private.pem`: **secret**. Only in the repository secret `UPDATE_SIGNING_KEY` and your own backup. Anyone with
-  it can ship code to every StudioGen. Set or replace the secret with
-  `gh secret set UPDATE_SIGNING_KEY < ~/StudioGen-update-keys/update-private.pem`.
+  it can ship code to every NaoMuse. Set or replace the secret with
+  `gh secret set UPDATE_SIGNING_KEY < ~/NaoMuse-update-keys/update-private.pem`.
 - `update-public.pem`: public; its contents are `PUBLIC_KEY` in `desktop/updater.js`.
 
 **Rotating the key** (if the private key leaks): make a new pair, put the new public key in `updater.js`, bump the
@@ -51,7 +51,7 @@ replace the secret. Apps that skip that update need a manual DMG install.
 
 `STUDIOGEN_FEED=http://localhost:8765/` points a packaged app at a local feed (it still has to be signed with the real
 key): `WEB_VERSION=2 node tools/release/make-update.mjs version`, then
-`UPDATE_SIGNING_KEY="$(cat ~/StudioGen-update-keys/update-private.pem)" node tools/release/make-update.mjs pack feed/`,
+`UPDATE_SIGNING_KEY="$(cat ~/NaoMuse-update-keys/update-private.pem)" node tools/release/make-update.mjs pack feed/`,
 serve `feed/` and run the app with `--user-data-dir=<scratch>` so your own data isn't touched.
 
 ## When the shell has to change (bump `desktop/package.json` version)

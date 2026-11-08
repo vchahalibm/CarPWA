@@ -345,7 +345,7 @@ const PhoneVoices = {
   pick() { return (settings.phoneVoice && ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).find(v => v.voiceURI === settings.phoneVoice)) || this.ranked()[0] || null; },
 };
 
-/* StudioGen: Apple's speech recognizer through the desktop app (desktop/speech.js), shaped like the Web Speech API that
+/* NaoMuse: Apple's speech recognizer through the desktop app (desktop/speech.js), shaped like the Web Speech API that
    Electron lacks (lang, continuous, interimResults, maxAlternatives; onstart/onresult/onerror/onend; start/stop/abort),
    so listening and conversations use it as they use the phone's recognizer. It's told the words to expect: script names,
    the mesh's devices, the app's own words. */
@@ -361,7 +361,7 @@ class MacSpeech {
   }
   static ok(lang) { return !!MacSpeech.pick(lang); }
   static context() {
-    const w = ['StudioGen', 'DriveGen', 'mesh', 'Stage', 'keynote'];
+    const w = [BRAND.mac, BRAND.phone, BRAND.hive, 'mesh', 'Stage', 'keynote'];
     try { w.push(...Scripts.all().map(x => x.name)); } catch {}
     try { if (typeof Mesh !== 'undefined' && Mesh.m) w.push(Mesh.m.name, ...Mesh.members().map(x => x.name)); } catch {}
     return [...new Set(w.filter(Boolean))].slice(0, 100);

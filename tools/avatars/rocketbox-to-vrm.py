@@ -91,7 +91,7 @@ print('EXPRESSIONS', len(ak), 'ARKit +', len(vi), 'visemes')
 # Meta: Microsoft Rocketbox, MIT licence.
 m = ext.vrm1.meta; m.vrm_name = name
 a = m.authors.add(); a.value = 'Microsoft (Rocketbox Avatar Library)'
-m.copyright_information = 'Copyright (c) Microsoft Corporation. MIT licence. Converted to VRM for DriveGen/StudioGen.'
+m.copyright_information = 'Copyright (c) Microsoft Corporation. MIT licence. Converted to VRM for DriveGen/NaoMuse.'
 m.other_license_url = 'https://github.com/microsoft/Microsoft-Rocketbox/blob/master/LICENSE'
 m.avatar_permission = 'everyone'; m.commercial_usage = 'corporation'; m.allow_redistribution = True; m.modification = 'allowModificationRedistribution'; m.credit_notation = 'unnecessary'
 bpy.ops.object.select_all(action='DESELECT')

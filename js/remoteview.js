@@ -1,30 +1,30 @@
 'use strict';
 /* ============================================================
-   Seeing and using a StudioGen from another device (design: docs/studiogbee.html § 4 and § 8).
-   - Signing in from your phone: when a task stops at a sign-in page, the phone shows StudioGen's agent browser live and you
+   Seeing and using a NaoMuse from another device (design: docs/studiogbee.html § 4 and § 8).
+   - Signing in from your phone: when a task stops at a sign-in page, the phone shows NaoMuse's agent browser live and you
      sign in there (pictures one way, your taps and typing the other). Signing in at the Mac stays the first choice.
-   - The whole app: a StudioGen without a screen (StudioGen Worker in Docker) is set up and used this way.
-   Only the StudioGen's owner's own devices (Agent.ownDevice), only over a direct link (the relays are far too slow for
-   pictures). StudioGen shows who is looking, with Stop. What you type goes straight into the page: never logged, recorded
+   - The whole app: a NaoMuse without a screen (NaoMuse Worker in Docker) is set up and used this way.
+   Only the NaoMuse's owner's own devices (Agent.ownDevice), only over a direct link (the relays are far too slow for
+   pictures). NaoMuse shows who is looking, with Stop. What you type goes straight into the page: never logged, recorded
    or kept; this is the only thing that may type into a password field, and only what you type live.
    Host side: `RemoteView.answer` (Direct.handle 'view-*'). Viewer side: `RemoteView.open(to, target)`.
    Loaded after appsteps.js and agent.js.
    ============================================================ */
 const RemoteView = {
   sessions: new Map(),
-  /* ---------- On the StudioGen being looked at ---------- */
+  /* ---------- On the NaoMuse being looked at ---------- */
   async answer(kind, p, who) {
-    if (!LINK_HOST) throw new Error('Only StudioGen can be looked at');
-    if (typeof Agent === 'undefined' || !Agent.ownDevice(who)) throw new Error('Only this StudioGen’s owner’s own devices can see and use it');
-    if (!who?.direct) throw new Error('Seeing StudioGen needs a direct link (the same network, or one the networks allow): the relays are too slow for pictures');
+    if (!LINK_HOST) throw new Error(`Only ${BRAND.mac} can be looked at`);
+    if (typeof Agent === 'undefined' || !Agent.ownDevice(who)) throw new Error(`Only this ${BRAND.mac}’s owner’s own devices can see and use it`);
+    if (!who?.direct) throw new Error(`Seeing ${BRAND.mac} needs a direct link (the same network, or one the networks allow): the relays are too slow for pictures`);
     if (kind === 'view-open') {
       const id = Math.random().toString(36).slice(2), target = p.target === 'app' ? 'app' : 'web';
-      if (target === 'web') { if (!AgentWeb.can()) throw new Error('This StudioGen has no agent browser'); AgentWeb.watch(false); AgentWeb.use(p.container || AgentWeb.cur); AgentWeb.show(true); if (p.url && /^https?:\/\//.test(p.url)) AgentWeb.go(p.url, p.container); }
+      if (target === 'web') { if (!AgentWeb.can()) throw new Error(`This ${BRAND.mac} has no agent browser`); AgentWeb.watch(false); AgentWeb.use(p.container || AgentWeb.cur); AgentWeb.show(true); if (p.url && /^https?:\/\//.test(p.url)) AgentWeb.go(p.url, p.container); }
       this.sessions.set(id, { id, target, who: who.name || 'A device', at: Date.now(), seen: Date.now() }); this.banner();
       Log.i('remote', `${who.name || 'A device'} opened the ${target === 'web' ? 'agent browser' : 'app'} from afar`);
       return { id, target, containers: typeof Containers !== 'undefined' ? Containers.all().map(c => ({ id: c.id, name: c.name })) : [], cur: AgentWeb.cur?.split('|')[0] };
     }
-    const s = this.sessions.get(p.id); if (!s) throw new Error('That view was closed on StudioGen');
+    const s = this.sessions.get(p.id); if (!s) throw new Error(`That view was closed on ${BRAND.mac}`);
     s.seen = Date.now();
     if (kind === 'view-frame') return this.frame(s, Math.min(1400, Math.max(320, +p.w || 900)));
     if (kind === 'view-input') { await this.input(s, p.ev || {}); return { ok: true }; }
@@ -64,7 +64,7 @@ const RemoteView = {
     if (s.target === 'web' && ![...this.sessions.values()].some(x => x.target === 'web')) AgentWeb.show(false);
     Log.i('remote', `${s.who} closed the view`); this.banner();
   },
-  /** Who is looking, always visible on StudioGen while they are, with Stop. */
+  /** Who is looking, always visible on NaoMuse while they are, with Stop. */
   banner() {
     let b = $('#rvBanner'); const l = [...this.sessions.values()];
     if (!l.length) { b?.remove(); return; }
@@ -73,14 +73,14 @@ const RemoteView = {
   },
 
   /* ---------- On the device looking ---------- */
-  /** to: { meshId, name } (a StudioGen in the mesh), or null for the paired Mac. target: 'web' (the agent browser) or 'app'. */
+  /** to: { meshId, name } (a NaoMuse in the mesh), or null for the paired Mac. target: 'web' (the agent browser) or 'app'. */
   async open(to, target = 'web', o = {}) {
     const call = (kind, p, ms = 20000) => {
       if (to?.meshId && typeof MeshDirect !== 'undefined' && MeshDirect.open(to.meshId)) return Mesh.call(to.meshId, kind, p, ms);
       if ((!to?.meshId || to.meshId === Relay.mac?.()?.meshId) && typeof Direct !== 'undefined' && Direct.connected) return Direct.call(kind, p, ms);
       return Promise.reject(new Error(`Seeing ${to?.name || 'your Mac'} needs a direct link: be on the same network (or let the networks allow one: Settings › Connections › Direct link)`));
     };
-    const name = to?.name || (typeof Link !== 'undefined' ? Link.macName() : 'StudioGen');
+    const name = to?.name || (typeof Link !== 'undefined' ? Link.macName() : BRAND.mac);
     let s; try { s = await call('view-open', { target, container: o.container, url: o.url }); } catch (e) { return sheet('Can’t see it from here', `<p>${esc(e.message)}</p><p class="se-note">Or sign in at ${esc(name)} itself: the agent browser is open there.</p>`, [['OK']]); }
     this.v = { s, call, name, target, on: true };
     let f = $('#rvView'); f?.remove(); f = document.createElement('div'); f.id = 'rvView'; f.className = 'rv-view';
@@ -104,10 +104,10 @@ const RemoteView = {
   send(ev) { const v = this.v; if (!v?.on) return; v.quick = true; v.call('view-input', { id: v.s.id, ev }).catch(e => toast(e.message)); },
   close() { const v = this.v; if (!v) return; v.on = false; v.call('view-close', { id: v.s.id }, 5000).catch(() => {}); this.v = null; $('#rvView')?.remove(); },
 };
-// StudioGen: a view nobody asks pictures of for 30 s is closed
+// NaoMuse: a view nobody asks pictures of for 30 s is closed
 setInterval(() => { for (const s of RemoteView.sessions.values()) if (Date.now() - s.seen > 30000) RemoteView.stop(s.id); }, 10000);
 document.addEventListener('click', e => {
-  const o = e.target.closest('[data-rvopen]'); if (o) { e.stopPropagation(); const [target, id] = o.dataset.rvopen.split('|'); closeSheet(); return RemoteView.open(id ? { meshId: id, name: Mesh.member(id)?.name || 'StudioGen' } : null, target); }
+  const o = e.target.closest('[data-rvopen]'); if (o) { e.stopPropagation(); const [target, id] = o.dataset.rvopen.split('|'); closeSheet(); return RemoteView.open(id ? { meshId: id, name: Mesh.member(id)?.name || BRAND.mac } : null, target); }
   const b = e.target.closest('[data-rv]'); if (b) {
     const [k, arg] = b.dataset.rv.split(':');
     if (k === 'stopall') { for (const id of [...RemoteView.sessions.keys()]) RemoteView.stop(id); return; }

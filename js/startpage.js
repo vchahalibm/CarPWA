@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================
-   The start page (StudioGen's first screen; DriveGen can choose it too): flowing waves in the background, the
+   The start page (NaoMuse's first screen; DriveGen can choose it too): flowing waves in the background, the
    assistant standing in the middle (the Stage avatar, moved here: one instance, nothing loaded twice), a short
    description top-left, and cards to get going: start presenting, recent scripts, the mesh, connections.
    - The waves are one canvas at ~30 fps, paused when the page isn't showing or the app is hidden, still when the
@@ -23,7 +23,7 @@ const StartPage = {
     root.innerHTML = `<canvas class="sp-waves" aria-hidden="true"></canvas>
       <div class="sp-head">
         <h1 class="sp-title"><span class="sp-grad">Act together: voice, scripts, shows and screens</span> <span class="sp-plain">from one place</span></h1>
-        <p class="sp-sub">${APP_NAME === 'StudioGen' ? 'StudioGen gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.' : 'DriveGen gives you an agent in the car: talk to it to navigate, call and message, hear your mail and calendar, run tasks on your Mac and start shows on your screens, hands-free, with the answers shown big and simple.'}</p>
+        <p class="sp-sub">${APP_ID === 'StudioGen' ? `${BRAND.mac} gives your presentations a voice and a face: an assistant that presents your scripts, answers what you ask, runs them on your other Macs and phones, and keeps every screen in step.` : 'DriveGen gives you an agent in the car: talk to it to navigate, call and message, hear your mail and calendar, run tasks on your Mac and start shows on your screens, hands-free, with the answers shown big and simple.'}</p>
       </div>
       <div class="sp-avatar mw" data-media="${esc(this.avatarId())}" style="--sp-av:${this.look().size / 100};--sp-x:${this.look().x}%;--sp-y:${this.look().y}%" title="Drag to move her"><div class="mw-body"></div></div>
       <button class="sp-handle" data-sp="dock" aria-label="Show the apps"><i></i></button>
@@ -108,7 +108,7 @@ document.addEventListener('click', e => {
   else if (k === 'dock') $('#app').classList.toggle('sp-dock-open');
   else if (k === 'custom') StartPage.customize();
   else if (k === 'mesh') openView('mesh');
-  else if (k === 'net') (APP_NAME === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : Link.settings());
+  else if (k === 'net') (APP_ID === 'StudioGen' && typeof LinkHost !== 'undefined' ? LinkHost.settings() : Link.settings());
 });
 // The dock on the start page: in from the left edge (pointer at the edge, or the handle), out again when the pointer leaves it or the page is tapped.
 document.addEventListener('pointermove', e => {

@@ -1,5 +1,5 @@
 {
-  "id": "app-health", "title": "Several live watchers for two minutes: StudioGen keeps answering, no errors, a clean quit", "tags": ["health", "practice"],
+  "id": "app-health", "title": "Several live watchers for two minutes: NaoMuse keeps answering, no errors, a clean quit", "tags": ["health", "practice"],
   "tryitout": ["A live Outlook New mail watcher for an hour"],
   "steps": [
     { "do": "launch", "practice": true }, { "do": "practice.signin" },

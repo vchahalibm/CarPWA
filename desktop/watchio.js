@@ -2,12 +2,13 @@
 /* What watchers (js/watch.js) need from the Mac itself:
    - folders and files: only ones the user picked in the open dialog (remembered in watch-paths.json); listed (names, sizes,
      times; up to 3 levels, 3,000 entries) and text files read (512 KB), never written;
-   - app windows: their names, and a picture of one (desktopCapturer; needs Screen Recording for StudioGen), read on the page
+   - app windows: their names, and a picture of one (desktopCapturer; needs Screen Recording for NaoMuse), read on the page
      by the screen model; nothing is kept;
    - the change history: one CSV per watcher in <userData>/watch-history, appended when a watcher tells something, shown in
      the data widget;
    - debugging: “Diagnose this page” files (a page's structure with its words replaced by shapes, what was tried) in
-     <userData>/diagnostics (the newest 40), and the debug log, when it's on, in ~/Library/Logs/StudioGen/debug.log. */
+     <userData>/diagnostics (the newest 40), and the debug log, when it's on, in ~/Library/Logs/NaoMuse/debug.log. */
+const BRAND = require('./brand');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -27,7 +28,7 @@ module.exports = ({ app, dialog, desktopCapturer, systemPreferences, getWindow }
       const p = path.resolve(r.filePaths[0]), l = allowed(); if (!l.includes(p)) { l.push(p); fs.writeFileSync(approvals(), JSON.stringify(l, null, 2)); }
       return p;
     }
-    const p = ok(a.path); if (!p) return { error: 'Pick that folder or file in StudioGen first (the watcher asks you once)' };
+    const p = ok(a.path); if (!p) return { error: `Pick that folder or file in ${BRAND.mac} first (the watcher asks you once)` };
     if (op === 'list') {
       const out = [], depth = Math.min(3, +a.depth || 1);
       const st = fs.statSync(p); if (!st.isDirectory()) return { entries: [{ p: path.basename(p), size: st.size, mtime: st.mtimeMs, dir: false }] };
@@ -42,12 +43,12 @@ module.exports = ({ app, dialog, desktopCapturer, systemPreferences, getWindow }
   async function windows(op, a = {}) {
     const access = process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted';
     if (op === 'status') return access;
-    if (op === 'list') { const l = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }); return { access, list: l.map(s => s.name).filter(n => n && !/^StudioGen$/.test(n)) }; }
+    if (op === 'list') { const l = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }); return { access, list: l.map(s => s.name).filter(n => n && n !== BRAND.mac && n !== 'StudioGen') }; }
     if (op === 'shot') {
       const l = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1600, height: 1200 }, fetchWindowIcons: false });
       const q = String(a.name || '').toLowerCase(), s = l.find(x => x.name.toLowerCase() === q) || l.find(x => x.name.toLowerCase().includes(q));
       if (!s) return { access, error: `No window called “${a.name}” is open` };
-      if (s.thumbnail.isEmpty()) return { access, error: 'StudioGen may not see other windows yet: allow it in System Settings › Privacy & Security › Screen Recording' };
+      if (s.thumbnail.isEmpty()) return { access, error: `${BRAND.mac} may not see other windows yet: allow it in System Settings › Privacy & Security › Screen Recording` };
       const z = s.thumbnail.getSize(); return { access, name: s.name, w: z.width, h: z.height, png: s.thumbnail.toDataURL() };
     }
     return null;

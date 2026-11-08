@@ -86,7 +86,7 @@ const TaskLLM = {
     sheet(`Imported: ${t.name}`, `<p class="se-note">${t.steps.length} steps · asked as “${esc(t.examples[0])}”${Object.keys(t.params).length ? ` · inputs ${Object.keys(t.params).map(k => `{${esc(k)}}`).join(', ')}` : ''}${t.acts ? ' · acts for you (asked first)' : ''}</p>
       ${chk.warnings.length ? `<ul class="se-note">${chk.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
       ${(o.verify || []).length ? `<p class="se-note"><b>The LLM wasn’t sure of</b>: ${o.verify.map(v => `step ${esc(v.step)} (${esc(v.what || '')})`).join(', ')}. The check run tests them.</p>` : ''}
-      <p>${AgentWeb.can() ? 'Next: a check run on the page, step by step (nothing is sent).' : 'Check runs need StudioGen on a Mac: it’s saved and can be checked there.'}</p>`,
+      <p>${AgentWeb.can() ? 'Next: a check run on the page, step by step (nothing is sent).' : `Check runs need ${BRAND.mac} on a Mac: it’s saved and can be checked there.`}</p>`,
       [...(AgentWeb.can() ? [['Check it now', () => this.check(t)]] : []), ['Open in the editor', () => { Agent.put(t); TaskUI.open(t.id); }], ['Save', () => { Agent.put(t); toast('Saved'); }], ['Cancel']]);
   },
   /** The inputs' values for a check run: the task's test values, else asked here. */

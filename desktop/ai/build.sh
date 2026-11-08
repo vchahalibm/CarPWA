@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds desktop/ai/bin/sg-ai: Apple's on-device language model for StudioGen, Apple silicon and Intel in one file
+# Builds desktop/ai/bin/sg-ai: Apple's on-device language model for NaoMuse, Apple silicon and Intel in one file
 # (the framework is weakly linked: on a Mac before macOS 26 it starts and says it isn't available), ad-hoc signed.
 set -e
 cd "$(dirname "$0")"; mkdir -p bin

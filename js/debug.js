@@ -226,7 +226,7 @@ const DebugUI = {
     this.taps = [];
     this.askKey();
   },
-  /** The debug key, in the app's own sheet (StudioGen's Electron has no window.prompt: it silently did nothing). */
+  /** The debug key, in the app's own sheet (NaoMuse's Electron has no window.prompt: it silently did nothing). */
   askKey() {
     if (Log.on) { this.tab = 'logs'; return renderSettings(); }
     sheet('Debug log', '<p class="se-note">For chasing a problem with support: it records what the app does (never your keys or passwords) on this device, in Settings › Logs.</p><label class="se-field"><span>Debug key</span><input id="dbgKey" type="password" autocomplete="off" autocapitalize="off"></label>',

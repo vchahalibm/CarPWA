@@ -2,12 +2,13 @@
 /* The link to DriveGen (the web app on an iPhone or iPad): a small API on this Mac, shared on the user's tailnet.
    - Listens on 127.0.0.1 only (port 47800); `tailscale serve` puts it at https://<this Mac>.<tailnet>.ts.net with a
      trusted certificate, reachable only from the user's own Tailscale devices (from anywhere, also the car on mobile data).
-   - Pairing: StudioGen shows a one-time 6-digit code (10 minutes, 5 tries); DriveGen sends it with its name and gets a
+   - Pairing: NaoMuse shows a one-time 6-digit code (10 minutes, 5 tries); DriveGen sends it with its name and gets a
      token of its own (kept here as a SHA-256 in link-devices.json; Revoke deletes it).
    - With a token: GET /api/offers (scripts the user made available to paired devices), POST /api/run { script, vars }
-     and POST /api/say { text } (what was said, for StudioGen's running interactive script), GET /api/jobs/<id>?wait=25
+     and POST /api/say { text } (what was said, for NaoMuse's running interactive script), GET /api/jobs/<id>?wait=25
      for the outcome { state, said, result, rows }. The page does the work (ask() → the renderer, js/link.js).
    - CORS: any origin may ask (DriveGen's address can change); nothing works without a token but /api/hello and /api/pair. */
+const BRAND = require('./brand');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -36,7 +37,7 @@ module.exports = ({ app, ask }) => {
     if (p === '/api/hello') return send(res, 200, { app: 'StudioGen', name: os.hostname().replace(/\.local$/, ''), version: app.getVersion() });
     if (p === '/api/pair' && req.method === 'POST') {
       const b = await body(req);
-      if (!pairing || Date.now() > pairing.until) return send(res, 403, { error: 'No pairing code is shown: open StudioGen › Settings › Connections › Pair a device' });
+      if (!pairing || Date.now() > pairing.until) return send(res, 403, { error: `No pairing code is shown: open ${BRAND.mac} › Settings › Connections › Pair a device` });
       if (String(b.code || '').replace(/\D/g, '') !== pairing.code) { if (++pairing.tries >= 5) pairing = null; return send(res, 403, { error: 'That code isn’t right' }); }
       const token = crypto.randomBytes(24).toString('base64url'), d = { id: crypto.randomBytes(4).toString('hex'), name: String(b.device || 'A device').slice(0, 60), hash: sha(token), paired: new Date().toISOString() };
       save([...devices(), d]); pairing = null; ask('paired', { name: d.name }).catch(() => {});

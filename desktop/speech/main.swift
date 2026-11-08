@@ -1,4 +1,4 @@
-// sg-speech: Apple's speech recognizer for StudioGen (desktop/speech.js starts it; the page sees it as
+// sg-speech: Apple's speech recognizer for NaoMuse (desktop/speech.js starts it; the page sees it as
 // window.DriveDeckDesktop.speech and js/voice.js wraps it as a Web Speech API recognizer).
 // Electron has no Web Speech API, and Whisper misses words with some accents (Indian English); this one supports
 // en-IN and the other Indian languages, works on the device where the Mac can, and can be told the words to expect.
@@ -120,14 +120,14 @@ func authorize(_ then: @escaping () -> Void) {
     AVCaptureDevice.requestAccess(for: .audio) { mic in
       let auth = ["authorized", "denied", "restricted", "notDetermined"][[SFSpeechRecognizerAuthorizationStatus.authorized, .denied, .restricted, .notDetermined].firstIndex(of: st) ?? 3]
       emit(["ev": "ready", "auth": auth, "mic": mic])
-      DispatchQueue.main.async { if st == .authorized && mic { then() } else { listener.fail("not-allowed", "Speech recognition or the microphone isn't allowed for StudioGen (System Settings › Privacy & Security)") } }
+      DispatchQueue.main.async { if st == .authorized && mic { then() } else { listener.fail("not-allowed", "Speech recognition or the microphone isn't allowed for NaoMuse (System Settings › Privacy & Security)") } }
     }
   }
 }
 
 FileHandle.standardInput.readabilityHandler = { h in
   let data = h.availableData
-  if data.isEmpty { exit(0) } // StudioGen went away
+  if data.isEmpty { exit(0) } // NaoMuse went away
   for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
     guard let o = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any], let cmd = o["cmd"] as? String else { continue }
     DispatchQueue.main.async {

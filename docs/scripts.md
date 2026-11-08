@@ -123,7 +123,7 @@ leave the microphone to you), and when what you say matches an intent, does it, 
   as a local Ollama) a language model picks the intent and fills its slots, or answers briefly; otherwise `fallback`.
 - The action `brain.ask` (“Ask the model”) asks the model anything from a step; keep the answer with `as`.
 
-## Tasks on this computer (StudioGen on a Mac)
+## Tasks on this computer (NaoMuse on a Mac)
 
 `{ "do": "os.applescript" | "os.jxa" | "os.shortcut" | "os.shell", "value": "<code, or the Shortcut's name>", "args": ["{month}"], "as": "result", "timeout": 60 }`
 
@@ -134,21 +134,21 @@ leave the microphone to you), and when what you say matches an intent, does it, 
   by its SHA-256; changed or imported code asks again) or **Don't run**. Settings › System › Tasks you always allow.
 - The output is text, or data when it prints JSON; a failure sets `{result_error}`. Mark it `background` to keep talking
   meanwhile. macOS asks once per app a task controls (Automation).
-- Ready-made tasks are in the editor's picker (This computer). DriveGen will run them through a paired StudioGen.
+- Ready-made tasks are in the editor's picker (This computer). DriveGen will run them through a paired NaoMuse.
 
 ## The agent's steps (js/agent.js)
 
 Tasks of the agent library are scripts like these, with inputs (`params`) filled from what was said. The steps work in any script:
-- `agent.open` (a web address in StudioGen's agent browser; `?name=value` inputs go into the address, `wait=<selector>`, `site=<name>` to ask for a sign-in), `agent.read` (selectors to read, `||` between choices; the whole page if none fit), `agent.wait`, `agent.click` (by text, or `sel=`), `agent.type` (a field by label, the text, `enter`), `agent.key`, `agent.show`, `agent.fail` (stop with a message), `agent.task` (run another task: `name=value` inputs; a composite).
+- `agent.open` (a web address in NaoMuse's agent browser; `?name=value` inputs go into the address, `wait=<selector>`, `site=<name>` to ask for a sign-in), `agent.read` (selectors to read, `||` between choices; the whole page if none fit), `agent.wait`, `agent.click` (by text, or `sel=`), `agent.type` (a field by label, the text, `enter`), `agent.key`, `agent.show`, `agent.fail` (stop with a message), `agent.task` (run another task: `name=value` inputs; a composite).
 - `ai.card` (the model makes a card `{ headline, items: [{ title, detail, when, place, person }] }` from text: `{ "do": "ai.card", "value": "what to pull out", "args": ["{read}"], "as": "card" }`), `ai.when` (a spoken time → `{ start, end }`).
 - `car.park`, `car.findcar`, `car.eta`. Use `{read}` (not `{page}`, which is the slide number) for page text.
 
 ## Data (the data widget)
 
 - `{ "do": "data.csv", "value": "samples/sales.csv", "as": "rows" }`: a CSV, TSV or JSON link, or a path on this computer
-  (StudioGen; the first read of each file asks). The rows go into the data widget (one is added when there's none) and `as`.
+  (NaoMuse; the first read of each file asks). The rows go into the data widget (one is added when there's none) and `as`.
 - `{ "do": "data.sql", "value": "SELECT region, SUM(revenue) AS revenue FROM sales WHERE month = ? GROUP BY region", "args": ["~/data/sales.sqlite", "{month}"] }`:
-  SQLite in StudioGen, **read-only**; the query is used as written and the inputs after the file are bound to each `?`.
+  SQLite in NaoMuse, **read-only**; the query is used as written and the inputs after the file are bound to each `?`.
 - `{ "do": "data.show", "value": "{rows}" }`: rows from an earlier step (a task's JSON, the model's answer, CSV text).
 - `{ "do": "data.chart", "value": "bar of revenue by region" }` or `type=line x=month y=revenue,units agg=sum sort=desc top=5 view=chart`
   (types bar, line, pie, doughnut, scatter, none; agg none, sum, avg, count, min, max; sort none, x, desc, asc; view both, chart, table).

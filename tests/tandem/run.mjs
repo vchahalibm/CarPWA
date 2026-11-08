@@ -1,8 +1,8 @@
-// Tandem tests: several StudioGens and DriveGens on this Mac, steps done by you or by the runner,
+// Tandem tests: several NaoMuses and DriveGens on this Mac, steps done by you or by the runner,
 // every step checked by watching the apps. Design and use: tests/tandem/README.md.
 //   node tests/tandem/run.mjs [--journey demo|basic] [--auto] [--only act1,act2,…] [--phone sim|chrome] [--studio electron|chrome] [--port 8822] [--hold]
 // The journeys (acts of steps) are in journeys.mjs.
-// StudioGens: the desktop app from desktop/ (or Chrome in lab mode), each with its own scratch profile, never yours.
+// NaoMuses: the desktop app from desktop/ (or Chrome in lab mode), each with its own scratch profile, never yours.
 // Phones: the iOS Simulator's Safari (Xcode), else a phone-sized Chrome window.
 // The control panel (opened in your browser) shows what to do now, each device's state and the results.
 import { spawn, execFileSync } from 'child_process';
@@ -76,9 +76,9 @@ function cdpDevice(id, label, kind, launch) {
   return d;
 }
 let nextPort = 9700;
-// a debugging port nobody is using (a StudioGen left over from a run that was killed would answer on it with old code)
+// a debugging port nobody is using (a NaoMuse left over from a run that was killed would answer on it with old code)
 const freePort = async () => { for (;;) { const p = nextPort++; try { await fetch(`http://127.0.0.1:${p}/json/version`, { signal: AbortSignal.timeout(500) }); } catch { return p; } } };
-const studio = (id, label) => cdpDevice(id, label, STUDIO === 'electron' ? 'StudioGen (desktop app)' : 'StudioGen (Chrome, lab mode)', port => {
+const studio = (id, label) => cdpDevice(id, label, STUDIO === 'electron' ? 'NaoMuse (desktop app)' : 'NaoMuse (Chrome, lab mode)', port => {
   const dir = path.join(TMP, id);
   if (STUDIO === 'electron') { const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE; return { port, want: 'index.html', proc: spawn(ELECTRON, ['.', `--user-data-dir=${dir}`, `--remote-debugging-port=${port}`], { cwd: path.join(ROOT, 'desktop'), env, stdio: 'ignore' }) }; }
   return { port, want: 'index.html', proc: spawn(CHROME, [`--user-data-dir=${dir}`, `--remote-debugging-port=${port}`, '--no-first-run', '--window-size=1280,800', `--app=${BASE}?linktest=host`], { stdio: 'ignore' }) };
@@ -142,7 +142,7 @@ async function runStep(sc, s, n) {
     await sleep(1000);
   }
 }
-console.log(`Tandem run ${RUN}, journey ${JOURNEY}: StudioGens as ${STUDIO}, phone as ${PHONE}, ${AUTO ? 'automatic' : 'tandem (you do the marked steps)'}\nControl panel: http://localhost:${PORT}/tandem/`);
+console.log(`Tandem run ${RUN}, journey ${JOURNEY}: NaoMuses as ${STUDIO}, phone as ${PHONE}, ${AUTO ? 'automatic' : 'tandem (you do the marked steps)'}\nControl panel: http://localhost:${PORT}/tandem/`);
 if (!AUTO && !process.argv.includes('--no-open')) try { execFileSync('open', [`http://localhost:${PORT}/tandem/`]); } catch {}
 ui.step = { title: 'Starting the devices…', status: 'waiting' };
 for (const d of devs) { await d.start(); say(`${d.label} ready: ${d.kind}`); }

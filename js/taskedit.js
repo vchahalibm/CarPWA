@@ -181,7 +181,7 @@ const TaskTeach = {
   },
   /** Start recording in the agent browser at `url` (or where it is, to add steps). */
   async start(url, o = {}) {
-    if (!AgentWeb.can()) return toast('Teach me needs StudioGen on a Mac');
+    if (!AgentWeb.can()) return toast(`Teach me needs ${BRAND.mac} on a Mac`);
     this.on = true; this.steps = []; this.typed = []; this.append = !!o.append; this.start0 = url || AgentWeb.url();
     AgentWeb.show(true); this.bar(true);
     if (url) await AgentWeb.go(url);

@@ -1,11 +1,11 @@
-# StudioGen Worker
+# NaoMuse Worker
 
-StudioGen without a screen, in a Linux container.
+NaoMuse without a screen, in a Linux container.
 
-**The easy way: StudioGen › Mesh › Workers › + New Worker** (or Settings › Connections › Workers). Pick **In OrbStack** (StudioGen installs OrbStack if needed and runs the published image `ghcr.io/vchahalibm/studiogen-worker`), **Light, on this Mac** (a hidden StudioGen with its own profile, nothing to install), or **On another machine** (a command to paste there). It joins your mesh as yours, uses your Mac's language model, and you sign in to it with **Sign in from here**. The rest of this page is the manual way. It is one of your own StudioGens: it keeps its own sign-ins (for example a WhatsApp or a work account you don't want on your Mac), runs tasks for your devices, and shares what you share with the mesh. You set it up and use it from your other devices. Design: [docs/studiogbee.html](../docs/studiogbee.html) § 8.
+**The easy way: NaoMuse › Mesh › Workers › + New Worker** (or Settings › Connections › Workers). Pick **In OrbStack** (NaoMuse installs OrbStack if needed and runs the published image `ghcr.io/vchahalibm/studiogen-worker`), **Light, on this Mac** (a hidden NaoMuse with its own profile, nothing to install), or **On another machine** (a command to paste there). It joins your mesh as yours, uses your Mac's language model, and you sign in to it with **Sign in from here**. The rest of this page is the manual way. It is one of your own NaoMuses: it keeps its own sign-ins (for example a WhatsApp or a work account you don't want on your Mac), runs tasks for your devices, and shares what you share with the mesh. You set it up and use it from your other devices. Design: [docs/studiogbee.html](../docs/studiogbee.html) § 8.
 
-**Not there, compared with StudioGen on a Mac:**
-- Apple's on-device model. Nothing is needed instead: the Worker uses **your Mac's language model** (gpt-oss, StudioGen › Settings › Assistant › Language model) through the mesh.
+**Not there, compared with NaoMuse on a Mac:**
+- Apple's on-device model. Nothing is needed instead: the Worker uses **your Mac's language model** (gpt-oss, NaoMuse › Settings › Assistant › Language model) through the mesh.
 - Apple speech, the 3D assistant and the voice.
 - AppleScript and Shortcuts.
 
@@ -13,7 +13,7 @@ StudioGen without a screen, in a Linux container.
 
 ## 1. An invite for it
 
-On your Mac: **StudioGen › Mesh › Invite › One of my own devices**. Copy the text (`SGM…`).
+On your Mac: **NaoMuse › Mesh › Invite › One of my own devices**. Copy the text (`SGM…`).
 
 This kind of invite marks the Worker as yours on that Mac, and the Mac as yours on the Worker. Your Mac then tells the Worker which other devices are yours (your iPhone, your iPad), so they can run its tasks.
 
@@ -60,7 +60,7 @@ It joins your mesh by itself. In a minute it shows in **Mesh › Devices** as yo
   - This needs a direct link, so be on the same network as the machine running Docker.
   - While someone is looking, the Worker's own screen shows who it is, with Stop.
 - **See and set up the whole app:** **See its screen**. This is how you reach its Settings (containers, tasks to share, and so on).
-- **Side by side:** like StudioGen, it runs up to 3 tasks at once (one per site); their cards are all written by your Mac's model.
+- **Side by side:** like NaoMuse, it runs up to 3 tasks at once (one per site); their cards are all written by your Mac's model.
 - **Ask:** your devices find its tasks the same way as your Mac's. For one of its tasks, "unread WhatsApp" goes to the Worker.
 
 ## Where its data is

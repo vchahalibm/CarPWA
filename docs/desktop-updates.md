@@ -36,11 +36,11 @@ Check for updates). Checks run 20 s after start and every 4 hours.
 
 ### The keys
 
-Made once with Node (`crypto.generateKeyPairSync('ed25519')`), kept outside the repository in `~/NaoMuse-update-keys/`:
+Made once with Node (`crypto.generateKeyPairSync('ed25519')`), kept outside the repository in `~/StudioGen-update-keys/`:
 
 - `update-private.pem`: **secret**. Only in the repository secret `UPDATE_SIGNING_KEY` and your own backup. Anyone with
   it can ship code to every NaoMuse. Set or replace the secret with
-  `gh secret set UPDATE_SIGNING_KEY < ~/NaoMuse-update-keys/update-private.pem`.
+  `gh secret set UPDATE_SIGNING_KEY < ~/StudioGen-update-keys/update-private.pem`.
 - `update-public.pem`: public; its contents are `PUBLIC_KEY` in `desktop/updater.js`.
 
 **Rotating the key** (if the private key leaks): make a new pair, put the new public key in `updater.js`, bump the
@@ -51,7 +51,7 @@ replace the secret. Apps that skip that update need a manual DMG install.
 
 `STUDIOGEN_FEED=http://localhost:8765/` points a packaged app at a local feed (it still has to be signed with the real
 key): `WEB_VERSION=2 node tools/release/make-update.mjs version`, then
-`UPDATE_SIGNING_KEY="$(cat ~/NaoMuse-update-keys/update-private.pem)" node tools/release/make-update.mjs pack feed/`,
+`UPDATE_SIGNING_KEY="$(cat ~/StudioGen-update-keys/update-private.pem)" node tools/release/make-update.mjs pack feed/`,
 serve `feed/` and run the app with `--user-data-dir=<scratch>` so your own data isn't touched.
 
 ## When the shell has to change (bump `desktop/package.json` version)
@@ -76,23 +76,47 @@ Most work is web files and arrives as a web update. These need a new shell (a ve
 
 Everything under `js/`, `css/`, `index.html`, `presenter.html`, `samples/`, `icons/` (in-app), `vendor/` is web layer.
 
-## Publishing: private source, public build
+## Publishing from this Mac
 
-The source repository is private (vchahalibm/NaoMuse). What runs is published to the public repository vchahalibm/CarPWA
-by `.github/workflows/publish.yml`, so DriveGen's address (vchahalibm.github.io/CarPWA/), the update feed
-(github.com/vchahalibm/CarPWA/releases/download/updates/) and the big files' address (raw.githubusercontent.com/vchahalibm/CarPWA/)
-stay exactly what installed apps already use.
+The source lives on this Mac and nowhere else. What runs is built here and pushed to the public repository
+**vchahalibm/CarPWA**, which installed apps already use: GitHub Pages serves DriveGen from its main branch, the update
+feed is its `updates` release, and big files come from its tags. Nothing had to move or be renamed.
 
-- **What's public:** the web app, practice sites, script library, vendor files and guides (`tools/release/dist.mjs public`), with the
-  app's own JavaScript minified (`dist.mjs minify`: js/, bridge/, sw.js; the Mac build and the Worker image also desktop/*.js). Not
-  public: desktop/, tools/, tests/, bee/, worker/, CLAUDE.md, the try-it-out list. Minified code is harder to read, not secret.
-- **Each push to main:** `site` commits the public files to the public repo and tags them `w<version>` (the app fetches avatars and
-  models at that tag); `mac` builds the DMGs only when desktop/package.json's version isn't in the published feed (or a
-  `desktop-v*` tag, or by hand); `feed` signs update.json and publishes it, keeping the published shell when there was no Mac build.
-  Update numbers are 1000 + the run number (the old workflow reached 149; an app never takes a lower number).
-- **The token:** the secret `DIST_TOKEN` in the source repo: a fine-grained personal access token, resource owner vchahalibm,
-  repository access *Only select repositories* › the public repo, permission *Contents: Read and write*. Make it at
-  github.com/settings/personal-access-tokens/new, then `gh secret set DIST_TOKEN -R vchahalibm/NaoMuse`. The repo variable
-  `PUBLISH=on` turns the workflow on; `DIST_REPO` names the public repo.
-- **Free minutes** (private repos: 2,000 a month; a macOS minute counts as ten): a push costs a few Linux minutes; a Mac build about
-  150; the Worker image builds only with a new desktop version, a worker/ change or by hand; the network test runs weekly on Linux.
+```
+node tools/release/PublishApps.mjs                 everything that changed: the web app, the Mac app, the images
+node tools/release/PublishApps.mjs --dry           build and check everything, push nothing
+node tools/release/PublishApps.mjs --only web      just one: web, mac, hive, worker (comma-separated for several)
+node tools/release/backup.mjs --upload             a locked copy of the source, kept in the public repo
+```
+
+It prints a plan first (what it will build, and why the rest is skipped), runs the checks, builds, asks before
+pushing, then checks the feed and the website really changed. The Mac app builds only when `desktop/package.json`'s
+version isn't published yet; the NaoMuseHive image (ghcr.io/vchahalibm/naomusehive) only when bee/ changed since its
+last tag (`hive-v<version>`), the Worker image (ghcr.io/vchahalibm/studiogen-worker) only when what it's built from
+changed since `worker-v<version>`. Images are built for both kinds of processor and need a token that may publish
+packages, once: `gh auth refresh -s write:packages`. How often to publish is up to you: nothing runs by itself.
+On "minified and obfuscated": what ships is minified (comments gone, local names shortened, one long line), not
+obfuscated. That makes it a chore to read, not impossible; see the note on keeping valuable logic off the device.
+
+- **It builds from the last commit**, in a throwaway worktree, so your working tree is never minified and what ships is
+  what you committed. It refuses to run with uncommitted changes.
+- **The checks run first** (the ones CI used to run: the code parses, phrases, watchers, map watchers, lookahead,
+  MuseTester's coverage, the names, the Handbook, the packaged desktop files, the manifest). A failure publishes nothing.
+- **What goes out**: the web app, practice sites, script library, vendor files and guides, with the app's own JavaScript
+  minified (`tools/release/dist.mjs`). Never desktop/, tools/, tests/, bee/, worker/, CLAUDE.md or the try-it-out list.
+- **The Mac app** is built here by electron-builder and signed with the certificate in your login keychain, so every
+  version keeps the same identity. It is built only when `desktop/package.json`'s version isn't in the published feed
+  yet (or `--mac`). The DMGs go to a `v<version>` release.
+- **The feed** is signed here with `~/StudioGen-update-keys/update-private.pem`. With no Mac build, the published shell
+  entry is kept (`PREV_UPDATE`), so a web-only release needs no build at all.
+- **Update numbers** continue above the old CI runs (they reached 149, so these start at 1000).
+- **There is no CI.** The checks are the publish script's first step; run them yourself any time with the same commands.
+- **Pushing source is blocked**: the remote is named `public-dist-do-not-push` and `.githooks/pre-push` refuses. The
+  publish script pushes from its own copy.
+- **Backup.** The Mac is the only place the source exists, so `backup.mjs --upload` puts an encrypted bundle of every
+  branch and commit in the public repo's `backup` release. It is AES-256 with a slow key derivation, so it is only noise
+  to anyone else. The passphrase is `~/StudioGen-update-keys/backup-pass.txt`: **keep a copy in your password manager**,
+  because nothing can open the backup without it. Restore with
+  `node tools/release/backup.mjs --restore <file.enc> <new folder>`.
+- **What was already public stays public.** The repository's history still holds the source as it was until November
+  2026; that cannot be recalled. From here on, only the built app is pushed.

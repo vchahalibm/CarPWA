@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installer Guide</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .g { color:var(--ok); } .r { color:var(--bad); } .d { color:var(--mut); }
+</style>
+</head>
+<body>
+<main>
+<h1>The installer: everything that runs in containers</h1>
+<p class="mut"><code>naomuse-install</code> sets up what runs in containers: on your Mac, NaoMuseHive, home Node-RED behind its dark gate and the Worker image; on your Oracle machine, the dark relay, TURN and the cloud Node-RED. One file, nothing to install first. It checks the Mac, says what can and can't run there and why, lets you choose, then installs, starts and tests.</p>
+
+<ul class="toc">
+  <li><a href="#what">1. What it sets up</a></li>
+  <li><a href="#get">2. Getting it</a></li>
+  <li><a href="#screens">3. The four screens</a></li>
+  <li><a href="#checks">4. What it checks, and what that means</a></li>
+  <li><a href="#turn">5. Why there's no TURN at home</a></li>
+  <li><a href="#engine">6. OrbStack or Colima</a></li>
+  <li><a href="#home">7. Home Node-RED, after installing</a></li>
+  <li><a href="#oracle">8. Your Oracle machine</a></li>
+  <li><a href="#options">9. Without the screens: every option</a></li>
+  <li><a href="#where">10. Where things go</a></li>
+  <li><a href="#trouble">11. When something goes wrong</a></li>
+  <li><a href="#uninstall">12. Uninstalling</a></li>
+  <li><a href="#app">13. NaoMuse itself</a></li>
+</ul>
+
+<h2 id="what">1. What it sets up</h2>
+<div class="wrap"><table>
+<tr><th>Part</th><th>What it is</th><th>Where it runs</th></tr>
+<tr><td><b>NaoMuse</b> (the Mac app)</td><td>Installed or updated from GitHub, from the same signed feed the app updates itself from: nothing is installed that its publisher didn't sign. Your settings, sign-ins and memory are kept.</td><td>This Mac, in Applications</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td>Your own always-on hive: a request waits there while a Mac is away, and the answer comes back when it's on again. It only sees sealed messages.</td><td>This Mac, port 8840</td></tr>
+<tr><td><b>Home Node-RED</b></td><td>Flows for your cameras and switches (ffmpeg included), behind a gate that only NaoMuse can open, with a login of its own as a second lock. Once there's an Oracle machine, a narrow link lets the cloud Node-RED ask it for the things you list, and nothing else.</td><td>This Mac; the gate on port 8030, Node-RED itself has no port</td></tr>
+<tr><td><b>NaoMuse Worker</b></td><td>Its image, downloaded now so Mesh › Workers starts one at once.</td><td>This Mac</td></tr>
+<tr><td><b>Oracle machine</b></td><td>The dark relay, TURN, the cloud Node-RED and its gate, behind one TLS door. Built on your Mac, sent over SSH, started there.</td><td>Your free Oracle VM (stack/ORACLE.md)</td></tr>
+</table></div>
+
+<h2 id="get">2. Getting it</h2>
+<p>In Terminal:</p>
+<pre>curl -fsSLo naomuse-install https://github.com/vchahalibm/CarPWA/releases/download/installer/naomuse-install
+chmod +x naomuse-install
+./naomuse-install</pre>
+<p class="mut">A download through the browser is held back by macOS, since the installer isn't notarised by Apple; curl's isn't. On the Mac with the source: <code>node installer/build.mjs</code> makes <code>installer/dist/naomuse-install</code>.</p>
+
+<h2 id="screens">3. The screens</h2>
+<p>It draws on its own near-black ground, whatever your Terminal's colours: the name in big pixel letters (smaller when the window is short), and a row of steps showing where you are: <b>Check › Choose › Install › Test</b> (or <b>Remove</b> when uninstalling).</p>
+<h3>Check</h3>
+<p>Each check gets a ✓ (fine), ! (works, with a note), ✗ (can't) or • (good to know), with a line saying what it found.</p>
+<h3>What would you like to do?</h3>
+<p>After the checks: <b>Install or update</b>, <b>Test what's installed</b> (once something is), <b>Uninstall</b> (section 12), or <b>Quit</b>. ↑ ↓ and <b>enter</b>.</p>
+<h3>Choose</h3>
+<p>What can run here, already chosen for you from the checks. ↑ ↓ move, <b>space</b> ticks, <b>← →</b> picks the engine to install when there's none, <b>enter</b> goes on. Something that can't run here is struck through, with the reason:</p>
+<pre> ▚▞ NAOMUSE  Installer for the magic
+ ✓ Check ─── ● Choose ─── ○ Install ─── ○ Test
+
+  What can run here
+  chosen for you from the checks; change anything, then enter
+
+    [•] Container engine  OrbStack
+        already here and running: used as it is
+    [ ] NaoMuse (the Mac app)
+        up to date (0.19.0); it updates its web files by itself · tick to install it afresh
+  ┃ [✓] NaoMuseHive
+  ┃     your own always-on hive: carries messages and wake-ups between your devices
+  ┃     port 8840, about 60 MB of memory
+    [✓] Home Node-RED
+        flows for your cameras and switches, behind a gate only NaoMuse can open; ffmpeg included
+        with its gate (8030) · asks for your mesh fingerprint next
+    [ ] NaoMuse Worker
+     ✗  Home TURN
+        not on a Mac: Docker here passes every packet on as if from its own address (tested) …
+    [ ] Oracle machine
+        once the VM exists (stack/ORACLE.md): asks for its IP and SSH host next
+    [✓] Tests
+
+  ↑↓ move  ·  space on/off  ·  ←→ choose  ·  enter continue  ·  esc back</pre>
+<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs your mesh, so Mesh › Create a mesh first, and a NaoMuse with web 164 or newer: the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
+<h3>Install</h3>
+<p>Each step in turn with a spinner, a progress bar, and the last lines of what's happening underneath. <b>q</b> twice stops in the middle; what's done stays done, and running it again carries on.</p>
+<h3>Test</h3>
+<p>That each part runs, and stays dark to a stranger. Then a last screen with where everything is and what to do next, which stays printed in your Terminal when you leave.</p>
+
+<h2 id="checks">4. What it checks, and what that means</h2>
+<div class="wrap"><table>
+<tr><th>Check</th><th>What it means for you</th></tr>
+<tr><td>This Mac, memory, free space</td><td>macOS 13 or newer for the engines. All of it together needs about 1 GB of memory and 5 GB of disk.</td></tr>
+<tr><td>Container engine</td><td>OrbStack, Docker Desktop or Colima, if there's one. If not, you pick one to install (section 6).</td></tr>
+<tr><td>Internet</td><td>The engine and images come from GitHub and Docker Hub.</td></tr>
+<tr><td>IPv4 from outside</td><td>Whether your home's address is your own or shared with other homes (CGNAT). It asks the router; if the router won't say, it looks at the first hop past it. Shared is fine for everything here: it all dials out.</td></tr>
+<tr><td>IPv6</td><td>Your Mac's lasting IPv6 address (macOS also makes temporary ones that change daily). With IPv6, devices that have it too can often connect straight to your Mac, without TURN.</td></tr>
+<tr><td>Ports</td><td>8840 (the hive) and 8030 (the home gate) must be free, or already ours.</td></tr>
+<tr><td>The Mac app, dark-server settings</td><td>Whether NaoMuse is installed (it starts Workers), and whether your settings exist yet (they're made while installing).</td></tr>
+</table></div>
+
+<h2 id="turn">5. Why there's no TURN at home</h2>
+<p>TURN is the helper that carries a call or a camera's video when two devices can't reach each other directly. Running it at home, next to the cameras, would save Oracle's bandwidth. But on a Mac every container engine runs Linux inside a small virtual machine, and passes packets on <b>as if they came from its own address</b>. We tested it: a container saw every sender as <code>192.168.215.1</code>, OrbStack's own address. TURN has to see who's really sending, so it can't work there.</p>
+<div class="card ok"><b>What you get instead.</b> With IPv6 (the checks say), devices that have it too can often connect straight to your Mac, with no TURN at all. Everything else goes through Oracle's TURN. Oracle gives 10 TB a month; a 2 Mbps camera watched non-stop through TURN uses about 650 GB. A Linux box at home (a Raspberry Pi) could run TURN properly later.</div>
+
+<h2 id="engine">6. OrbStack or Colima</h2>
+<div class="wrap"><table>
+<tr><th></th><th>OrbStack</th><th>Colima</th></tr>
+<tr><td>Cost</td><td>Free for personal use</td><td>Free and open source (MIT)</td></tr>
+<tr><td>What it installs</td><td>OrbStack.app in Applications (checked as notarised by Apple)</td><td>Colima, Lima, Docker's command line, Compose and Buildx in <code>~/.naomuse</code>; nothing in system folders. Each download is a pinned version, checked against its published SHA-256</td></tr>
+<tr><td>First start</td><td>A short setup in OrbStack's own window: finish it there and the installer carries on</td><td>Downloads its small Linux machine (a few minutes)</td></tr>
+<tr><td>Also used by</td><td>NaoMuse's Workers (In OrbStack)</td><td></td></tr>
+</table></div>
+<p>An engine that's already there is used as it is.</p>
+
+<h2 id="home">7. Home Node-RED, after installing</h2>
+<ol>
+  <li><code>naomuse-install --code</code> prints a code. Paste it in NaoMuse › <b>Settings › Connections › Dark servers</b>. Before there's an Oracle machine it holds only the home gate.</li>
+  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (it needs your mesh: Mesh › Create a mesh).</li>
+  <li><b>Open</b> beside <i>Home Node-RED</i>: your browser goes through the gate (the link works once) to Node-RED's login. The user is <code>admin</code>; the password comes from <code>naomuse-install --passwords</code>.</li>
+  <li>What Oracle may ask home to do goes in <code>~/StudioGen-update-keys/dark/home/capabilities.json</code>: one entry per thing, by name. Run the installer again after changing it. Flows for a switch and a camera still: stack/ORACLE.md, Part 4.</li>
+</ol>
+<p>Give your Mac a fixed address in your router's settings, so the gate's address (for example <code>http://192.168.1.105:8030</code>) doesn't change.</p>
+
+<h2 id="oracle">8. Your Oracle machine</h2>
+<p>Create the VM and open its ports first (stack/ORACLE.md, steps A1 to A5). Then run the installer and tick <b>Oracle machine</b>. It asks for the machine's IP and SSH host, then:</p>
+<ul>
+  <li>makes the relay, TURN and link secrets and the random addresses, kept on your Mac;</li>
+  <li>builds the servers here for the machine's Arm processor, sends the images and settings over SSH (secrets travel only over SSH), and starts them;</li>
+  <li>knocks on them from outside the way a stranger would: the relay shut to strangers, TURN answering only address questions without a login, the gates a bare 404, only the door facing the internet.</li>
+</ul>
+<p>Then paste the new <code>--code</code> in NaoMuse and DriveGen: it now holds the relay as well.</p>
+
+<h2 id="options">9. Without the screens: every option</h2>
+<div class="wrap"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>--check</code> (<code>--json</code>)</td><td>Checks the Mac and says what can run. Changes nothing.</td></tr>
+<tr><td><code>--yes --pick app,hive,home,worker,oracle</code></td><td>Installs those without the screens (<code>--fingerprint</code>, <code>--engine orbstack|colima</code>, <code>--oracle-ip</code>). Without <code>--pick</code>: what the checks recommend.</td></tr>
+<tr><td><code>--oracle naomuse-a1</code></td><td>Sends that Oracle machine its servers, starts and tests them. <code>--machine edge|cloud</code> for two Micro machines.</td></tr>
+<tr><td><code>--test</code></td><td>The tests, on what's installed.</td></tr>
+<tr><td><code>--status</code></td><td>What's running.</td></tr>
+<tr><td><code>--stop</code></td><td>Stops it all. Flows, hive data and settings are kept; running it again starts them.</td></tr>
+<tr><td><code>--code</code> / <code>--passwords</code></td><td>The code for the apps / the Node-RED logins.</td></tr>
+<tr><td><code>--uninstall</code> (<code>--pick …</code>, <code>--json</code>)</td><td>Says what it would remove; with <code>--yes</code>, removes it. Without <code>--pick</code>: the containers only (section 12).</td></tr>
+</table></div>
+
+<h2 id="where">10. Where things go</h2>
+<div class="wrap"><table>
+<tr><th>Where</th><th>What</th></tr>
+<tr><td><code>~/.naomuse/</code></td><td>The installer's own: what the images are built from, Colima's tools if it installed them, and what's installed (never secrets)</td></tr>
+<tr><td><code>~/StudioGen-update-keys/dark/</code></td><td>Your settings and secrets, readable only by you (stack/README.md › How to control the secrets)</td></tr>
+<tr><td>Docker volumes</td><td><code>naomuse_nodered-data</code> (your flows), <code>bee_studiogbee</code> (the hive's data)</td></tr>
+</table></div>
+
+<h2 id="trouble">11. When something goes wrong</h2>
+<div class="wrap"><table>
+<tr><th>It says</th><th>Do this</th></tr>
+<tr><td>A step didn't work</td><td>Its last lines are shown. Fix that, then <b>r</b> to try again; what was done stays done.</td></tr>
+<tr><td>Port 8840 or 8030 is taken by another program</td><td>Stop that program, or leave that part out.</td></tr>
+<tr><td>a container named studiogbee was started another way</td><td><code>docker rm -f studiogbee</code> (its data volume is kept), then run it again.</td></tr>
+<tr><td>can't use Docker on naomuse-a1 over SSH</td><td>Check <code>ssh naomuse-a1 docker ps</code> works (stack/ORACLE.md, steps A3 and A4).</td></tr>
+<tr><td>TURN: no answer on UDP 3478</td><td>Open UDP 3478 and 49160–49200 in Oracle's security list and on the machine (step A5).</td></tr>
+<tr><td>The engine didn't start</td><td>Open OrbStack (or run <code>colima start</code>) yourself, then run the installer again.</td></tr>
+</table></div>
+
+<h2 id="uninstall">12. Uninstalling</h2>
+<p>Run it again and choose <b>Uninstall</b>. It lists what it finds (not just what it remembers), each with what removing it means; what isn't here is greyed out:</p>
+<div class="wrap"><table>
+<tr><th>Part</th><th>Removed</th><th>Ticked at first</th></tr>
+<tr><td>NaoMuseHive, Home Node-RED</td><td>Their containers, images and networks</td><td>Yes</td></tr>
+<tr><td>NaoMuse Worker</td><td>The image, and the Workers made from it</td><td>Yes</td></tr>
+<tr><td>Oracle machine's servers</td><td>Over SSH: its containers, images and <code>~/naomuse</code> there. The VM itself stays: delete it in Oracle's console</td><td>No</td></tr>
+<tr><td>Their data</td><td>Your flows, the hive's data, Workers' sign-ins (Docker volumes). Can't be undone</td><td>No</td></tr>
+<tr><td>Settings and secrets</td><td><code>~/StudioGen-update-keys/dark/</code> only, never what's around it. The code in your apps stops working</td><td>No</td></tr>
+<tr><td>NaoMuse</td><td>To the Bin. Its settings, sign-ins and memory stay in <code>~/Library/Application Support/StudioGen</code></td><td>No</td></tr>
+<tr><td>Container engine</td><td>Only one this installer installed (Colima removed, OrbStack to the Bin)</td><td>No</td></tr>
+</table></div>
+<p>When something that can't be put back is ticked (data, settings, the engine, the Oracle machine's servers), it asks for <b>y</b> rather than enter. Without the screens: <code>naomuse-install --uninstall</code> says what it would remove, and <code>--uninstall --pick hive,home,data --yes</code> removes it.</p>
+
+<h2 id="app">13. NaoMuse itself</h2>
+<p>The Check screen shows the app's version and the web files it runs (for example <i>NaoMuse 0.19.0 · web 150</i>), and what's published. On Choose, <b>NaoMuse (the Mac app)</b> is ticked when it isn't installed or a newer one is published. It reads <code>update.json</code> from the <code>updates</code> release, checks its signature with the publisher's key (the one the app itself uses), downloads the zip for your processor, checks its SHA-256, quits NaoMuse if it's running, moves the old one to the Bin and puts the new one in Applications. Downloaded this way, not through a browser, macOS doesn't hold it back. Web updates still come by themselves when the app starts.</p>
+</main>
+</body>
+</html>

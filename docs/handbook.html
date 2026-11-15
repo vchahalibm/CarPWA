@@ -243,16 +243,58 @@ ol li,ul li{margin:5px 0}
   .act { counter-reset:step; } .act li { margin:8px 0; }
 
 }
+#ch-p{
+
+  &{ --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; } }
+  :root[data-theme="dark"] &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  &{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .g { color:var(--ok); } .r { color:var(--bad); } .d { color:var(--mut); }
+
+}
+#ch-i{
+
+  &{ --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; } }
+  :root[data-theme="dark"] &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  &{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .g { color:var(--ok); } .r { color:var(--bad); } .d { color:var(--mut); }
+
+}
 </style>
 </head>
 <body>
 <div class="hb">
-<nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a><b>Start here</b><details><summary><a href="#u">1. The apps, end to end</a></summary><a href="#u-what">What the apps are</a><a href="#u-install">Install and set up</a><a href="#u-pair">Pair your phone with your Mac</a><a href="#u-around">Getting around</a><a href="#u-voice">Talking to it</a><a href="#u-agent">The agent: tasks for you</a><a href="#u-drive">In the car</a><a href="#u-dash">The dashboard and widgets</a><a href="#u-stage">Stage and the assistant (presenting)</a><a href="#u-scripts">Scripts</a><a href="#u-mac">Tasks, data and web pages on the Mac</a><a href="#u-connect">Connections</a><a href="#u-mesh">The Mesh and shows</a><a href="#u-settings">Settings at a glance</a><a href="#u-privacy">Privacy and safety</a><a href="#u-trouble">When something goes wrong</a><a href="#u-phrases">Things you can say</a></details><b>Every day</b><details><summary><a href="#w">2. Watchers</a></summary><a href="#w-what">What a watcher is</a><a href="#w-first">Your first watcher, in a minute</a><a href="#w-ways">More ways to make one</a><a href="#w-varun">Example: new messages from one person (Varun)</a><a href="#w-road">On the road: lookahead, a faster way, leave by, and more</a><a href="#w-templates">The templates</a><a href="#w-kinds">What it tells you about</a><a href="#w-told">How you're told</a><a href="#w-filters">When not to tell</a><a href="#w-actions">And then: actions</a><a href="#w-history">The change history</a><a href="#w-list">The Watchers list and editing</a><a href="#w-wrong">When something goes wrong</a><a href="#w-where">Where they run</a><a href="#w-hooks">Webhooks</a><a href="#w-say">Things you can say</a><a href="#w-privacy">Privacy and manners</a></details><b>Make your own</b><details><summary><a href="#s">3. Scripts and tasks</a></summary><a href="#s-which">Script or task?</a><a href="#s-practice">The practice sites</a><a href="#s-s-make">Make a script</a><a href="#s-s-wizard">Add a step (the wizard)</a><a href="#s-s-do">What a step can show or do</a><a href="#s-s-next">Moving on</a><a href="#s-s-record">Record a new script</a><a href="#s-s-interactive">Interactive scripts</a><a href="#s-s-logic">Logic: values, if, loops, background jobs</a><a href="#s-s-more">Data, your Mac, and tasks from scripts</a><a href="#s-s-run">Run, rehearse, share</a><a href="#s-t-list">Agent tasks: the list</a><a href="#s-t-teach">Teach me</a><a href="#s-t-edit">The editor and inputs</a><a href="#s-t-steps">Task steps, one by one</a><a href="#s-t-test">Test, watch, fix</a><a href="#s-t-act">Acting for you, People, sharing</a><a href="#s-t-llm">Build with an LLM</a><a href="#s-find">Finding things on a page</a><a href="#s-r-repeat">Recipe: repeat over items in a list tested</a><a href="#s-r-more">Recipe: repeat until nothing is left tested</a><a href="#s-r-search">Recipe: search, open the first result, read it tested</a><a href="#s-r-empty">Recipe: stop when nothing is found tested</a><a href="#s-r-slow">Recipe: slow pages, pop-ups and sign-ins</a><a href="#s-r-changing">Recipe: elements whose text changes</a><a href="#s-r-chain">Recipe: use one task's result in another</a><a href="#s-r-combine">Recipe: several sources in one answer tested</a><a href="#s-r-send">Recipe: send something, safely</a><a href="#s-r-scripts">Script recipes</a><a href="#s-trouble">Troubleshooting</a></details><b>Under the hood</b><details><summary><a href="#c">4. How the apps talk</a></summary><a href="#c-what">1. What it does</a><a href="#c-doors">2. The front-door problem</a><a href="#c-meet">3. Meeting places (relays)</a><a href="#c-lock">4. Locked boxes (how messages are kept secret)</a><a href="#c-pair">5. Pairing: sharing the key in person</a><a href="#c-direct">6. Talking directly</a><a href="#c-switch">7. When a meeting place closes</a><a href="#c-phrase">8. Your own secret phrase</a><a href="#c-change">9. Changing the secret: you're in control</a><a href="#c-test">10. Checking that it works</a><a href="#c-files">11. Where this lives in the code</a><a href="#c-words">12. Word list</a></details><b>Testing</b><details><summary><a href="#m">5. MuseTester</a></summary><a href="#m-need">1. What you need</a><a href="#m-run">2. Running tests</a><a href="#m-panel">3. The control panel</a><a href="#m-engine">4. One engine: RPA</a><a href="#m-first">5. Your first test</a><a href="#m-targets">6. Finding things on the screen</a><a href="#m-steps">7. Every step</a><a href="#m-check">8. Checking results</a><a href="#m-web">9. Pages in the agent browser</a><a href="#m-record">10. Recording a test</a><a href="#m-scripts">11. The same engine in scripts</a><a href="#m-rule">12. The rule: a test for every feature</a><a href="#m-log">13. Results and the run log</a><a href="#m-tips">14. Tips and trouble</a></details><details><summary><a href="#t">6. Demo Day: the tandem runner</a></summary><a href="#t-need">1. What you need (once)</a><a href="#t-start">2. Start the run</a><a href="#t-panel">3. The control panel</a><a href="#t-talk">4. Doing a step: tap, talk or type</a><a href="#t-journey">5. The journey, act by act</a><a href="#t-results">6. Results</a><a href="#t-commands">7. Commands you can say or type</a><a href="#t-sims">8. iPhone simulators by hand</a><a href="#t-trouble">9. If something goes wrong</a></details><b>Appendix</b><a href="#design">Design notes</a></nav>
+<nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a><b>Start here</b><details><summary><a href="#u">1. The apps, end to end</a></summary><a href="#u-what">What the apps are</a><a href="#u-install">Install and set up</a><a href="#u-pair">Pair your phone with your Mac</a><a href="#u-around">Getting around</a><a href="#u-voice">Talking to it</a><a href="#u-agent">The agent: tasks for you</a><a href="#u-drive">In the car</a><a href="#u-dash">The dashboard and widgets</a><a href="#u-stage">Stage and the assistant (presenting)</a><a href="#u-scripts">Scripts</a><a href="#u-mac">Tasks, data and web pages on the Mac</a><a href="#u-connect">Connections</a><a href="#u-mesh">The Mesh and shows</a><a href="#u-settings">Settings at a glance</a><a href="#u-privacy">Privacy and safety</a><a href="#u-trouble">When something goes wrong</a><a href="#u-phrases">Things you can say</a></details><b>Every day</b><details><summary><a href="#w">2. Watchers</a></summary><a href="#w-what">What a watcher is</a><a href="#w-first">Your first watcher, in a minute</a><a href="#w-ways">More ways to make one</a><a href="#w-varun">Example: new messages from one person (Varun)</a><a href="#w-road">On the road: lookahead, a faster way, leave by, and more</a><a href="#w-templates">The templates</a><a href="#w-kinds">What it tells you about</a><a href="#w-told">How you're told</a><a href="#w-filters">When not to tell</a><a href="#w-actions">And then: actions</a><a href="#w-history">The change history</a><a href="#w-list">The Watchers list and editing</a><a href="#w-wrong">When something goes wrong</a><a href="#w-where">Where they run</a><a href="#w-hooks">Webhooks</a><a href="#w-say">Things you can say</a><a href="#w-privacy">Privacy and manners</a></details><b>Make your own</b><details><summary><a href="#s">3. Scripts and tasks</a></summary><a href="#s-which">Script or task?</a><a href="#s-practice">The practice sites</a><a href="#s-s-make">Make a script</a><a href="#s-s-wizard">Add a step (the wizard)</a><a href="#s-s-do">What a step can show or do</a><a href="#s-s-next">Moving on</a><a href="#s-s-record">Record a new script</a><a href="#s-s-interactive">Interactive scripts</a><a href="#s-s-logic">Logic: values, if, loops, background jobs</a><a href="#s-s-more">Data, your Mac, and tasks from scripts</a><a href="#s-s-run">Run, rehearse, share</a><a href="#s-t-list">Agent tasks: the list</a><a href="#s-t-teach">Teach me</a><a href="#s-t-edit">The editor and inputs</a><a href="#s-t-steps">Task steps, one by one</a><a href="#s-t-test">Test, watch, fix</a><a href="#s-t-act">Acting for you, People, sharing</a><a href="#s-t-llm">Build with an LLM</a><a href="#s-find">Finding things on a page</a><a href="#s-r-repeat">Recipe: repeat over items in a list tested</a><a href="#s-r-more">Recipe: repeat until nothing is left tested</a><a href="#s-r-search">Recipe: search, open the first result, read it tested</a><a href="#s-r-empty">Recipe: stop when nothing is found tested</a><a href="#s-r-slow">Recipe: slow pages, pop-ups and sign-ins</a><a href="#s-r-changing">Recipe: elements whose text changes</a><a href="#s-r-chain">Recipe: use one task's result in another</a><a href="#s-r-combine">Recipe: several sources in one answer tested</a><a href="#s-r-send">Recipe: send something, safely</a><a href="#s-r-scripts">Script recipes</a><a href="#s-trouble">Troubleshooting</a></details><b>Under the hood</b><details><summary><a href="#c">4. How the apps talk</a></summary><a href="#c-what">1. What it does</a><a href="#c-doors">2. The front-door problem</a><a href="#c-meet">3. Meeting places (relays)</a><a href="#c-lock">4. Locked boxes (how messages are kept secret)</a><a href="#c-pair">5. Pairing: sharing the key in person</a><a href="#c-direct">6. Talking directly</a><a href="#c-switch">7. When a meeting place closes</a><a href="#c-phrase">8. Your own secret phrase</a><a href="#c-change">9. Changing the secret: you're in control</a><a href="#c-test">10. Checking that it works</a><a href="#c-files">11. Where this lives in the code</a><a href="#c-words">12. Word list</a></details><b>Testing</b><details><summary><a href="#m">5. MuseTester</a></summary><a href="#m-need">1. What you need</a><a href="#m-run">2. Running tests</a><a href="#m-panel">3. The control panel</a><a href="#m-engine">4. One engine: RPA</a><a href="#m-first">5. Your first test</a><a href="#m-targets">6. Finding things on the screen</a><a href="#m-steps">7. Every step</a><a href="#m-check">8. Checking results</a><a href="#m-web">9. Pages in the agent browser</a><a href="#m-record">10. Recording a test</a><a href="#m-scripts">11. The same engine in scripts</a><a href="#m-rule">12. The rule: a test for every feature</a><a href="#m-log">13. Results and the run log</a><a href="#m-tips">14. Tips and trouble</a></details><details><summary><a href="#t">6. Demo Day: the tandem runner</a></summary><a href="#t-need">1. What you need (once)</a><a href="#t-start">2. Start the run</a><a href="#t-panel">3. The control panel</a><a href="#t-talk">4. Doing a step: tap, talk or type</a><a href="#t-journey">5. The journey, act by act</a><a href="#t-results">6. Results</a><a href="#t-commands">7. Commands you can say or type</a><a href="#t-sims">8. iPhone simulators by hand</a><a href="#t-trouble">9. If something goes wrong</a></details><b>Publishing</b><details><summary><a href="#p">7. PublishApps</a></summary><a href="#p-idea">1. The idea in one picture</a><a href="#p-once">2. Once, before the first run</a><a href="#p-run">3. A run, step by step</a><a href="#p-where">4. What goes where</a><a href="#p-try">4a. Trying a build on your Mac</a><a href="#p-download">4b. Where people get the apps</a><a href="#p-when">5. What gets built, and when</a><a href="#p-options">6. Every option</a><a href="#p-checks">7. The checks</a><a href="#p-scramble">8. Squeezed, or scrambled too</a><a href="#p-rules">9. The rules that keep the source private</a><a href="#p-backup">10. Backing up the source</a><a href="#p-trouble">11. When something goes wrong</a></details><details><summary><a href="#i">8. The installer</a></summary><a href="#i-what">1. What it sets up</a><a href="#i-get">2. Getting it</a><a href="#i-screens">3. The screens</a><a href="#i-checks">4. What it checks, and what that means</a><a href="#i-turn">5. Why there's no TURN at home</a><a href="#i-engine">6. OrbStack or Colima</a><a href="#i-home">7. Home Node-RED, after installing</a><a href="#i-oracle">8. Your Oracle machine</a><a href="#i-options">9. Without the screens: every option</a><a href="#i-where">10. Where things go</a><a href="#i-trouble">11. When something goes wrong</a><a href="#i-uninstall">12. Uninstalling</a><a href="#i-app">13. NaoMuse itself</a></details><b>Appendix</b><a href="#design">Design notes</a></nav>
 <main id="top">
 <div class="cover">
 <h1>DriveGen &amp; NaoMuse Handbook</h1>
 <p>Every guide in one place, in the order you'll meet things: start with the apps, then use them every day, then make your own scripts and tasks, then see how they talk, then test them.</p>
-<div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a><a href="#u"><b>1. The apps, end to end</b><span>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</span></a><a href="#w"><b>2. Watchers</b><span>Be told when something happens: messages, mail, prices, your route, pages, folders.</span></a><a href="#s"><b>3. Scripts and tasks</b><span>Presentations the assistant runs, and jobs it does for you on websites; recipes.</span></a><a href="#c"><b>4. How the apps talk</b><span>Relays, locked boxes, pairing, direct links, your secret phrase.</span></a><a href="#m"><b>5. MuseTester</b><span>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</span></a><a href="#t"><b>6. Demo Day: the tandem runner</b><span>The older multi-device runner (MuseTester runs the same journeys now).</span></a></div>
+<div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a><a href="#u"><b>1. The apps, end to end</b><span>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</span></a><a href="#w"><b>2. Watchers</b><span>Be told when something happens: messages, mail, prices, your route, pages, folders.</span></a><a href="#s"><b>3. Scripts and tasks</b><span>Presentations the assistant runs, and jobs it does for you on websites; recipes.</span></a><a href="#c"><b>4. How the apps talk</b><span>Relays, locked boxes, pairing, direct links, your secret phrase.</span></a><a href="#m"><b>5. MuseTester</b><span>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</span></a><a href="#t"><b>6. Demo Day: the tandem runner</b><span>The older multi-device runner (MuseTester runs the same journeys now).</span></a><a href="#p"><b>7. PublishApps</b><span>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</span></a><a href="#i"><b>8. The installer</b><span>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</span></a></div>
 </div>
 <header class="chap" id="u"><span>Chapter 1</span><h1>The apps, end to end</h1><p>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</p><a class="src" href="user-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-u">
@@ -438,6 +480,7 @@ ol li,ul li{margin:5px 0}
   <li><b>Pair once</b> (above): from anywhere, no account. Encrypted messages through public relays, a direct link when the networks allow.</li>
   <li><b>Connect directly</b>: same Wi-Fi or the Mac on the phone’s hotspot, codes shown both ways, nothing in between.</li>
   <li><b>Tailscale</b>: if you already use it.</li>
+  <li><b>Dark servers</b>: your own relay and gates (stack/ORACLE.md). Paste the code from <code>node stack/setup.mjs --code</code>; the relay then carries your devices' messages when they can't reach each other directly (sealed, so it can't read them), before the public relays. It shows <b>your mesh fingerprint</b> to copy, and <b>Open</b> beside each Node-RED opens it with a link that works once.</li>
   <li><b>Secret phrase</b>: an extra secret typed on both devices; <b>Change secret</b> now or on a schedule; <b>Revoke</b> a device on the Mac.</li>
   <li><b>Test the connection</b>: this network, every relay, the other app, a verdict. Say <q class="say">test the connection</q>.</li>
   <li>From the phone: <q class="say">run the sales summary on my Mac</q> runs a script the Mac offers (tick them in Connections), and the answer comes back to the phone.</li>
@@ -1747,6 +1790,328 @@ tests/tandem/sims.sh stop             # shut them all down</pre>
   <tr><td>The NaoMuses speak out loud</td><td>They do in tandem runs (so you hear the show); <code>--auto</code> keeps them quiet.</td></tr>
 </table></div>
 <p class="mut">For developers: the journey's steps are in <code>tests/tandem/journeys.mjs</code> (add acts as features land); the runner is <code>tests/tandem/run.mjs</code>; the commands are <code>MeshCmd</code> in <code>js/mesh.js</code>, wired up in <code>js/commands.js</code>.</p>
+</section>
+<header class="chap" id="p"><span>Chapter 7</span><h1>PublishApps</h1><p>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</p><a class="src" href="publishapps-guide.html">Open on its own</a></header>
+<section class="ch" id="ch-p">
+
+<p class="mut">One command builds, checks and publishes everything people use: DriveGen (the web app), NaoMuse (the Mac app), the NaoMuseHive image, the Worker image and the installer. It runs on your Mac, where the source lives, and nowhere else.</p>
+
+
+
+<h2 id="p-idea">1. The idea in one picture</h2>
+<pre>  your Mac                                               GitHub: vchahalibm/CarPWA (public)
+  ────────                                               ──────────────────────────────────
+  the source (readable, with history)                    main branch ── the website (DriveGen) ← GitHub Pages
+        │                                                  tags w1000, w1001… ← big files, fetched by the apps
+        │  PublishApps.mjs                                 release "updates" ── the signed feed NaoMuse follows
+        ├─ 13 checks                                       releases v0.19.0… ── the DMGs to download
+        ├─ a copy of the last commit, squeezed  ────────▶  ghcr.io: naomusehive, studiogen-worker images
+        └─ the Mac app built and signed here</pre>
+<p>The source never leaves your Mac. What goes out is built from it, squeezed (and scrambled, if you choose), and only the parts that run.</p>
+
+<h2 id="p-once">2. Once, before the first run</h2>
+<ol>
+  <li><b>The signing key</b> is at <code>~/StudioGen-update-keys/update-private.pem</code> (already there). Without it the Mac app can't be updated: installed copies only accept updates signed with it.</li>
+  <li><b>The signing certificate</b> for the Mac app is in your login keychain (already there), so each version keeps the same identity and macOS doesn't ask for permissions again.</li>
+  <li><b>The desktop's packages</b>: <code>cd desktop &amp;&amp; npm install</code> once.</li>
+  <li><b>Permission to publish images</b>: <code>gh auth refresh -s write:packages</code> once (done).</li>
+  <li><b>Where it publishes</b> is in <code>tools/release/publish.json</code>: <code>vchahalibm/CarPWA</code>. Installed apps already fetch from there, so it stays.</li>
+</ol>
+
+<h2 id="p-run">3. A run, step by step</h2>
+<pre>installer/dist/publish-apps                   # with screens: you tick every part and option first
+node tools/release/PublishApps.mjs --dry      # a practice run: everything except pushing
+node tools/release/PublishApps.mjs            # the real thing, without screens
+node tools/release/PublishApps.mjs --help     # every option</pre>
+<h3>With screens: publish-apps</h3>
+<p><code>node installer/build.mjs --publisher</code> makes <code>installer/dist/publish-apps</code> (same look as the installer). Run it in the repository. <b>Ready</b> shows whether everything is in place, with the fix for anything that isn't. <b>Choose</b> ticks each part (DriveGen, NaoMuse, NaoMuseHive, Worker, installer: ticked from what changed; ticking an unchanged one builds it anyway) and each option (practice run, scramble, skip the checks, keep the build folder, less output, ask before pushing, remember these as my defaults), plus the repository; <b>?</b> explains each. <b>Confirm</b> shows the exact command it runs, and won't go while something a ticked part needs is missing. Then it runs it, shows each stage and the last lines, and asks you on its own screen before anything is pushed. "Remember" saves your options in <code>tools/release/publish.local.json</code> (not committed), which PublishApps reads as defaults too.</p>
+<h3>Without screens</h3>
+<p>What you see, in order:</p>
+<ol>
+  <li><b>Is everything in place?</b> The repository, the signing key, everything committed, gh signed in, and for the parts that need them: the token may publish packages, Docker answers, Go, the desktop's packages. Anything missing stops it here, before the checks, with the fix for each; nothing has been built.</li>
+  <li><b>The plan.</b> Each app with <span class="g">✓</span> (it will be built) or <span class="d">–</span> and the reason it won't (for example "its version is already published"), and whether the code will be squeezed or scrambled too.</li>
+  <li><b>The checks</b>, one line each with <span class="g">ok</span>, about 25 seconds. A failure stops everything: nothing is published.</li>
+  <li><b>A clean copy of your last commit</b>, made in a temporary folder. Squeezing happens there; your working folder is never touched.</li>
+  <li><b>The builds</b>: the Mac app (a few minutes, only when its version went up), the installer (seconds), then the images (only when their files changed), for both processors into this Mac's Docker: they aren't pushed yet.</li>
+  <li><b>The update feed</b>, packed and signed with your key.</li>
+  <li><b>"Publish all of this to vchahalibm/CarPWA? (yes/no)"</b>. Nothing has left your Mac until you answer yes.</li>
+  <li><b>Publishing</b>: Docker signs in to ghcr.io with gh's own token (no separate password), the images are pushed with <code>docker push</code> (each layer retried, up to three tries in all; what already reached ghcr.io is skipped, so a big Worker image over a home connection gets there), then the website, its tag, the feed, the DMGs, the installer.</li>
+  <li><b>Checking what's live</b>: it reads the feed back from GitHub and loads the website, to be sure they really changed.</li>
+</ol>
+<div class="card ok">It refuses to start with uncommitted changes. What ships is always exactly your last commit, so commit first.</div>
+
+<h2 id="p-where">4. What goes where</h2>
+<div class="wrap"><table>
+<tr><th>What</th><th>Where it goes</th><th>Who uses it</th></tr>
+<tr><td><b>DriveGen</b>: the app's HTML, CSS, JavaScript (squeezed), icons, practice sites, script library, guides</td><td>the public repo's <code>main</code> branch</td><td>Phones and iPads, through GitHub Pages: <code>vchahalibm.github.io/CarPWA</code></td></tr>
+<tr><td>Avatars, models, other big files</td><td>the same branch, tagged <code>w&lt;version&gt;</code></td><td>NaoMuse, fetched when first needed and checked against their fingerprints</td></tr>
+<tr><td><b>The update feed</b>: a list of files with their fingerprints, signed</td><td>release <code>updates</code></td><td>Installed NaoMuse, which checks the signature before using anything</td></tr>
+<tr><td><b>NaoMuse</b> DMGs (Apple silicon and Intel)</td><td>release <code>v&lt;version&gt;</code></td><td>People installing it the first time</td></tr>
+<tr><td><b>NaoMuseHive</b> image</td><td><code>ghcr.io/vchahalibm/naomusehive</code></td><td>Anyone running a hive</td></tr>
+<tr><td><b>Worker</b> image</td><td><code>ghcr.io/vchahalibm/studiogen-worker</code></td><td>NaoMuse › Workers</td></tr>
+<tr><td><b>The installer</b>, <code>naomuse-install</code> (one file, Apple silicon and Intel)</td><td>release <code>installer</code>, the same address every time</td><td>Anyone setting up the hive, home Node-RED, a Worker or an Oracle machine (<a href="#i">the Installer chapter</a>)</td></tr>
+<tr><td>The source, tests, tools, desktop/, CLAUDE.md, the try-it-out list</td><td><b>nowhere</b></td><td>Only you</td></tr>
+</table></div>
+
+<h2 id="p-try">4a. Trying a build on your Mac</h2>
+<p>Every run, practice or real, keeps what it built in the project's <code>builds/</code> folder (never committed; the newest three are kept):</p>
+<pre>builds/w1001/
+  site/                         DriveGen, exactly the files GitHub Pages will serve
+  feed/                         the signed update feed
+  NaoMuse-0.20.0-arm64.dmg      the Mac app (Apple silicon), when it was built
+  NaoMuse-0.20.0.dmg            the Mac app (Intel)
+  naomuse-install               the installer, when it was built
+  build.json                    which commit, which versions, practice or published</pre>
+<p>Then:</p>
+<pre>node tools/release/PublishApps.mjs --dry      # build everything, push nothing
+node tools/release/try.mjs                    # try the newest build (or: try.mjs w1001; try.mjs --list)</pre>
+<ul>
+  <li><b>DriveGen</b>: <code>try.mjs</code> serves the build at <code>http://localhost:8090/</code>. Open it in Safari or Chrome on the Mac. A phone on the same Wi-Fi can open the address it prints, though installing and offline use need https, so try those on the published site.</li>
+  <li><b>NaoMuse, without touching your own</b>: it prints two lines. Open the DMG, then start the app from the disk image with an empty profile of its own (<code>--user-data-dir=/tmp/naomuse-try</code>). Your installed NaoMuse, its sign-ins and memory are untouched. Dragging it to Applications instead replaces your installed app, keeping your data.</li>
+  <li><b>Your installed NaoMuse taking it as an update</b>: <code>try.mjs</code> also serves the signed feed at <code>http://localhost:8091/</code>. Quit NaoMuse and start it with <code>STUDIOGEN_FEED=http://localhost:8091/</code> (the exact line is printed): it checks the signature as it does GitHub's and offers <b>Restart now</b>. Avatars it hasn't downloaded yet arrive only after the real publish.</li>
+  <li><b>The images</b>, after a practice run, are in this Mac's Docker, ready for <code>docker run</code>.</li>
+  <li><b>The installer</b>: <code>builds/w1001/naomuse-install --check</code> says what it would do on this Mac; without <code>--check</code>, the screens.</li>
+</ul>
+<p>Happy with it? Run <code>PublishApps.mjs</code> without <code>--dry</code>: it builds the same commit again and publishes.</p>
+
+<h2 id="p-download">4b. Where people get the apps</h2>
+<div class="wrap"><table>
+<tr><th>App</th><th>Where people get it</th><th>After that</th></tr>
+<tr><td><b>DriveGen</b> (iPhone, iPad)</td><td>Open <code>https://vchahalibm.github.io/CarPWA/</code> in Safari, then Share › Add to Home Screen</td><td>It updates itself on its next start</td></tr>
+<tr><td><b>NaoMuse</b> (Mac)</td><td><code>https://github.com/vchahalibm/CarPWA/releases</code> › the newest <b>NaoMuse 0.x.y</b> › the DMG for their Mac (<code>-arm64</code> for Apple silicon)</td><td>It updates itself from the signed feed (Settings › System › Updates)</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td><code>docker pull ghcr.io/vchahalibm/naomusehive:latest</code></td><td>Pull again for a new version</td></tr>
+<tr><td><b>Worker</b></td><td>NaoMuse › Mesh › Workers pulls <code>ghcr.io/vchahalibm/studiogen-worker</code> by itself</td><td>Workers › Update</td></tr>
+<tr><td><b>The installer</b></td><td>In Terminal: <code>curl -fsSLo naomuse-install https://github.com/vchahalibm/CarPWA/releases/download/installer/naomuse-install &amp;&amp; chmod +x naomuse-install &amp;&amp; ./naomuse-install</code> (a browser download is held back by macOS, as it isn't notarised)</td><td>Download it again; running it again updates what it installed</td></tr>
+</table></div>
+<p>The Get started guide (<code>vchahalibm.github.io/CarPWA/docs/get-started.html</code>) and the Handbook are published with DriveGen, so the links people need are in one place.</p>
+
+<h2 id="p-when">5. What gets built, and when</h2>
+<div class="wrap"><table>
+<tr><th>App</th><th>Built when</th><th>Its number</th></tr>
+<tr><td>DriveGen</td><td>every run</td><td>the web version: one more than the published one (from 1000 up)</td></tr>
+<tr><td>NaoMuse</td><td>when <code>desktop/package.json</code>'s version isn't published yet, or <code>--mac</code></td><td>that version. Raise it when you change anything in desktop/</td></tr>
+<tr><td>NaoMuseHive</td><td>when anything in <code>bee/</code> changed since the tag <code>hive-v&lt;version&gt;</code></td><td><code>bee/package.json</code>'s version</td></tr>
+<tr><td>Worker</td><td>when anything it's built from changed since <code>worker-v&lt;version&gt;</code></td><td>the desktop version</td></tr>
+<tr><td>Installer</td><td>when anything in <code>installer/</code>, <code>stack/</code>, <code>relay/</code>, <code>bee/</code> or the names changed since the tag <code>installer-published</code>, or <code>--installer</code>; needs Go on this Mac</td><td>the web version</td></tr>
+</table></div>
+<p><b>How often to publish</b> is up to you: nothing runs by itself. A web-only publish takes about a minute and is how most changes reach people. Installed NaoMuse picks up a new web version on its own (Settings › System › Updates), and DriveGen on its next start.</p>
+
+<h2 id="p-options">6. Every option</h2>
+<div class="wrap"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>--dry</code></td><td>Builds and checks everything, pushes nothing, and says what it would have pushed.</td></tr>
+<tr><td><code>--only web,mac,hive,worker,installer</code></td><td>Just some of them.</td></tr>
+<tr><td><code>--skip hive,worker</code></td><td>All but these.</td></tr>
+<tr><td><code>--help</code></td><td>Every option, and nothing else. An option it doesn't know is refused (it used to be ignored: <code>--help</code> once started a whole publish).</td></tr>
+<tr><td><code>--plan-json</code></td><td>What a run would do and what's missing, as JSON, then stops (publish-apps reads it).</td></tr>
+<tr><td><code>--no-&lt;name&gt;</code></td><td>Turns off an on/off option made a default in <code>publish.json</code> or <code>publish.local.json</code> (<code>"defaults": { "keep": true }</code>).</td></tr>
+<tr><td><code>--mac</code> / <code>--hive</code> / <code>--worker</code> / <code>--installer</code></td><td>Build that one even if its version or files are already published.</td></tr>
+<tr><td><code>--obfuscate</code> / <code>--no-obfuscate</code></td><td>Scramble the code as well as squeezing it, or don't (overrides <code>publish.json</code>).</td></tr>
+<tr><td><code>--yes</code></td><td>Don't ask before pushing.</td></tr>
+<tr><td><code>--skip-checks</code></td><td>Only to retry right after the checks passed.</td></tr>
+<tr><td><code>--keep</code></td><td>Leave the temporary build folder, to look inside.</td></tr>
+<tr><td><code>--quiet</code></td><td>Less output from the builders.</td></tr>
+<tr><td><code>--repo owner/name</code></td><td>Publish somewhere else (normally from <code>publish.json</code>).</td></tr>
+</table></div>
+
+<h2 id="p-checks">7. The checks</h2>
+<p>Fourteen with Go on this Mac (thirteen without), the ones CI used to run, plus the installer building, vetting and passing its Go tests: the code parses; voice-command phrases; watchers; map watchers; lookahead; every part of the app has a MuseTester test; the names come from one place; the Handbook is current; every desktop file is packaged; the dark relay, the dark gate and the Node-RED link each attacked as a stranger would; the manifest is valid. Add a new one in <code>CHECKS</code> in <code>tools/release/PublishApps.mjs</code>.</p>
+<p>MuseTester's full tests (which drive the real apps) are separate and slower: run them before a release you care about (<code>node tools/musetester/muse.mjs --silent</code>).</p>
+
+<h2 id="p-scramble">8. Squeezed, or scrambled too</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Squeezed (the default)</th><th>Scrambled too (<code>--obfuscate</code>)</th></tr>
+<tr><td>What it does</td><td>Comments gone, local names shortened, one long line</td><td>And: names inside functions become hex, every string moves into an encoded table, a third of the branches are knotted</td></tr>
+<tr><td>Can someone read it?</td><td>With effort</td><td>With a lot more effort. Still not impossible: anything a browser runs, a person can follow</td></tr>
+<tr><td>First download (compressed)</td><td>442 KB</td><td>1,283 KB (cached afterwards)</td></tr>
+<tr><td>Speed</td><td>as written</td><td>a little slower to start</td></tr>
+<tr><td>Tests</td><td>pass</td><td>pass (10 MuseTester tests checked, the mesh included)</td></tr>
+</table></div>
+<p>Make it the default with <code>"obfuscate": true</code> in <code>tools/release/publish.json</code>. What truly can't be read is what never leaves your servers; see the try-it-out list's item on the small model.</p>
+
+<h2 id="p-rules">9. The rules that keep the source private</h2>
+<div class="card no">
+<ul>
+  <li><b>Never <code>git push</code> this folder to GitHub.</b> The remote is named <code>public-dist-do-not-push</code>, and <code>.githooks/pre-push</code> refuses. PublishApps pushes from its own temporary copy.</li>
+  <li><b>Keys never go in the repository.</b> <code>.gitignore</code> refuses <code>*.key</code>, <code>*.pem</code>, <code>*.p12</code> and <code>id_*</code>. Keep keys in <code>~/StudioGen-update-keys/</code> or <code>~/.ssh/</code>.</li>
+  <li><b>What was public stays public.</b> The repository's history holds the source as it was until November 2026; only what comes after is private.</li>
+</ul>
+</div>
+
+<h2 id="p-backup">10. Backing up the source</h2>
+<p>Your Mac is the only place the source exists. Keep a locked copy elsewhere:</p>
+<pre>node tools/release/backup.mjs --set-pass     # once: your own passphrase (four or five unrelated words)
+node tools/release/backup.mjs --upload       # an encrypted copy of every branch and commit, in the public repo
+node tools/release/backup.mjs --restore &lt;file&gt; &lt;folder&gt;     # getting it back</pre>
+<p>It's AES-256, so the copy is only noise to anyone else. Keep the passphrase in your password manager: nothing can open a backup without the passphrase it was made with.</p>
+
+<h2 id="p-trouble">11. When something goes wrong</h2>
+<div class="wrap"><table>
+<tr><th>It says</th><th>Do this</th></tr>
+<tr><td>You have uncommitted changes</td><td>Commit them, then run it again.</td></tr>
+<tr><td>A check FAILED</td><td>Its output is printed under it. Fix that, commit, run again. Nothing was published.</td></tr>
+<tr><td>desktop/node_modules is missing</td><td><code>cd desktop &amp;&amp; npm install</code></td></tr>
+<tr><td>The feed was not signed / no signing key</td><td>The key must be at <code>~/StudioGen-update-keys/update-private.pem</code>.</td></tr>
+<tr><td>An image failed to build or push</td><td>Is Docker (OrbStack) running? Then <code>gh auth refresh -s write:packages</code>. A 403 asking ghcr.io for an "anonymous token" meant Docker wasn't signed in to ghcr.io; PublishApps now signs it in with gh's token before pushing.</td></tr>
+<tr><td>The worker image didn't push (<i>failed to copy … Put https://ghcr.io/…</i>)</td><td>The upload of its big layers broke off. Run it again: what reached ghcr.io isn't sent again, so each run gets further. A steadier connection (cable rather than Wi-Fi) helps.</td></tr>
+<tr><td>Checking what's live: "not yet"</td><td>GitHub takes a minute or two. Run <code>curl -sL https://github.com/vchahalibm/CarPWA/releases/download/updates/update.json | head</code> later.</td></tr>
+<tr><td>Something published that shouldn't have been</td><td>Publish again from a commit that fixes it: the newest feed wins, and the website is replaced each time.</td></tr>
+</table></div>
+</section>
+<header class="chap" id="i"><span>Chapter 8</span><h1>The installer</h1><p>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</p><a class="src" href="installer-guide.html">Open on its own</a></header>
+<section class="ch" id="ch-i">
+
+<p class="mut"><code>naomuse-install</code> sets up what runs in containers: on your Mac, NaoMuseHive, home Node-RED behind its dark gate and the Worker image; on your Oracle machine, the dark relay, TURN and the cloud Node-RED. One file, nothing to install first. It checks the Mac, says what can and can't run there and why, lets you choose, then installs, starts and tests.</p>
+
+
+
+<h2 id="i-what">1. What it sets up</h2>
+<div class="wrap"><table>
+<tr><th>Part</th><th>What it is</th><th>Where it runs</th></tr>
+<tr><td><b>NaoMuse</b> (the Mac app)</td><td>Installed or updated from GitHub, from the same signed feed the app updates itself from: nothing is installed that its publisher didn't sign. Your settings, sign-ins and memory are kept.</td><td>This Mac, in Applications</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td>Your own always-on hive: a request waits there while a Mac is away, and the answer comes back when it's on again. It only sees sealed messages.</td><td>This Mac, port 8840</td></tr>
+<tr><td><b>Home Node-RED</b></td><td>Flows for your cameras and switches (ffmpeg included), behind a gate that only NaoMuse can open, with a login of its own as a second lock. Once there's an Oracle machine, a narrow link lets the cloud Node-RED ask it for the things you list, and nothing else.</td><td>This Mac; the gate on port 8030, Node-RED itself has no port</td></tr>
+<tr><td><b>NaoMuse Worker</b></td><td>Its image, downloaded now so Mesh › Workers starts one at once.</td><td>This Mac</td></tr>
+<tr><td><b>Oracle machine</b></td><td>The dark relay, TURN, the cloud Node-RED and its gate, behind one TLS door. Built on your Mac, sent over SSH, started there.</td><td>Your free Oracle VM (stack/ORACLE.md)</td></tr>
+</table></div>
+
+<h2 id="i-get">2. Getting it</h2>
+<p>In Terminal:</p>
+<pre>curl -fsSLo naomuse-install https://github.com/vchahalibm/CarPWA/releases/download/installer/naomuse-install
+chmod +x naomuse-install
+./naomuse-install</pre>
+<p class="mut">A download through the browser is held back by macOS, since the installer isn't notarised by Apple; curl's isn't. On the Mac with the source: <code>node installer/build.mjs</code> makes <code>installer/dist/naomuse-install</code>.</p>
+
+<h2 id="i-screens">3. The screens</h2>
+<p>It draws on its own near-black ground, whatever your Terminal's colours: the name in big pixel letters (smaller when the window is short), and a row of steps showing where you are: <b>Check › Choose › Install › Test</b> (or <b>Remove</b> when uninstalling).</p>
+<h3>Check</h3>
+<p>Each check gets a ✓ (fine), ! (works, with a note), ✗ (can't) or • (good to know), with a line saying what it found.</p>
+<h3>What would you like to do?</h3>
+<p>After the checks: <b>Install or update</b>, <b>Test what's installed</b> (once something is), <b>Uninstall</b> (section 12), or <b>Quit</b>. ↑ ↓ and <b>enter</b>.</p>
+<h3>Choose</h3>
+<p>What can run here, already chosen for you from the checks. ↑ ↓ move, <b>space</b> ticks, <b>← →</b> picks the engine to install when there's none, <b>enter</b> goes on. Something that can't run here is struck through, with the reason:</p>
+<pre> ▚▞ NAOMUSE  Installer for the magic
+ ✓ Check ─── ● Choose ─── ○ Install ─── ○ Test
+
+  What can run here
+  chosen for you from the checks; change anything, then enter
+
+    [•] Container engine  OrbStack
+        already here and running: used as it is
+    [ ] NaoMuse (the Mac app)
+        up to date (0.19.0); it updates its web files by itself · tick to install it afresh
+  ┃ [✓] NaoMuseHive
+  ┃     your own always-on hive: carries messages and wake-ups between your devices
+  ┃     port 8840, about 60 MB of memory
+    [✓] Home Node-RED
+        flows for your cameras and switches, behind a gate only NaoMuse can open; ffmpeg included
+        with its gate (8030) · asks for your mesh fingerprint next
+    [ ] NaoMuse Worker
+     ✗  Home TURN
+        not on a Mac: Docker here passes every packet on as if from its own address (tested) …
+    [ ] Oracle machine
+        once the VM exists (stack/ORACLE.md): asks for its IP and SSH host next
+    [✓] Tests
+
+  ↑↓ move  ·  space on/off  ·  ←→ choose  ·  enter continue  ·  esc back</pre>
+<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs your mesh, so Mesh › Create a mesh first, and a NaoMuse with web 164 or newer: the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
+<h3>Install</h3>
+<p>Each step in turn with a spinner, a progress bar, and the last lines of what's happening underneath. <b>q</b> twice stops in the middle; what's done stays done, and running it again carries on.</p>
+<h3>Test</h3>
+<p>That each part runs, and stays dark to a stranger. Then a last screen with where everything is and what to do next, which stays printed in your Terminal when you leave.</p>
+
+<h2 id="i-checks">4. What it checks, and what that means</h2>
+<div class="wrap"><table>
+<tr><th>Check</th><th>What it means for you</th></tr>
+<tr><td>This Mac, memory, free space</td><td>macOS 13 or newer for the engines. All of it together needs about 1 GB of memory and 5 GB of disk.</td></tr>
+<tr><td>Container engine</td><td>OrbStack, Docker Desktop or Colima, if there's one. If not, you pick one to install (section 6).</td></tr>
+<tr><td>Internet</td><td>The engine and images come from GitHub and Docker Hub.</td></tr>
+<tr><td>IPv4 from outside</td><td>Whether your home's address is your own or shared with other homes (CGNAT). It asks the router; if the router won't say, it looks at the first hop past it. Shared is fine for everything here: it all dials out.</td></tr>
+<tr><td>IPv6</td><td>Your Mac's lasting IPv6 address (macOS also makes temporary ones that change daily). With IPv6, devices that have it too can often connect straight to your Mac, without TURN.</td></tr>
+<tr><td>Ports</td><td>8840 (the hive) and 8030 (the home gate) must be free, or already ours.</td></tr>
+<tr><td>The Mac app, dark-server settings</td><td>Whether NaoMuse is installed (it starts Workers), and whether your settings exist yet (they're made while installing).</td></tr>
+</table></div>
+
+<h2 id="i-turn">5. Why there's no TURN at home</h2>
+<p>TURN is the helper that carries a call or a camera's video when two devices can't reach each other directly. Running it at home, next to the cameras, would save Oracle's bandwidth. But on a Mac every container engine runs Linux inside a small virtual machine, and passes packets on <b>as if they came from its own address</b>. We tested it: a container saw every sender as <code>192.168.215.1</code>, OrbStack's own address. TURN has to see who's really sending, so it can't work there.</p>
+<div class="card ok"><b>What you get instead.</b> With IPv6 (the checks say), devices that have it too can often connect straight to your Mac, with no TURN at all. Everything else goes through Oracle's TURN. Oracle gives 10 TB a month; a 2 Mbps camera watched non-stop through TURN uses about 650 GB. A Linux box at home (a Raspberry Pi) could run TURN properly later.</div>
+
+<h2 id="i-engine">6. OrbStack or Colima</h2>
+<div class="wrap"><table>
+<tr><th></th><th>OrbStack</th><th>Colima</th></tr>
+<tr><td>Cost</td><td>Free for personal use</td><td>Free and open source (MIT)</td></tr>
+<tr><td>What it installs</td><td>OrbStack.app in Applications (checked as notarised by Apple)</td><td>Colima, Lima, Docker's command line, Compose and Buildx in <code>~/.naomuse</code>; nothing in system folders. Each download is a pinned version, checked against its published SHA-256</td></tr>
+<tr><td>First start</td><td>A short setup in OrbStack's own window: finish it there and the installer carries on</td><td>Downloads its small Linux machine (a few minutes)</td></tr>
+<tr><td>Also used by</td><td>NaoMuse's Workers (In OrbStack)</td><td></td></tr>
+</table></div>
+<p>An engine that's already there is used as it is.</p>
+
+<h2 id="i-home">7. Home Node-RED, after installing</h2>
+<ol>
+  <li><code>naomuse-install --code</code> prints a code. Paste it in NaoMuse › <b>Settings › Connections › Dark servers</b>. Before there's an Oracle machine it holds only the home gate.</li>
+  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (it needs your mesh: Mesh › Create a mesh).</li>
+  <li><b>Open</b> beside <i>Home Node-RED</i>: your browser goes through the gate (the link works once) to Node-RED's login. The user is <code>admin</code>; the password comes from <code>naomuse-install --passwords</code>.</li>
+  <li>What Oracle may ask home to do goes in <code>~/StudioGen-update-keys/dark/home/capabilities.json</code>: one entry per thing, by name. Run the installer again after changing it. Flows for a switch and a camera still: stack/ORACLE.md, Part 4.</li>
+</ol>
+<p>Give your Mac a fixed address in your router's settings, so the gate's address (for example <code>http://192.168.1.105:8030</code>) doesn't change.</p>
+
+<h2 id="i-oracle">8. Your Oracle machine</h2>
+<p>Create the VM and open its ports first (stack/ORACLE.md, steps A1 to A5). Then run the installer and tick <b>Oracle machine</b>. It asks for the machine's IP and SSH host, then:</p>
+<ul>
+  <li>makes the relay, TURN and link secrets and the random addresses, kept on your Mac;</li>
+  <li>builds the servers here for the machine's Arm processor, sends the images and settings over SSH (secrets travel only over SSH), and starts them;</li>
+  <li>knocks on them from outside the way a stranger would: the relay shut to strangers, TURN answering only address questions without a login, the gates a bare 404, only the door facing the internet.</li>
+</ul>
+<p>Then paste the new <code>--code</code> in NaoMuse and DriveGen: it now holds the relay as well.</p>
+
+<h2 id="i-options">9. Without the screens: every option</h2>
+<div class="wrap"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>--check</code> (<code>--json</code>)</td><td>Checks the Mac and says what can run. Changes nothing.</td></tr>
+<tr><td><code>--yes --pick app,hive,home,worker,oracle</code></td><td>Installs those without the screens (<code>--fingerprint</code>, <code>--engine orbstack|colima</code>, <code>--oracle-ip</code>). Without <code>--pick</code>: what the checks recommend.</td></tr>
+<tr><td><code>--oracle naomuse-a1</code></td><td>Sends that Oracle machine its servers, starts and tests them. <code>--machine edge|cloud</code> for two Micro machines.</td></tr>
+<tr><td><code>--test</code></td><td>The tests, on what's installed.</td></tr>
+<tr><td><code>--status</code></td><td>What's running.</td></tr>
+<tr><td><code>--stop</code></td><td>Stops it all. Flows, hive data and settings are kept; running it again starts them.</td></tr>
+<tr><td><code>--code</code> / <code>--passwords</code></td><td>The code for the apps / the Node-RED logins.</td></tr>
+<tr><td><code>--uninstall</code> (<code>--pick …</code>, <code>--json</code>)</td><td>Says what it would remove; with <code>--yes</code>, removes it. Without <code>--pick</code>: the containers only (section 12).</td></tr>
+</table></div>
+
+<h2 id="i-where">10. Where things go</h2>
+<div class="wrap"><table>
+<tr><th>Where</th><th>What</th></tr>
+<tr><td><code>~/.naomuse/</code></td><td>The installer's own: what the images are built from, Colima's tools if it installed them, and what's installed (never secrets)</td></tr>
+<tr><td><code>~/StudioGen-update-keys/dark/</code></td><td>Your settings and secrets, readable only by you (stack/README.md › How to control the secrets)</td></tr>
+<tr><td>Docker volumes</td><td><code>naomuse_nodered-data</code> (your flows), <code>bee_studiogbee</code> (the hive's data)</td></tr>
+</table></div>
+
+<h2 id="i-trouble">11. When something goes wrong</h2>
+<div class="wrap"><table>
+<tr><th>It says</th><th>Do this</th></tr>
+<tr><td>A step didn't work</td><td>Its last lines are shown. Fix that, then <b>r</b> to try again; what was done stays done.</td></tr>
+<tr><td>Port 8840 or 8030 is taken by another program</td><td>Stop that program, or leave that part out.</td></tr>
+<tr><td>a container named studiogbee was started another way</td><td><code>docker rm -f studiogbee</code> (its data volume is kept), then run it again.</td></tr>
+<tr><td>can't use Docker on naomuse-a1 over SSH</td><td>Check <code>ssh naomuse-a1 docker ps</code> works (stack/ORACLE.md, steps A3 and A4).</td></tr>
+<tr><td>TURN: no answer on UDP 3478</td><td>Open UDP 3478 and 49160–49200 in Oracle's security list and on the machine (step A5).</td></tr>
+<tr><td>The engine didn't start</td><td>Open OrbStack (or run <code>colima start</code>) yourself, then run the installer again.</td></tr>
+</table></div>
+
+<h2 id="i-uninstall">12. Uninstalling</h2>
+<p>Run it again and choose <b>Uninstall</b>. It lists what it finds (not just what it remembers), each with what removing it means; what isn't here is greyed out:</p>
+<div class="wrap"><table>
+<tr><th>Part</th><th>Removed</th><th>Ticked at first</th></tr>
+<tr><td>NaoMuseHive, Home Node-RED</td><td>Their containers, images and networks</td><td>Yes</td></tr>
+<tr><td>NaoMuse Worker</td><td>The image, and the Workers made from it</td><td>Yes</td></tr>
+<tr><td>Oracle machine's servers</td><td>Over SSH: its containers, images and <code>~/naomuse</code> there. The VM itself stays: delete it in Oracle's console</td><td>No</td></tr>
+<tr><td>Their data</td><td>Your flows, the hive's data, Workers' sign-ins (Docker volumes). Can't be undone</td><td>No</td></tr>
+<tr><td>Settings and secrets</td><td><code>~/StudioGen-update-keys/dark/</code> only, never what's around it. The code in your apps stops working</td><td>No</td></tr>
+<tr><td>NaoMuse</td><td>To the Bin. Its settings, sign-ins and memory stay in <code>~/Library/Application Support/StudioGen</code></td><td>No</td></tr>
+<tr><td>Container engine</td><td>Only one this installer installed (Colima removed, OrbStack to the Bin)</td><td>No</td></tr>
+</table></div>
+<p>When something that can't be put back is ticked (data, settings, the engine, the Oracle machine's servers), it asks for <b>y</b> rather than enter. Without the screens: <code>naomuse-install --uninstall</code> says what it would remove, and <code>--uninstall --pick hive,home,data --yes</code> removes it.</p>
+
+<h2 id="i-app">13. NaoMuse itself</h2>
+<p>The Check screen shows the app's version and the web files it runs (for example <i>NaoMuse 0.19.0 · web 150</i>), and what's published. On Choose, <b>NaoMuse (the Mac app)</b> is ticked when it isn't installed or a newer one is published. It reads <code>update.json</code> from the <code>updates</code> release, checks its signature with the publisher's key (the one the app itself uses), downloads the zip for your processor, checks its SHA-256, quits NaoMuse if it's running, moves the old one to the Bin and puts the new one in Applications. Downloaded this way, not through a browser, macOS doesn't hold it back. Web updates still come by themselves when the app starts.</p>
 </section>
 <header class="chap" id="design"><span>Appendix</span><h1>Design notes</h1><p>How things were designed and decided: for building on the apps, not for using them.</p></header>
 <ul class="design"><li><a href="requirements.html">Requirements</a><span>Every feature and its status</span></li><li><a href="roadmap.md">Roadmap</a><span>What comes next</span></li><li><a href="watchers.html">Chat, cards and watchers</a><span>Design</span></li><li><a href="maps-watchers.html">Map watchers</a><span>Design</span></li><li><a href="mesh.html">The mesh</a><span>Design</span></li><li><a href="studiogbee.html">Profiles and NaoMuseHive</a><span>Design</span></li><li><a href="connections.html">Connections</a><span>Design</span></li><li><a href="connection-tests.html">Connection tests</a><span>Test plan</span></li><li><a href="scripts.md">Script format</a><span>Reference</span></li><li><a href="agent-tasks.md">Agent tasks</a><span>Design</span></li><li><a href="desktop-updates.md">Desktop updates</a><span>How NaoMuse updates</span></li><li><a href="memory-strategy.md">Memory</a><span>Design</span></li><li><a href="duplex-voice.md">Conversation mode</a><span>Design</span></li></ul>

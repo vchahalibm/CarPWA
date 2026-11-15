@@ -1,0 +1,63 @@
+{
+  "version": 1000,
+  "vendorHash": "2829ad9006ac3299b6ae1d6c64b742b7c6842b352fd0864dced4b1ec835071f8",
+  "commit": "w1000",
+  "lazy": {
+    "vendor/mediapipe/models/face_landmarker.task": {
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "size": 3758596
+    },
+    "vendor/mediapipe/models/gesture_recognizer.task": {
+      "sha256": "97952348cf6a6a4915c2ea1496b4b37ebabc50cbbf80571435643c455f2b0482",
+      "size": 8373440
+    },
+    "vendor/mediapipe/models/pose_landmarker_full.task": {
+      "sha256": "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad",
+      "size": 9398198
+    },
+    "vendor/mediapipe/models/pose_landmarker_lite.task": {
+      "sha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+      "size": 5777746
+    },
+    "vendor/mediapipe/wasm/vision_wasm_module_internal.wasm": {
+      "sha256": "2dabd8e23c60984628beb7bb338764c81a08e6837145273f59578684b5d53c1b",
+      "size": 11756972
+    },
+    "vendor/models/elle.vrm": {
+      "sha256": "d6639c7d87222ca3945f4e7618110e6738acb0f5efbd0c03294938da6c261fc9",
+      "size": 19605812
+    },
+    "vendor/models/kiko.vrm": {
+      "sha256": "d9ef39f04e54b3684d31a8db47efe4c2537b80f1bc15dedce3ae3d1d2acebda2",
+      "size": 17954972
+    },
+    "vendor/models/leo.vrm": {
+      "sha256": "30b48271d838f583dbc85315936cb5d1c7237a871a46a9b0e1f63e7264ec7d5d",
+      "size": 5716696
+    },
+    "vendor/models/maya.vrm": {
+      "sha256": "31555fee020559fb42ef1c2e6084e9053ba39a488e37a014a223527cc8a0ae23",
+      "size": 6128960
+    },
+    "vendor/models/noir.vrm": {
+      "sha256": "037951ea624ff5ab8ef302e00abe74edfe823f381f009a8455f962e62357d42a",
+      "size": 21043628
+    },
+    "vendor/models/ren.vrm": {
+      "sha256": "7aeca142dabbc26ba0f5b9c998c8f3cb6df341287d67788427ac837223785a3f",
+      "size": 18481892
+    },
+    "vendor/models/seed-san.vrm": {
+      "sha256": "624d0d554bc205bbdc33e22a68a2c3c20edebb3e573011ead8878a65e5329b23",
+      "size": 10917800
+    },
+    "vendor/models/victoria.vrm": {
+      "sha256": "ad5750ce944b708155abb7ac6807e19d7f5e73a939f0ee32daf0539acfca57c0",
+      "size": 15321932
+    },
+    "vendor/models/vita.vrm": {
+      "sha256": "f2bf78f28a24e2f75f5ca0b6c3b646654c394e4b03592dfaa0d0633ef0972b4d",
+      "size": 14359044
+    }
+  }
+}

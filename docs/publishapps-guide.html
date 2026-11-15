@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PublishApps Guide</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .g { color:var(--ok); } .r { color:var(--bad); } .d { color:var(--mut); }
+</style>
+</head>
+<body>
+<main>
+<h1>PublishApps: building and publishing every app</h1>
+<p class="mut">One command builds, checks and publishes everything people use: DriveGen (the web app), NaoMuse (the Mac app), the NaoMuseHive image, the Worker image and the installer. It runs on your Mac, where the source lives, and nowhere else.</p>
+
+<ul class="toc">
+  <li><a href="#idea">1. The idea in one picture</a></li>
+  <li><a href="#once">2. Once, before the first run</a></li>
+  <li><a href="#run">3. A run, step by step</a></li>
+  <li><a href="#where">4. What goes where</a></li>
+  <li><a href="#try">4a. Trying a build on your Mac</a></li>
+  <li><a href="#download">4b. Where people get the apps</a></li>
+  <li><a href="#when">5. What gets built, and when</a></li>
+  <li><a href="#options">6. Every option</a></li>
+  <li><a href="#checks">7. The checks</a></li>
+  <li><a href="#scramble">8. Squeezed, or scrambled too</a></li>
+  <li><a href="#rules">9. The rules that keep the source private</a></li>
+  <li><a href="#backup">10. Backing up the source</a></li>
+  <li><a href="#trouble">11. When something goes wrong</a></li>
+</ul>
+
+<h2 id="idea">1. The idea in one picture</h2>
+<pre>  your Mac                                               GitHub: vchahalibm/CarPWA (public)
+  ────────                                               ──────────────────────────────────
+  the source (readable, with history)                    main branch ── the website (DriveGen) ← GitHub Pages
+        │                                                  tags w1000, w1001… ← big files, fetched by the apps
+        │  PublishApps.mjs                                 release "updates" ── the signed feed NaoMuse follows
+        ├─ 13 checks                                       releases v0.19.0… ── the DMGs to download
+        ├─ a copy of the last commit, squeezed  ────────▶  ghcr.io: naomusehive, studiogen-worker images
+        └─ the Mac app built and signed here</pre>
+<p>The source never leaves your Mac. What goes out is built from it, squeezed (and scrambled, if you choose), and only the parts that run.</p>
+
+<h2 id="once">2. Once, before the first run</h2>
+<ol>
+  <li><b>The signing key</b> is at <code>~/StudioGen-update-keys/update-private.pem</code> (already there). Without it the Mac app can't be updated: installed copies only accept updates signed with it.</li>
+  <li><b>The signing certificate</b> for the Mac app is in your login keychain (already there), so each version keeps the same identity and macOS doesn't ask for permissions again.</li>
+  <li><b>The desktop's packages</b>: <code>cd desktop &amp;&amp; npm install</code> once.</li>
+  <li><b>Permission to publish images</b>: <code>gh auth refresh -s write:packages</code> once (done).</li>
+  <li><b>Where it publishes</b> is in <code>tools/release/publish.json</code>: <code>vchahalibm/CarPWA</code>. Installed apps already fetch from there, so it stays.</li>
+</ol>
+
+<h2 id="run">3. A run, step by step</h2>
+<pre>installer/dist/publish-apps                   # with screens: you tick every part and option first
+node tools/release/PublishApps.mjs --dry      # a practice run: everything except pushing
+node tools/release/PublishApps.mjs            # the real thing, without screens
+node tools/release/PublishApps.mjs --help     # every option</pre>
+<h3>With screens: publish-apps</h3>
+<p><code>node installer/build.mjs --publisher</code> makes <code>installer/dist/publish-apps</code> (same look as the installer). Run it in the repository. <b>Ready</b> shows whether everything is in place, with the fix for anything that isn't. <b>Choose</b> ticks each part (DriveGen, NaoMuse, NaoMuseHive, Worker, installer: ticked from what changed; ticking an unchanged one builds it anyway) and each option (practice run, scramble, skip the checks, keep the build folder, less output, ask before pushing, remember these as my defaults), plus the repository; <b>?</b> explains each. <b>Confirm</b> shows the exact command it runs, and won't go while something a ticked part needs is missing. Then it runs it, shows each stage and the last lines, and asks you on its own screen before anything is pushed. "Remember" saves your options in <code>tools/release/publish.local.json</code> (not committed), which PublishApps reads as defaults too.</p>
+<h3>Without screens</h3>
+<p>What you see, in order:</p>
+<ol>
+  <li><b>Is everything in place?</b> The repository, the signing key, everything committed, gh signed in, and for the parts that need them: the token may publish packages, Docker answers, Go, the desktop's packages. Anything missing stops it here, before the checks, with the fix for each; nothing has been built.</li>
+  <li><b>The plan.</b> Each app with <span class="g">✓</span> (it will be built) or <span class="d">–</span> and the reason it won't (for example "its version is already published"), and whether the code will be squeezed or scrambled too.</li>
+  <li><b>The checks</b>, one line each with <span class="g">ok</span>, about 25 seconds. A failure stops everything: nothing is published.</li>
+  <li><b>A clean copy of your last commit</b>, made in a temporary folder. Squeezing happens there; your working folder is never touched.</li>
+  <li><b>The builds</b>: the Mac app (a few minutes, only when its version went up), the installer (seconds), then the images (only when their files changed), for both processors into this Mac's Docker: they aren't pushed yet.</li>
+  <li><b>The update feed</b>, packed and signed with your key.</li>
+  <li><b>"Publish all of this to vchahalibm/CarPWA? (yes/no)"</b>. Nothing has left your Mac until you answer yes.</li>
+  <li><b>Publishing</b>: Docker signs in to ghcr.io with gh's own token (no separate password), the images are pushed with <code>docker push</code> (each layer retried, up to three tries in all; what already reached ghcr.io is skipped, so a big Worker image over a home connection gets there), then the website, its tag, the feed, the DMGs, the installer.</li>
+  <li><b>Checking what's live</b>: it reads the feed back from GitHub and loads the website, to be sure they really changed.</li>
+</ol>
+<div class="card ok">It refuses to start with uncommitted changes. What ships is always exactly your last commit, so commit first.</div>
+
+<h2 id="where">4. What goes where</h2>
+<div class="wrap"><table>
+<tr><th>What</th><th>Where it goes</th><th>Who uses it</th></tr>
+<tr><td><b>DriveGen</b>: the app's HTML, CSS, JavaScript (squeezed), icons, practice sites, script library, guides</td><td>the public repo's <code>main</code> branch</td><td>Phones and iPads, through GitHub Pages: <code>vchahalibm.github.io/CarPWA</code></td></tr>
+<tr><td>Avatars, models, other big files</td><td>the same branch, tagged <code>w&lt;version&gt;</code></td><td>NaoMuse, fetched when first needed and checked against their fingerprints</td></tr>
+<tr><td><b>The update feed</b>: a list of files with their fingerprints, signed</td><td>release <code>updates</code></td><td>Installed NaoMuse, which checks the signature before using anything</td></tr>
+<tr><td><b>NaoMuse</b> DMGs (Apple silicon and Intel)</td><td>release <code>v&lt;version&gt;</code></td><td>People installing it the first time</td></tr>
+<tr><td><b>NaoMuseHive</b> image</td><td><code>ghcr.io/vchahalibm/naomusehive</code></td><td>Anyone running a hive</td></tr>
+<tr><td><b>Worker</b> image</td><td><code>ghcr.io/vchahalibm/studiogen-worker</code></td><td>NaoMuse › Workers</td></tr>
+<tr><td><b>The installer</b>, <code>naomuse-install</code> (one file, Apple silicon and Intel)</td><td>release <code>installer</code>, the same address every time</td><td>Anyone setting up the hive, home Node-RED, a Worker or an Oracle machine (<a href="installer-guide.html">the Installer chapter</a>)</td></tr>
+<tr><td>The source, tests, tools, desktop/, CLAUDE.md, the try-it-out list</td><td><b>nowhere</b></td><td>Only you</td></tr>
+</table></div>
+
+<h2 id="try">4a. Trying a build on your Mac</h2>
+<p>Every run, practice or real, keeps what it built in the project's <code>builds/</code> folder (never committed; the newest three are kept):</p>
+<pre>builds/w1001/
+  site/                         DriveGen, exactly the files GitHub Pages will serve
+  feed/                         the signed update feed
+  NaoMuse-0.20.0-arm64.dmg      the Mac app (Apple silicon), when it was built
+  NaoMuse-0.20.0.dmg            the Mac app (Intel)
+  naomuse-install               the installer, when it was built
+  build.json                    which commit, which versions, practice or published</pre>
+<p>Then:</p>
+<pre>node tools/release/PublishApps.mjs --dry      # build everything, push nothing
+node tools/release/try.mjs                    # try the newest build (or: try.mjs w1001; try.mjs --list)</pre>
+<ul>
+  <li><b>DriveGen</b>: <code>try.mjs</code> serves the build at <code>http://localhost:8090/</code>. Open it in Safari or Chrome on the Mac. A phone on the same Wi-Fi can open the address it prints, though installing and offline use need https, so try those on the published site.</li>
+  <li><b>NaoMuse, without touching your own</b>: it prints two lines. Open the DMG, then start the app from the disk image with an empty profile of its own (<code>--user-data-dir=/tmp/naomuse-try</code>). Your installed NaoMuse, its sign-ins and memory are untouched. Dragging it to Applications instead replaces your installed app, keeping your data.</li>
+  <li><b>Your installed NaoMuse taking it as an update</b>: <code>try.mjs</code> also serves the signed feed at <code>http://localhost:8091/</code>. Quit NaoMuse and start it with <code>STUDIOGEN_FEED=http://localhost:8091/</code> (the exact line is printed): it checks the signature as it does GitHub's and offers <b>Restart now</b>. Avatars it hasn't downloaded yet arrive only after the real publish.</li>
+  <li><b>The images</b>, after a practice run, are in this Mac's Docker, ready for <code>docker run</code>.</li>
+  <li><b>The installer</b>: <code>builds/w1001/naomuse-install --check</code> says what it would do on this Mac; without <code>--check</code>, the screens.</li>
+</ul>
+<p>Happy with it? Run <code>PublishApps.mjs</code> without <code>--dry</code>: it builds the same commit again and publishes.</p>
+
+<h2 id="download">4b. Where people get the apps</h2>
+<div class="wrap"><table>
+<tr><th>App</th><th>Where people get it</th><th>After that</th></tr>
+<tr><td><b>DriveGen</b> (iPhone, iPad)</td><td>Open <code>https://vchahalibm.github.io/CarPWA/</code> in Safari, then Share › Add to Home Screen</td><td>It updates itself on its next start</td></tr>
+<tr><td><b>NaoMuse</b> (Mac)</td><td><code>https://github.com/vchahalibm/CarPWA/releases</code> › the newest <b>NaoMuse 0.x.y</b> › the DMG for their Mac (<code>-arm64</code> for Apple silicon)</td><td>It updates itself from the signed feed (Settings › System › Updates)</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td><code>docker pull ghcr.io/vchahalibm/naomusehive:latest</code></td><td>Pull again for a new version</td></tr>
+<tr><td><b>Worker</b></td><td>NaoMuse › Mesh › Workers pulls <code>ghcr.io/vchahalibm/studiogen-worker</code> by itself</td><td>Workers › Update</td></tr>
+<tr><td><b>The installer</b></td><td>In Terminal: <code>curl -fsSLo naomuse-install https://github.com/vchahalibm/CarPWA/releases/download/installer/naomuse-install &amp;&amp; chmod +x naomuse-install &amp;&amp; ./naomuse-install</code> (a browser download is held back by macOS, as it isn't notarised)</td><td>Download it again; running it again updates what it installed</td></tr>
+</table></div>
+<p>The Get started guide (<code>vchahalibm.github.io/CarPWA/docs/get-started.html</code>) and the Handbook are published with DriveGen, so the links people need are in one place.</p>
+
+<h2 id="when">5. What gets built, and when</h2>
+<div class="wrap"><table>
+<tr><th>App</th><th>Built when</th><th>Its number</th></tr>
+<tr><td>DriveGen</td><td>every run</td><td>the web version: one more than the published one (from 1000 up)</td></tr>
+<tr><td>NaoMuse</td><td>when <code>desktop/package.json</code>'s version isn't published yet, or <code>--mac</code></td><td>that version. Raise it when you change anything in desktop/</td></tr>
+<tr><td>NaoMuseHive</td><td>when anything in <code>bee/</code> changed since the tag <code>hive-v&lt;version&gt;</code></td><td><code>bee/package.json</code>'s version</td></tr>
+<tr><td>Worker</td><td>when anything it's built from changed since <code>worker-v&lt;version&gt;</code></td><td>the desktop version</td></tr>
+<tr><td>Installer</td><td>when anything in <code>installer/</code>, <code>stack/</code>, <code>relay/</code>, <code>bee/</code> or the names changed since the tag <code>installer-published</code>, or <code>--installer</code>; needs Go on this Mac</td><td>the web version</td></tr>
+</table></div>
+<p><b>How often to publish</b> is up to you: nothing runs by itself. A web-only publish takes about a minute and is how most changes reach people. Installed NaoMuse picks up a new web version on its own (Settings › System › Updates), and DriveGen on its next start.</p>
+
+<h2 id="options">6. Every option</h2>
+<div class="wrap"><table>
+<tr><th>Option</th><th>What it does</th></tr>
+<tr><td><code>--dry</code></td><td>Builds and checks everything, pushes nothing, and says what it would have pushed.</td></tr>
+<tr><td><code>--only web,mac,hive,worker,installer</code></td><td>Just some of them.</td></tr>
+<tr><td><code>--skip hive,worker</code></td><td>All but these.</td></tr>
+<tr><td><code>--help</code></td><td>Every option, and nothing else. An option it doesn't know is refused (it used to be ignored: <code>--help</code> once started a whole publish).</td></tr>
+<tr><td><code>--plan-json</code></td><td>What a run would do and what's missing, as JSON, then stops (publish-apps reads it).</td></tr>
+<tr><td><code>--no-&lt;name&gt;</code></td><td>Turns off an on/off option made a default in <code>publish.json</code> or <code>publish.local.json</code> (<code>"defaults": { "keep": true }</code>).</td></tr>
+<tr><td><code>--mac</code> / <code>--hive</code> / <code>--worker</code> / <code>--installer</code></td><td>Build that one even if its version or files are already published.</td></tr>
+<tr><td><code>--obfuscate</code> / <code>--no-obfuscate</code></td><td>Scramble the code as well as squeezing it, or don't (overrides <code>publish.json</code>).</td></tr>
+<tr><td><code>--yes</code></td><td>Don't ask before pushing.</td></tr>
+<tr><td><code>--skip-checks</code></td><td>Only to retry right after the checks passed.</td></tr>
+<tr><td><code>--keep</code></td><td>Leave the temporary build folder, to look inside.</td></tr>
+<tr><td><code>--quiet</code></td><td>Less output from the builders.</td></tr>
+<tr><td><code>--repo owner/name</code></td><td>Publish somewhere else (normally from <code>publish.json</code>).</td></tr>
+</table></div>
+
+<h2 id="checks">7. The checks</h2>
+<p>Fourteen with Go on this Mac (thirteen without), the ones CI used to run, plus the installer building, vetting and passing its Go tests: the code parses; voice-command phrases; watchers; map watchers; lookahead; every part of the app has a MuseTester test; the names come from one place; the Handbook is current; every desktop file is packaged; the dark relay, the dark gate and the Node-RED link each attacked as a stranger would; the manifest is valid. Add a new one in <code>CHECKS</code> in <code>tools/release/PublishApps.mjs</code>.</p>
+<p>MuseTester's full tests (which drive the real apps) are separate and slower: run them before a release you care about (<code>node tools/musetester/muse.mjs --silent</code>).</p>
+
+<h2 id="scramble">8. Squeezed, or scrambled too</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Squeezed (the default)</th><th>Scrambled too (<code>--obfuscate</code>)</th></tr>
+<tr><td>What it does</td><td>Comments gone, local names shortened, one long line</td><td>And: names inside functions become hex, every string moves into an encoded table, a third of the branches are knotted</td></tr>
+<tr><td>Can someone read it?</td><td>With effort</td><td>With a lot more effort. Still not impossible: anything a browser runs, a person can follow</td></tr>
+<tr><td>First download (compressed)</td><td>442 KB</td><td>1,283 KB (cached afterwards)</td></tr>
+<tr><td>Speed</td><td>as written</td><td>a little slower to start</td></tr>
+<tr><td>Tests</td><td>pass</td><td>pass (10 MuseTester tests checked, the mesh included)</td></tr>
+</table></div>
+<p>Make it the default with <code>"obfuscate": true</code> in <code>tools/release/publish.json</code>. What truly can't be read is what never leaves your servers; see the try-it-out list's item on the small model.</p>
+
+<h2 id="rules">9. The rules that keep the source private</h2>
+<div class="card no">
+<ul>
+  <li><b>Never <code>git push</code> this folder to GitHub.</b> The remote is named <code>public-dist-do-not-push</code>, and <code>.githooks/pre-push</code> refuses. PublishApps pushes from its own temporary copy.</li>
+  <li><b>Keys never go in the repository.</b> <code>.gitignore</code> refuses <code>*.key</code>, <code>*.pem</code>, <code>*.p12</code> and <code>id_*</code>. Keep keys in <code>~/StudioGen-update-keys/</code> or <code>~/.ssh/</code>.</li>
+  <li><b>What was public stays public.</b> The repository's history holds the source as it was until November 2026; only what comes after is private.</li>
+</ul>
+</div>
+
+<h2 id="backup">10. Backing up the source</h2>
+<p>Your Mac is the only place the source exists. Keep a locked copy elsewhere:</p>
+<pre>node tools/release/backup.mjs --set-pass     # once: your own passphrase (four or five unrelated words)
+node tools/release/backup.mjs --upload       # an encrypted copy of every branch and commit, in the public repo
+node tools/release/backup.mjs --restore &lt;file&gt; &lt;folder&gt;     # getting it back</pre>
+<p>It's AES-256, so the copy is only noise to anyone else. Keep the passphrase in your password manager: nothing can open a backup without the passphrase it was made with.</p>
+
+<h2 id="trouble">11. When something goes wrong</h2>
+<div class="wrap"><table>
+<tr><th>It says</th><th>Do this</th></tr>
+<tr><td>You have uncommitted changes</td><td>Commit them, then run it again.</td></tr>
+<tr><td>A check FAILED</td><td>Its output is printed under it. Fix that, commit, run again. Nothing was published.</td></tr>
+<tr><td>desktop/node_modules is missing</td><td><code>cd desktop &amp;&amp; npm install</code></td></tr>
+<tr><td>The feed was not signed / no signing key</td><td>The key must be at <code>~/StudioGen-update-keys/update-private.pem</code>.</td></tr>
+<tr><td>An image failed to build or push</td><td>Is Docker (OrbStack) running? Then <code>gh auth refresh -s write:packages</code>. A 403 asking ghcr.io for an "anonymous token" meant Docker wasn't signed in to ghcr.io; PublishApps now signs it in with gh's token before pushing.</td></tr>
+<tr><td>The worker image didn't push (<i>failed to copy … Put https://ghcr.io/…</i>)</td><td>The upload of its big layers broke off. Run it again: what reached ghcr.io isn't sent again, so each run gets further. A steadier connection (cable rather than Wi-Fi) helps.</td></tr>
+<tr><td>Checking what's live: "not yet"</td><td>GitHub takes a minute or two. Run <code>curl -sL https://github.com/vchahalibm/CarPWA/releases/download/updates/update.json | head</code> later.</td></tr>
+<tr><td>Something published that shouldn't have been</td><td>Publish again from a commit that fixes it: the newest feed wins, and the website is replaced each time.</td></tr>
+</table></div>
+</main>
+</body>
+</html>

@@ -193,6 +193,50 @@ ol li,ul li{margin:5px 0}
   .badge { display:inline-block; background:var(--acc); color:#fff; border-radius:999px; padding:2px 10px; font-size:13px; font-weight:700; }
 
 }
+#ch-k{
+
+  &{ --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; --pub:#7a4fd0; --soft:#eef2fb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --pub:#b79bff; --soft:#20283a; color-scheme:dark; } }
+  :root[data-theme="dark"] &{ --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --pub:#b79bff; --soft:#20283a; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  &{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .kind { display:inline-block; font-size:11.5px; font-weight:600; padding:1px 7px; border-radius:20px; white-space:nowrap; }
+  .k-pub { color:var(--pub); border:1px solid var(--pub); } .k-sec { color:var(--bad); border:1px solid var(--bad); } .k-made { color:var(--ok); border:1px solid var(--ok); }
+  /* diagrams */
+  .fig { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin:16px 0; overflow-x:auto; }
+  .fig svg { display:block; width:100%; min-width:680px; height:auto; }
+  .fig figcaption { color:var(--mut); font-size:13.5px; margin-top:8px; }
+  .bx { fill:var(--soft); stroke:var(--line); stroke-width:1.5; }
+  .bx-sec { fill:var(--soft); stroke:var(--bad); stroke-width:1.5; }
+  .bx-pub { fill:var(--soft); stroke:var(--pub); stroke-width:1.5; }
+  .bx-ok { fill:var(--soft); stroke:var(--ok); stroke-width:1.5; }
+  .t1 { fill:var(--ink); font:600 14px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .t2 { fill:var(--mut); font:12.5px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .tm { fill:var(--ink); font:12.5px ui-monospace, Menlo, monospace; }
+  .ar { stroke:var(--mut); stroke-width:1.6; fill:none; marker-end:url(#k-ah); }
+  .al { fill:var(--acc); font:600 12px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .ahd { fill:var(--mut); }
+  /* step flows */
+  .flow { list-style:none; padding:0; margin:16px 0; counter-reset:s; }
+  .flow li { counter-increment:s; position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px 10px 54px; margin:0 0 10px; max-width:none; }
+  .flow li::before { content:counter(s); position:absolute; left:14px; top:10px; width:26px; height:26px; border-radius:50%; background:var(--acc); color:#fff; font-weight:700; font-size:13px; display:grid; place-items:center; }
+  .flow li:not(:last-child)::after { content:""; position:absolute; left:26px; bottom:-11px; height:11px; border-left:2px solid var(--line); }
+  .who { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; margin-right:6px; }
+  .w-dev { color:var(--acc); } .w-door { color:var(--warn); } .w-relay { color:var(--ok); } .w-gate { color:var(--pub); } .w-nr { color:var(--bad); }
+  .no404 { color:var(--bad); font-size:14px; }
+
+}
 #ch-m{
 
   &{ --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; --grey:#8e8e93; }
@@ -289,12 +333,12 @@ ol li,ul li{margin:5px 0}
 </head>
 <body>
 <div class="hb">
-<nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a><b>Start here</b><details><summary><a href="#u">1. The apps, end to end</a></summary><a href="#u-what">What the apps are</a><a href="#u-install">Install and set up</a><a href="#u-pair">Pair your phone with your Mac</a><a href="#u-around">Getting around</a><a href="#u-voice">Talking to it</a><a href="#u-agent">The agent: tasks for you</a><a href="#u-drive">In the car</a><a href="#u-dash">The dashboard and widgets</a><a href="#u-stage">Stage and the assistant (presenting)</a><a href="#u-scripts">Scripts</a><a href="#u-mac">Tasks, data and web pages on the Mac</a><a href="#u-connect">Connections</a><a href="#u-mesh">The Mesh and shows</a><a href="#u-settings">Settings at a glance</a><a href="#u-privacy">Privacy and safety</a><a href="#u-trouble">When something goes wrong</a><a href="#u-phrases">Things you can say</a></details><b>Every day</b><details><summary><a href="#w">2. Watchers</a></summary><a href="#w-what">What a watcher is</a><a href="#w-first">Your first watcher, in a minute</a><a href="#w-ways">More ways to make one</a><a href="#w-varun">Example: new messages from one person (Varun)</a><a href="#w-road">On the road: lookahead, a faster way, leave by, and more</a><a href="#w-templates">The templates</a><a href="#w-kinds">What it tells you about</a><a href="#w-told">How you're told</a><a href="#w-filters">When not to tell</a><a href="#w-actions">And then: actions</a><a href="#w-history">The change history</a><a href="#w-list">The Watchers list and editing</a><a href="#w-wrong">When something goes wrong</a><a href="#w-where">Where they run</a><a href="#w-hooks">Webhooks</a><a href="#w-say">Things you can say</a><a href="#w-privacy">Privacy and manners</a></details><b>Make your own</b><details><summary><a href="#s">3. Scripts and tasks</a></summary><a href="#s-which">Script or task?</a><a href="#s-practice">The practice sites</a><a href="#s-s-make">Make a script</a><a href="#s-s-wizard">Add a step (the wizard)</a><a href="#s-s-do">What a step can show or do</a><a href="#s-s-next">Moving on</a><a href="#s-s-record">Record a new script</a><a href="#s-s-interactive">Interactive scripts</a><a href="#s-s-logic">Logic: values, if, loops, background jobs</a><a href="#s-s-more">Data, your Mac, and tasks from scripts</a><a href="#s-s-run">Run, rehearse, share</a><a href="#s-t-list">Agent tasks: the list</a><a href="#s-t-teach">Teach me</a><a href="#s-t-edit">The editor and inputs</a><a href="#s-t-steps">Task steps, one by one</a><a href="#s-t-test">Test, watch, fix</a><a href="#s-t-act">Acting for you, People, sharing</a><a href="#s-t-llm">Build with an LLM</a><a href="#s-find">Finding things on a page</a><a href="#s-r-repeat">Recipe: repeat over items in a list tested</a><a href="#s-r-more">Recipe: repeat until nothing is left tested</a><a href="#s-r-search">Recipe: search, open the first result, read it tested</a><a href="#s-r-empty">Recipe: stop when nothing is found tested</a><a href="#s-r-slow">Recipe: slow pages, pop-ups and sign-ins</a><a href="#s-r-changing">Recipe: elements whose text changes</a><a href="#s-r-chain">Recipe: use one task's result in another</a><a href="#s-r-combine">Recipe: several sources in one answer tested</a><a href="#s-r-send">Recipe: send something, safely</a><a href="#s-r-scripts">Script recipes</a><a href="#s-trouble">Troubleshooting</a></details><b>Under the hood</b><details><summary><a href="#c">4. How the apps talk</a></summary><a href="#c-what">1. What it does</a><a href="#c-doors">2. The front-door problem</a><a href="#c-meet">3. Meeting places (relays)</a><a href="#c-lock">4. Locked boxes (how messages are kept secret)</a><a href="#c-pair">5. Pairing: sharing the key in person</a><a href="#c-direct">6. Talking directly</a><a href="#c-switch">7. When a meeting place closes</a><a href="#c-phrase">8. Your own secret phrase</a><a href="#c-change">9. Changing the secret: you're in control</a><a href="#c-test">10. Checking that it works</a><a href="#c-files">11. Where this lives in the code</a><a href="#c-words">12. Word list</a></details><b>Testing</b><details><summary><a href="#m">5. MuseTester</a></summary><a href="#m-need">1. What you need</a><a href="#m-run">2. Running tests</a><a href="#m-panel">3. The control panel</a><a href="#m-engine">4. One engine: RPA</a><a href="#m-first">5. Your first test</a><a href="#m-targets">6. Finding things on the screen</a><a href="#m-steps">7. Every step</a><a href="#m-check">8. Checking results</a><a href="#m-web">9. Pages in the agent browser</a><a href="#m-record">10. Recording a test</a><a href="#m-scripts">11. The same engine in scripts</a><a href="#m-rule">12. The rule: a test for every feature</a><a href="#m-log">13. Results and the run log</a><a href="#m-tips">14. Tips and trouble</a></details><details><summary><a href="#t">6. Demo Day: the tandem runner</a></summary><a href="#t-need">1. What you need (once)</a><a href="#t-start">2. Start the run</a><a href="#t-panel">3. The control panel</a><a href="#t-talk">4. Doing a step: tap, talk or type</a><a href="#t-journey">5. The journey, act by act</a><a href="#t-results">6. Results</a><a href="#t-commands">7. Commands you can say or type</a><a href="#t-sims">8. iPhone simulators by hand</a><a href="#t-trouble">9. If something goes wrong</a></details><b>Publishing</b><details><summary><a href="#p">7. PublishApps</a></summary><a href="#p-idea">1. The idea in one picture</a><a href="#p-once">2. Once, before the first run</a><a href="#p-run">3. A run, step by step</a><a href="#p-where">4. What goes where</a><a href="#p-try">4a. Trying a build on your Mac</a><a href="#p-download">4b. Where people get the apps</a><a href="#p-when">5. What gets built, and when</a><a href="#p-options">6. Every option</a><a href="#p-checks">7. The checks</a><a href="#p-scramble">8. Squeezed, or scrambled too</a><a href="#p-rules">9. The rules that keep the source private</a><a href="#p-backup">10. Backing up the source</a><a href="#p-trouble">11. When something goes wrong</a></details><details><summary><a href="#i">8. The installer</a></summary><a href="#i-what">1. What it sets up</a><a href="#i-get">2. Getting it</a><a href="#i-screens">3. The screens</a><a href="#i-checks">4. What it checks, and what that means</a><a href="#i-turn">5. Why there's no TURN at home</a><a href="#i-engine">6. OrbStack or Colima</a><a href="#i-home">7. Home Node-RED, after installing</a><a href="#i-oracle">8. Your Oracle machine</a><a href="#i-options">9. Without the screens: every option</a><a href="#i-where">10. Where things go</a><a href="#i-trouble">11. When something goes wrong</a><a href="#i-uninstall">12. Uninstalling</a><a href="#i-app">13. NaoMuse itself</a></details><b>Appendix</b><a href="#design">Design notes</a></nav>
+<nav aria-label="Contents"><a href="#top"><b style="margin:0">Handbook</b></a><a href="get-started.html">Get started (3 pages)</a><b>Start here</b><details><summary><a href="#u">1. The apps, end to end</a></summary><a href="#u-what">What the apps are</a><a href="#u-install">Install and set up</a><a href="#u-pair">Pair your phone with your Mac</a><a href="#u-around">Getting around</a><a href="#u-voice">Talking to it</a><a href="#u-agent">The agent: tasks for you</a><a href="#u-drive">In the car</a><a href="#u-dash">The dashboard and widgets</a><a href="#u-stage">Stage and the assistant (presenting)</a><a href="#u-scripts">Scripts</a><a href="#u-mac">Tasks, data and web pages on the Mac</a><a href="#u-connect">Connections</a><a href="#u-mesh">The Mesh and shows</a><a href="#u-settings">Settings at a glance</a><a href="#u-privacy">Privacy and safety</a><a href="#u-trouble">When something goes wrong</a><a href="#u-phrases">Things you can say</a></details><b>Every day</b><details><summary><a href="#w">2. Watchers</a></summary><a href="#w-what">What a watcher is</a><a href="#w-first">Your first watcher, in a minute</a><a href="#w-ways">More ways to make one</a><a href="#w-varun">Example: new messages from one person (Varun)</a><a href="#w-road">On the road: lookahead, a faster way, leave by, and more</a><a href="#w-templates">The templates</a><a href="#w-kinds">What it tells you about</a><a href="#w-told">How you're told</a><a href="#w-filters">When not to tell</a><a href="#w-actions">And then: actions</a><a href="#w-history">The change history</a><a href="#w-list">The Watchers list and editing</a><a href="#w-wrong">When something goes wrong</a><a href="#w-where">Where they run</a><a href="#w-hooks">Webhooks</a><a href="#w-say">Things you can say</a><a href="#w-privacy">Privacy and manners</a></details><b>Make your own</b><details><summary><a href="#s">3. Scripts and tasks</a></summary><a href="#s-which">Script or task?</a><a href="#s-practice">The practice sites</a><a href="#s-s-make">Make a script</a><a href="#s-s-wizard">Add a step (the wizard)</a><a href="#s-s-do">What a step can show or do</a><a href="#s-s-next">Moving on</a><a href="#s-s-record">Record a new script</a><a href="#s-s-interactive">Interactive scripts</a><a href="#s-s-logic">Logic: values, if, loops, background jobs</a><a href="#s-s-more">Data, your Mac, and tasks from scripts</a><a href="#s-s-run">Run, rehearse, share</a><a href="#s-t-list">Agent tasks: the list</a><a href="#s-t-teach">Teach me</a><a href="#s-t-edit">The editor and inputs</a><a href="#s-t-steps">Task steps, one by one</a><a href="#s-t-test">Test, watch, fix</a><a href="#s-t-act">Acting for you, People, sharing</a><a href="#s-t-llm">Build with an LLM</a><a href="#s-find">Finding things on a page</a><a href="#s-r-repeat">Recipe: repeat over items in a list tested</a><a href="#s-r-more">Recipe: repeat until nothing is left tested</a><a href="#s-r-search">Recipe: search, open the first result, read it tested</a><a href="#s-r-empty">Recipe: stop when nothing is found tested</a><a href="#s-r-slow">Recipe: slow pages, pop-ups and sign-ins</a><a href="#s-r-changing">Recipe: elements whose text changes</a><a href="#s-r-chain">Recipe: use one task's result in another</a><a href="#s-r-combine">Recipe: several sources in one answer tested</a><a href="#s-r-send">Recipe: send something, safely</a><a href="#s-r-scripts">Script recipes</a><a href="#s-trouble">Troubleshooting</a></details><b>Under the hood</b><details><summary><a href="#c">4. How the apps talk</a></summary><a href="#c-what">1. What it does</a><a href="#c-doors">2. The front-door problem</a><a href="#c-meet">3. Meeting places (relays)</a><a href="#c-lock">4. Locked boxes (how messages are kept secret)</a><a href="#c-pair">5. Pairing: sharing the key in person</a><a href="#c-direct">6. Talking directly</a><a href="#c-switch">7. When a meeting place closes</a><a href="#c-phrase">8. Your own secret phrase</a><a href="#c-change">9. Changing the secret: you're in control</a><a href="#c-test">10. Checking that it works</a><a href="#c-files">11. Where this lives in the code</a><a href="#c-words">12. Word list</a></details><details><summary><a href="#k">5. Keys and secrets</a></summary><a href="#k-kinds">1. Three kinds of thing</a><a href="#k-publish">2. Publishing: proving an update is yours</a><a href="#k-mesh">3. The mesh: proving a device is yours</a><a href="#k-fingerprint">4. The fingerprint: pinning the servers to your mesh</a><a href="#k-relay">5. Reaching the relay, step by step</a><a href="#k-gates">6. Opening a Node-RED, step by step</a><a href="#k-oracle">7. The Oracle machine's own locks</a><a href="#k-access">8. How you reach each thing</a><a href="#k-all">9. Every key and secret, in one table</a><a href="#k-lost">10. If one leaks, or is lost</a><a href="#k-camgen">11. CamGen and the relay</a></details><b>Testing</b><details><summary><a href="#m">6. MuseTester</a></summary><a href="#m-need">1. What you need</a><a href="#m-run">2. Running tests</a><a href="#m-panel">3. The control panel</a><a href="#m-engine">4. One engine: RPA</a><a href="#m-first">5. Your first test</a><a href="#m-targets">6. Finding things on the screen</a><a href="#m-steps">7. Every step</a><a href="#m-check">8. Checking results</a><a href="#m-web">9. Pages in the agent browser</a><a href="#m-record">10. Recording a test</a><a href="#m-scripts">11. The same engine in scripts</a><a href="#m-rule">12. The rule: a test for every feature</a><a href="#m-log">13. Results and the run log</a><a href="#m-tips">14. Tips and trouble</a></details><details><summary><a href="#t">7. Demo Day: the tandem runner</a></summary><a href="#t-need">1. What you need (once)</a><a href="#t-start">2. Start the run</a><a href="#t-panel">3. The control panel</a><a href="#t-talk">4. Doing a step: tap, talk or type</a><a href="#t-journey">5. The journey, act by act</a><a href="#t-results">6. Results</a><a href="#t-commands">7. Commands you can say or type</a><a href="#t-sims">8. iPhone simulators by hand</a><a href="#t-trouble">9. If something goes wrong</a></details><b>Publishing</b><details><summary><a href="#p">8. PublishApps</a></summary><a href="#p-idea">1. The idea in one picture</a><a href="#p-once">2. Once, before the first run</a><a href="#p-run">3. A run, step by step</a><a href="#p-where">4. What goes where</a><a href="#p-try">4a. Trying a build on your Mac</a><a href="#p-download">4b. Where people get the apps</a><a href="#p-when">5. What gets built, and when</a><a href="#p-options">6. Every option</a><a href="#p-checks">7. The checks</a><a href="#p-scramble">8. Squeezed, or scrambled too</a><a href="#p-rules">9. The rules that keep the source private</a><a href="#p-backup">10. Backing up the source</a><a href="#p-trouble">11. When something goes wrong</a></details><details><summary><a href="#i">9. The installer</a></summary><a href="#i-what">1. What it sets up</a><a href="#i-get">2. Getting it</a><a href="#i-screens">3. The screens</a><a href="#i-checks">4. What it checks, and what that means</a><a href="#i-turn">5. Why there's no TURN at home</a><a href="#i-engine">6. OrbStack or Colima</a><a href="#i-home">7. Home Node-RED, after installing</a><a href="#i-oracle">8. Your Oracle machine</a><a href="#i-options">9. Without the screens: every option</a><a href="#i-where">10. Where things go</a><a href="#i-trouble">11. When something goes wrong</a><a href="#i-uninstall">12. Uninstalling</a><a href="#i-app">13. NaoMuse itself</a></details><b>Appendix</b><a href="#design">Design notes</a></nav>
 <main id="top">
 <div class="cover">
 <h1>DriveGen &amp; NaoMuse Handbook</h1>
 <p>Every guide in one place, in the order you'll meet things: start with the apps, then use them every day, then make your own scripts and tasks, then see how they talk, then test them.</p>
-<div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a><a href="#u"><b>1. The apps, end to end</b><span>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</span></a><a href="#w"><b>2. Watchers</b><span>Be told when something happens: messages, mail, prices, your route, pages, folders.</span></a><a href="#s"><b>3. Scripts and tasks</b><span>Presentations the assistant runs, and jobs it does for you on websites; recipes.</span></a><a href="#c"><b>4. How the apps talk</b><span>Relays, locked boxes, pairing, direct links, your secret phrase.</span></a><a href="#m"><b>5. MuseTester</b><span>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</span></a><a href="#t"><b>6. Demo Day: the tandem runner</b><span>The older multi-device runner (MuseTester runs the same journeys now).</span></a><a href="#p"><b>7. PublishApps</b><span>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</span></a><a href="#i"><b>8. The installer</b><span>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</span></a></div>
+<div class="map"><a class="first" href="get-started.html"><b>New? Get started</b><span>Three pages with pictures</span></a><a href="#u"><b>1. The apps, end to end</b><span>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</span></a><a href="#w"><b>2. Watchers</b><span>Be told when something happens: messages, mail, prices, your route, pages, folders.</span></a><a href="#s"><b>3. Scripts and tasks</b><span>Presentations the assistant runs, and jobs it does for you on websites; recipes.</span></a><a href="#c"><b>4. How the apps talk</b><span>Relays, locked boxes, pairing, direct links, your secret phrase.</span></a><a href="#k"><b>5. Keys and secrets</b><span>Every key, fingerprint, secret and password: where it is made, who holds it, who checks it; reaching the relay and your Node-REDs; CamGen.</span></a><a href="#m"><b>6. MuseTester</b><span>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</span></a><a href="#t"><b>7. Demo Day: the tandem runner</b><span>The older multi-device runner (MuseTester runs the same journeys now).</span></a><a href="#p"><b>8. PublishApps</b><span>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</span></a><a href="#i"><b>9. The installer</b><span>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</span></a></div>
 </div>
 <header class="chap" id="u"><span>Chapter 1</span><h1>The apps, end to end</h1><p>Install, pair, get around, talk to it, the agent, the car, the dashboard, Stage, settings, privacy.</p><a class="src" href="user-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-u">
@@ -480,7 +524,7 @@ ol li,ul li{margin:5px 0}
   <li><b>Pair once</b> (above): from anywhere, no account. Encrypted messages through public relays, a direct link when the networks allow.</li>
   <li><b>Connect directly</b>: same Wi-Fi or the Mac on the phone’s hotspot, codes shown both ways, nothing in between.</li>
   <li><b>Tailscale</b>: if you already use it.</li>
-  <li><b>Dark servers</b>: your own relay and gates (stack/ORACLE.md). Paste the code from <code>node stack/setup.mjs --code</code>; the relay then carries your devices' messages when they can't reach each other directly (sealed, so it can't read them), before the public relays. It shows <b>your mesh fingerprint</b> to copy, and <b>Open</b> beside each Node-RED opens it with a link that works once.</li>
+  <li><b>Dark servers</b>: your own relay and gates (stack/ORACLE.md). Paste the code from <code>naomuse-install --code</code>; the relay then carries your devices' messages when they can't reach each other directly (sealed, so it can't read them), before the public relays, and your own TURN helps links that can't connect straight (each device makes its own short-lived login; no public STUN server is asked for your address any more). It shows <b>your mesh fingerprint</b> to copy, and <b>Open</b> beside each Node-RED opens it with a link that works once.</li>
   <li><b>Secret phrase</b>: an extra secret typed on both devices; <b>Change secret</b> now or on a schedule; <b>Revoke</b> a device on the Mac.</li>
   <li><b>Test the connection</b>: this network, every relay, the other app, a verdict. Say <q class="say">test the connection</q>.</li>
   <li>From the phone: <q class="say">run the sales summary on my Mac</q> runs a script the Mac offers (tick them in Connections), and the answer comes back to the phone.</li>
@@ -1198,8 +1242,8 @@ ol li,ul li{margin:5px 0}
   <text x="30" y="110" font-size="40">💻</text><text x="20" y="150">NaoMuse</text>
   <text x="560" y="110" font-size="40">📱</text><text x="556" y="150">DriveGen</text>
   <rect x="230" y="40" width="180" height="110" rx="18" fill="none" stroke="var(--violet)" stroke-width="3"/><text x="262" y="72" font-weight="700">Relay 📋</text><text x="250" y="100" class="m" font-size="14">a public message board</text><text x="262" y="126" font-size="22">📦 📦</text>
-  <path d="M85 95 C 150 60, 190 70, 228 90" fill="none" stroke="var(--blue)" stroke-width="3" marker-end="url(#a)"/>
-  <path d="M552 95 C 490 60, 450 70, 412 90" fill="none" stroke="var(--green)" stroke-width="3" marker-end="url(#a)"/>
+  <path d="M85 95 C 150 60, 190 70, 228 90" fill="none" stroke="var(--blue)" stroke-width="3" marker-end="url(#c-a)"/>
+  <path d="M552 95 C 490 60, 450 70, 412 90" fill="none" stroke="var(--green)" stroke-width="3" marker-end="url(#c-a)"/>
   <defs><marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
 </svg></div>
 <p>The apps use free, public relays that already exist. There are three kinds, and the apps can use all of them:</p>
@@ -1244,7 +1288,7 @@ ol li,ul li{margin:5px 0}
 <div class="pic"><svg viewBox="0 0 640 150" role="img" aria-label="Two apps sending to each other at once through their doors">
   <text x="20" y="90" font-size="38">💻</text><rect x="80" y="45" width="18" height="60" rx="4" fill="var(--yellow)"/>
   <text x="590" y="90" font-size="38">📱</text><rect x="545" y="45" width="18" height="60" rx="4" fill="var(--yellow)"/>
-  <path d="M105 70 L 538 70" stroke="var(--blue)" stroke-width="3" marker-end="url(#b)"/><path d="M538 92 L 105 92" stroke="var(--green)" stroke-width="3" marker-end="url(#b)"/>
+  <path d="M105 70 L 538 70" stroke="var(--blue)" stroke-width="3" marker-end="url(#c-b)"/><path d="M538 92 L 105 92" stroke="var(--green)" stroke-width="3" marker-end="url(#c-b)"/>
   <text x="230" y="58" class="m" font-size="14">both send at the same time…</text><text x="250" y="122" class="m" font-size="14">…and both doors open! 🎉</text>
   <defs><marker id="c-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
 </svg></div>
@@ -1274,9 +1318,9 @@ Also: <b>“Let data go over the relays when there's no direct link.”</b> Turn
 <div class="pic"><svg viewBox="0 0 640 170" role="img" aria-label="The random key and your phrase mixed into the real key">
   <rect x="10" y="20" width="190" height="56" rx="14" fill="none" stroke="var(--blue)" stroke-width="3"/><text x="24" y="46" font-weight="700">🎲 Random key</text><text x="24" y="66" class="m" font-size="13">made by the Mac, in the QR</text>
   <rect x="10" y="96" width="190" height="56" rx="14" fill="none" stroke="var(--acc)" stroke-width="3"/><text x="24" y="122" font-weight="700">🗝️ Your phrase</text><text x="24" y="142" class="m" font-size="13">typed by you, never sent</text>
-  <path d="M205 48 C 260 48, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5"/><path d="M205 124 C 260 124, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c)"/>
+  <path d="M205 48 C 260 48, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5"/><path d="M205 124 C 260 124, 260 86, 300 86" fill="none" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c-c)"/>
   <rect x="300" y="60" width="120" height="52" rx="14" fill="none" stroke="var(--violet)" stroke-width="3"/><text x="324" y="92" font-weight="700">🌀 Mix</text>
-  <path d="M420 86 L 455 86" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c)"/>
+  <path d="M420 86 L 455 86" stroke="var(--ink)" stroke-width="2.5" marker-end="url(#c-c)"/>
   <rect x="458" y="56" width="172" height="60" rx="14" fill="none" stroke="var(--green)" stroke-width="3"/><text x="472" y="82" font-weight="700">🔐 The real key</text><text x="472" y="102" class="m" font-size="13">locks every message</text>
   <defs><marker id="c-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>
 </svg></div>
@@ -1367,7 +1411,197 @@ On the phone, Settings › Connections shows when the secret last changed.</div>
 </tbody></table></div>
 <p class="mut" style="margin-top:28px">DriveGen &amp; NaoMuse · Connections explained · 18 October 2026</p>
 </section>
-<header class="chap" id="m"><span>Chapter 5</span><h1>MuseTester</h1><p>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</p><a class="src" href="musetester-guide.html">Open on its own</a></header>
+<header class="chap" id="k"><span>Chapter 5</span><h1>Keys and secrets</h1><p>Every key, fingerprint, secret and password: where it is made, who holds it, who checks it; reaching the relay and your Node-REDs; CamGen.</p><a class="src" href="security-guide.html">Open on its own</a></header>
+<section class="ch" id="ch-k">
+
+<p class="mut">Every lock in the apps, in one place: the keys that sign updates, the keys that make your mesh yours, the fingerprint and secrets your dark servers check, the passwords on your Node-REDs, and what CamGen would need. For each: where it's made, where it lives, who uses it, and what happens if it leaks or is lost.</p>
+
+
+
+<h2 id="k-kinds">1. Three kinds of thing</h2>
+<div class="wrap"><table>
+<tr><th>Kind</th><th>What it is</th><th>Rule</th></tr>
+<tr><td><span class="kind k-sec">secret</span></td><td>A private key, password or shared secret. Whoever has it can do what it allows.</td><td>Never leaves where it was made, except over SSH or inside a code you paste yourself.</td></tr>
+<tr><td><span class="kind k-pub">public</span></td><td>A public key or a fingerprint of one. It lets anyone <b>check</b> a signature, but can't make one.</td><td>Safe to copy, email, put in a settings file or in the app itself.</td></tr>
+<tr><td><span class="kind k-made">worked out</span></td><td>Made fresh from a secret each time (today's door address, a knock link, a cookie). Short-lived on purpose.</td><td>Nothing to keep: if one is seen, it stops working within minutes or a day.</td></tr>
+</table></div>
+<p>Almost everything below is one of two tricks. A <b>signature</b>: a private key signs, and anyone holding the matching public key can check it came from that key and wasn't changed. A <b>shared secret</b>: two sides both hold the same secret, and each proves it knows it by mixing it with something fresh (a date, a time) through HMAC, without ever sending the secret itself.</p>
+
+<h2 id="k-publish">2. Publishing: proving an update is yours</h2>
+<p>These live only on your Mac, in <code>~/StudioGen-update-keys/</code> (outside the source, never committed), or in its Keychain.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="Publishing keys: each key on the left signs or locks something in the middle, which is checked by what is on the right">
+  <defs><marker id="k-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <text class="t2" x="20" y="18">ON YOUR MAC (SECRET)</text><text class="t2" x="330" y="18">WHAT IT MAKES</text><text class="t2" x="650" y="18">WHO CHECKS IT</text>
+  <rect class="bx-sec" x="20" y="30" width="230" height="60" rx="10"/><text class="t1" x="34" y="55">update-private.pem</text><text class="t2" x="34" y="75">Ed25519 signing key</text>
+  <rect class="bx" x="330" y="30" width="240" height="60" rx="10"/><text class="t1" x="344" y="55">update.json, signed</text><text class="t2" x="344" y="75">the feed: versions, files, SHA-256s</text>
+  <rect class="bx-pub" x="650" y="30" width="230" height="60" rx="10"/><text class="t1" x="664" y="55">NaoMuse's updater</text><text class="t2" x="664" y="75">naomuse-install too (key built in)</text>
+  <path class="ar" d="M250,60 H326"/><text class="al" x="268" y="52">signs</text><path class="ar" d="M570,60 H646"/><text class="al" x="584" y="52">checked</text>
+
+  <rect class="bx-sec" x="20" y="105" width="230" height="60" rx="10"/><text class="t1" x="34" y="130">Mac certificate .p12</text><text class="t2" x="34" y="150">self-made, plus its password</text>
+  <rect class="bx" x="330" y="105" width="240" height="60" rx="10"/><text class="t1" x="344" y="130">NaoMuse.app, signed</text><text class="t2" x="344" y="150">the same identity every version</text>
+  <rect class="bx-pub" x="650" y="105" width="230" height="60" rx="10"/><text class="t1" x="664" y="130">macOS Keychain</text><text class="t2" x="664" y="150">keeps "Always Allow" across updates</text>
+  <path class="ar" d="M250,135 H326"/><text class="al" x="268" y="127">signs</text><path class="ar" d="M570,135 H646"/><text class="al" x="584" y="127">knows it</text>
+
+  <rect class="bx-sec" x="20" y="180" width="230" height="60" rx="10"/><text class="t1" x="34" y="205">GitHub login (gh)</text><text class="t2" x="34" y="225">token in the Keychain</text>
+  <rect class="bx" x="330" y="180" width="240" height="60" rx="10"/><text class="t1" x="344" y="205">vchahalibm/CarPWA, ghcr.io</text><text class="t2" x="344" y="225">site, feed, DMGs, images</text>
+  <rect class="bx-pub" x="650" y="180" width="230" height="60" rx="10"/><text class="t1" x="664" y="205">Anyone can download</text><text class="t2" x="664" y="225">only you can push</text>
+  <path class="ar" d="M250,210 H326"/><text class="al" x="268" y="202">pushes</text><path class="ar" d="M570,210 H646"/>
+
+  <rect class="bx-sec" x="20" y="255" width="230" height="60" rx="10"/><text class="t1" x="34" y="280">backup-pass.txt</text><text class="t2" x="34" y="300">the backup passphrase</text>
+  <rect class="bx" x="330" y="255" width="240" height="60" rx="10"/><text class="t1" x="344" y="280">Encrypted source backup</text><text class="t2" x="344" y="300">kept in the public repo, unreadable</text>
+  <rect class="bx-pub" x="650" y="255" width="230" height="60" rx="10"/><text class="t1" x="664" y="280">Only you can open it</text><text class="t2" x="664" y="300">with that passphrase</text>
+  <path class="ar" d="M250,285 H326"/><text class="al" x="268" y="277">locks</text><path class="ar" d="M570,285 H646"/>
+</svg>
+<figcaption>The update key is the most important one: an update.json it didn't sign is refused by every installed NaoMuse and by the installer, so even someone who could push to the repo couldn't push you an update.</figcaption>
+</figure>
+
+<h2 id="k-mesh">3. The mesh: proving a device is yours</h2>
+<p>When an app first joins or makes a mesh it makes its own <b>device keys</b>, on the device, and they never leave it: a signing key (ECDSA P-256) and a key-agreement key (ECDH P-256). The device's id is a hash of its public signing key.</p>
+<ul>
+  <li><b>The roster</b> is the list of members and their public keys, <b>signed by the owner's device</b>. Any member can check that signature, so nobody can add themselves.</li>
+  <li><b>Pairwise keys</b>: two devices combine their ECDH keys and each arrives at the same AES-GCM key without sending it. Everything between those two is sealed with it, whichever way it travels: direct, a public broker, the hive, or your dark relay. None of those can read it.</li>
+  <li><b>The group key</b> is made by the owner and given to each member over its pairwise room; it seals what everyone in the mesh shares. When the owner removes someone, it changes.</li>
+  <li><b>Invites and pairing codes</b> (<code>SGM…</code>, <code>SG3…</code>, QR codes) carry a room and a key to get a new device started. Show them only to your own devices. More in <a href="#c">How the apps talk</a>, including the optional secret phrase.</li>
+</ul>
+
+<h2 id="k-fingerprint">4. The fingerprint: pinning the servers to your mesh</h2>
+<p>Your dark servers face the internet. They let a device in if it shows a roster with that device in it, signed by the owner. But anyone can make a mesh of their own and sign a roster naming themselves as owner, and that roster would check out perfectly. So each server must be told <b>which owner</b> counts. That's the fingerprint: your owner's public signing key, run through SHA-256 and cut to 16 characters.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 340" role="img" aria-label="The owner's device key signs the roster; shortened, it becomes the fingerprint, which goes through settings to the relay and the gates">
+  <rect class="bx-sec" x="20" y="30" width="220" height="80" rx="10"/><text class="t1" x="34" y="56">Owner's NaoMuse</text><text class="t2" x="34" y="76">device signing key</text><text class="t2" x="34" y="94">(private half never leaves it)</text>
+  <rect class="bx-pub" x="340" y="30" width="220" height="80" rx="10"/><text class="t1" x="354" y="56">Roster</text><text class="t2" x="354" y="76">members' public keys,</text><text class="t2" x="354" y="94">signed by the owner</text>
+  <rect class="bx" x="660" y="30" width="220" height="80" rx="10"/><text class="t1" x="674" y="56">Every member device</text><text class="t2" x="674" y="76">checks the owner's signature;</text><text class="t2" x="674" y="94">shows it when knocking</text>
+  <path class="ar" d="M240,70 H336"/><text class="al" x="268" y="62">signs</text><path class="ar" d="M560,70 H656"/><text class="al" x="582" y="62">shared</text>
+
+  <rect class="bx-pub" x="20" y="190" width="220" height="90" rx="10"/><text class="t1" x="34" y="216">Fingerprint</text><text class="t2" x="34" y="236">SHA-256 of the owner's public</text><text class="t2" x="34" y="252">key, first 16 characters</text><text class="tm" x="34" y="272">fJD5Ll0ihNbnPl-D</text>
+  <path class="ar" d="M130,110 V186"/><text class="al" x="138" y="152">shortened</text>
+  <rect class="bx" x="340" y="190" width="220" height="90" rx="10"/><text class="t1" x="354" y="216">settings.json on your Mac</text><text class="t2" x="354" y="236">~/StudioGen-update-keys/dark/</text><text class="t2" x="354" y="252">put there by naomuse-install</text><text class="t2" x="354" y="268">(or setup.mjs --set-fingerprint)</text>
+  <path class="ar" d="M240,235 H336"/><text class="al" x="250" y="227">Copy, paste</text>
+  <rect class="bx-ok" x="660" y="170" width="220" height="56" rx="10"/><text class="t1" x="674" y="194">Relay: RELAY_OWNERS</text><text class="t2" x="674" y="213">on Oracle, via SSH</text>
+  <rect class="bx-ok" x="660" y="244" width="220" height="56" rx="10"/><text class="t1" x="674" y="268">Gates: GATE_OWNER</text><text class="t2" x="674" y="287">cloud (Oracle) and home gates</text>
+  <path class="ar" d="M560,225 L656,200"/><path class="ar" d="M560,245 L656,270"/><text class="al" x="566" y="239">MESH_OWNERS</text>
+</svg>
+<figcaption>The fingerprint is public: it names your mesh but can't sign anything. The servers refuse to start without one. If it's wrong, the servers are fine but turn your own devices away: the Dark servers screen says "Relay not reachable".</figcaption>
+</figure>
+<div class="card tip">Where to see yours: NaoMuse › Settings › Connections › Dark servers, “Your mesh fingerprint” (Copy). It only changes if the mesh gets a new owner device. Then: <code>node stack/setup.mjs --set-fingerprint &lt;new&gt;</code> and <code>naomuse-install --oracle naomuse-a1</code>, and the installer again for home.</div>
+
+<h2 id="k-relay">5. Reaching the relay, step by step</h2>
+<p>The relay carries messages between your devices when they can't reach each other directly. Two things are needed: the <b>relay secret</b> (it came in the <code>SGD1…</code> code you pasted) and your <b>device key</b> (it's in the app).</p>
+<ol class="flow">
+  <li><span class="who w-dev">Your device</span> works out <b>today's address</b>: HMAC of the relay secret and today's date, 24 characters. Tomorrow it's a different one; the relay accepts yesterday's, today's and tomorrow's, to cover clocks and time zones.</li>
+  <li><span class="who w-dev">Your device</span> opens <code>wss://ac7j332.130-210-34-116.sslip.io/&lt;today's address&gt;</code>. The name is random, so nobody finds it by guessing, and TLS hides the address from anyone watching the network.</li>
+  <li><span class="who w-door">The door</span> (Caddy, the only thing on 443) holds the TLS certificate and passes the connection to the relay inside. <span class="no404">Any other address gets a bare 404 that names nothing.</span></li>
+  <li><span class="who w-dev">Your device</span> speaks first, once: the <b>owner-signed roster</b>, plus <code>relay|&lt;mesh&gt;|&lt;device&gt;|&lt;time&gt;</code> signed with its own device key.</li>
+  <li><span class="who w-relay">The relay</span> checks: is the roster's owner the <b>fingerprint</b> it was given? Is the owner's signature good? Is this device in it? Is its signature good, and the time within two minutes (so nobody can replay an old hello)? <span class="no404">Any “no”: the socket closes without a word.</span></li>
+  <li><span class="who w-relay">The relay</span> says welcome and who else of your mesh is there. From now on it forwards <code>to → from</code> frames between members of <b>your</b> mesh only. Each frame is sealed with the pair's own key, so the relay carries noise it can't read. It keeps no files and logs nothing about who talked to whom.</li>
+</ol>
+
+<h2 id="k-gates">6. Opening a Node-RED, step by step</h2>
+<p>A browser can't sign its first message the way the app does, so NaoMuse signs for it. Each Node-RED has two locks in a row: the <b>gate</b> (only your devices) and Node-RED's own <b>login</b>.</p>
+<ol class="flow">
+  <li><span class="who w-dev">NaoMuse</span>: you press <b>Open</b> beside Cloud or Home Node-RED (Settings › Connections › Dark servers). It makes a <b>knock link</b>: the gate's today's address (from the relay secret, as above), with the roster and <code>gate|&lt;mesh&gt;|&lt;device&gt;|&lt;time&gt;</code> signed by its device key. Good for one minute, and only once.</li>
+  <li><span class="who w-gate">The gate</span> checks the same things the relay does: the fingerprint (<code>GATE_OWNER</code>), both signatures, the minute. <span class="no404">Anything else, any other address, a second use: bare 404.</span></li>
+  <li><span class="who w-gate">The gate</span> gives your browser a <b>cookie</b> for 12 hours, signed with the relay secret, so it remembers nothing itself. With it, everything is passed through to Node-RED, web sockets too.</li>
+  <li><span class="who w-nr">Node-RED</span> asks for its login: user <code>admin</code>, and the password from <code>naomuse-install --passwords</code> (home and cloud each have their own). Credentials stored in your flows are encrypted with a separate key per Node-RED.</li>
+</ol>
+<p><b>Home and cloud talk to each other</b> through the <b>link</b>: home Node-RED dials out to the hub on Oracle (home is never reachable from outside), both prove they know the <b>link secret</b>, and the cloud can only call actions home has published by name in <code>capabilities.json</code>, with only the values each one takes. So even a taken-over Oracle machine gets only those actions.</p>
+
+<h2 id="k-oracle">7. The Oracle machine's own locks</h2>
+<ul>
+  <li><b>Your SSH key</b> <code>~/.ssh/naomuse-a1.key</code> is the only way to log in (passwords and root logins are off). Its passphrase is in the Mac's Keychain and in <code>~/StudioGen-update-keys/oracle-ssh-passphrase.txt</code>. Secrets reach the machine only over SSH, into <code>~/naomuse</code>, which only your login can open.</li>
+  <li><b>Two firewalls</b>, Oracle's security list and the machine's own (IPv4 and IPv6): only 22, 443, 3478 and 49160–49200 are open. The servers behind the door listen on the machine itself only.</li>
+  <li><b>TURN</b> (3478) helps two devices on hard networks connect for calls and video; it hands out relaying only to a login made from the <b>TURN secret</b>, valid for minutes, and refuses private addresses as destinations so it can't be turned against your network. With CamGen's slot it takes logins from a second secret too, CamGen's own, so either can be changed without touching the other.</li>
+  <li><b>The door keeps no record of who came</b>: no request log, and no error log (which would name each visitor's address).</li>
+</ul>
+<div class="card ok"><b>The apps use it.</b> The <code>SGD1…</code> code carries TURN's address and secret. Each app makes its own login from the secret, the way coturn checks it: the user is <code>&lt;when it ends&gt;:&lt;device&gt;</code> and the password an HMAC of it. Each login is good for 12 hours and renewed every hour. Every WebRTC link (the phone-and-Mac direct link, the mesh's direct links) then offers your TURN, and no public STUN server is asked for your address any more. Paste a new code after <code>--rotate turn</code>, as after <code>--rotate relay</code>.</div>
+
+<h2 id="k-access">8. How you reach each thing</h2>
+<div class="wrap"><table>
+<tr><th>Thing</th><th>Where it runs</th><th>How you get in</th><th>What you need</th></tr>
+<tr><td><b>Dark relay</b></td><td>Oracle, behind the door</td><td>Nothing to open: the apps use it on their own once the code is pasted. Settings › Connections › Dark servers says <b>Relay up</b>.</td><td>The <code>SGD1…</code> code in each device; a device in your mesh</td></tr>
+<tr><td><b>Cloud Node-RED</b></td><td>Oracle, behind the cloud gate</td><td>NaoMuse › Settings › Connections › Dark servers › <b>Open</b> beside Cloud Node-RED, then log in.</td><td>A device in your mesh; <code>admin</code> + the cloud password</td></tr>
+<tr><td><b>Home Node-RED</b></td><td>This Mac, behind the home gate (<code>http://192.168.1.23:8030</code>)</td><td>The same, <b>Open</b> beside Home Node-RED. Only on your home network: from outside, use the cloud Node-RED, which reaches home through the link.</td><td>On the home Wi-Fi; <code>admin</code> + the home password</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td>This Mac (<code>http://192.168.1.17:8840</code>)</td><td>Add it once: Settings › Connections › NaoMuseHive › + Add. Then the apps use it on their own.</td><td>Its admin code (printed by the installer; <code>docker logs studiogbee</code>)</td></tr>
+<tr><td><b>The Oracle machine</b></td><td>130.210.34.116</td><td><code>ssh naomuse-a1</code>. Status: <code>naomuse-install --status</code>, tests: <code>--test</code>.</td><td>Your SSH key (in the Keychain)</td></tr>
+</table></div>
+
+<h2 id="k-all">9. Every key and secret, in one table</h2>
+<div class="wrap"><table>
+<tr><th>Name</th><th>Kind</th><th>Made by</th><th>Kept in</th><th>Used by</th></tr>
+<tr><td>Update signing key</td><td><span class="kind k-sec">secret</span></td><td>You, once</td><td><code>~/StudioGen-update-keys/update-private.pem</code></td><td>PublishApps, signing update.json</td></tr>
+<tr><td>Update public key</td><td><span class="kind k-pub">public</span></td><td>From the one above</td><td>desktop/updater.js; built into the installer</td><td>NaoMuse's updater, naomuse-install</td></tr>
+<tr><td>Mac certificate + password</td><td><span class="kind k-sec">secret</span></td><td>You, once</td><td><code>~/StudioGen-update-keys/</code></td><td>The Mac app build (sign.js)</td></tr>
+<tr><td>GitHub token</td><td><span class="kind k-sec">secret</span></td><td><code>gh auth login</code></td><td>The Mac's Keychain</td><td>PublishApps: pushing the repo and images</td></tr>
+<tr><td>Backup passphrase</td><td><span class="kind k-sec">secret</span></td><td>backup.mjs, or you</td><td><code>~/StudioGen-update-keys/backup-pass.txt</code></td><td>The encrypted source backup</td></tr>
+<tr><td>Device keys</td><td><span class="kind k-sec">secret</span></td><td>Each app, on first mesh use</td><td>That device only</td><td>Signing (roster, hellos, knocks, the hive's challenge); pairwise keys</td></tr>
+<tr><td>Pairwise keys, group key</td><td><span class="kind k-sec">secret</span></td><td>The devices (ECDH; the owner)</td><td>The devices</td><td>Sealing every message</td></tr>
+<tr><td>Roster</td><td><span class="kind k-pub">public</span></td><td>The owner's device signs it</td><td>Every member</td><td>Every member, the relay, the gates</td></tr>
+<tr><td>Fingerprint</td><td><span class="kind k-pub">public</span></td><td>From the owner's public key</td><td>settings.json; the servers' settings</td><td>Relay (RELAY_OWNERS), gates (GATE_OWNER)</td></tr>
+<tr><td>Relay secret</td><td><span class="kind k-sec">secret</span></td><td>setup (naomuse-install)</td><td>settings.json; Oracle's and home's .env; the <code>SGD1…</code> code in each app</td><td>Today's address of the relay and gates; the gates' cookies</td></tr>
+<tr><td><code>SGD1…</code> code</td><td><span class="kind k-sec">secret</span></td><td><code>naomuse-install --code</code></td><td>Each app (Settings › Connections › Dark servers)</td><td>The apps: the relay address, the relay secret, the gates' addresses, TURN's address and secret</td></tr>
+<tr><td>Today's address</td><td><span class="kind k-made">worked out</span></td><td>HMAC(relay secret, date)</td><td>Nowhere</td><td>The apps, the relay, the gates</td></tr>
+<tr><td>Knock link</td><td><span class="kind k-made">worked out</span></td><td>NaoMuse, on Open</td><td>Nowhere (one minute, once)</td><td>The gates</td></tr>
+<tr><td>Gate cookie</td><td><span class="kind k-made">worked out</span></td><td>The gate</td><td>Your browser, 12 hours</td><td>The gate</td></tr>
+<tr><td>TURN secret</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; Oracle's .env</td><td>TURN (coturn); each app, making its own short-lived logins (it's in the <code>SGD1…</code> code)</td></tr>
+<tr><td>CamGen's TURN secret</td><td><span class="kind k-sec">secret</span></td><td>setup (<code>--camgen on</code>)</td><td>settings.json; Oracle's .env; the <code>CGSLOT1…</code> code; CamGen's relay settings</td><td>The same TURN; CamGen's relay making its viewers' logins</td></tr>
+<tr><td><code>CGSLOT1…</code> code</td><td><span class="kind k-sec">secret</span></td><td><code>naomuse-install --camgen-slot</code></td><td><code>~/.camgen/relay/slot</code></td><td>camgen-install: where to put CamGen's relay, and CamGen's TURN secret</td></tr>
+<tr><td>Link secret</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; Oracle's and home's .env</td><td>The hub on Oracle and home's link, proving themselves to each other</td></tr>
+<tr><td>Node-RED passwords</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json (<code>--passwords</code> shows them)</td><td>Node-RED's login, home and cloud</td></tr>
+<tr><td>Node-RED credential keys</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; each Node-RED's .env</td><td>Encrypting credentials kept in flows</td></tr>
+<tr><td>Server names</td><td><span class="kind k-pub">public</span></td><td>setup, at random</td><td>settings.json</td><td>The door's certificates (<code>ac7j332…sslip.io</code>): random so certificate logs say nothing</td></tr>
+<tr><td>Hive admin code</td><td><span class="kind k-sec">secret</span></td><td>The hive, when it first starts</td><td>The hive</td><td>The owner adding the hive to the mesh</td></tr>
+<tr><td>SSH key + passphrase</td><td><span class="kind k-sec">secret</span></td><td>ssh-keygen, on your Mac</td><td><code>~/.ssh/naomuse-a1.key</code>; Keychain; <code>oracle-ssh-passphrase.txt</code></td><td>You and the installer, logging in to Oracle</td></tr>
+</table></div>
+
+<h2 id="k-lost">10. If one leaks, or is lost</h2>
+<div class="wrap"><table>
+<tr><th>If this leaks…</th><th>Someone could…</th><th>Do this</th></tr>
+<tr><td>Update signing key</td><td>Sign updates your NaoMuses would install (if they could also push to the repo)</td><td>The worst one: a new key means a new app version with the new public key. Keep it backed up and private.</td></tr>
+<tr><td><code>SGD1…</code> code / relay secret</td><td>Find today's address. Still not get in: they'd also need a device in your mesh</td><td><code>node stack/setup.mjs --rotate relay</code>, <code>naomuse-install --oracle naomuse-a1</code> and the installer for home, then paste the new code in each app</td></tr>
+<tr><td>Fingerprint</td><td>Nothing: it's public</td><td>Nothing</td></tr>
+<tr><td>A Node-RED password</td><td>Nothing without also passing the gate (a device in your mesh)</td><td><code>--rotate nodered</code>, then install again</td></tr>
+<tr><td>TURN or link secret</td><td>TURN: relay traffic through your machine (it's in the code, so a lost phone counts). Link: pretend to be home or hub</td><td><code>--rotate turn</code> or <code>--rotate link</code>, install again; for TURN, paste the new code in each app</td></tr>
+<tr><td>A device (phone lost)</td><td>Use your mesh as that device</td><td>Owner: remove it from the mesh (the group key changes)</td></tr>
+<tr><td>SSH key</td><td>Log in to the Oracle machine</td><td><code>stack/oracle-newkey.sh</code> (stack/ORACLE.md, A3)</td></tr>
+</table></div>
+<p>Lost rather than leaked: a lost <b>SSH passphrase</b> is fixed by giving the machine a new key (above). Lost <b>dark settings</b> (<code>~/StudioGen-update-keys/dark/</code>) means running setup again and pasting a new code. A lost <b>update key</b> means installed NaoMuses can't be updated in place, so back up <code>~/StudioGen-update-keys/</code> somewhere safe.</p>
+
+<h2 id="k-camgen">11. CamGen and the relay</h2>
+<p>CamGen can't use NaoMuse's relay. That relay only lets in devices of your mesh that sign with mesh keys, and CamGen isn't a mesh member; it has <b>its own relay</b> (<code>CamGen/relay</code>), with its own locks:</p>
+<div class="wrap"><table>
+<tr><th>CamGen's</th><th>What it does</th><th>Like NaoMuse's</th></tr>
+<tr><td><code>RELAY_JOIN_KEY</code></td><td>Lets a CamGen register as a site; stays with the owner</td><td>The admin code of a hive</td></tr>
+<tr><td><code>RELAY_SECRET</code></td><td>Makes each site's secret and viewer key (HMAC), so the relay stores nothing</td><td>The relay secret</td></tr>
+<tr><td>Viewer key</td><td>In the site's invite code; in every viewer's address; the site's own API token still checks every request</td><td>The <code>SGD1…</code> code</td></tr>
+<tr><td><code>TURN_SECRET</code></td><td>In NaoMuse's slot: CamGen's own secret on NaoMuse's TURN (3478). Without the slot: its own coturn on 3479. Either way the relay hands viewers short-lived logins</td><td>NaoMuse's TURN secret (a different one)</td></tr>
+</table></div>
+<p>Each app keeps its own setup and install. NaoMuse only <b>keeps a slot</b> for CamGen, and CamGen's own installer fills it:</p>
+<figure class="fig">
+<svg viewBox="0 0 900 290" role="img" aria-label="NaoMuse's installer keeps a door name and a TURN secret; CamGen's installer runs CamGen's relay in that slot">
+  <rect class="bx" x="20" y="20" width="200" height="70" rx="10"/><text class="t1" x="34" y="46">naomuse-install</text><text class="t2" x="34" y="66">--camgen on, --oracle</text><text class="t2" x="34" y="82">--camgen-slot → CGSLOT1…</text>
+  <rect class="bx" x="20" y="200" width="200" height="70" rx="10"/><text class="t1" x="34" y="226">camgen-install</text><text class="t2" x="34" y="246">--naomuse-slot CGSLOT1…</text><text class="t2" x="34" y="262">its own join key and secret</text>
+  <path class="ar" d="M120,90 V196"/><text class="al" x="128" y="148">the code, by you</text>
+  <rect class="bx-ok" x="330" y="20" width="250" height="60" rx="10"/><text class="t1" x="344" y="44">The door (443)</text><text class="t2" x="344" y="64">a name → camgen-relay; 404 till then</text>
+  <rect class="bx-ok" x="330" y="105" width="250" height="60" rx="10"/><text class="t1" x="344" y="129">TURN (3478)</text><text class="t2" x="344" y="149">NaoMuse's secret, and CamGen's own</text>
+  <rect class="bx-pub" x="650" y="200" width="230" height="70" rx="10"/><text class="t1" x="664" y="226">CamGen's relay</text><text class="t2" x="664" y="246">on naomuse_camgen-net (internal)</text><text class="t2" x="664" y="262">no port of its own</text>
+  <path class="ar" d="M220,50 H326"/><text class="al" x="250" y="42">keeps</text>
+  <path class="ar" d="M220,80 L326,130"/>
+  <path class="ar" d="M220,235 H646"/><text class="al" x="380" y="227">runs it there, over SSH</text>
+  <path class="ar" d="M580,50 C720,50 765,120 765,196"/><text class="al" x="742" y="110">proxies</text>
+  <path class="ar" d="M650,205 L584,160"/><text class="al" x="628" y="176">TURN logins</text>
+</svg>
+<figcaption>NaoMuse runs nothing of CamGen's: it keeps a name on its door and a secret on its TURN. CamGen's installer makes CamGen's own secrets and runs its relay in that place.</figcaption>
+</figure>
+<ol class="flow">
+  <li><span class="who w-dev">NaoMuse's installer</span>: <code>naomuse-install --camgen on</code>, then <code>--oracle naomuse-a1</code>. The door gets a fourth random name leading to <code>camgen-relay:8800</code> on <code>naomuse_camgen-net</code> (an internal network: nothing on it can reach out), and TURN a second secret. Until CamGen's relay is there, that name is a bare 404 like every other.</li>
+  <li><span class="who w-dev">You</span>: <code>naomuse-install --camgen-slot</code> prints the <code>CGSLOT1…</code> code: the name, the network, and TURN's address with CamGen's secret. Treat it like a password.</li>
+  <li><span class="who w-relay">CamGen's installer</span>: <code>camgen-install --pick relay --ssh naomuse-a1 --naomuse-slot 'CGSLOT1…'</code> makes CamGen's join key and relay secret (kept in <code>~/.camgen/relay</code>), builds the relay for Arm, sends it over SSH and runs it on that network with no port of its own and no coturn of its own, then tests it from outside.</li>
+  <li><span class="who w-gate">CamGen</span>: Sites › Join a relay, with the address and join key camgen-install printed. Viewers get CamGen's invite codes; their TURN logins come from CamGen's relay, for NaoMuse's TURN.</li>
+</ol>
+<p>Either side can change its own TURN secret alone (<code>--rotate camgen</code> on NaoMuse's side, then the new code to camgen-install). <code>naomuse-install --camgen off</code> closes the slot; <code>camgen-install --naomuse-slot off</code> goes back to CamGen's own coturn on 3479.</p>
+</section>
+<header class="chap" id="m"><span>Chapter 6</span><h1>MuseTester</h1><p>The apps’ tester: running tests, writing them, recording them, one engine with scripts.</p><a class="src" href="musetester-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-m">
 
 <p class="mut">MuseTester is the apps' main tester. It works NaoMuse, DriveGen, Workers and the mesh the way a person does: it clicks, types, scrolls and waits, and it checks what happens. This guide covers running it and writing new tests. Anyone who adds a feature to the apps also adds a test for it, so this guide is for them too.</p>
@@ -1597,7 +1831,7 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
   <li><b>An app without rpa.js</b>: MuseTester brings the engine from this checkout, so older installed apps still run the tests.</li>
 </ul>
 </section>
-<header class="chap" id="t"><span>Chapter 6</span><h1>Demo Day: the tandem runner</h1><p>The older multi-device runner (MuseTester runs the same journeys now).</p><a class="src" href="tandem-guide.html">Open on its own</a></header>
+<header class="chap" id="t"><span>Chapter 7</span><h1>Demo Day: the tandem runner</h1><p>The older multi-device runner (MuseTester runs the same journeys now).</p><a class="src" href="tandem-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-t">
 
 <p class="mut">A guide for running the Demo Day journey: two NaoMuses and a DriveGen on one Mac, you doing the steps a real user would do, the runner checking each one. No experience with the tests needed.</p>
@@ -1791,7 +2025,7 @@ tests/tandem/sims.sh stop             # shut them all down</pre>
 </table></div>
 <p class="mut">For developers: the journey's steps are in <code>tests/tandem/journeys.mjs</code> (add acts as features land); the runner is <code>tests/tandem/run.mjs</code>; the commands are <code>MeshCmd</code> in <code>js/mesh.js</code>, wired up in <code>js/commands.js</code>.</p>
 </section>
-<header class="chap" id="p"><span>Chapter 7</span><h1>PublishApps</h1><p>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</p><a class="src" href="publishapps-guide.html">Open on its own</a></header>
+<header class="chap" id="p"><span>Chapter 8</span><h1>PublishApps</h1><p>Build, check and publish every app from this Mac: what goes where, when, and the rules that keep the source private.</p><a class="src" href="publishapps-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-p">
 
 <p class="mut">One command builds, checks and publishes everything people use: DriveGen (the web app), NaoMuse (the Mac app), the NaoMuseHive image, the Worker image and the installer. It runs on your Mac, where the source lives, and nowhere else.</p>
@@ -1958,7 +2192,7 @@ node tools/release/backup.mjs --restore &lt;file&gt; &lt;folder&gt;     # gettin
 <tr><td>Something published that shouldn't have been</td><td>Publish again from a commit that fixes it: the newest feed wins, and the website is replaced each time.</td></tr>
 </table></div>
 </section>
-<header class="chap" id="i"><span>Chapter 8</span><h1>The installer</h1><p>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</p><a class="src" href="installer-guide.html">Open on its own</a></header>
+<header class="chap" id="i"><span>Chapter 9</span><h1>The installer</h1><p>Set up the hive, home Node-RED, a Worker and your Oracle machine in containers: what it checks, what can run where, and why.</p><a class="src" href="installer-guide.html">Open on its own</a></header>
 <section class="ch" id="ch-i">
 
 <p class="mut"><code>naomuse-install</code> sets up what runs in containers: on your Mac, NaoMuseHive, home Node-RED behind its dark gate and the Worker image; on your Oracle machine, the dark relay, TURN and the cloud Node-RED. One file, nothing to install first. It checks the Mac, says what can and can't run there and why, lets you choose, then installs, starts and tests.</p>
@@ -2014,7 +2248,7 @@ chmod +x naomuse-install
     [✓] Tests
 
   ↑↓ move  ·  space on/off  ·  ←→ choose  ·  enter continue  ·  esc back</pre>
-<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs your mesh, so Mesh › Create a mesh first, and a NaoMuse with web 164 or newer: the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
+<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs a mesh: with none yet, Mesh › Create a mesh first; the screen is in NaoMuse with web 164 or newer, the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
 <h3>Install</h3>
 <p>Each step in turn with a spinner, a progress bar, and the last lines of what's happening underneath. <b>q</b> twice stops in the middle; what's done stays done, and running it again carries on.</p>
 <h3>Test</h3>
@@ -2049,7 +2283,7 @@ chmod +x naomuse-install
 <h2 id="i-home">7. Home Node-RED, after installing</h2>
 <ol>
   <li><code>naomuse-install --code</code> prints a code. Paste it in NaoMuse › <b>Settings › Connections › Dark servers</b>. Before there's an Oracle machine it holds only the home gate.</li>
-  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (it needs your mesh: Mesh › Create a mesh).</li>
+  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (with no mesh yet, Mesh › Create a mesh first; with one, nothing to do).</li>
   <li><b>Open</b> beside <i>Home Node-RED</i>: your browser goes through the gate (the link works once) to Node-RED's login. The user is <code>admin</code>; the password comes from <code>naomuse-install --passwords</code>.</li>
   <li>What Oracle may ask home to do goes in <code>~/StudioGen-update-keys/dark/home/capabilities.json</code>: one entry per thing, by name. Run the installer again after changing it. Flows for a switch and a camera still: stack/ORACLE.md, Part 4.</li>
 </ol>
@@ -2063,6 +2297,9 @@ chmod +x naomuse-install
   <li>knocks on them from outside the way a stranger would: the relay shut to strangers, TURN answering only address questions without a login, the gates a bare 404, only the door facing the internet.</li>
 </ul>
 <p>Then paste the new <code>--code</code> in NaoMuse and DriveGen: it now holds the relay as well.</p>
+<h3>A slot for CamGen</h3>
+<p>CamGen sets itself up with its own installer; this one runs nothing of CamGen's. It only keeps a place ready: <code>naomuse-install --camgen on</code>, then <code>--oracle naomuse-a1</code>, gives the door one more random name leading to <code>camgen-relay:8800</code> on the network <code>naomuse_camgen-net</code> (a bare 404, naming nothing, until CamGen's relay is there), and TURN a secret of CamGen's own (one coturn takes several, so either can be changed alone). <code>naomuse-install --camgen-slot</code> prints the code to give CamGen's installer: <code>camgen-install --pick relay --ssh naomuse-a1 --naomuse-slot CGSLOT1.…</code>. <code>--camgen off</code> closes the slot again. The tests then also check the slot's name is a bare 404 and that TURN takes a login made from CamGen's secret but not a made-up one.</p>
+<p>The door reads its list of names only when it starts, so the installer restarts it whenever that list changes, after checking the list with Caddy on your Mac first (a broken list would take every server off the internet).</p>
 
 <h2 id="i-options">9. Without the screens: every option</h2>
 <div class="wrap"><table>
@@ -2074,6 +2311,7 @@ chmod +x naomuse-install
 <tr><td><code>--status</code></td><td>What's running.</td></tr>
 <tr><td><code>--stop</code></td><td>Stops it all. Flows, hive data and settings are kept; running it again starts them.</td></tr>
 <tr><td><code>--code</code> / <code>--passwords</code></td><td>The code for the apps / the Node-RED logins.</td></tr>
+<tr><td><code>--camgen on|off</code> / <code>--camgen-slot</code></td><td>Keep (or take away) a slot on the Oracle machine for CamGen's relay; then <code>--oracle</code>. / The code CamGen's installer takes (<code>--naomuse-slot</code>): it holds CamGen's TURN secret.</td></tr>
 <tr><td><code>--uninstall</code> (<code>--pick …</code>, <code>--json</code>)</td><td>Says what it would remove; with <code>--yes</code>, removes it. Without <code>--pick</code>: the containers only (section 12).</td></tr>
 </table></div>
 
@@ -2092,6 +2330,8 @@ chmod +x naomuse-install
 <tr><td>Port 8840 or 8030 is taken by another program</td><td>Stop that program, or leave that part out.</td></tr>
 <tr><td>a container named studiogbee was started another way</td><td><code>docker rm -f studiogbee</code> (its data volume is kept), then run it again.</td></tr>
 <tr><td>can't use Docker on naomuse-a1 over SSH</td><td>Check <code>ssh naomuse-a1 docker ps</code> works (stack/ORACLE.md, steps A3 and A4).</td></tr>
+<tr><td>Read from remote host … Can't assign requested address, or Broken pipe, while sending</td><td>The connection to the Oracle machine dropped. Images go one at a time and each carries on from what arrived (8 tries), so just run it again: what's there whole is kept, what's already loaded is skipped.</td></tr>
+<tr><td>Nothing answers on 443, and the door keeps restarting with “Caddyfile: permission denied”</td><td>An installer from before 15 Nov 2026 left its settings readable by you alone; run this one again (<code>--oracle naomuse-a1</code>).</td></tr>
 <tr><td>TURN: no answer on UDP 3478</td><td>Open UDP 3478 and 49160–49200 in Oracle's security list and on the machine (step A5).</td></tr>
 <tr><td>The engine didn't start</td><td>Open OrbStack (or run <code>colima start</code>) yourself, then run the installer again.</td></tr>
 </table></div>

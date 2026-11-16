@@ -94,7 +94,7 @@ chmod +x naomuse-install
     [✓] Tests
 
   ↑↓ move  ·  space on/off  ·  ←→ choose  ·  enter continue  ·  esc back</pre>
-<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs your mesh, so Mesh › Create a mesh first, and a NaoMuse with web 164 or newer: the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
+<p>Then a few details, only those it doesn't know yet: your <b>mesh fingerprint</b> (NaoMuse › Settings › Connections › Dark servers › Copy; it needs a mesh: with none yet, Mesh › Create a mesh first; the screen is in NaoMuse with web 164 or newer, the Check screen says which yours has), and for an Oracle machine its public IP and SSH host. Then a summary of the steps, and <b>enter</b> to install.</p>
 <h3>Install</h3>
 <p>Each step in turn with a spinner, a progress bar, and the last lines of what's happening underneath. <b>q</b> twice stops in the middle; what's done stays done, and running it again carries on.</p>
 <h3>Test</h3>
@@ -129,7 +129,7 @@ chmod +x naomuse-install
 <h2 id="home">7. Home Node-RED, after installing</h2>
 <ol>
   <li><code>naomuse-install --code</code> prints a code. Paste it in NaoMuse › <b>Settings › Connections › Dark servers</b>. Before there's an Oracle machine it holds only the home gate.</li>
-  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (it needs your mesh: Mesh › Create a mesh).</li>
+  <li>NaoMuseHive: <b>Settings › Connections › NaoMuseHive › + Add a NaoMuseHive</b>, with the address and admin code the last screen shows (with no mesh yet, Mesh › Create a mesh first; with one, nothing to do).</li>
   <li><b>Open</b> beside <i>Home Node-RED</i>: your browser goes through the gate (the link works once) to Node-RED's login. The user is <code>admin</code>; the password comes from <code>naomuse-install --passwords</code>.</li>
   <li>What Oracle may ask home to do goes in <code>~/StudioGen-update-keys/dark/home/capabilities.json</code>: one entry per thing, by name. Run the installer again after changing it. Flows for a switch and a camera still: stack/ORACLE.md, Part 4.</li>
 </ol>
@@ -143,6 +143,9 @@ chmod +x naomuse-install
   <li>knocks on them from outside the way a stranger would: the relay shut to strangers, TURN answering only address questions without a login, the gates a bare 404, only the door facing the internet.</li>
 </ul>
 <p>Then paste the new <code>--code</code> in NaoMuse and DriveGen: it now holds the relay as well.</p>
+<h3>A slot for CamGen</h3>
+<p>CamGen sets itself up with its own installer; this one runs nothing of CamGen's. It only keeps a place ready: <code>naomuse-install --camgen on</code>, then <code>--oracle naomuse-a1</code>, gives the door one more random name leading to <code>camgen-relay:8800</code> on the network <code>naomuse_camgen-net</code> (a bare 404, naming nothing, until CamGen's relay is there), and TURN a secret of CamGen's own (one coturn takes several, so either can be changed alone). <code>naomuse-install --camgen-slot</code> prints the code to give CamGen's installer: <code>camgen-install --pick relay --ssh naomuse-a1 --naomuse-slot CGSLOT1.…</code>. <code>--camgen off</code> closes the slot again. The tests then also check the slot's name is a bare 404 and that TURN takes a login made from CamGen's secret but not a made-up one.</p>
+<p>The door reads its list of names only when it starts, so the installer restarts it whenever that list changes, after checking the list with Caddy on your Mac first (a broken list would take every server off the internet).</p>
 
 <h2 id="options">9. Without the screens: every option</h2>
 <div class="wrap"><table>
@@ -154,6 +157,7 @@ chmod +x naomuse-install
 <tr><td><code>--status</code></td><td>What's running.</td></tr>
 <tr><td><code>--stop</code></td><td>Stops it all. Flows, hive data and settings are kept; running it again starts them.</td></tr>
 <tr><td><code>--code</code> / <code>--passwords</code></td><td>The code for the apps / the Node-RED logins.</td></tr>
+<tr><td><code>--camgen on|off</code> / <code>--camgen-slot</code></td><td>Keep (or take away) a slot on the Oracle machine for CamGen's relay; then <code>--oracle</code>. / The code CamGen's installer takes (<code>--naomuse-slot</code>): it holds CamGen's TURN secret.</td></tr>
 <tr><td><code>--uninstall</code> (<code>--pick …</code>, <code>--json</code>)</td><td>Says what it would remove; with <code>--yes</code>, removes it. Without <code>--pick</code>: the containers only (section 12).</td></tr>
 </table></div>
 
@@ -172,6 +176,8 @@ chmod +x naomuse-install
 <tr><td>Port 8840 or 8030 is taken by another program</td><td>Stop that program, or leave that part out.</td></tr>
 <tr><td>a container named studiogbee was started another way</td><td><code>docker rm -f studiogbee</code> (its data volume is kept), then run it again.</td></tr>
 <tr><td>can't use Docker on naomuse-a1 over SSH</td><td>Check <code>ssh naomuse-a1 docker ps</code> works (stack/ORACLE.md, steps A3 and A4).</td></tr>
+<tr><td>Read from remote host … Can't assign requested address, or Broken pipe, while sending</td><td>The connection to the Oracle machine dropped. Images go one at a time and each carries on from what arrived (8 tries), so just run it again: what's there whole is kept, what's already loaded is skipped.</td></tr>
+<tr><td>Nothing answers on 443, and the door keeps restarting with “Caddyfile: permission denied”</td><td>An installer from before 15 Nov 2026 left its settings readable by you alone; run this one again (<code>--oracle naomuse-a1</code>).</td></tr>
 <tr><td>TURN: no answer on UDP 3478</td><td>Open UDP 3478 and 49160–49200 in Oracle's security list and on the machine (step A5).</td></tr>
 <tr><td>The engine didn't start</td><td>Open OrbStack (or run <code>colima start</code>) yourself, then run the installer again.</td></tr>
 </table></div>

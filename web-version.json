@@ -1,7 +1,7 @@
 {
-  "version": 1000,
+  "version": 1001,
   "vendorHash": "2829ad9006ac3299b6ae1d6c64b742b7c6842b352fd0864dced4b1ec835071f8",
-  "commit": "w1000",
+  "commit": "w1001",
   "lazy": {
     "vendor/mediapipe/models/face_landmarker.task": {
       "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keys and Secrets</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#ffffff; --ink:#1d2330; --mut:#5b6472; --line:#dfe3ec; --acc:#2f6fde; --ok:#1f9d61; --warn:#c77700; --bad:#d33b3b; --pub:#7a4fd0; --soft:#eef2fb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --pub:#b79bff; --soft:#20283a; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#12151b; --card:#1b1f28; --ink:#eef0f4; --mut:#a3abb8; --line:#2c3240; --acc:#6ea0ff; --ok:#45c98a; --warn:#ffb14a; --bad:#ff6b6b; --pub:#b79bff; --soft:#20283a; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; } h2 { font-size:23px; margin:42px 0 10px; } h3 { font-size:18px; margin:22px 0 6px; }
+  p, li { max-width:75ch; } .mut { color:var(--mut); } a { color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:14px 0; }
+  .tip { border-left:5px solid var(--warn); } .ok { border-left:5px solid var(--ok); } .no { border-left:5px solid var(--bad); }
+  code, pre { font:13.5px ui-monospace, Menlo, monospace; } code { background:var(--line); padding:1px 5px; border-radius:6px; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px 14px; border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:14.5px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .wrap { overflow-x:auto; } .toc { columns:2 240px; padding-left:20px; }
+  .kind { display:inline-block; font-size:11.5px; font-weight:600; padding:1px 7px; border-radius:20px; white-space:nowrap; }
+  .k-pub { color:var(--pub); border:1px solid var(--pub); } .k-sec { color:var(--bad); border:1px solid var(--bad); } .k-made { color:var(--ok); border:1px solid var(--ok); }
+  /* diagrams */
+  .fig { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin:16px 0; overflow-x:auto; }
+  .fig svg { display:block; width:100%; min-width:680px; height:auto; }
+  .fig figcaption { color:var(--mut); font-size:13.5px; margin-top:8px; }
+  .bx { fill:var(--soft); stroke:var(--line); stroke-width:1.5; }
+  .bx-sec { fill:var(--soft); stroke:var(--bad); stroke-width:1.5; }
+  .bx-pub { fill:var(--soft); stroke:var(--pub); stroke-width:1.5; }
+  .bx-ok { fill:var(--soft); stroke:var(--ok); stroke-width:1.5; }
+  .t1 { fill:var(--ink); font:600 14px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .t2 { fill:var(--mut); font:12.5px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .tm { fill:var(--ink); font:12.5px ui-monospace, Menlo, monospace; }
+  .ar { stroke:var(--mut); stroke-width:1.6; fill:none; marker-end:url(#ah); }
+  .al { fill:var(--acc); font:600 12px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .ahd { fill:var(--mut); }
+  /* step flows */
+  .flow { list-style:none; padding:0; margin:16px 0; counter-reset:s; }
+  .flow li { counter-increment:s; position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px 10px 54px; margin:0 0 10px; max-width:none; }
+  .flow li::before { content:counter(s); position:absolute; left:14px; top:10px; width:26px; height:26px; border-radius:50%; background:var(--acc); color:#fff; font-weight:700; font-size:13px; display:grid; place-items:center; }
+  .flow li:not(:last-child)::after { content:""; position:absolute; left:26px; bottom:-11px; height:11px; border-left:2px solid var(--line); }
+  .who { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; margin-right:6px; }
+  .w-dev { color:var(--acc); } .w-door { color:var(--warn); } .w-relay { color:var(--ok); } .w-gate { color:var(--pub); } .w-nr { color:var(--bad); }
+  .no404 { color:var(--bad); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Keys and secrets: who makes them, who holds them, who checks them</h1>
+<p class="mut">Every lock in the apps, in one place: the keys that sign updates, the keys that make your mesh yours, the fingerprint and secrets your dark servers check, the passwords on your Node-REDs, and what CamGen would need. For each: where it's made, where it lives, who uses it, and what happens if it leaks or is lost.</p>
+
+<ul class="toc">
+  <li><a href="#kinds">1. Three kinds of thing</a></li>
+  <li><a href="#publish">2. Publishing: proving an update is yours</a></li>
+  <li><a href="#mesh">3. The mesh: proving a device is yours</a></li>
+  <li><a href="#fingerprint">4. The fingerprint: pinning the servers to your mesh</a></li>
+  <li><a href="#relay">5. Reaching the relay, step by step</a></li>
+  <li><a href="#gates">6. Opening a Node-RED, step by step</a></li>
+  <li><a href="#oracle">7. The Oracle machine's own locks</a></li>
+  <li><a href="#access">8. How you reach each thing</a></li>
+  <li><a href="#all">9. Every key and secret, in one table</a></li>
+  <li><a href="#lost">10. If one leaks, or is lost</a></li>
+  <li><a href="#camgen">11. CamGen and the relay</a></li>
+</ul>
+
+<h2 id="kinds">1. Three kinds of thing</h2>
+<div class="wrap"><table>
+<tr><th>Kind</th><th>What it is</th><th>Rule</th></tr>
+<tr><td><span class="kind k-sec">secret</span></td><td>A private key, password or shared secret. Whoever has it can do what it allows.</td><td>Never leaves where it was made, except over SSH or inside a code you paste yourself.</td></tr>
+<tr><td><span class="kind k-pub">public</span></td><td>A public key or a fingerprint of one. It lets anyone <b>check</b> a signature, but can't make one.</td><td>Safe to copy, email, put in a settings file or in the app itself.</td></tr>
+<tr><td><span class="kind k-made">worked out</span></td><td>Made fresh from a secret each time (today's door address, a knock link, a cookie). Short-lived on purpose.</td><td>Nothing to keep: if one is seen, it stops working within minutes or a day.</td></tr>
+</table></div>
+<p>Almost everything below is one of two tricks. A <b>signature</b>: a private key signs, and anyone holding the matching public key can check it came from that key and wasn't changed. A <b>shared secret</b>: two sides both hold the same secret, and each proves it knows it by mixing it with something fresh (a date, a time) through HMAC, without ever sending the secret itself.</p>
+
+<h2 id="publish">2. Publishing: proving an update is yours</h2>
+<p>These live only on your Mac, in <code>~/StudioGen-update-keys/</code> (outside the source, never committed), or in its Keychain.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="Publishing keys: each key on the left signs or locks something in the middle, which is checked by what is on the right">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <text class="t2" x="20" y="18">ON YOUR MAC (SECRET)</text><text class="t2" x="330" y="18">WHAT IT MAKES</text><text class="t2" x="650" y="18">WHO CHECKS IT</text>
+  <rect class="bx-sec" x="20" y="30" width="230" height="60" rx="10"/><text class="t1" x="34" y="55">update-private.pem</text><text class="t2" x="34" y="75">Ed25519 signing key</text>
+  <rect class="bx" x="330" y="30" width="240" height="60" rx="10"/><text class="t1" x="344" y="55">update.json, signed</text><text class="t2" x="344" y="75">the feed: versions, files, SHA-256s</text>
+  <rect class="bx-pub" x="650" y="30" width="230" height="60" rx="10"/><text class="t1" x="664" y="55">NaoMuse's updater</text><text class="t2" x="664" y="75">naomuse-install too (key built in)</text>
+  <path class="ar" d="M250,60 H326"/><text class="al" x="268" y="52">signs</text><path class="ar" d="M570,60 H646"/><text class="al" x="584" y="52">checked</text>
+
+  <rect class="bx-sec" x="20" y="105" width="230" height="60" rx="10"/><text class="t1" x="34" y="130">Mac certificate .p12</text><text class="t2" x="34" y="150">self-made, plus its password</text>
+  <rect class="bx" x="330" y="105" width="240" height="60" rx="10"/><text class="t1" x="344" y="130">NaoMuse.app, signed</text><text class="t2" x="344" y="150">the same identity every version</text>
+  <rect class="bx-pub" x="650" y="105" width="230" height="60" rx="10"/><text class="t1" x="664" y="130">macOS Keychain</text><text class="t2" x="664" y="150">keeps "Always Allow" across updates</text>
+  <path class="ar" d="M250,135 H326"/><text class="al" x="268" y="127">signs</text><path class="ar" d="M570,135 H646"/><text class="al" x="584" y="127">knows it</text>
+
+  <rect class="bx-sec" x="20" y="180" width="230" height="60" rx="10"/><text class="t1" x="34" y="205">GitHub login (gh)</text><text class="t2" x="34" y="225">token in the Keychain</text>
+  <rect class="bx" x="330" y="180" width="240" height="60" rx="10"/><text class="t1" x="344" y="205">vchahalibm/CarPWA, ghcr.io</text><text class="t2" x="344" y="225">site, feed, DMGs, images</text>
+  <rect class="bx-pub" x="650" y="180" width="230" height="60" rx="10"/><text class="t1" x="664" y="205">Anyone can download</text><text class="t2" x="664" y="225">only you can push</text>
+  <path class="ar" d="M250,210 H326"/><text class="al" x="268" y="202">pushes</text><path class="ar" d="M570,210 H646"/>
+
+  <rect class="bx-sec" x="20" y="255" width="230" height="60" rx="10"/><text class="t1" x="34" y="280">backup-pass.txt</text><text class="t2" x="34" y="300">the backup passphrase</text>
+  <rect class="bx" x="330" y="255" width="240" height="60" rx="10"/><text class="t1" x="344" y="280">Encrypted source backup</text><text class="t2" x="344" y="300">kept in the public repo, unreadable</text>
+  <rect class="bx-pub" x="650" y="255" width="230" height="60" rx="10"/><text class="t1" x="664" y="280">Only you can open it</text><text class="t2" x="664" y="300">with that passphrase</text>
+  <path class="ar" d="M250,285 H326"/><text class="al" x="268" y="277">locks</text><path class="ar" d="M570,285 H646"/>
+</svg>
+<figcaption>The update key is the most important one: an update.json it didn't sign is refused by every installed NaoMuse and by the installer, so even someone who could push to the repo couldn't push you an update.</figcaption>
+</figure>
+
+<h2 id="mesh">3. The mesh: proving a device is yours</h2>
+<p>When an app first joins or makes a mesh it makes its own <b>device keys</b>, on the device, and they never leave it: a signing key (ECDSA P-256) and a key-agreement key (ECDH P-256). The device's id is a hash of its public signing key.</p>
+<ul>
+  <li><b>The roster</b> is the list of members and their public keys, <b>signed by the owner's device</b>. Any member can check that signature, so nobody can add themselves.</li>
+  <li><b>Pairwise keys</b>: two devices combine their ECDH keys and each arrives at the same AES-GCM key without sending it. Everything between those two is sealed with it, whichever way it travels: direct, a public broker, the hive, or your dark relay. None of those can read it.</li>
+  <li><b>The group key</b> is made by the owner and given to each member over its pairwise room; it seals what everyone in the mesh shares. When the owner removes someone, it changes.</li>
+  <li><b>Invites and pairing codes</b> (<code>SGM…</code>, <code>SG3…</code>, QR codes) carry a room and a key to get a new device started. Show them only to your own devices. More in <a href="connections-explained.html">How the apps talk</a>, including the optional secret phrase.</li>
+</ul>
+
+<h2 id="fingerprint">4. The fingerprint: pinning the servers to your mesh</h2>
+<p>Your dark servers face the internet. They let a device in if it shows a roster with that device in it, signed by the owner. But anyone can make a mesh of their own and sign a roster naming themselves as owner, and that roster would check out perfectly. So each server must be told <b>which owner</b> counts. That's the fingerprint: your owner's public signing key, run through SHA-256 and cut to 16 characters.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 340" role="img" aria-label="The owner's device key signs the roster; shortened, it becomes the fingerprint, which goes through settings to the relay and the gates">
+  <rect class="bx-sec" x="20" y="30" width="220" height="80" rx="10"/><text class="t1" x="34" y="56">Owner's NaoMuse</text><text class="t2" x="34" y="76">device signing key</text><text class="t2" x="34" y="94">(private half never leaves it)</text>
+  <rect class="bx-pub" x="340" y="30" width="220" height="80" rx="10"/><text class="t1" x="354" y="56">Roster</text><text class="t2" x="354" y="76">members' public keys,</text><text class="t2" x="354" y="94">signed by the owner</text>
+  <rect class="bx" x="660" y="30" width="220" height="80" rx="10"/><text class="t1" x="674" y="56">Every member device</text><text class="t2" x="674" y="76">checks the owner's signature;</text><text class="t2" x="674" y="94">shows it when knocking</text>
+  <path class="ar" d="M240,70 H336"/><text class="al" x="268" y="62">signs</text><path class="ar" d="M560,70 H656"/><text class="al" x="582" y="62">shared</text>
+
+  <rect class="bx-pub" x="20" y="190" width="220" height="90" rx="10"/><text class="t1" x="34" y="216">Fingerprint</text><text class="t2" x="34" y="236">SHA-256 of the owner's public</text><text class="t2" x="34" y="252">key, first 16 characters</text><text class="tm" x="34" y="272">fJD5Ll0ihNbnPl-D</text>
+  <path class="ar" d="M130,110 V186"/><text class="al" x="138" y="152">shortened</text>
+  <rect class="bx" x="340" y="190" width="220" height="90" rx="10"/><text class="t1" x="354" y="216">settings.json on your Mac</text><text class="t2" x="354" y="236">~/StudioGen-update-keys/dark/</text><text class="t2" x="354" y="252">put there by naomuse-install</text><text class="t2" x="354" y="268">(or setup.mjs --set-fingerprint)</text>
+  <path class="ar" d="M240,235 H336"/><text class="al" x="250" y="227">Copy, paste</text>
+  <rect class="bx-ok" x="660" y="170" width="220" height="56" rx="10"/><text class="t1" x="674" y="194">Relay: RELAY_OWNERS</text><text class="t2" x="674" y="213">on Oracle, via SSH</text>
+  <rect class="bx-ok" x="660" y="244" width="220" height="56" rx="10"/><text class="t1" x="674" y="268">Gates: GATE_OWNER</text><text class="t2" x="674" y="287">cloud (Oracle) and home gates</text>
+  <path class="ar" d="M560,225 L656,200"/><path class="ar" d="M560,245 L656,270"/><text class="al" x="566" y="239">MESH_OWNERS</text>
+</svg>
+<figcaption>The fingerprint is public: it names your mesh but can't sign anything. The servers refuse to start without one. If it's wrong, the servers are fine but turn your own devices away: the Dark servers screen says "Relay not reachable".</figcaption>
+</figure>
+<div class="card tip">Where to see yours: NaoMuse › Settings › Connections › Dark servers, “Your mesh fingerprint” (Copy). It only changes if the mesh gets a new owner device. Then: <code>node stack/setup.mjs --set-fingerprint &lt;new&gt;</code> and <code>naomuse-install --oracle naomuse-a1</code>, and the installer again for home.</div>
+
+<h2 id="relay">5. Reaching the relay, step by step</h2>
+<p>The relay carries messages between your devices when they can't reach each other directly. Two things are needed: the <b>relay secret</b> (it came in the <code>SGD1…</code> code you pasted) and your <b>device key</b> (it's in the app).</p>
+<ol class="flow">
+  <li><span class="who w-dev">Your device</span> works out <b>today's address</b>: HMAC of the relay secret and today's date, 24 characters. Tomorrow it's a different one; the relay accepts yesterday's, today's and tomorrow's, to cover clocks and time zones.</li>
+  <li><span class="who w-dev">Your device</span> opens <code>wss://ac7j332.130-210-34-116.sslip.io/&lt;today's address&gt;</code>. The name is random, so nobody finds it by guessing, and TLS hides the address from anyone watching the network.</li>
+  <li><span class="who w-door">The door</span> (Caddy, the only thing on 443) holds the TLS certificate and passes the connection to the relay inside. <span class="no404">Any other address gets a bare 404 that names nothing.</span></li>
+  <li><span class="who w-dev">Your device</span> speaks first, once: the <b>owner-signed roster</b>, plus <code>relay|&lt;mesh&gt;|&lt;device&gt;|&lt;time&gt;</code> signed with its own device key.</li>
+  <li><span class="who w-relay">The relay</span> checks: is the roster's owner the <b>fingerprint</b> it was given? Is the owner's signature good? Is this device in it? Is its signature good, and the time within two minutes (so nobody can replay an old hello)? <span class="no404">Any “no”: the socket closes without a word.</span></li>
+  <li><span class="who w-relay">The relay</span> says welcome and who else of your mesh is there. From now on it forwards <code>to → from</code> frames between members of <b>your</b> mesh only. Each frame is sealed with the pair's own key, so the relay carries noise it can't read. It keeps no files and logs nothing about who talked to whom.</li>
+</ol>
+
+<h2 id="gates">6. Opening a Node-RED, step by step</h2>
+<p>A browser can't sign its first message the way the app does, so NaoMuse signs for it. Each Node-RED has two locks in a row: the <b>gate</b> (only your devices) and Node-RED's own <b>login</b>.</p>
+<ol class="flow">
+  <li><span class="who w-dev">NaoMuse</span>: you press <b>Open</b> beside Cloud or Home Node-RED (Settings › Connections › Dark servers). It makes a <b>knock link</b>: the gate's today's address (from the relay secret, as above), with the roster and <code>gate|&lt;mesh&gt;|&lt;device&gt;|&lt;time&gt;</code> signed by its device key. Good for one minute, and only once.</li>
+  <li><span class="who w-gate">The gate</span> checks the same things the relay does: the fingerprint (<code>GATE_OWNER</code>), both signatures, the minute. <span class="no404">Anything else, any other address, a second use: bare 404.</span></li>
+  <li><span class="who w-gate">The gate</span> gives your browser a <b>cookie</b> for 12 hours, signed with the relay secret, so it remembers nothing itself. With it, everything is passed through to Node-RED, web sockets too.</li>
+  <li><span class="who w-nr">Node-RED</span> asks for its login: user <code>admin</code>, and the password from <code>naomuse-install --passwords</code> (home and cloud each have their own). Credentials stored in your flows are encrypted with a separate key per Node-RED.</li>
+</ol>
+<p><b>Home and cloud talk to each other</b> through the <b>link</b>: home Node-RED dials out to the hub on Oracle (home is never reachable from outside), both prove they know the <b>link secret</b>, and the cloud can only call actions home has published by name in <code>capabilities.json</code>, with only the values each one takes. So even a taken-over Oracle machine gets only those actions.</p>
+
+<h2 id="oracle">7. The Oracle machine's own locks</h2>
+<ul>
+  <li><b>Your SSH key</b> <code>~/.ssh/naomuse-a1.key</code> is the only way to log in (passwords and root logins are off). Its passphrase is in the Mac's Keychain and in <code>~/StudioGen-update-keys/oracle-ssh-passphrase.txt</code>. Secrets reach the machine only over SSH, into <code>~/naomuse</code>, which only your login can open.</li>
+  <li><b>Two firewalls</b>, Oracle's security list and the machine's own (IPv4 and IPv6): only 22, 443, 3478 and 49160–49200 are open. The servers behind the door listen on the machine itself only.</li>
+  <li><b>TURN</b> (3478) helps two devices on hard networks connect for calls and video; it hands out relaying only to a login made from the <b>TURN secret</b>, valid for minutes, and refuses private addresses as destinations so it can't be turned against your network. With CamGen's slot it takes logins from a second secret too, CamGen's own, so either can be changed without touching the other.</li>
+  <li><b>The door keeps no record of who came</b>: no request log, and no error log (which would name each visitor's address).</li>
+</ul>
+<div class="card ok"><b>The apps use it.</b> The <code>SGD1…</code> code carries TURN's address and secret. Each app makes its own login from the secret, the way coturn checks it: the user is <code>&lt;when it ends&gt;:&lt;device&gt;</code> and the password an HMAC of it. Each login is good for 12 hours and renewed every hour. Every WebRTC link (the phone-and-Mac direct link, the mesh's direct links) then offers your TURN, and no public STUN server is asked for your address any more. Paste a new code after <code>--rotate turn</code>, as after <code>--rotate relay</code>.</div>
+
+<h2 id="access">8. How you reach each thing</h2>
+<div class="wrap"><table>
+<tr><th>Thing</th><th>Where it runs</th><th>How you get in</th><th>What you need</th></tr>
+<tr><td><b>Dark relay</b></td><td>Oracle, behind the door</td><td>Nothing to open: the apps use it on their own once the code is pasted. Settings › Connections › Dark servers says <b>Relay up</b>.</td><td>The <code>SGD1…</code> code in each device; a device in your mesh</td></tr>
+<tr><td><b>Cloud Node-RED</b></td><td>Oracle, behind the cloud gate</td><td>NaoMuse › Settings › Connections › Dark servers › <b>Open</b> beside Cloud Node-RED, then log in.</td><td>A device in your mesh; <code>admin</code> + the cloud password</td></tr>
+<tr><td><b>Home Node-RED</b></td><td>This Mac, behind the home gate (<code>http://192.168.1.23:8030</code>)</td><td>The same, <b>Open</b> beside Home Node-RED. Only on your home network: from outside, use the cloud Node-RED, which reaches home through the link.</td><td>On the home Wi-Fi; <code>admin</code> + the home password</td></tr>
+<tr><td><b>NaoMuseHive</b></td><td>This Mac (<code>http://192.168.1.17:8840</code>)</td><td>Add it once: Settings › Connections › NaoMuseHive › + Add. Then the apps use it on their own.</td><td>Its admin code (printed by the installer; <code>docker logs studiogbee</code>)</td></tr>
+<tr><td><b>The Oracle machine</b></td><td>130.210.34.116</td><td><code>ssh naomuse-a1</code>. Status: <code>naomuse-install --status</code>, tests: <code>--test</code>.</td><td>Your SSH key (in the Keychain)</td></tr>
+</table></div>
+
+<h2 id="all">9. Every key and secret, in one table</h2>
+<div class="wrap"><table>
+<tr><th>Name</th><th>Kind</th><th>Made by</th><th>Kept in</th><th>Used by</th></tr>
+<tr><td>Update signing key</td><td><span class="kind k-sec">secret</span></td><td>You, once</td><td><code>~/StudioGen-update-keys/update-private.pem</code></td><td>PublishApps, signing update.json</td></tr>
+<tr><td>Update public key</td><td><span class="kind k-pub">public</span></td><td>From the one above</td><td>desktop/updater.js; built into the installer</td><td>NaoMuse's updater, naomuse-install</td></tr>
+<tr><td>Mac certificate + password</td><td><span class="kind k-sec">secret</span></td><td>You, once</td><td><code>~/StudioGen-update-keys/</code></td><td>The Mac app build (sign.js)</td></tr>
+<tr><td>GitHub token</td><td><span class="kind k-sec">secret</span></td><td><code>gh auth login</code></td><td>The Mac's Keychain</td><td>PublishApps: pushing the repo and images</td></tr>
+<tr><td>Backup passphrase</td><td><span class="kind k-sec">secret</span></td><td>backup.mjs, or you</td><td><code>~/StudioGen-update-keys/backup-pass.txt</code></td><td>The encrypted source backup</td></tr>
+<tr><td>Device keys</td><td><span class="kind k-sec">secret</span></td><td>Each app, on first mesh use</td><td>That device only</td><td>Signing (roster, hellos, knocks, the hive's challenge); pairwise keys</td></tr>
+<tr><td>Pairwise keys, group key</td><td><span class="kind k-sec">secret</span></td><td>The devices (ECDH; the owner)</td><td>The devices</td><td>Sealing every message</td></tr>
+<tr><td>Roster</td><td><span class="kind k-pub">public</span></td><td>The owner's device signs it</td><td>Every member</td><td>Every member, the relay, the gates</td></tr>
+<tr><td>Fingerprint</td><td><span class="kind k-pub">public</span></td><td>From the owner's public key</td><td>settings.json; the servers' settings</td><td>Relay (RELAY_OWNERS), gates (GATE_OWNER)</td></tr>
+<tr><td>Relay secret</td><td><span class="kind k-sec">secret</span></td><td>setup (naomuse-install)</td><td>settings.json; Oracle's and home's .env; the <code>SGD1…</code> code in each app</td><td>Today's address of the relay and gates; the gates' cookies</td></tr>
+<tr><td><code>SGD1…</code> code</td><td><span class="kind k-sec">secret</span></td><td><code>naomuse-install --code</code></td><td>Each app (Settings › Connections › Dark servers)</td><td>The apps: the relay address, the relay secret, the gates' addresses, TURN's address and secret</td></tr>
+<tr><td>Today's address</td><td><span class="kind k-made">worked out</span></td><td>HMAC(relay secret, date)</td><td>Nowhere</td><td>The apps, the relay, the gates</td></tr>
+<tr><td>Knock link</td><td><span class="kind k-made">worked out</span></td><td>NaoMuse, on Open</td><td>Nowhere (one minute, once)</td><td>The gates</td></tr>
+<tr><td>Gate cookie</td><td><span class="kind k-made">worked out</span></td><td>The gate</td><td>Your browser, 12 hours</td><td>The gate</td></tr>
+<tr><td>TURN secret</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; Oracle's .env</td><td>TURN (coturn); each app, making its own short-lived logins (it's in the <code>SGD1…</code> code)</td></tr>
+<tr><td>CamGen's TURN secret</td><td><span class="kind k-sec">secret</span></td><td>setup (<code>--camgen on</code>)</td><td>settings.json; Oracle's .env; the <code>CGSLOT1…</code> code; CamGen's relay settings</td><td>The same TURN; CamGen's relay making its viewers' logins</td></tr>
+<tr><td><code>CGSLOT1…</code> code</td><td><span class="kind k-sec">secret</span></td><td><code>naomuse-install --camgen-slot</code></td><td><code>~/.camgen/relay/slot</code></td><td>camgen-install: where to put CamGen's relay, and CamGen's TURN secret</td></tr>
+<tr><td>Link secret</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; Oracle's and home's .env</td><td>The hub on Oracle and home's link, proving themselves to each other</td></tr>
+<tr><td>Node-RED passwords</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json (<code>--passwords</code> shows them)</td><td>Node-RED's login, home and cloud</td></tr>
+<tr><td>Node-RED credential keys</td><td><span class="kind k-sec">secret</span></td><td>setup</td><td>settings.json; each Node-RED's .env</td><td>Encrypting credentials kept in flows</td></tr>
+<tr><td>Server names</td><td><span class="kind k-pub">public</span></td><td>setup, at random</td><td>settings.json</td><td>The door's certificates (<code>ac7j332…sslip.io</code>): random so certificate logs say nothing</td></tr>
+<tr><td>Hive admin code</td><td><span class="kind k-sec">secret</span></td><td>The hive, when it first starts</td><td>The hive</td><td>The owner adding the hive to the mesh</td></tr>
+<tr><td>SSH key + passphrase</td><td><span class="kind k-sec">secret</span></td><td>ssh-keygen, on your Mac</td><td><code>~/.ssh/naomuse-a1.key</code>; Keychain; <code>oracle-ssh-passphrase.txt</code></td><td>You and the installer, logging in to Oracle</td></tr>
+</table></div>
+
+<h2 id="lost">10. If one leaks, or is lost</h2>
+<div class="wrap"><table>
+<tr><th>If this leaks…</th><th>Someone could…</th><th>Do this</th></tr>
+<tr><td>Update signing key</td><td>Sign updates your NaoMuses would install (if they could also push to the repo)</td><td>The worst one: a new key means a new app version with the new public key. Keep it backed up and private.</td></tr>
+<tr><td><code>SGD1…</code> code / relay secret</td><td>Find today's address. Still not get in: they'd also need a device in your mesh</td><td><code>node stack/setup.mjs --rotate relay</code>, <code>naomuse-install --oracle naomuse-a1</code> and the installer for home, then paste the new code in each app</td></tr>
+<tr><td>Fingerprint</td><td>Nothing: it's public</td><td>Nothing</td></tr>
+<tr><td>A Node-RED password</td><td>Nothing without also passing the gate (a device in your mesh)</td><td><code>--rotate nodered</code>, then install again</td></tr>
+<tr><td>TURN or link secret</td><td>TURN: relay traffic through your machine (it's in the code, so a lost phone counts). Link: pretend to be home or hub</td><td><code>--rotate turn</code> or <code>--rotate link</code>, install again; for TURN, paste the new code in each app</td></tr>
+<tr><td>A device (phone lost)</td><td>Use your mesh as that device</td><td>Owner: remove it from the mesh (the group key changes)</td></tr>
+<tr><td>SSH key</td><td>Log in to the Oracle machine</td><td><code>stack/oracle-newkey.sh</code> (stack/ORACLE.md, A3)</td></tr>
+</table></div>
+<p>Lost rather than leaked: a lost <b>SSH passphrase</b> is fixed by giving the machine a new key (above). Lost <b>dark settings</b> (<code>~/StudioGen-update-keys/dark/</code>) means running setup again and pasting a new code. A lost <b>update key</b> means installed NaoMuses can't be updated in place, so back up <code>~/StudioGen-update-keys/</code> somewhere safe.</p>
+
+<h2 id="camgen">11. CamGen and the relay</h2>
+<p>CamGen can't use NaoMuse's relay. That relay only lets in devices of your mesh that sign with mesh keys, and CamGen isn't a mesh member; it has <b>its own relay</b> (<code>CamGen/relay</code>), with its own locks:</p>
+<div class="wrap"><table>
+<tr><th>CamGen's</th><th>What it does</th><th>Like NaoMuse's</th></tr>
+<tr><td><code>RELAY_JOIN_KEY</code></td><td>Lets a CamGen register as a site; stays with the owner</td><td>The admin code of a hive</td></tr>
+<tr><td><code>RELAY_SECRET</code></td><td>Makes each site's secret and viewer key (HMAC), so the relay stores nothing</td><td>The relay secret</td></tr>
+<tr><td>Viewer key</td><td>In the site's invite code; in every viewer's address; the site's own API token still checks every request</td><td>The <code>SGD1…</code> code</td></tr>
+<tr><td><code>TURN_SECRET</code></td><td>In NaoMuse's slot: CamGen's own secret on NaoMuse's TURN (3478). Without the slot: its own coturn on 3479. Either way the relay hands viewers short-lived logins</td><td>NaoMuse's TURN secret (a different one)</td></tr>
+</table></div>
+<p>Each app keeps its own setup and install. NaoMuse only <b>keeps a slot</b> for CamGen, and CamGen's own installer fills it:</p>
+<figure class="fig">
+<svg viewBox="0 0 900 290" role="img" aria-label="NaoMuse's installer keeps a door name and a TURN secret; CamGen's installer runs CamGen's relay in that slot">
+  <rect class="bx" x="20" y="20" width="200" height="70" rx="10"/><text class="t1" x="34" y="46">naomuse-install</text><text class="t2" x="34" y="66">--camgen on, --oracle</text><text class="t2" x="34" y="82">--camgen-slot → CGSLOT1…</text>
+  <rect class="bx" x="20" y="200" width="200" height="70" rx="10"/><text class="t1" x="34" y="226">camgen-install</text><text class="t2" x="34" y="246">--naomuse-slot CGSLOT1…</text><text class="t2" x="34" y="262">its own join key and secret</text>
+  <path class="ar" d="M120,90 V196"/><text class="al" x="128" y="148">the code, by you</text>
+  <rect class="bx-ok" x="330" y="20" width="250" height="60" rx="10"/><text class="t1" x="344" y="44">The door (443)</text><text class="t2" x="344" y="64">a name → camgen-relay; 404 till then</text>
+  <rect class="bx-ok" x="330" y="105" width="250" height="60" rx="10"/><text class="t1" x="344" y="129">TURN (3478)</text><text class="t2" x="344" y="149">NaoMuse's secret, and CamGen's own</text>
+  <rect class="bx-pub" x="650" y="200" width="230" height="70" rx="10"/><text class="t1" x="664" y="226">CamGen's relay</text><text class="t2" x="664" y="246">on naomuse_camgen-net (internal)</text><text class="t2" x="664" y="262">no port of its own</text>
+  <path class="ar" d="M220,50 H326"/><text class="al" x="250" y="42">keeps</text>
+  <path class="ar" d="M220,80 L326,130"/>
+  <path class="ar" d="M220,235 H646"/><text class="al" x="380" y="227">runs it there, over SSH</text>
+  <path class="ar" d="M580,50 C720,50 765,120 765,196"/><text class="al" x="742" y="110">proxies</text>
+  <path class="ar" d="M650,205 L584,160"/><text class="al" x="628" y="176">TURN logins</text>
+</svg>
+<figcaption>NaoMuse runs nothing of CamGen's: it keeps a name on its door and a secret on its TURN. CamGen's installer makes CamGen's own secrets and runs its relay in that place.</figcaption>
+</figure>
+<ol class="flow">
+  <li><span class="who w-dev">NaoMuse's installer</span>: <code>naomuse-install --camgen on</code>, then <code>--oracle naomuse-a1</code>. The door gets a fourth random name leading to <code>camgen-relay:8800</code> on <code>naomuse_camgen-net</code> (an internal network: nothing on it can reach out), and TURN a second secret. Until CamGen's relay is there, that name is a bare 404 like every other.</li>
+  <li><span class="who w-dev">You</span>: <code>naomuse-install --camgen-slot</code> prints the <code>CGSLOT1…</code> code: the name, the network, and TURN's address with CamGen's secret. Treat it like a password.</li>
+  <li><span class="who w-relay">CamGen's installer</span>: <code>camgen-install --pick relay --ssh naomuse-a1 --naomuse-slot 'CGSLOT1…'</code> makes CamGen's join key and relay secret (kept in <code>~/.camgen/relay</code>), builds the relay for Arm, sends it over SSH and runs it on that network with no port of its own and no coturn of its own, then tests it from outside.</li>
+  <li><span class="who w-gate">CamGen</span>: Sites › Join a relay, with the address and join key camgen-install printed. Viewers get CamGen's invite codes; their TURN logins come from CamGen's relay, for NaoMuse's TURN.</li>
+</ol>
+<p>Either side can change its own TURN secret alone (<code>--rotate camgen</code> on NaoMuse's side, then the new code to camgen-install). <code>naomuse-install --camgen off</code> closes the slot; <code>camgen-install --naomuse-slot off</code> goes back to CamGen's own coturn on 3479.</p>
+</main>
+</body>
+</html>

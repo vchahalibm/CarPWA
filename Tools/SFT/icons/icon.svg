@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="112" fill="#7d37e0"/>
+<g fill="#fff"><rect x="101" y="344" width="22" height="56" rx="11"/><rect x="137" y="320" width="22" height="104" rx="11"/><rect x="173" y="286" width="22" height="172" rx="11"/><rect x="209" y="313" width="22" height="118" rx="11"/><rect x="245" y="295" width="22" height="154" rx="11"/><rect x="281" y="322" width="22" height="100" rx="11"/><rect x="317" y="340" width="22" height="64" rx="11"/><rect x="353" y="295" width="22" height="154" rx="11"/><rect x="389" y="326" width="22" height="92" rx="11"/></g>
+<g stroke-linejoin="round" stroke-linecap="round">
+<path id="l" d="M278 158H166V126L70 180L166 234V202H278Z" fill="none" stroke="#fff" stroke-width="44"/>
+<path id="r" d="M238 88H350V56L446 110L350 164V132H238Z" fill="none" stroke="#fff" stroke-width="44"/>
+<path d="M278 158H166V126L70 180L166 234V202H278Z" fill="#ecb4ea" stroke="#ecb4ea" stroke-width="18"/>
+<path d="M238 88H350V56L446 110L350 164V132H238Z" fill="#d22fe0" stroke="#d22fe0" stroke-width="18"/>
+</g></svg>

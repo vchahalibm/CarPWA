@@ -175,7 +175,7 @@ node tools/musetester/muse.mjs --record my-test      # you use the app; it write
 <h3>Code, when you need it</h3>
 <div class="wrap"><table>
 <tr><th>Step</th><th>Does</th></tr>
-<tr><td><code>eval</code></td><td>Runs <code>js</code> in the app's page; the value goes in <code>as</code>. Use it to set up (a board of controls, a setting) or to read state that isn't on screen. Without <code>return</code> the code is one expression; with it, a function body (await allowed).</td></tr>
+<tr><td><code>eval</code></td><td>Runs <code>js</code> in the app's page; the value goes in <code>as</code> (<code>save: "name.json"</code> also writes the whole value into the run's report folder; the row shows only its start). Use it to set up (a board of controls, a setting) or to read state that isn't on screen. Without <code>return</code> the code is one expression; with it, a function body (await allowed).</td></tr>
 <tr><td><code>until</code></td><td>Waits until <code>js</code> is true, or meets a check, up to <code>timeout</code> s.</td></tr>
 </table></div>
 <div class="card tip">Do things the way a person would (<code>click</code>, <code>type</code>, <code>choose</code>), and use <code>eval</code> for setting up and for looking. A test that clicks through the screens also tests the screens; one that calls the code directly tests only the code.</div>

@@ -28,14 +28,15 @@ app; all of it local; the Mac is the eyes and the phone the remote; the next pha
   only when the screen changed. A frame is kept when 4% or more of a 96 × 54 grey copy differs from the last kept one
   **and it has settled** (the next frame looks the same, or the screen went still for 1.6 s; a playing video is kept
   once every 30 s). Apple's recogniser (Vision, on the device) reads it. One JSON line comes out: the time, the app in
-  front and its window title, the lines of text with where they are, where the pointer is, and a 960-pixel JPEG. The
+  front and its window title (from the window list, as the frame is taken), the lines of text with where they are, where the pointer is, and a 960-pixel JPEG. The
   full picture is never written anywhere.
 - **Left out.** Apps in the exclude list (password managers by default; meeting apps while "Leave out meeting apps" is
   on) are cut out of the capture itself, and nothing is kept while one is in front. NaoMuse's own windows too. A window
   that reads "Incognito" or "Private Browsing" near its top is dropped. Text that looks like a card number, a one-time
   code, a password beside its label, or a key is struck out before anything is written (`strike` in
   `desktop/journal.js`; `tests/journal.cjs`). It can't recognise every private thing, and says so: the menu bar has Pause.
-- **The store.** A record is `{id, at, app, bundle, title, text, mouse}`: about 400 bytes to 3 KB. A line per record in
+- **The store.** A record is `{id, at, app, bundle, title, url, text, mouse, near}` (`url`: a browser's address read from
+  the top of the screen, site and short path parts only; `near`: the words the pointer was on): about 400 bytes to 3 KB. A line per record in
   `<userData>/journal/<day>.jl`, each sealed with the Keychain (safeStorage); small pictures a file each in
   `journal/thumbs`, sealed the same. Without the Keychain nothing is written. Settings in `journal/settings.json`.
 - **Retention.** Pictures 2 days by default (0 to 30; "Forget only the pictures" drops them at once); text 30 days
@@ -86,6 +87,19 @@ beside a routine. gpt-oss stays for reasoning over the descriptions (sessions, r
 picture each.
 
 Not yet measured: a full real working day (cost, battery, how many frames), and how well clicks can be recovered.
+
+**5. The owner's first try-out** (18 Nov, 3½ minutes in Chrome: Outlook mail and calendar, a sign-in): 33 moments, one
+every 6 seconds while working (so nearer 4,000 a busy day than 1,500), 350 to 2,300 characters each, 4.8 MB with
+pictures. The text reads well (mail subjects, senders, calendar entries, addresses). Found and fixed: NaoMuse's own
+windows were kept (the helper cut its own id, not NaoMuse's); the app in front was the one before last; the Settings
+row didn't count. Seen, for the mining phase: every moment repeats the menu bar and bookmarks bar (about 300
+characters), and tab icons read as noise ("ОЖОНОГОЗ"); sign-in pages are kept (no secret was on them); a long
+address was struck as a key (now the address is kept apart, without its long parts).
+
+**Can it automate?** The journal says *what* was done and in which order (app, window, address, the words pointed
+at): enough to recognise a routine and write it as steps for the agent (open this address, read that part). It
+does not record clicks or typing, so it can't replay a session by itself. Phase 4's "Show me once" (Teach me)
+fills that in for steps that need exact clicks.
 
 ## What comes next
 

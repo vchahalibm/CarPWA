@@ -201,6 +201,7 @@ node tools/release/backup.mjs --restore &lt;file&gt; &lt;folder&gt;     # gettin
 <tr><td>The feed was not signed / no signing key</td><td>The key must be at <code>~/StudioGen-update-keys/update-private.pem</code>.</td></tr>
 <tr><td>An image failed to build or push</td><td>Is Docker (OrbStack) running? Then <code>gh auth refresh -s write:packages</code>. A 403 asking ghcr.io for an "anonymous token" meant Docker wasn't signed in to ghcr.io; PublishApps now signs it in with gh's token before pushing.</td></tr>
 <tr><td>The worker image didn't push (<i>failed to copy … Put https://ghcr.io/…</i>)</td><td>The upload of its big layers broke off. Run it again: what reached ghcr.io isn't sent again, so each run gets further. A steadier connection (cable rather than Wi-Fi) helps.</td></tr>
+<tr><td>publish-apps stays on “Checking what is now live”</td><td>A publish-apps from before 16 Nov 2026 kept PublishApps waiting on its question’s pipe after everything was published (the feed and site were already live). Ctrl-C is safe then; the current one ends by itself.</td></tr>
 <tr><td>Checking what's live: "not yet"</td><td>GitHub takes a minute or two. Run <code>curl -sL https://github.com/vchahalibm/CarPWA/releases/download/updates/update.json | head</code> later.</td></tr>
 <tr><td>Something published that shouldn't have been</td><td>Publish again from a commit that fixes it: the newest feed wins, and the website is replaced each time.</td></tr>
 </table></div>
